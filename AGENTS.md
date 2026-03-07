@@ -1,0 +1,118 @@
+# Agent Guide for qdo
+
+This file helps coding agents get up to speed quickly on the qdo project.
+
+## What is qdo?
+
+A CLI data analysis toolkit. Users run commands like `qdo inspect`, `qdo preview`, `qdo profile` against database tables (SQLite, DuckDB, Snowflake) and get formatted output in the terminal.
+
+## Quick Start
+
+```bash
+# Install dependencies (dev includes duckdb for tests)
+uv sync
+
+# Run the CLI
+uv run qdo --help
+
+# Run tests
+uv run pytest
+
+# Lint, format, and type check
+uv run ruff check .
+uv run ruff format .
+uv run ty check
+```
+
+## Critical Rules
+
+### Pay for What You Use
+
+This is the project's core engineering principle. Users should never pay (in install size, startup time, or runtime cost) for features they don't use.
+
+**Install time** — Database backends beyond SQLite are optional extras:
+```bash
+pip install querido               # SQLite only
+pip install 'querido[duckdb]'     # + DuckDB
+pip install 'querido[snowflake]'  # + Snowflake
+```
+
+The factory (`connectors/factory.py`) catches `ImportError` and tells users how to install missing backends. When adding a new backend, always make it opt-in via `[project.optional-dependencies]` in `pyproject.toml`.
+
+**Runtime / Lazy Imports** — All heavy imports must happen inside functions, not at module level. This keeps CLI startup fast. The only top-level imports allowed are: `typer`, stdlib modules, and type-checking-only imports behind `if TYPE_CHECKING`.
+
+```python
+# CORRECT
+def my_command():
+    from rich.table import Table  # imported only when this command runs
+    ...
+
+# WRONG
+from rich.table import Table  # slows down every command, even --help
+```
+
+This applies to everything that isn't `typer` or stdlib: database drivers, Rich, Jinja2, platformdirs.
+
+### SQL Templates
+All database queries must use `.sql` template files in `src/querido/sql/templates/`. Never hardcode SQL strings in Python code (exception: connector `get_columns` methods, which use database-specific mechanisms like `PRAGMA`). Templates use Jinja2 syntax. See `ARCHITECTURE.md` for details.
+
+### Connector Protocol
+All database connectors implement the `Connector` protocol in `connectors/base.py`. Connectors are context managers — always use `with create_connector(config) as conn:` in CLI commands. When adding a new database backend, implement the full protocol including `__enter__`/`__exit__`.
+
+### Input Validation
+Table names are validated at the CLI boundary using `validate_table_name()` from `connectors/base.py`. This prevents SQL injection in templates and f-string interpolations. Always call this before passing a table name to any query.
+
+## Project Layout
+
+Read `ARCHITECTURE.md` for the full structure. Key locations:
+
+- `src/querido/cli/` — CLI commands (one file per subcommand)
+- `src/querido/connectors/` — Database connectors (one file per backend)
+- `src/querido/sql/templates/` — SQL templates (organized by command, then dialect)
+- `src/querido/output/` — Output formatting (Rich tables, future HTML export)
+- `src/querido/config.py` — TOML config loading, connection resolution
+- `tests/integration/` — Integration tests (SQLite + DuckDB)
+
+## Build Plan
+
+See `PLAN.md` for the phased build plan. Work through phases in order. Each phase has concrete deliverables and tests.
+
+## Dependency Management
+
+- **uv** for package management — no `requirements.txt`, everything in `pyproject.toml`
+- **ruff** for linting and formatting
+- **ty** for type checking
+- **pytest** for testing
+- DuckDB and Snowflake are optional extras, not default dependencies
+- DuckDB is included in the `[dependency-groups] dev` group so tests always run
+
+## Config File
+
+Connections are stored in TOML. Location determined by `platformdirs`:
+- Linux: `~/.config/qdo/connections.toml`
+- macOS: `~/Library/Application Support/qdo/connections.toml`
+- Windows: `%APPDATA%\qdo\connections.toml`
+- Override: `QDO_CONFIG` env var
+
+## Code Quality
+
+Before committing any changes, ensure all three checks pass:
+
+```bash
+uv run ruff check .        # lint — must pass with zero errors
+uv run ruff format .       # format — must produce no changes
+uv run ty check            # type check — must pass with zero errors
+```
+
+Ruff config is in `pyproject.toml` (`[tool.ruff]`). Line length is 99. ty config is under `[tool.ty.environment]`.
+
+There are no pre-commit hooks — just run these manually before committing.
+
+## Style Guide
+
+- Keep functions focused and small
+- Don't over-engineer — solve the current problem, not hypothetical future ones
+- Tests should prove things work, not chase coverage numbers
+- Use type hints on function signatures
+- Don't add docstrings/comments unless the logic is non-obvious
+- Connectors are context managers — use `with` statements, not try/finally

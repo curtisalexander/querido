@@ -1,0 +1,100 @@
+import typer
+
+app = typer.Typer(help="Profile table data.")
+
+NUMERIC_TYPE_PREFIXES = (
+    "int",
+    "integer",
+    "bigint",
+    "smallint",
+    "tinyint",
+    "float",
+    "double",
+    "real",
+    "decimal",
+    "numeric",
+    "number",
+    "hugeint",
+)
+
+
+def _is_numeric(type_str: str) -> bool:
+    return type_str.lower().startswith(NUMERIC_TYPE_PREFIXES)
+
+
+@app.callback(invoke_without_command=True)
+def profile(
+    table: str = typer.Option(..., "--table", "-t", help="Table name to profile."),
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
+    columns: str | None = typer.Option(
+        None, "--columns", help="Comma-separated column names to profile."
+    ),
+    sample: int | None = typer.Option(
+        None,
+        "--sample",
+        "-s",
+        help="Sample size (number of rows). Default: auto-sample at >1M rows.",
+    ),
+    no_sample: bool = typer.Option(
+        False, "--no-sample", help="Force full table scan, no sampling."
+    ),
+    db_type: str | None = typer.Option(
+        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
+    ),
+) -> None:
+    """Statistical profile of table columns."""
+    from querido.config import resolve_connection
+    from querido.connectors.base import validate_table_name
+    from querido.connectors.factory import create_connector
+    from querido.output.console import print_profile
+    from querido.sql.renderer import render_template
+
+    validate_table_name(table)
+    config = resolve_connection(connection, db_type)
+
+    with create_connector(config) as connector:
+        col_meta = connector.get_columns(table)
+
+        if columns:
+            filter_names = {c.strip() for c in columns.split(",")}
+            col_meta = [c for c in col_meta if c["name"] in filter_names]
+            if not col_meta:
+                raise typer.BadParameter(f"No matching columns found in '{table}'.")
+
+        col_info = [
+            {"name": c["name"], "type": c["type"], "numeric": _is_numeric(c["type"])}
+            for c in col_meta
+        ]
+
+        # Determine source expression (table or sampled subquery)
+        count_sql = render_template("count", connector.dialect, table=table)
+        row_count_result = connector.execute(count_sql)
+        row_count = row_count_result[0]["cnt"]
+
+        source = table
+        sampled = False
+        sample_size = None
+
+        if not no_sample:
+            auto_threshold = 1_000_000
+            if sample is not None:
+                sample_size = sample
+            elif row_count > auto_threshold:
+                sample_size = 100_000
+
+            if sample_size is not None and sample_size < row_count:
+                if connector.dialect == "duckdb":
+                    source = f"(SELECT * FROM {table} USING SAMPLE {sample_size}) AS _sample"
+                elif connector.dialect == "snowflake":
+                    source = f"(SELECT * FROM {table} SAMPLE ({sample_size} ROWS)) AS _sample"
+                else:
+                    source = (
+                        f"(SELECT * FROM {table} ORDER BY RANDOM() LIMIT {sample_size}) AS _sample"
+                    )
+                sampled = True
+
+        sql = render_template("profile", connector.dialect, columns=col_info, source=source)
+        data = connector.execute(sql)
+        print_profile(table, data, row_count, sampled, sample_size)
