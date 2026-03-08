@@ -7,6 +7,7 @@ from querido.cli.preview import app as preview_app
 from querido.cli.profile import app as profile_app
 from querido.cli.search import app as search_app
 from querido.cli.sql import app as sql_app
+from querido.cli.template import app as template_app
 
 app = typer.Typer(
     name="qdo",
@@ -21,6 +22,7 @@ app.add_typer(preview_app, name="preview")
 app.add_typer(profile_app, name="profile")
 app.add_typer(search_app, name="search")
 app.add_typer(sql_app, name="sql")
+app.add_typer(template_app, name="template")
 
 
 def version_callback(value: bool) -> None:
