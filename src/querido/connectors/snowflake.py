@@ -74,10 +74,12 @@ class SnowflakeConnector:
         from querido.connectors.base import validate_table_name
 
         validate_table_name(table)
+        # Snowflake uppercases unquoted identifiers, so metadata is stored
+        # uppercase.  Use UPPER() to match regardless of what case the user typed.
         rows = self.execute(
             "SELECT column_name, data_type, is_nullable, column_default, comment "
             "FROM information_schema.columns "
-            "WHERE table_name = %s "
+            "WHERE table_name = UPPER(%s) "
             "ORDER BY ordinal_position",
             (table,),
         )
@@ -99,7 +101,7 @@ class SnowflakeConnector:
 
         validate_table_name(table)
         rows = self.execute(
-            "SELECT comment FROM information_schema.tables WHERE table_name = %s",
+            "SELECT comment FROM information_schema.tables WHERE table_name = UPPER(%s)",
             (table,),
         )
         if rows and rows[0].get("COMMENT"):

@@ -52,4 +52,14 @@ def resolve_connection(connection: str, db_type: str | None = None) -> dict:
         else:
             db_type = "sqlite"
 
+    # Validate the file exists for local database types
+    path = Path(connection)
+    if db_type in ("sqlite", "duckdb") and not path.exists():
+        named = ", ".join(sorted(connections)) if connections else None
+        msg = f"Database file not found: {connection}"
+        if named:
+            msg += f"\nNamed connections available: {named}"
+        msg += "\nTo add a named connection run: qdo config add <name> --type <type> --path <path>"
+        raise FileNotFoundError(msg)
+
     return {"type": db_type, "path": connection}

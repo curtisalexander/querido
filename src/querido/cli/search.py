@@ -5,7 +5,9 @@ app = typer.Typer(help="Search table and column metadata.")
 
 @app.callback(invoke_without_command=True)
 def search(
-    pattern: str = typer.Option(..., "--pattern", "-p", help="Search pattern (case-insensitive substring match)."),
+    pattern: str = typer.Option(
+        ..., "--pattern", "-p", help="Search pattern (case-insensitive substring match)."
+    ),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
@@ -17,40 +19,42 @@ def search(
         "--type",
         help="What to search: table, column, or all.",
     ),
-    schema: str | None = typer.Option(
-        None, "--schema", help="Schema filter (Snowflake only)."
-    ),
+    schema: str | None = typer.Option(None, "--schema", help="Schema filter (Snowflake only)."),
 ) -> None:
     """Search for tables and columns matching a pattern."""
-    from querido.config import resolve_connection
-    from querido.connectors.factory import create_connector
+    from querido.cli._util import friendly_errors
 
-    valid_types = {"table", "column", "all"}
-    if search_type not in valid_types:
-        raise typer.BadParameter(
-            f"--type must be one of: {', '.join(sorted(valid_types))}"
-        )
+    @friendly_errors
+    def _run() -> None:
+        from querido.config import resolve_connection
+        from querido.connectors.factory import create_connector
 
-    config = resolve_connection(connection, db_type)
+        valid_types = {"table", "column", "all"}
+        if search_type not in valid_types:
+            raise typer.BadParameter(f"--type must be one of: {', '.join(sorted(valid_types))}")
 
-    with create_connector(config) as connector:
-        from rich.console import Console
+        config = resolve_connection(connection, db_type)
 
-        console = Console(stderr=True)
-        with console.status(f"Searching for [bold]{pattern}[/bold]…"):
-            results = _search_metadata(connector, pattern, search_type, schema)
+        with create_connector(config) as connector:
+            from rich.console import Console
 
-        from querido.cli._util import get_output_format
+            console = Console(stderr=True)
+            with console.status(f"Searching for [bold]{pattern}[/bold]…"):
+                results = _search_metadata(connector, pattern, search_type, schema)
 
-        fmt = get_output_format()
-        if fmt == "rich":
-            from querido.output.console import print_search
+            from querido.cli._util import get_output_format
 
-            print_search(pattern, results)
-        else:
-            from querido.output.formats import format_search
+            fmt = get_output_format()
+            if fmt == "rich":
+                from querido.output.console import print_search
 
-            print(format_search(pattern, results, fmt))
+                print_search(pattern, results)
+            else:
+                from querido.output.formats import format_search
+
+                print(format_search(pattern, results, fmt))
+
+    _run()
 
 
 def _search_metadata(
@@ -79,10 +83,7 @@ def _search_metadata(
     # Filter by schema for Snowflake if specified
     if schema:
         schema_lower = schema.lower()
-        tables = [
-            t for t in tables
-            if t["name"].lower().startswith(schema_lower + ".")
-        ]
+        tables = [t for t in tables if t["name"].lower().startswith(schema_lower + ".")]
 
     search_tables = search_type in ("table", "all")
     search_columns = search_type in ("column", "all")
@@ -93,13 +94,15 @@ def _search_metadata(
 
         # Match table name
         if search_tables and pat in tbl_name.lower():
-            results.append({
-                "table_name": tbl_name,
-                "table_type": tbl_type,
-                "match_type": "table",
-                "column_name": None,
-                "column_type": None,
-            })
+            results.append(
+                {
+                    "table_name": tbl_name,
+                    "table_type": tbl_type,
+                    "match_type": "table",
+                    "column_name": None,
+                    "column_type": None,
+                }
+            )
 
         # Match column names
         if search_columns:
@@ -115,12 +118,14 @@ def _search_metadata(
                 continue
             for col in columns:
                 if pat in col["name"].lower():
-                    results.append({
-                        "table_name": tbl_name,
-                        "table_type": tbl_type,
-                        "match_type": "column",
-                        "column_name": col["name"],
-                        "column_type": col["type"],
-                    })
+                    results.append(
+                        {
+                            "table_name": tbl_name,
+                            "table_type": tbl_type,
+                            "match_type": "column",
+                            "column_name": col["name"],
+                            "column_type": col["type"],
+                        }
+                    )
 
     return results
