@@ -211,6 +211,56 @@ def format_profile(
     return "\n".join(lines)
 
 
+# -- search --------------------------------------------------------------------
+
+
+def format_search(
+    pattern: str,
+    results: list[dict],
+    fmt: str,
+) -> str:
+    if not results:
+        if fmt == "csv":
+            return ""
+        if fmt == "json":
+            return json.dumps({"pattern": pattern, "results": []}, indent=2)
+        return f"No matches found for '{pattern}'."
+
+    if fmt == "json":
+        return json.dumps({"pattern": pattern, "results": results}, indent=2, default=str)
+
+    if fmt == "csv":
+        flat = [
+            {
+                "table_name": r["table_name"],
+                "table_type": r["table_type"],
+                "match_type": r["match_type"],
+                "column_name": r["column_name"] or "",
+                "column_type": r["column_type"] or "",
+            }
+            for r in results
+        ]
+        return _dicts_to_csv(flat)
+
+    # markdown
+    lines = [f"## Search: '{pattern}'", ""]
+    headers = ["Table", "Type", "Match", "Column", "Column Type"]
+    rows = [
+        [
+            r["table_name"],
+            r["table_type"],
+            r["match_type"],
+            r["column_name"] or "",
+            r["column_type"] or "",
+        ]
+        for r in results
+    ]
+    lines.append(_to_markdown_table(headers, rows))
+    lines.append("")
+    lines.append(f"{len(results)} match(es)")
+    return "\n".join(lines)
+
+
 # -- frequencies ---------------------------------------------------------------
 
 

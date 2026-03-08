@@ -31,6 +31,7 @@ querido/
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   ├── profile.py          # `qdo profile` — data profiling
+│       │   ├── search.py          # `qdo search` — metadata search across tables/columns
 │       │   └── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
 │       ├── connectors/
 │       │   ├── __init__.py         # Public API (__all__: Connector, create_connector)
@@ -70,6 +71,7 @@ querido/
     ├── test_preview.py             # Preview command tests (SQLite + DuckDB)
     ├── test_profile.py             # Profile command tests (top-N, frequencies)
     ├── test_renderer.py            # SQL template rendering tests
+    ├── test_search.py              # Search command tests (SQLite + DuckDB)
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
     ├── test_sql.py                 # SQL generation command tests
     └── integration/
@@ -119,6 +121,7 @@ class Connector(Protocol):
     dialect: str  # "sqlite", "duckdb", "snowflake"
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]: ...
+    def get_tables(self) -> list[dict]: ...
     def get_columns(self, table: str) -> list[dict]: ...
     def get_table_comment(self, table: str) -> str | None: ...
     def close(self) -> None: ...

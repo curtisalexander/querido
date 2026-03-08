@@ -57,6 +57,19 @@ class SnowflakeConnector:
         finally:
             cursor.close()
 
+    def get_tables(self) -> list[dict]:
+        rows = self.execute(
+            "SELECT table_name, table_type FROM information_schema.tables "
+            "WHERE table_schema = CURRENT_SCHEMA() ORDER BY table_name"
+        )
+        return [
+            {
+                "name": r["TABLE_NAME"],
+                "type": "view" if "VIEW" in r["TABLE_TYPE"] else "table",
+            }
+            for r in rows
+        ]
+
     def get_columns(self, table: str) -> list[dict]:
         from querido.connectors.base import validate_table_name
 

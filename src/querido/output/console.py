@@ -156,6 +156,42 @@ def print_profile(
     console.print(f"\n  Total rows: [bold]{row_count:,}[/bold]{sample_note}")
 
 
+def print_search(
+    pattern: str,
+    results: list[dict],
+    console: Console | None = None,
+) -> None:
+    """Print search results as a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    if not results:
+        console.print(f"[dim]No matches found for '{pattern}'.[/dim]")
+        return
+
+    grid = Table(title=f"Search: '{pattern}'", show_lines=True)
+    grid.add_column("Table", style="cyan bold")
+    grid.add_column("Type", style="green")
+    grid.add_column("Match", style="yellow")
+    grid.add_column("Column", style="cyan")
+    grid.add_column("Column Type", style="dim")
+
+    for r in results:
+        grid.add_row(
+            r["table_name"],
+            r["table_type"],
+            r["match_type"],
+            r["column_name"] or "",
+            r["column_type"] or "",
+        )
+
+    console.print(grid)
+    console.print(f"\n  [bold]{len(results)}[/bold] match(es)")
+
+
 def print_frequencies(
     table_name: str,
     freq_data: dict[str, list[dict]],

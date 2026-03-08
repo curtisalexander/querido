@@ -46,6 +46,12 @@ Sampling: auto-samples at >1M rows (100k sample). Use `--sample N` to set sample
 
 Top values: `--top N` shows the N most frequent values per column with counts and percentages.
 
+### search — find tables and columns
+```bash
+qdo search -p <pattern> -c <connection> [--type {table,column,all}]
+```
+Case-insensitive substring match across table names and column names. Use `--type table` to search only table/view names, `--type column` for only columns.
+
 ### config — manage connections
 ```bash
 qdo config add --name mydb --type sqlite --path ./data.db

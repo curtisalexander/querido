@@ -4,6 +4,7 @@ from querido.cli.config import app as config_app
 from querido.cli.inspect import app as inspect_app
 from querido.cli.preview import app as preview_app
 from querido.cli.profile import app as profile_app
+from querido.cli.search import app as search_app
 from querido.cli.sql import app as sql_app
 
 app = typer.Typer(
@@ -16,6 +17,7 @@ app.add_typer(config_app, name="config")
 app.add_typer(inspect_app, name="inspect")
 app.add_typer(preview_app, name="preview")
 app.add_typer(profile_app, name="profile")
+app.add_typer(search_app, name="search")
 app.add_typer(sql_app, name="sql")
 
 

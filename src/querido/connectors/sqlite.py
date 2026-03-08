@@ -20,6 +20,13 @@ class SQLiteConnector:
             return []
         return [dict(row) for row in rows]
 
+    def get_tables(self) -> list[dict]:
+        rows = self.execute(
+            "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        )
+        return [{"name": r["name"], "type": r["type"]} for r in rows]
+
     def get_columns(self, table: str) -> list[dict]:
         validate_table_name(table)
         # PRAGMA doesn't support bind parameters, so we use an f-string here.
