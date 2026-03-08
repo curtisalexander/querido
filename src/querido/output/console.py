@@ -99,6 +99,8 @@ def print_profile(
 
     numeric_rows = [r for r in data if r.get("min_val") is not None]
     string_rows = [r for r in data if r.get("min_length") is not None]
+    classified = {r["column_name"] for r in numeric_rows} | {r["column_name"] for r in string_rows}
+    other_rows = [r for r in data if r["column_name"] not in classified]
 
     if numeric_rows:
         grid = Table(title=f"Profile: {table_name} — Numeric Columns", show_lines=True)
@@ -147,6 +149,24 @@ def print_profile(
                 fmt_value(r["distinct_count"]),
                 fmt_value(r["null_count"]),
                 fmt_value(r["null_pct"]),
+            )
+        console.print(grid)
+
+    if other_rows:
+        grid = Table(title=f"Profile: {table_name} — Other Columns", show_lines=True)
+        grid.add_column("Column", style="cyan bold")
+        grid.add_column("Type", style="green")
+        grid.add_column("Nulls", justify="right", style="yellow")
+        grid.add_column("Null %", justify="right", style="yellow")
+        grid.add_column("Distinct", justify="right")
+
+        for r in other_rows:
+            grid.add_row(
+                str(r["column_name"]),
+                str(r["column_type"]),
+                fmt_value(r["null_count"]),
+                fmt_value(r["null_pct"]),
+                fmt_value(r["distinct_count"]),
             )
         console.print(grid)
 

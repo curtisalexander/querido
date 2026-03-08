@@ -41,7 +41,7 @@ class SnowflakeConnector:
         finally:
             cursor.close()
 
-    def execute_arrow(self, sql: str, params: dict | tuple | None = None):
+    def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> object:
         """Execute SQL and return results as a PyArrow Table."""
         import pyarrow as pa
 

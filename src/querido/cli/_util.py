@@ -195,9 +195,7 @@ def _is_db_error(exc: Exception) -> bool:
 
 def _classify_error(exc: Exception) -> str:
     """Produce a human-readable message for *exc*."""
-    import sqlite3
-
-    if isinstance(exc, sqlite3.Error) or _is_db_error(exc):
+    if _is_db_error(exc):
         return _format_db_error(exc)
 
     if isinstance(exc, FileNotFoundError):

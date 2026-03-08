@@ -147,6 +147,8 @@ def format_profile(
     # markdown
     numeric_rows = [r for r in data if r.get("min_val") is not None]
     string_rows = [r for r in data if r.get("min_length") is not None]
+    classified = {r["column_name"] for r in numeric_rows} | {r["column_name"] for r in string_rows}
+    other_rows = [r for r in data if r["column_name"] not in classified]
 
     lines: list[str] = []
 
@@ -199,6 +201,24 @@ def format_profile(
                     fmt_value(r["distinct_count"]),
                     fmt_value(r["null_count"]),
                     fmt_value(r["null_pct"]),
+                ]
+            )
+        lines.append(_to_markdown_table(headers, rows))
+        lines.append("")
+
+    if other_rows:
+        lines.append(f"## Profile: {table_name} — Other Columns")
+        lines.append("")
+        headers = ["Column", "Type", "Nulls", "Null %", "Distinct"]
+        rows = []
+        for r in other_rows:
+            rows.append(
+                [
+                    str(r["column_name"]),
+                    str(r["column_type"]),
+                    fmt_value(r["null_count"]),
+                    fmt_value(r["null_pct"]),
+                    fmt_value(r["distinct_count"]),
                 ]
             )
         lines.append(_to_markdown_table(headers, rows))

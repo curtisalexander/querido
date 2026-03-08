@@ -34,7 +34,7 @@ querido/
 │       │   ├── search.py           # `qdo search` — metadata search across tables/columns
 │       │   └── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
 │       ├── connectors/
-│       │   ├── __init__.py         # Public API (__all__: Connector, create_connector)
+│       │   ├── __init__.py         # Package marker
 │       │   ├── base.py             # Connector Protocol, table name validation
 │       │   ├── factory.py          # Creates connector from config/args
 │       │   ├── sqlite.py           # SQLite connector (stdlib, always available)
@@ -221,7 +221,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_frequencies`.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_frequencies`.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
