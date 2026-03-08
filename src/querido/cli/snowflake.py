@@ -235,6 +235,11 @@ def lineage(
             from querido.output.console import print_snowflake_lineage
 
             print_snowflake_lineage(result)
+        elif fmt == "html":
+            from querido.cli._util import emit_html
+            from querido.output.html import format_snowflake_lineage_html
+
+            emit_html(format_snowflake_lineage_html(result))
         else:
             from querido.output.formats import format_snowflake_lineage
 

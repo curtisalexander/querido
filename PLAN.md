@@ -417,8 +417,25 @@ Promoted to Phase 7 (core refactor) + Phase 8 (TUI implementation). See above fo
 
 Export tables, profiles, and graphs to HTML for viewing in a browser. Start with static export (sortable HTML tables via a template), then optionally grow into a lightweight web app.
 
-- Phase A: `--format html` on existing commands → generates standalone HTML file with sortable table (use a simple JS lib or just `<table>` with sort)
-- Phase B: `qdo serve` launches a local web server (FastAPI/Starlette) showing connected tables with interactive exploration
+#### Phase A: `--format html` (standalone HTML export) ✅
+
+- [x] `src/querido/output/html.py` — HTML rendering module with shared `_html_page()` shell
+  - `_html_page()` builds a complete standalone HTML document (reusable for Phase B web app layout)
+  - `_build_table()` generates `<table>` with `<thead>`/`<tbody>` and `data-idx` attributes for stable sort
+  - Embedded CSS: light/dark mode (`prefers-color-scheme`), sticky headers, hover highlights, responsive layout
+  - Embedded JS: column sorting (click header to cycle asc/desc/none, numeric-aware), row filtering (text input), copy to clipboard (tab-separated), CSV export (download), toast notifications
+  - `open_html()` writes to temp file and opens in default browser via `webbrowser.open()`
+- [x] `--format html` added to valid formats in `cli/main.py`
+- [x] `emit_html()` helper in `cli/_util.py` — writes temp file, opens browser, prints path to stderr
+- [x] All commands dispatch to HTML format: inspect, preview, profile, search, dist, template, lineage, snowflake lineage, frequencies
+- [x] HTML format functions: `format_inspect_html()`, `format_preview_html()`, `format_profile_html()`, `format_search_html()`, `format_dist_html()`, `format_template_html()`, `format_lineage_html()`, `format_snowflake_lineage_html()`, `format_frequencies_html()`
+- [x] Tables in the browser support: click-to-sort columns, filter rows by text, copy visible rows to clipboard, export visible rows as CSV download
+- [x] **Tests**: `tests/test_html_format.py` — 10 tests covering all commands, interactive JS presence, dark mode, export buttons
+
+#### Phase B: `qdo serve` (local web app) — future
+
+- `qdo serve` launches a local web server (FastAPI/Starlette) showing connected tables with interactive exploration
+- Phase B reuses the same `_html_page()` shell and `_build_table()` from `output/html.py`
 - Phase B reuses the same core logic as CLI and TUI
 
 **Architectural note:** Same separation concern as F10. The web layer should call into shared business logic, not reimplement queries. See architectural notes at the bottom.

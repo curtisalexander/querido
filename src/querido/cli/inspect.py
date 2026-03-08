@@ -63,6 +63,15 @@ def inspect(
                 print_inspect(
                     table, columns, row_count, verbose=verbose, table_comment=table_comment
                 )
+            elif fmt == "html":
+                from querido.cli._util import emit_html
+                from querido.output.html import format_inspect_html
+
+                emit_html(
+                    format_inspect_html(
+                        table, columns, row_count, verbose=verbose, table_comment=table_comment
+                    )
+                )
             else:
                 from querido.output.formats import format_inspect
 

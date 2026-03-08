@@ -93,6 +93,11 @@ def profile(
                 from querido.output.console import print_profile
 
                 print_profile(table, data, row_count, sampled, sample_size)
+            elif fmt == "html":
+                from querido.cli._util import emit_html
+                from querido.output.html import format_profile_html
+
+                emit_html(format_profile_html(table, data, row_count, sampled, sample_size))
             else:
                 from querido.output.formats import format_profile
 
@@ -113,6 +118,11 @@ def profile(
                     from querido.output.console import print_frequencies
 
                     print_frequencies(table, freq_data, row_count)
+                elif fmt == "html":
+                    from querido.cli._util import emit_html
+                    from querido.output.html import format_frequencies_html
+
+                    emit_html(format_frequencies_html(table, freq_data, row_count))
                 else:
                     from querido.output.formats import format_frequencies
 
