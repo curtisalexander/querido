@@ -195,13 +195,13 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 
 ### New dependency
 
-- [ ] Add `textual` to `[project.optional-dependencies]`: `tui = ["textual>=0.50"]`
-- [ ] Add `textual-dev` to dev dependencies for testing/debugging
-- [ ] Lazy import in `cli/explore.py` with helpful install message if missing
+- [x] Add `textual` to `[project.optional-dependencies]`: `tui = ["textual>=0.50"]`
+- [x] Add `textual-dev` to dev dependencies for testing/debugging
+- [x] Lazy import in `cli/explore.py` with helpful install message if missing
 
 ### CLI entry point
 
-- [ ] `src/querido/cli/explore.py` — `qdo explore -t <table> -c <connection> [--db-type]`
+- [x] `src/querido/cli/explore.py` — `qdo explore -t <table> -c <connection> [--db-type]`
   - Resolves connection, creates connector
   - Launches Textual app, passing connector + table name
   - Register in `cli/main.py`
@@ -225,38 +225,34 @@ src/querido/tui/
 
 ### Core screens and widgets
 
-- [ ] **ExploreApp** (`tui/app.py`)
+- [x] **ExploreApp** (`tui/app.py`)
   - Accepts connector + table name
-  - Default screen: `TableScreen`
-  - Key bindings: `q` quit, `?` help, `i` inspect, `/` filter, `Escape` clear filter
-  - CSS styling for layout (header, data table, sidebar, status bar)
+  - DataTable with sortable columns (click header to cycle asc/desc/none)
+  - Key bindings: `q` quit, `?` help, `i` inspect, `m` sidebar, `/` filter, `Escape` clear filter, `r` refresh
+  - CSS styling for layout (header, filter bar, data table, sidebar, status bar)
 
-- [ ] **TableScreen** (`tui/screens/table.py`)
-  - Uses `core.preview.get_preview()` to load initial rows
-  - Textual `DataTable` widget with sortable columns
-  - Configurable row limit (start with 1000, paginate or lazy-load)
-  - Column sorting: click header or `s` key to cycle asc/desc/none
-  - Calls `core.inspect.get_inspect()` for column metadata
-
-- [ ] **FilterBar** (`tui/widgets/filter_bar.py`)
+- [x] **FilterBar** (`tui/widgets/filter_bar.py`)
   - Text input at top of screen
-  - Supports simple expressions: `column = value`, `column > N`, `column LIKE '%pattern%'`
+  - Supports SQL WHERE expressions: `column = value`, `column > N`, `column LIKE '%pattern%'`
   - Translates filter to SQL WHERE clause, re-queries via `core/`
-  - Shows active filter count in status bar
+  - Shows filtered status in status bar
 
-- [ ] **MetadataSidebar** (`tui/widgets/sidebar.py`)
+- [x] **MetadataSidebar** (`tui/widgets/sidebar.py`)
   - Toggle with `m` key
-  - Shows column stats for currently selected column (from profile data)
-  - Uses `core.inspect.get_inspect()` and optionally `core.profile.get_profile()`
-  - Displays: type, nullable, distinct count, null %, min/max
+  - Shows column metadata (name, type, nullable, PK, comments)
+  - Uses `core.inspect.get_inspect()` for column metadata
 
-- [ ] **StatusBar** (`tui/widgets/status_bar.py`)
-  - Shows: connection name, table name, row count, active filters, current sort
+- [x] **StatusBar** (`tui/widgets/status_bar.py`)
+  - Shows: table name, row count (displayed/total), filter status, current sort column + direction
 
-- [ ] **InspectScreen** (`tui/screens/inspect.py`)
+- [x] **InspectScreen** (`tui/screens/inspect.py`)
   - Modal/overlay showing full column metadata (like `qdo inspect -v`)
   - Uses `core.inspect.get_inspect(verbose=True)`
-  - Dismiss with `Escape`
+  - Dismiss with `Escape` or `q`
+
+- [x] **HelpScreen** (`tui/screens/help.py`)
+  - Modal overlay showing all key bindings
+  - Dismiss with `Escape`, `q`, or `?`
 
 ### Key bindings
 
@@ -272,14 +268,17 @@ src/querido/tui/
 
 ### Tests
 
-- [ ] `tests/test_explore.py` — test CLI entry point (missing textual → helpful error, valid args → app creation)
-- [ ] `tests/test_tui.py` — Textual's `pilot` testing framework for widget behavior
-  - App launches with test data
-  - DataTable populates with rows
-  - Sort toggles work
-  - Filter bar filters rows
-  - Sidebar shows column metadata
-  - Key bindings respond correctly
+- [x] `tests/test_explore.py` — 5 tests: CLI help, missing args, invalid table name, nonexistent table
+- [x] `tests/test_tui.py` — 14 tests using Textual's `pilot` testing framework
+  - App launches with test data (SQLite + DuckDB)
+  - DataTable populates with correct rows and columns
+  - Max rows limit respected
+  - Inspect screen opens and dismisses via action
+  - Help screen opens and dismisses via action
+  - Sidebar toggles via action
+  - Status bar shows table name, row count, filter/sort indicators
+  - Filter bar receives focus via action
+  - Column metadata loaded on mount
 
 ### Phased delivery
 

@@ -21,6 +21,9 @@ snowflake = [
     "snowflake-connector-python>=3.6",
     "pyarrow>=14",
 ]
+tui = [
+    "textual>=0.50",
+]
 
 [project.scripts]
 qdo = "querido.cli.main:app"
@@ -44,12 +47,16 @@ root = ["src", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "pytest-asyncio>=0.23",
     "duckdb>=1",
     "pyarrow>=14",
     "ruff>=0.9",
     "ty>=0.0.1a7",
+    "textual>=0.50",
+    "textual-dev>=1",
 ]

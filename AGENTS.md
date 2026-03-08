@@ -105,6 +105,12 @@ qdo template -c <connection> -t <table> [--sample-values N]
 ```
 Generates a documentation template with auto-populated metadata (column name, type, nullable, distinct count, min/max, sample values) and placeholder fields for business definitions, data owner, and notes. Default 3 sample values per column; use `--sample-values 0` to skip.
 
+### explore — interactive TUI
+```bash
+qdo explore -c <connection> -t <table> [-r <rows>]
+```
+Interactive terminal UI for data exploration. Requires `pip install 'querido[tui]'`. Key bindings: `q` quit, `?` help, `i` inspect metadata, `m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
+
 ### search — find tables and columns
 ```bash
 qdo search -p <pattern> -c <connection> [--type {table,column,all}]
