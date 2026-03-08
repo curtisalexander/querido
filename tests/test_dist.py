@@ -74,7 +74,7 @@ def test_dist_numeric_sqlite(dist_sqlite: str):
     assert "Distribution" in result.output
     assert "amount" in result.output
     # Should show bucket ranges
-    assert "–" in result.output
+    assert " - " in result.output
 
 
 def test_dist_numeric_buckets_count(dist_sqlite: str):
@@ -149,7 +149,7 @@ def test_dist_numeric_duckdb(dist_duckdb: str):
     )
     assert result.exit_code == 0
     assert "Distribution" in result.output
-    assert "–" in result.output
+    assert " - " in result.output
 
 
 def test_dist_categorical_duckdb(dist_duckdb: str):

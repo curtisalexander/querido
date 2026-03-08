@@ -294,7 +294,7 @@ def format_dist(
         lines = [f"## Distribution: {table_name}.{column}", ""]
         headers = ["Bucket", "Count"]
         rows = [
-            [f"{_fmt(b['bucket_min'])} – {_fmt(b['bucket_max'])}", f"{b['count']:,}"]
+            [f"{_fmt(b['bucket_min'])} - {_fmt(b['bucket_max'])}", f"{b['count']:,}"]
             for b in buckets
         ]
         lines.append(_to_markdown_table(headers, rows))
