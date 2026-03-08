@@ -48,6 +48,19 @@ qdo profile --connection my-db --table users --top 10
 # Show the SQL being executed
 qdo --show-sql preview --connection my-db --table users
 
+# Search for tables and columns by name
+qdo search --pattern user --connection my-db
+
+# Visualize column distribution (numeric histogram or categorical frequencies)
+qdo dist --connection my-db --table users --column age
+
+# Generate SQL statements (select, insert, ddl, scratch, udf, task, procedure)
+qdo sql select --connection my-db --table users
+qdo sql ddl --connection my-db --table users
+
+# Output as JSON, CSV, or Markdown instead of Rich tables
+qdo inspect --connection my-db --table users --format json
+
 # Query a Parquet file directly (table name = filename stem)
 qdo preview --connection data.parquet --table data
 ```
