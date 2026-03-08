@@ -3,9 +3,6 @@
 from querido.connectors.duckdb import DuckDBConnector
 from querido.connectors.factory import create_connector
 from querido.connectors.sqlite import SQLiteConnector
-from tests.conftest import integration_skip
-
-pytestmark = integration_skip
 
 
 class TestSQLiteIntegration:

@@ -87,8 +87,8 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 **Goal**: Onboarding docs for humans and agents.
 
 - [x] `scripts/tutorial.py` — interactive step-by-step tutorial (`uv run python scripts/tutorial.py`)
-- [x] `QUICKSTART.md` — concise agent-friendly reference (setup, commands, schemas, examples)
-- [x] Update both as new commands are added (profile, etc.)
+- [x] `AGENTS.md` — agent onboarding guide (consolidated from earlier QUICKSTART.md)
+- [x] Update docs as new commands are added (profile, etc.)
 
 ## Phase 5: `qdo profile` — Data Profiling
 

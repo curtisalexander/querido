@@ -6,7 +6,7 @@ import csv
 import io
 import json
 
-from querido.output import _fmt
+from querido.output import fmt_value
 
 
 def _to_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
@@ -171,14 +171,14 @@ def format_profile(
                 [
                     str(r["column_name"]),
                     str(r["column_type"]),
-                    _fmt(r["min_val"]),
-                    _fmt(r["max_val"]),
-                    _fmt(r["mean_val"]),
-                    _fmt(r["median_val"]),
-                    _fmt(r["stddev_val"]),
-                    _fmt(r["null_count"]),
-                    _fmt(r["null_pct"]),
-                    _fmt(r["distinct_count"]),
+                    fmt_value(r["min_val"]),
+                    fmt_value(r["max_val"]),
+                    fmt_value(r["mean_val"]),
+                    fmt_value(r["median_val"]),
+                    fmt_value(r["stddev_val"]),
+                    fmt_value(r["null_count"]),
+                    fmt_value(r["null_pct"]),
+                    fmt_value(r["distinct_count"]),
                 ]
             )
         lines.append(_to_markdown_table(headers, rows))
@@ -194,11 +194,11 @@ def format_profile(
                 [
                     str(r["column_name"]),
                     str(r["column_type"]),
-                    _fmt(r["min_length"]),
-                    _fmt(r["max_length"]),
-                    _fmt(r["distinct_count"]),
-                    _fmt(r["null_count"]),
-                    _fmt(r["null_pct"]),
+                    fmt_value(r["min_length"]),
+                    fmt_value(r["max_length"]),
+                    fmt_value(r["distinct_count"]),
+                    fmt_value(r["null_count"]),
+                    fmt_value(r["null_pct"]),
                 ]
             )
         lines.append(_to_markdown_table(headers, rows))
@@ -294,7 +294,7 @@ def format_dist(
         lines = [f"## Distribution: {table_name}.{column}", ""]
         headers = ["Bucket", "Count"]
         rows = [
-            [f"{_fmt(b['bucket_min'])} - {_fmt(b['bucket_max'])}", f"{b['count']:,}"]
+            [f"{fmt_value(b['bucket_min'])} - {fmt_value(b['bucket_max'])}", f"{b['count']:,}"]
             for b in buckets
         ]
         lines.append(_to_markdown_table(headers, rows))

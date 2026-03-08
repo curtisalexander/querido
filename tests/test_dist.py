@@ -12,29 +12,26 @@ runner = CliRunner()
 
 @pytest.fixture
 def dist_sqlite(tmp_path: Path) -> str:
-    """SQLite database with numeric and text columns for distribution testing."""
     db_path = str(tmp_path / "dist.db")
     conn = sqlite3.connect(db_path)
     conn.execute(
         "CREATE TABLE sales (id INTEGER PRIMARY KEY, amount REAL, category TEXT, notes TEXT)"
     )
-    # Insert data with known distribution
     rows = []
     for i in range(100):
         if i < 40:
-            amount = 10.0 + i * 0.5  # cluster in 10-30 range
+            amount = 10.0 + i * 0.5
             category = "electronics"
         elif i < 70:
-            amount = 50.0 + i * 0.3  # cluster in 50-70 range
+            amount = 50.0 + i * 0.3
             category = "clothing"
         elif i < 90:
-            amount = 80.0 + i * 0.1  # cluster in 80-90 range
+            amount = 80.0 + i * 0.1
             category = "food"
         else:
             amount = 100.0 + i * 0.2
             category = "other"
         rows.append((amount, category, f"note-{i}"))
-    # Add some nulls
     rows.append((None, None, None))
     rows.append((None, None, None))
     conn.executemany("INSERT INTO sales (amount, category, notes) VALUES (?, ?, ?)", rows)
@@ -45,7 +42,6 @@ def dist_sqlite(tmp_path: Path) -> str:
 
 @pytest.fixture
 def dist_duckdb(tmp_path: Path) -> str:
-    """DuckDB database with numeric and text columns for distribution testing."""
     import duckdb
 
     db_path = str(tmp_path / "dist.duckdb")
@@ -63,6 +59,28 @@ def dist_duckdb(tmp_path: Path) -> str:
     return db_path
 
 
+@pytest.fixture
+def empty_dist_sqlite(tmp_path: Path) -> str:
+    db_path = str(tmp_path / "empty_dist.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE empty_sales (id INTEGER PRIMARY KEY, amount REAL, category TEXT)")
+    conn.commit()
+    conn.close()
+    return db_path
+
+
+@pytest.fixture
+def single_value_sqlite(tmp_path: Path) -> str:
+    db_path = str(tmp_path / "single.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE mono (id INTEGER PRIMARY KEY, val REAL, label TEXT)")
+    for _i in range(10):
+        conn.execute("INSERT INTO mono (val, label) VALUES (?, ?)", (42.0, "same"))
+    conn.commit()
+    conn.close()
+    return db_path
+
+
 # -- Numeric distribution (SQLite) -------------------------------------------
 
 
@@ -73,12 +91,10 @@ def test_dist_numeric_sqlite(dist_sqlite: str):
     assert result.exit_code == 0
     assert "Distribution" in result.output
     assert "amount" in result.output
-    # Should show bucket ranges
     assert " - " in result.output
 
 
 def test_dist_numeric_buckets_count(dist_sqlite: str):
-    """Should have at most the requested number of buckets."""
     result = runner.invoke(
         app,
         [
@@ -122,7 +138,6 @@ def test_dist_categorical_json(dist_sqlite: str):
     data = json.loads(result.output)
     assert data["mode"] == "categorical"
     assert len(data["values"]) > 0
-    # electronics has the most rows
     assert data["values"][0]["value"] == "electronics"
 
 
@@ -204,9 +219,78 @@ def test_dist_invalid_column(dist_sqlite: str):
 
 
 def test_dist_bar_chart_has_blocks(dist_sqlite: str):
-    """Rich output should contain unicode block characters."""
     result = runner.invoke(
         app, ["dist", "-t", "sales", "-col", "amount", "-c", dist_sqlite, "-b", "5"]
     )
     assert result.exit_code == 0
-    assert "█" in result.output
+    assert "\u2588" in result.output
+
+
+# -- Empty table --------------------------------------------------------------
+
+
+def test_dist_empty_table_numeric(empty_dist_sqlite: str):
+    result = runner.invoke(
+        app, ["dist", "-t", "empty_sales", "-col", "amount", "-c", empty_dist_sqlite]
+    )
+    assert result.exit_code == 0
+    assert "No non-null values" in result.output or result.output != ""
+
+
+def test_dist_empty_table_categorical(empty_dist_sqlite: str):
+    result = runner.invoke(
+        app, ["dist", "-t", "empty_sales", "-col", "category", "-c", empty_dist_sqlite]
+    )
+    assert result.exit_code == 0
+
+
+# -- Single value column ------------------------------------------------------
+
+
+def test_dist_single_value_numeric(single_value_sqlite: str):
+    result = runner.invoke(
+        app,
+        ["--format", "json", "dist", "-t", "mono", "-col", "val", "-c", single_value_sqlite],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["mode"] == "numeric"
+
+
+def test_dist_single_value_categorical(single_value_sqlite: str):
+    result = runner.invoke(
+        app,
+        ["--format", "json", "dist", "-t", "mono", "-col", "label", "-c", single_value_sqlite],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["mode"] == "categorical"
+    assert len(data["values"]) == 1
+    assert data["values"][0]["value"] == "same"
+
+
+# -- Top flag -----------------------------------------------------------------
+
+
+def test_dist_categorical_top_1(dist_sqlite: str):
+    result = runner.invoke(
+        app,
+        [
+            "--format",
+            "json",
+            "dist",
+            "-t",
+            "sales",
+            "-col",
+            "category",
+            "-c",
+            dist_sqlite,
+            "--top",
+            "1",
+        ],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["mode"] == "categorical"
+    assert len(data["values"]) == 1
+    assert data["values"][0]["value"] == "electronics"

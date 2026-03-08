@@ -10,6 +10,7 @@ dependencies = [
     "rich>=13",
     "platformdirs>=4",
     "jinja2>=3",
+    "tomli-w>=1.2",
 ]
 
 [project.optional-dependencies]
@@ -39,7 +40,7 @@ line-length = 99
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ty.environment]
-root = ["src"]
+root = ["src", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -24,7 +24,6 @@ def dist(
     from querido.cli._util import (
         check_table_exists,
         friendly_errors,
-        resolve_column,
     )
 
     @friendly_errors
@@ -51,19 +50,16 @@ def dist(
 
             check_table_exists(connector, table)
 
-            # Resolve column name using case-insensitive match
-            canonical_col = resolve_column(connector, table, column)
+            from querido.cli._util import resolve_column
 
+            canonical_col = resolve_column(connector, table, column)
             col_meta = connector.get_columns(table)
-            col_match = [c for c in col_meta if c["name"] == canonical_col]
-            col_type = col_match[0]["type"]
+            col_type = next(c["type"] for c in col_meta if c["name"] == canonical_col)
             is_num = is_numeric_type(col_type)
 
             # Count nulls
-            null_sql = (
-                f"SELECT COUNT(*) AS total, "
-                f'SUM(CASE WHEN "{canonical_col}" IS NULL THEN 1 ELSE 0 END) AS null_count '
-                f"FROM {table}"
+            null_sql = render_template(
+                "null_count", connector.dialect, column=canonical_col, table=table
             )
             maybe_show_sql(null_sql)
             set_last_sql(null_sql)
@@ -93,9 +89,9 @@ def dist(
                 }
 
                 if fmt == "rich":
-                    from querido.output.console import print_dist_numeric
+                    from querido.output.console import print_dist
 
-                    print_dist_numeric(dist_result)
+                    print_dist(dist_result)
                 else:
                     from querido.output.formats import format_dist
 
@@ -125,9 +121,9 @@ def dist(
                 }
 
                 if fmt == "rich":
-                    from querido.output.console import print_dist_categorical
+                    from querido.output.console import print_dist
 
-                    print_dist_categorical(dist_result)
+                    print_dist(dist_result)
                 else:
                     from querido.output.formats import format_dist
 

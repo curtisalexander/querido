@@ -3,14 +3,6 @@ from pathlib import Path
 
 import pytest
 
-DATA_DIR = Path(__file__).parent.parent / "data"
-
-integration_skip = pytest.mark.skipif(
-    not (DATA_DIR / "test.db").exists() or not (DATA_DIR / "test.duckdb").exists(),
-    reason="Test databases not found. Run: uv run python scripts/init_test_data.py",
-)
-
-
 # --- Unit test fixtures (tiny, in tmp_path) ---
 
 
@@ -54,19 +46,6 @@ def duckdb_with_comments_path(tmp_path: Path) -> str:
     conn.execute("COMMENT ON COLUMN users.age IS 'Age in years'")
     conn.close()
     return db_path
-
-
-# --- Integration test fixtures (real data, requires init-test-data) ---
-
-
-@pytest.fixture
-def integration_sqlite_path() -> str:
-    return str(DATA_DIR / "test.db")
-
-
-@pytest.fixture
-def integration_duckdb_path() -> str:
-    return str(DATA_DIR / "test.duckdb")
 
 
 def pytest_configure(config: pytest.Config) -> None:

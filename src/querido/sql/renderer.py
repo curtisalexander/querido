@@ -2,6 +2,22 @@ from pathlib import Path
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
+_env = None
+
+
+def _get_env():
+    global _env
+    if _env is None:
+        from jinja2 import Environment, FileSystemLoader
+
+        _env = Environment(
+            loader=FileSystemLoader(str(TEMPLATES_DIR)),
+            keep_trailing_newline=True,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+    return _env
+
 
 def render_template(command: str, dialect: str, **kwargs: object) -> str:
     """Load and render a SQL template.
@@ -9,14 +25,9 @@ def render_template(command: str, dialect: str, **kwargs: object) -> str:
     Tries dialect-specific template first (e.g. profile/sqlite.sql),
     then falls back to common.sql.
     """
-    from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+    from jinja2 import TemplateNotFound
 
-    env = Environment(
-        loader=FileSystemLoader(str(TEMPLATES_DIR)),
-        keep_trailing_newline=True,
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
+    env = _get_env()
 
     dialect_path = f"{command}/{dialect}.sql"
     common_path = f"{command}/common.sql"

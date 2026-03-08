@@ -127,6 +127,9 @@ class SnowflakeConnector:
         return table.to_pylist()
 
     def _fetch_standard(self, cursor: object) -> list[dict]:
-        columns = [desc[0] for desc in cursor.description]  # type: ignore[union-attr]
+        desc = cursor.description  # type: ignore[union-attr]
+        if desc is None:
+            return []
+        columns = [d[0] for d in desc]
         rows = cursor.fetchall()  # type: ignore[attr-defined]
         return [dict(zip(columns, row, strict=True)) for row in rows]

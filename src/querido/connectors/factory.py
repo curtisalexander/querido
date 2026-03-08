@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from querido.connectors.base import Connector
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from querido.connectors.base import Connector
 
 
 def create_connector(config: dict) -> Connector:

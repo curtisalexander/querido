@@ -1,4 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import typer
+
+if TYPE_CHECKING:
+    from querido.connectors.base import Connector
 
 app = typer.Typer(help="Search table and column metadata.")
 
@@ -58,7 +65,7 @@ def search(
 
 
 def _search_metadata(
-    connector: object,
+    connector: Connector,
     pattern: str,
     search_type: str,
     schema: str | None,
@@ -72,13 +79,10 @@ def _search_metadata(
       - column_name: str | None (None for table-level matches)
       - column_type: str | None
     """
-    from querido.connectors.base import Connector
-
-    conn: Connector = connector  # type: ignore[assignment]
     pat = pattern.lower()
     results: list[dict] = []
 
-    tables = conn.get_tables()
+    tables = connector.get_tables()
 
     # Filter by schema for Snowflake if specified
     if schema:
@@ -107,7 +111,7 @@ def _search_metadata(
         # Match column names
         if search_columns:
             try:
-                columns = conn.get_columns(tbl_name)
+                columns = connector.get_columns(tbl_name)
             except Exception:
                 import sys
 
