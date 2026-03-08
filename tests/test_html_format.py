@@ -21,8 +21,11 @@ def _invoke_html(args: list[str]) -> tuple[int, str]:
 
     def fake_open(uri: str) -> None:
         # uri is a file:// URL; extract the path
+        from urllib.parse import urlparse
+        from urllib.request import url2pathname
+
         if uri.startswith("file://"):
-            written_path.append(uri.removeprefix("file://"))
+            written_path.append(url2pathname(urlparse(uri).path))
         else:
             written_path.append(uri)
 
