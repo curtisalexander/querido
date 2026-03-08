@@ -45,9 +45,7 @@ def _render(template_name: str, dialect: str, **kwargs: object) -> None:
 
 def _require_snowflake(dialect: str, command: str) -> None:
     if dialect != "snowflake":
-        raise typer.BadParameter(
-            f"'{command}' is only supported for Snowflake connections."
-        )
+        raise typer.BadParameter(f"'{command}' is only supported for Snowflake connections.")
 
 
 def _format_sql_literal(value: object) -> str:
@@ -162,8 +160,7 @@ def scratch(
     # type inspection and SQL escaping that templates aren't suited for.
     col_names = [c["name"] for c in columns]
     formatted_rows = [
-        ", ".join(_format_sql_literal(row.get(n)) for n in col_names)
-        for row in sample_rows
+        ", ".join(_format_sql_literal(row.get(n)) for n in col_names) for row in sample_rows
     ]
 
     _render("scratch", dialect, table=table, columns=columns, rows=formatted_rows)

@@ -5,7 +5,12 @@ app = typer.Typer(help="Search table and column metadata.")
 
 @app.callback(invoke_without_command=True)
 def search(
-    pattern: str = typer.Option(..., "--pattern", "-p", help="Search pattern (case-insensitive substring match)."),
+    pattern: str = typer.Option(
+        ...,
+        "--pattern",
+        "-p",
+        help="Search pattern (case-insensitive substring match).",
+    ),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
@@ -17,9 +22,7 @@ def search(
         "--type",
         help="What to search: table, column, or all.",
     ),
-    schema: str | None = typer.Option(
-        None, "--schema", help="Schema filter (Snowflake only)."
-    ),
+    schema: str | None = typer.Option(None, "--schema", help="Schema filter (Snowflake only)."),
 ) -> None:
     """Search for tables and columns matching a pattern."""
     from querido.config import resolve_connection
@@ -27,9 +30,7 @@ def search(
 
     valid_types = {"table", "column", "all"}
     if search_type not in valid_types:
-        raise typer.BadParameter(
-            f"--type must be one of: {', '.join(sorted(valid_types))}"
-        )
+        raise typer.BadParameter(f"--type must be one of: {', '.join(sorted(valid_types))}")
 
     config = resolve_connection(connection, db_type)
 
@@ -70,7 +71,7 @@ def _search_metadata(
     """
     from querido.connectors.base import Connector
 
-    conn: Connector = connector  # type: ignore[assignment]
+    conn: Connector = connector  # type: ignore[assignment]  # Connector is a Protocol
     pat = pattern.lower()
     results: list[dict] = []
 
@@ -79,10 +80,7 @@ def _search_metadata(
     # Filter by schema for Snowflake if specified
     if schema:
         schema_lower = schema.lower()
-        tables = [
-            t for t in tables
-            if t["name"].lower().startswith(schema_lower + ".")
-        ]
+        tables = [t for t in tables if t["name"].lower().startswith(schema_lower + ".")]
 
     search_tables = search_type in ("table", "all")
     search_columns = search_type in ("column", "all")
@@ -93,34 +91,39 @@ def _search_metadata(
 
         # Match table name
         if search_tables and pat in tbl_name.lower():
-            results.append({
-                "table_name": tbl_name,
-                "table_type": tbl_type,
-                "match_type": "table",
-                "column_name": None,
-                "column_type": None,
-            })
+            results.append(
+                {
+                    "table_name": tbl_name,
+                    "table_type": tbl_type,
+                    "match_type": "table",
+                    "column_name": None,
+                    "column_type": None,
+                }
+            )
 
         # Match column names
         if search_columns:
             try:
                 columns = conn.get_columns(tbl_name)
-            except Exception:
+            except Exception as exc:
                 import sys
 
                 print(
-                    f"Warning: could not read columns for '{tbl_name}', skipping.",
+                    f"Warning: could not read columns for '{tbl_name}' "
+                    f"({type(exc).__name__}: {exc}), skipping.",
                     file=sys.stderr,
                 )
                 continue
             for col in columns:
                 if pat in col["name"].lower():
-                    results.append({
-                        "table_name": tbl_name,
-                        "table_type": tbl_type,
-                        "match_type": "column",
-                        "column_name": col["name"],
-                        "column_type": col["type"],
-                    })
+                    results.append(
+                        {
+                            "table_name": tbl_name,
+                            "table_type": tbl_type,
+                            "match_type": "column",
+                            "column_name": col["name"],
+                            "column_type": col["type"],
+                        }
+                    )
 
     return results

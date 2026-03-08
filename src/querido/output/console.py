@@ -226,7 +226,7 @@ def print_dist_numeric(
     grid.add_column("", width=bar_width)
 
     for b in buckets:
-        label = f"{_fmt(b['bucket_min'])} – {_fmt(b['bucket_max'])}"
+        label = f"{_fmt(b['bucket_min'])} - {_fmt(b['bucket_max'])}"
         count = b["count"]
         pct = round(100.0 * count / non_null_total, 1) if non_null_total > 0 else 0
         w = int((count / max_count) * bar_width) if max_count > 0 else 0

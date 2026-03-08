@@ -78,14 +78,12 @@ def profile(
                 sample_size = 100_000
 
             if sample_size is not None and sample_size < row_count:
-                if connector.dialect == "duckdb":
-                    source = f"(SELECT * FROM {table} USING SAMPLE {sample_size}) AS _sample"
-                elif connector.dialect == "snowflake":
-                    source = f"(SELECT * FROM {table} SAMPLE ({sample_size} ROWS)) AS _sample"
-                else:
-                    source = (
-                        f"(SELECT * FROM {table} ORDER BY RANDOM() LIMIT {sample_size}) AS _sample"
-                    )
+                source = render_template(
+                    "sample",
+                    connector.dialect,
+                    table=table,
+                    sample_size=sample_size,
+                ).strip()
                 sampled = True
 
         sql = render_template("profile", connector.dialect, columns=col_info, source=source)

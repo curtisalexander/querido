@@ -119,7 +119,8 @@ def _write_connections(config_file: Path | str, connections: dict) -> None:
     for name, config in connections.items():
         lines.append(f"[connections.{name}]")
         for key, val in config.items():
-            lines.append(f'{key} = "{val}"')
+            escaped = str(val).replace("\\", "\\\\").replace('"', '\\"')
+            lines.append(f'{key} = "{escaped}"')
         lines.append("")
 
     Path(config_file).write_text("\n".join(lines) + "\n")

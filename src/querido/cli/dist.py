@@ -10,8 +10,20 @@ def dist(
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
-    buckets: int = typer.Option(20, "--buckets", "-b", min=2, max=100, help="Number of buckets for numeric histograms."),
-    top: int = typer.Option(20, "--top", min=1, help="Number of top values for categorical columns."),
+    buckets: int = typer.Option(
+        20,
+        "--buckets",
+        "-b",
+        min=2,
+        max=100,
+        help="Number of buckets for numeric histograms.",
+    ),
+    top: int = typer.Option(
+        20,
+        "--top",
+        min=1,
+        help="Number of top values for categorical columns.",
+    ),
     db_type: str | None = typer.Option(
         None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
     ),
@@ -42,7 +54,12 @@ def dist(
         is_num = is_numeric_type(col_type)
 
         # Count nulls
-        null_sql = f'SELECT COUNT(*) AS total, SUM(CASE WHEN "{column}" IS NULL THEN 1 ELSE 0 END) AS null_count FROM {table}'
+        null_sql = render_template(
+            "null_count",
+            connector.dialect,
+            column=column,
+            table=table,
+        )
         maybe_show_sql(null_sql)
         null_result = connector.execute(null_sql)
         total_rows = null_result[0]["total"]
@@ -51,7 +68,13 @@ def dist(
         fmt = get_output_format()
 
         if is_num:
-            sql = render_template("dist", connector.dialect, column=column, source=table, buckets=buckets)
+            sql = render_template(
+                "dist",
+                connector.dialect,
+                column=column,
+                source=table,
+                buckets=buckets,
+            )
             maybe_show_sql(sql)
             with console.status(f"Computing distribution for [bold]{column}[/bold]…"):
                 data = connector.execute(sql)

@@ -15,11 +15,13 @@ class DuckDBConnector:
         """Register a parquet file as a view and return the view name."""
         from pathlib import Path
 
+        from querido.connectors.base import validate_table_name
+
         p = Path(parquet_path)
         if not p.exists():
             raise FileNotFoundError(f"Parquet file not found: {parquet_path}")
         resolved = str(p.resolve())
-        name = p.stem
+        name = validate_table_name(p.stem)
         # Escape single quotes in the path to prevent injection
         safe_path = resolved.replace("'", "''")
         self.conn.execute(

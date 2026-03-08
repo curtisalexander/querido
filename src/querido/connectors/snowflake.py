@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import pyarrow as pa
 
 
 class SnowflakeConnector:
@@ -41,7 +44,7 @@ class SnowflakeConnector:
         finally:
             cursor.close()
 
-    def execute_arrow(self, sql: str, params: dict | tuple | None = None):
+    def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> pa.Table:
         """Execute SQL and return results as a PyArrow Table."""
         import pyarrow as pa
 

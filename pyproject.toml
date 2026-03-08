@@ -39,7 +39,7 @@ line-length = 99
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ty.environment]
-root = ["src"]
+root = ["src", "."]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -15,15 +15,9 @@ def multi_table_sqlite(tmp_path: Path) -> str:
     """SQLite database with multiple tables and views for search testing."""
     db_path = str(tmp_path / "search.db")
     conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE users (id INTEGER PRIMARY KEY, user_name TEXT, email TEXT)"
-    )
-    conn.execute(
-        "CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER, total REAL)"
-    )
-    conn.execute(
-        "CREATE TABLE products (id INTEGER PRIMARY KEY, product_name TEXT, price REAL)"
-    )
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, user_name TEXT, email TEXT)")
+    conn.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER, total REAL)")
+    conn.execute("CREATE TABLE products (id INTEGER PRIMARY KEY, product_name TEXT, price REAL)")
     conn.execute(
         "CREATE VIEW user_orders AS SELECT u.user_name, o.total "
         "FROM users u JOIN orders o ON u.id = o.user_id"
@@ -40,12 +34,8 @@ def multi_table_duckdb(tmp_path: Path) -> str:
 
     db_path = str(tmp_path / "search.duckdb")
     conn = duckdb.connect(db_path)
-    conn.execute(
-        "CREATE TABLE users (id INTEGER PRIMARY KEY, user_name VARCHAR, email VARCHAR)"
-    )
-    conn.execute(
-        "CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER, total DOUBLE)"
-    )
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, user_name VARCHAR, email VARCHAR)")
+    conn.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER, total DOUBLE)")
     conn.execute(
         "CREATE TABLE products (id INTEGER PRIMARY KEY, product_name VARCHAR, price DOUBLE)"
     )
