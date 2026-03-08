@@ -46,6 +46,9 @@ def resolve_connection(connection: str, db_type: str | None = None) -> dict:
     if db_type is None:
         if connection.endswith(".duckdb") or connection.endswith(".ddb"):
             db_type = "duckdb"
+        elif connection.endswith(".parquet"):
+            # parquet_path is consumed by factory.py to register the file as a DuckDB view
+            return {"type": "duckdb", "path": ":memory:", "parquet_path": connection}
         else:
             db_type = "sqlite"
 

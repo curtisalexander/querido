@@ -25,12 +25,12 @@ class SnowflakeConnector:
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         cursor = self.conn.cursor()
         try:
-            cursor.execute(sql, params or ())
+            cursor.execute(sql, params)
             if cursor.description is None:
                 return []
             try:
                 return self._fetch_arrow(cursor)
-            except Exception:
+            except (ImportError, NotImplementedError, RuntimeError):
                 return self._fetch_standard(cursor)
         finally:
             cursor.close()
@@ -41,7 +41,7 @@ class SnowflakeConnector:
 
         cursor = self.conn.cursor()
         try:
-            cursor.execute(sql, params or {})
+            cursor.execute(sql, params)
             if cursor.description is None:
                 return pa.table({})
             batches = list(cursor.fetch_arrow_batches())
@@ -56,7 +56,7 @@ class SnowflakeConnector:
 
         validate_table_name(table)
         rows = self.execute(
-            "SELECT column_name, data_type, is_nullable, column_default "
+            "SELECT column_name, data_type, is_nullable, column_default, comment "
             "FROM information_schema.columns "
             "WHERE table_name = %s "
             "ORDER BY ordinal_position",
@@ -69,9 +69,23 @@ class SnowflakeConnector:
                 "nullable": r["IS_NULLABLE"] == "YES",
                 "default": r["COLUMN_DEFAULT"],
                 "primary_key": False,
+                "comment": r.get("COMMENT") or None,
             }
             for r in rows
         ]
+
+    def get_table_comment(self, table: str) -> str | None:
+        """Return the table comment from Snowflake, or None if not set."""
+        from querido.connectors.base import validate_table_name
+
+        validate_table_name(table)
+        rows = self.execute(
+            "SELECT comment FROM information_schema.tables WHERE table_name = %s",
+            (table,),
+        )
+        if rows and rows[0].get("COMMENT"):
+            return rows[0]["COMMENT"]
+        return None
 
     def close(self) -> None:
         self.conn.close()

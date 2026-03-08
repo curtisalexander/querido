@@ -1,6 +1,6 @@
 # qdo Quick Start (for agents)
 
-CLI data analysis tool. Query SQLite and DuckDB from the terminal.
+CLI data analysis tool. Query SQLite, DuckDB, Snowflake, and Parquet files from the terminal.
 
 ## Setup
 
@@ -14,7 +14,7 @@ uv run python scripts/init_test_data.py   # creates data/test.db and data/test.d
 SQLite is always available (stdlib). Other backends are opt-in:
 
 ```bash
-pip install 'querido[duckdb]'      # DuckDB support
+pip install 'querido[duckdb]'      # DuckDB support (also enables Parquet)
 pip install 'querido[snowflake]'   # Snowflake support
 ```
 
@@ -36,7 +36,7 @@ Default 20 rows. Use `-r` to change.
 
 ### profile — data profiling
 ```bash
-qdo profile -c <connection> -t <table> [--columns col1,col2] [--sample N] [--no-sample]
+qdo profile -c <connection> -t <table> [--columns col1,col2] [--sample N] [--no-sample] [--top N]
 ```
 Shows statistical summaries per column:
 - **Numeric**: min, max, mean, median, stddev, null count/%, distinct count
@@ -44,13 +44,51 @@ Shows statistical summaries per column:
 
 Sampling: auto-samples at >1M rows (100k sample). Use `--sample N` to set sample size, `--no-sample` to force full scan.
 
+Top values: `--top N` shows the N most frequent values per column with counts and percentages.
+
+### config — manage connections
+```bash
+qdo config add --name mydb --type sqlite --path ./data.db
+qdo config add --name prod --type snowflake --account xy123 --database PROD --schema PUBLIC
+qdo config list
+```
+
+## Global flags
+
+### `--show-sql`
+Print the rendered SQL to stderr before executing, with syntax highlighting:
+```bash
+qdo --show-sql preview -c data/test.db -t customers -r 5
+```
+
+### `--format {rich,markdown,json,csv}` / `-f`
+Output format. Default is `rich` (Rich terminal tables). Other formats write plain text to stdout for piping:
+```bash
+qdo --format json inspect -c data/test.db -t customers
+qdo -f csv preview -c data/test.db -t customers
+```
+
 ## Connection resolution
 
 `-c` accepts either:
 - A **file path**: `qdo inspect -c ./data/test.db -t customers`
 - A **named connection** from `connections.toml` (see below)
 
-File extension determines type: `.duckdb`/`.ddb` → DuckDB, else SQLite. Override with `--db-type sqlite|duckdb`.
+File extension determines type:
+- `.duckdb`/`.ddb` → DuckDB
+- `.parquet` → Parquet (via DuckDB, table name = filename without extension)
+- Otherwise → SQLite
+
+Override with `--db-type sqlite|duckdb`.
+
+### Parquet files
+
+Parquet files are queried via DuckDB. The table name is the filename stem:
+```bash
+qdo inspect -c data/sales.parquet -t sales
+qdo preview -c data/sales.parquet -t sales
+qdo profile -c data/sales.parquet -t sales --top 5
+```
 
 ## Config file
 
@@ -62,6 +100,8 @@ Override with `QDO_CONFIG` env var.
 type = "duckdb"
 path = "./analytics.duckdb"
 ```
+
+Manage via CLI: `qdo config add` / `qdo config list`.
 
 ## Test databases
 
@@ -87,6 +127,9 @@ qdo preview -c data/test.db -t customers -r 5   # preview 5 rows
 qdo preview -c data/test.duckdb -t products     # default 20 rows
 qdo profile -c data/test.db -t products         # full profile
 qdo profile -c data/test.duckdb -t products --columns price,stock  # specific columns
+qdo profile -c data/test.db -t customers --top 5  # top 5 frequent values
+qdo --show-sql inspect -c data/test.db -t customers  # see the SQL being run
+qdo config list                                  # see configured connections
 ```
 
 ## Development

@@ -43,7 +43,7 @@ def _make_mock_cursor(arrow_batches: list[pa.RecordBatch] | None = None, rows=No
     if arrow_batches is not None:
         cursor.fetch_arrow_batches.return_value = iter(arrow_batches)
     else:
-        cursor.fetch_arrow_batches.side_effect = Exception("no arrow")
+        cursor.fetch_arrow_batches.side_effect = RuntimeError("no arrow")
 
     if rows is not None:
         cursor.fetchall.return_value = rows
@@ -291,11 +291,12 @@ class TestSnowflakeGetColumns:
                 "DATA_TYPE": ["NUMBER", "VARCHAR", "FLOAT"],
                 "IS_NULLABLE": ["NO", "YES", "YES"],
                 "COLUMN_DEFAULT": [None, None, "0"],
+                "COMMENT": [None, "User name", None],
             }
         )
         cursor = _make_mock_cursor(
             arrow_batches=[pa.Table.from_batches([col_batch])],
-            columns=["COLUMN_NAME", "DATA_TYPE", "IS_NULLABLE", "COLUMN_DEFAULT"],
+            columns=["COLUMN_NAME", "DATA_TYPE", "IS_NULLABLE", "COLUMN_DEFAULT", "COMMENT"],
         )
         mock_conn.cursor.return_value = cursor
 
@@ -308,6 +309,7 @@ class TestSnowflakeGetColumns:
             "nullable": False,
             "default": None,
             "primary_key": False,
+            "comment": None,
         }
         assert cols[1]["nullable"] is True
         assert cols[2]["default"] == "0"

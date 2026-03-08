@@ -1,7 +1,7 @@
 import re
-from typing import Protocol, Self
+from typing import Protocol, Self, runtime_checkable
 
-_SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 
 
 def validate_table_name(name: str) -> str:
@@ -10,7 +10,7 @@ def validate_table_name(name: str) -> str:
     Allows letters, digits, underscores, and dots (for schema.table).
     Raises ValueError if the name contains unsafe characters.
     """
-    if not _SAFE_TABLE_NAME.match(name):
+    if not _SAFE_IDENTIFIER.match(name):
         raise ValueError(
             f"Invalid table name: {name!r}. "
             "Names must start with a letter or underscore and contain only "
@@ -19,6 +19,21 @@ def validate_table_name(name: str) -> str:
     return name
 
 
+def validate_column_name(name: str) -> str:
+    """Validate a column name to prevent SQL injection.
+
+    Same rules as table names: letters, digits, underscores, and dots.
+    """
+    if not _SAFE_IDENTIFIER.match(name):
+        raise ValueError(
+            f"Invalid column name: {name!r}. "
+            "Names must start with a letter or underscore and contain only "
+            "letters, digits, underscores, and dots."
+        )
+    return name
+
+
+@runtime_checkable
 class Connector(Protocol):
     dialect: str
 
@@ -28,6 +43,10 @@ class Connector(Protocol):
 
     def get_columns(self, table: str) -> list[dict]:
         """Return column metadata for a table."""
+        ...
+
+    def get_table_comment(self, table: str) -> str | None:
+        """Return the table-level comment/description, or None."""
         ...
 
     def close(self) -> None: ...

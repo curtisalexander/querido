@@ -11,7 +11,23 @@ class DuckDBConnector:
 
         self.conn = duckdb.connect(path)
 
-    def execute(self, sql: str, params: dict | tuple | list | None = None) -> list[dict]:
+    def register_parquet(self, parquet_path: str) -> str:
+        """Register a parquet file as a view and return the view name."""
+        from pathlib import Path
+
+        p = Path(parquet_path)
+        if not p.exists():
+            raise FileNotFoundError(f"Parquet file not found: {parquet_path}")
+        resolved = str(p.resolve())
+        name = p.stem
+        # Escape single quotes in the path to prevent injection
+        safe_path = resolved.replace("'", "''")
+        self.conn.execute(
+            f"CREATE OR REPLACE VIEW \"{name}\" AS SELECT * FROM read_parquet('{safe_path}')"
+        )
+        return name
+
+    def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         result = self.conn.execute(sql, params) if params else self.conn.execute(sql)
         columns = [desc[0] for desc in result.description]
         rows = result.fetchall()
@@ -22,8 +38,8 @@ class DuckDBConnector:
 
         validate_table_name(table)
         rows = self.execute(
-            "SELECT column_name, data_type, is_nullable, column_default "
-            "FROM information_schema.columns "
+            "SELECT column_name, data_type, is_nullable, column_default, comment "
+            "FROM duckdb_columns() "
             "WHERE table_name = $table_name",
             {"table_name": table},
         )
@@ -34,9 +50,23 @@ class DuckDBConnector:
                 "nullable": r["is_nullable"] == "YES",
                 "default": r["column_default"],
                 "primary_key": False,
+                "comment": r["comment"] if r["comment"] else None,
             }
             for r in rows
         ]
+
+    def get_table_comment(self, table: str) -> str | None:
+        """Return the table comment, or None if not set."""
+        from querido.connectors.base import validate_table_name
+
+        validate_table_name(table)
+        rows = self.execute(
+            "SELECT comment FROM duckdb_tables() WHERE table_name = $table_name",
+            {"table_name": table},
+        )
+        if rows and rows[0]["comment"]:
+            return rows[0]["comment"]
+        return None
 
     def close(self) -> None:
         self.conn.close()

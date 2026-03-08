@@ -1,5 +1,6 @@
 import typer
 
+from querido.cli.config import app as config_app
 from querido.cli.inspect import app as inspect_app
 from querido.cli.preview import app as preview_app
 from querido.cli.profile import app as profile_app
@@ -10,6 +11,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+app.add_typer(config_app, name="config")
 app.add_typer(inspect_app, name="inspect")
 app.add_typer(preview_app, name="preview")
 app.add_typer(profile_app, name="profile")
@@ -25,6 +27,7 @@ def version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
+    ctx: typer.Context,
     version: bool = typer.Option(
         False,
         "--version",
@@ -33,5 +36,22 @@ def main(
         callback=version_callback,
         is_eager=True,
     ),
+    show_sql: bool = typer.Option(
+        False,
+        "--show-sql",
+        help="Print rendered SQL to stderr before executing.",
+    ),
+    output_format: str = typer.Option(
+        "rich",
+        "--format",
+        "-f",
+        help="Output format: rich, markdown, json, csv.",
+    ),
 ) -> None:
     """qdo — query, do. Data analysis from your terminal."""
+    valid = {"rich", "markdown", "json", "csv"}
+    if output_format not in valid:
+        raise typer.BadParameter(f"--format must be one of: {', '.join(sorted(valid))}")
+    ctx.ensure_object(dict)
+    ctx.obj["show_sql"] = show_sql
+    ctx.obj["format"] = output_format

@@ -4,7 +4,7 @@
 >
 > Also: **qu**e**ri**-**do** — your data is dear to you, and you want to query it. `qdo` = query, do. Simple as that.
 
-A fast CLI toolkit for common data analysis tasks against SQLite, DuckDB, and Snowflake databases.
+A fast CLI toolkit for common data analysis tasks against SQLite, DuckDB, Snowflake, and Parquet files.
 
 ## Install
 
@@ -23,7 +23,7 @@ qdo --help
 SQLite support is always available (stdlib). Other backends are opt-in:
 
 ```bash
-pip install 'querido[duckdb]'      # DuckDB support
+pip install 'querido[duckdb]'      # DuckDB + Parquet support
 pip install 'querido[snowflake]'   # Snowflake support
 ```
 
@@ -41,6 +41,15 @@ qdo preview --connection my-db --table users --rows 20
 
 # Profile a table's data
 qdo profile --connection my-db --table users
+
+# Profile with top frequent values
+qdo profile --connection my-db --table users --top 10
+
+# Show the SQL being executed
+qdo --show-sql preview --connection my-db --table users
+
+# Query a Parquet file directly (table name = filename stem)
+qdo preview --connection data.parquet --table data
 ```
 
 ## Configuration
@@ -63,6 +72,14 @@ warehouse = "ANALYTICS_WH"
 database = "PROD"
 schema = "PUBLIC"
 auth = "externalbrowser"
+```
+
+### Managing connections via CLI
+
+```bash
+qdo config add --name mydb --type sqlite --path ./data.db
+qdo config add --name prod --type snowflake --account xy123 --database PROD
+qdo config list
 ```
 
 You can also pass a file path directly: `qdo preview --connection ./my.db --table users`
