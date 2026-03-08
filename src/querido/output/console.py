@@ -192,6 +192,98 @@ def print_search(
     console.print(f"\n  [bold]{len(results)}[/bold] match(es)")
 
 
+def print_dist_numeric(
+    dist_result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print numeric distribution as a horizontal bar chart."""
+    from rich.console import Console
+    from rich.table import Table
+    from rich.text import Text
+
+    if console is None:
+        console = Console()
+
+    table_name = dist_result["table"]
+    column = dist_result["column"]
+    buckets = dist_result["buckets"]
+    total_rows = dist_result["total_rows"]
+    null_count = dist_result["null_count"]
+    bar_width = 30
+
+    if not buckets:
+        console.print(f"[dim]No non-null values in {table_name}.{column}.[/dim]")
+        return
+
+    max_count = max(b["count"] for b in buckets)
+
+    non_null_total = sum(b["count"] for b in buckets)
+
+    grid = Table(title=f"Distribution: {table_name}.{column}", show_lines=True)
+    grid.add_column("Bucket", style="cyan")
+    grid.add_column("Count", justify="right")
+    grid.add_column("%", justify="right")
+    grid.add_column("", width=bar_width)
+
+    for b in buckets:
+        label = f"{_fmt(b['bucket_min'])} – {_fmt(b['bucket_max'])}"
+        count = b["count"]
+        pct = round(100.0 * count / non_null_total, 1) if non_null_total > 0 else 0
+        w = int((count / max_count) * bar_width) if max_count > 0 else 0
+        bar = Text("█" * w, style="green")
+        grid.add_row(label, f"{count:,}", f"{pct}", bar)
+
+    console.print(grid)
+    null_note = f"  nulls: {null_count:,}" if null_count else ""
+    console.print(f"\n  Total rows: [bold]{total_rows:,}[/bold]{null_note}")
+
+
+def print_dist_categorical(
+    dist_result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print categorical distribution as a frequency bar chart."""
+    from rich.console import Console
+    from rich.table import Table
+    from rich.text import Text
+
+    if console is None:
+        console = Console()
+
+    table_name = dist_result["table"]
+    column = dist_result["column"]
+    values = dist_result["values"]
+    total_rows = dist_result["total_rows"]
+    null_count = dist_result["null_count"]
+    bar_width = 30
+
+    if not values:
+        console.print(f"[dim]No non-null values in {table_name}.{column}.[/dim]")
+        return
+
+    max_count = max(v["count"] for v in values)
+
+    value_total = sum(v["count"] for v in values)
+
+    grid = Table(title=f"Distribution: {table_name}.{column}", show_lines=True)
+    grid.add_column("Value", style="cyan")
+    grid.add_column("Count", justify="right")
+    grid.add_column("%", justify="right")
+    grid.add_column("", width=bar_width)
+
+    for v in values:
+        label = str(v["value"]) if v["value"] is not None else "(NULL)"
+        count = v["count"]
+        pct = round(100.0 * count / value_total, 1) if value_total > 0 else 0
+        w = int((count / max_count) * bar_width) if max_count > 0 else 0
+        bar = Text("█" * w, style="green")
+        grid.add_row(label, f"{count:,}", f"{pct}", bar)
+
+    console.print(grid)
+    null_note = f"  nulls: {null_count:,}" if null_count else ""
+    console.print(f"\n  Total rows: [bold]{total_rows:,}[/bold]{null_note}")
+
+
 def print_frequencies(
     table_name: str,
     freq_data: dict[str, list[dict]],
