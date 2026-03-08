@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from querido.output import _fmt
+
 if TYPE_CHECKING:
     from rich.console import Console
 
@@ -11,6 +13,8 @@ def print_inspect(
     columns: list[dict],
     row_count: int,
     console: Console | None = None,
+    verbose: bool = False,
+    table_comment: str | None = None,
 ) -> None:
     """Print table metadata as a Rich table."""
     from rich.console import Console
@@ -25,17 +29,24 @@ def print_inspect(
     grid.add_column("Nullable", style="yellow")
     grid.add_column("Default", style="dim")
     grid.add_column("Primary Key", style="magenta")
+    if verbose:
+        grid.add_column("Comment", style="dim italic")
 
     for col in columns:
-        grid.add_row(
+        row = [
             col["name"],
             col["type"],
             "YES" if col["nullable"] else "NO",
             str(col["default"]) if col["default"] is not None else "",
             "PK" if col.get("primary_key") else "",
-        )
+        ]
+        if verbose:
+            row.append(col.get("comment") or "")
+        grid.add_row(*row)
 
     console.print(grid)
+    if table_comment:
+        console.print(f"\n  Comment: [italic]{table_comment}[/italic]")
     console.print(f"\n  Row count: [bold]{row_count:,}[/bold]")
 
 
@@ -145,7 +156,32 @@ def print_profile(
     console.print(f"\n  Total rows: [bold]{row_count:,}[/bold]{sample_note}")
 
 
-def _fmt(val: object) -> str:
-    if val is None:
-        return ""
-    return str(val)
+def print_frequencies(
+    table_name: str,
+    freq_data: dict[str, list[dict]],
+    row_count: int,
+    console: Console | None = None,
+) -> None:
+    """Print top-N most frequent values per column as Rich tables."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    for col_name, rows in freq_data.items():
+        if not rows:
+            continue
+        grid = Table(title=f"Top values: {table_name}.{col_name}", show_lines=True)
+        grid.add_column("Value", style="cyan")
+        grid.add_column("Count", justify="right")
+        grid.add_column("%", justify="right", style="dim")
+
+        for r in rows:
+            pct = round(100.0 * r["count"] / row_count, 2) if row_count else 0
+            grid.add_row(
+                str(r["value"]) if r["value"] is not None else "(NULL)",
+                f"{r['count']:,}",
+                f"{pct}",
+            )
+        console.print(grid)

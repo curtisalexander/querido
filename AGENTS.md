@@ -4,7 +4,7 @@ This file helps coding agents get up to speed quickly on the qdo project.
 
 ## What is qdo?
 
-A CLI data analysis toolkit. Users run commands like `qdo inspect`, `qdo preview`, `qdo profile` against database tables (SQLite, DuckDB, Snowflake) and get formatted output in the terminal.
+A CLI data analysis toolkit. Users run commands like `qdo inspect`, `qdo preview`, `qdo profile` against database tables (SQLite, DuckDB, Snowflake) and Parquet files, and get formatted output in the terminal.
 
 ## Quick Start
 
@@ -66,11 +66,11 @@ Table names are validated at the CLI boundary using `validate_table_name()` from
 
 Read `ARCHITECTURE.md` for the full structure. Key locations:
 
-- `src/querido/cli/` — CLI commands (one file per subcommand)
-- `src/querido/connectors/` — Database connectors (one file per backend)
+- `src/querido/cli/` — CLI commands (one file per subcommand, plus `_util.py` for shared helpers)
+- `src/querido/connectors/` — Database connectors (one file per backend; DuckDB also handles Parquet)
 - `src/querido/sql/templates/` — SQL templates (organized by command, then dialect)
-- `src/querido/output/` — Output formatting (Rich tables, future HTML export)
-- `src/querido/config.py` — TOML config loading, connection resolution
+- `src/querido/output/` — Output formatting (Rich tables, frequencies, future HTML export)
+- `src/querido/config.py` — TOML config loading, connection resolution (incl. Parquet detection)
 - `tests/integration/` — Integration tests (SQLite + DuckDB)
 
 ## Build Plan

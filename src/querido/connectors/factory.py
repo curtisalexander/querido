@@ -21,7 +21,10 @@ def create_connector(config: dict) -> Connector:
             raise ImportError(
                 "DuckDB is not installed. Install it with: pip install 'querido[duckdb]'"
             ) from None
-        return DuckDBConnector(config.get("path", ":memory:"))
+        connector = DuckDBConnector(config.get("path", ":memory:"))
+        if "parquet_path" in config:
+            connector.register_parquet(config["parquet_path"])
+        return connector
     elif db_type == "snowflake":
         try:
             from querido.connectors.snowflake import SnowflakeConnector

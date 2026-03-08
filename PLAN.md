@@ -66,9 +66,7 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 
 **Goal**: Inspect a table's structure (columns, types, constraints).
 
-- [x] `src/querido/sql/templates/inspect/sqlite.sql` — SQLite metadata query
-- [x] `src/querido/sql/templates/inspect/duckdb.sql` — DuckDB metadata query
-- [x] `src/querido/cli/inspect.py` — `qdo inspect` subcommand
+- [x] `src/querido/cli/inspect.py` — `qdo inspect` subcommand (metadata via `get_columns()`, not SQL templates)
 - [x] `src/querido/output/console.py` — Rich table output for metadata
 - [x] Output includes: column name, data type, nullable, default value, primary key, row count
 - [x] **Test**: Create test table in SQLite, run inspect, verify column info
@@ -110,20 +108,19 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 ## Phase 6: Polish & Extend
 
 - [x] Snowflake connector + SQL templates for all commands (mocked tests, pending real integration)
-- [ ] Parquet file support (via DuckDB's parquet reader)
-- [ ] `qdo config add` command to add connections interactively
-- [ ] Top N most frequent values in profile
-- [ ] Progress bars for long-running operations (Rich)
+- [x] Parquet file support (via DuckDB's parquet reader — `.parquet` files auto-detected, registered as DuckDB views)
+- [x] `qdo config add` / `qdo config list` commands to manage connections
+- [x] Top N most frequent values in profile (`--top N` flag)
+- [x] Progress spinners for long-running operations (Rich `Status` on stderr)
 
 ### Show executed SQL (`--show-sql`)
 
 **Goal**: Let users see exactly what SQL is being run, with syntax highlighting.
 
-- [ ] Add `--show-sql` global flag to the Typer app (available on all commands)
-- [ ] When enabled, print the rendered SQL to stderr before executing it
-- [ ] Use Rich `Syntax` panel with `lexer="sql"` for terminal syntax highlighting
-- [ ] Show both the final rendered SQL and any bind parameters
-- [ ] Print to stderr so stdout remains clean for piping/`--format` output
+- [x] Add `--show-sql` global flag to the Typer app (available on all commands)
+- [x] When enabled, print the rendered SQL to stderr before executing it
+- [x] Use Rich `Syntax` with `lexer="sql"` for terminal syntax highlighting
+- [x] Print to stderr so stdout remains clean for piping/`--format` output
 
 ### Connection caching (Snowflake performance)
 
@@ -143,24 +140,26 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 
 The items below are documented for future work. They are ordered from easiest to hardest, considering what we've already built (connectors, inspect, preview, profile, SQL templates, Rich output).
 
-### F1: Copy-friendly output for coding agents
+### F1: Copy-friendly output for coding agents ✅
 **Ease: Easy** — We already produce structured data (list of dicts) in the output layer.
 
-Add `--format` flag (or `--copy`) to existing commands that outputs results as markdown, JSON, or CSV to stdout (or copies to clipboard). This makes it trivial to pipe metadata, tables, or profile results into another tool or coding agent.
+- [x] `--format {rich,markdown,json,csv}` global flag on all commands
+- [x] `src/querido/output/formats.py` — markdown, JSON, CSV formatters for inspect/preview/profile/frequencies
+- [x] `src/querido/cli/_util.py:get_output_format()` — reads format from root CLI context
+- [x] All three commands (inspect, preview, profile) dispatch to format functions when `--format` != `rich`
+- [x] `tests/test_format.py` — 10 tests covering all format × command combinations + invalid format
 
-- Add a `--format {rich,markdown,json,csv}` option to `inspect`, `preview`, `profile`
-- Default remains `rich` (current behavior)
-- Markdown format should be agent-friendly (fenced code blocks, structured tables)
-
-### F2: Extended metadata (comments, developer metadata)
+### F2: Extended metadata (comments, developer metadata) ✅
 **Ease: Easy** — Small extensions to existing inspect queries.
 
-Pull additional metadata beyond column name/type: table comments, column comments, and any developer-stored descriptions. Snowflake's `information_schema` has `COMMENT` fields on tables and columns. DuckDB similarly supports comments. For future Parquet/Arrow backends, surface file-level and column-level metadata stored in the file footer.
-
-- Extend `inspect` output (or add `--verbose` flag) to show comments/descriptions
-- Snowflake: query `INFORMATION_SCHEMA.TABLES` and `INFORMATION_SCHEMA.COLUMNS` for `COMMENT`
-- DuckDB: `duckdb_columns()` has a `comment` field
-- SQLite: no native comment support — skip gracefully
+- [x] `--verbose` / `-v` flag on `qdo inspect` to show comments/descriptions
+- [x] `comment` field added to `get_columns()` dicts in all connectors (None for SQLite)
+- [x] `get_table_comment()` method on all connectors (DuckDB: `duckdb_tables()`, Snowflake: `information_schema.tables`, SQLite: returns None)
+- [x] DuckDB: queries `duckdb_columns()` for column comments, `duckdb_tables()` for table comments
+- [x] Snowflake: queries `information_schema.columns` `COMMENT` field + `information_schema.tables`
+- [x] SQLite: gracefully returns None (no native comment support)
+- [x] All output formats (rich, markdown, json, csv) include comments when `--verbose`
+- [x] Tests: 5 new tests covering verbose inspect with DuckDB comments, SQLite graceful fallback, and all format outputs
 - Future: Parquet/Arrow metadata via `pyarrow.parquet.read_schema().metadata`
 
 ### F3: Quick SQL statement generation

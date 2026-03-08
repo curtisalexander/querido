@@ -56,7 +56,7 @@ def main() -> None:
     banner("Welcome to the qdo tutorial!")
 
     print("  qdo (querido) is a CLI data analysis toolkit for")
-    print("  SQLite, DuckDB, and Snowflake databases.")
+    print("  SQLite, DuckDB, Snowflake, and Parquet files.")
     print()
     print("  This tutorial uses two sample databases with 1,000 rows each:")
     print(f"    SQLite:  {SQLITE_DB}")
@@ -132,18 +132,67 @@ def main() -> None:
         "Use --columns to focus on specific columns.\n  Comma-separated, no spaces.",
     )
 
+    step(
+        "Top frequent values",
+        f"profile -c {SQLITE_DB} -t customers --columns company --top 5",
+        "Use --top N to see the most frequent values per column.\n"
+        "  Shows count and percentage of total rows.",
+    )
+
+    # --- Config ---
+    banner("5. Managing Connections")
+
+    print("  qdo stores named connections in connections.toml so you don't")
+    print("  have to type file paths every time.")
+    print()
+    print("  Add a connection:")
+    print("    $ qdo config add --name mydb --type sqlite --path ./data.db")
+    print()
+    print("  List connections:")
+    print("    $ qdo config list")
+    print()
+    print("  Then use by name:")
+    print("    $ qdo inspect -c mydb -t users")
+    wait()
+
+    # --- Output Formats ---
+    banner("6. Output Formats")
+
+    step(
+        "JSON output for piping",
+        f"--format json inspect -c {SQLITE_DB} -t customers",
+        "Use --format (or -f) to get machine-readable output.\n"
+        "  Options: rich (default), markdown, json, csv.",
+    )
+
+    # --- Show SQL ---
+    banner("7. Debugging with --show-sql")
+
+    step(
+        "See the SQL being executed",
+        f"--show-sql preview -c {SQLITE_DB} -t customers -r 3",
+        "The --show-sql global flag prints the rendered SQL to stderr\n"
+        "  with syntax highlighting, before executing the query.\n"
+        "  Useful for debugging or learning what qdo does under the hood.",
+    )
+
     # --- Wrap up ---
-    banner("Tutorial Complete!")
+    banner("8. Tutorial Complete!")
 
     print("  You've learned the core qdo commands:")
     print()
-    print("    qdo inspect -c <db> -t <table>     See table structure")
-    print("    qdo preview -c <db> -t <table>     Preview rows")
-    print("    qdo profile -c <db> -t <table>     Statistical profiling")
+    print("    qdo inspect -c <db> -t <table>          See table structure")
+    print("    qdo preview -c <db> -t <table>          Preview rows")
+    print("    qdo profile -c <db> -t <table>          Statistical profiling")
+    print("    qdo profile ... --top N                 Top frequent values")
+    print("    qdo config add/list                     Manage connections")
+    print("    qdo --show-sql <command>                See rendered SQL")
+    print("    qdo --format json <command>             Machine-readable output")
     print()
     print("  Tips:")
     print("    - Pass a file path directly as --connection")
     print("    - .duckdb/.ddb extensions auto-detect DuckDB")
+    print("    - .parquet files are queried via DuckDB (table = filename)")
     print("    - Use --db-type to override detection")
     print("    - Profile auto-samples tables over 1M rows")
     print("    - Use --no-sample to force a full table scan")

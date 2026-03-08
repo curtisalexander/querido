@@ -2,7 +2,7 @@
 
 ## Overview
 
-qdo is a CLI data analysis toolkit for running common analytics tasks against database sources (SQLite, DuckDB, Snowflake). It uses SQL templates to query databases and renders results as rich terminal output.
+qdo is a CLI data analysis toolkit for running common analytics tasks against database sources (SQLite, DuckDB, Snowflake) and Parquet files. It uses SQL templates to query databases and renders results as rich terminal output.
 
 ## Project Structure
 
@@ -25,7 +25,9 @@ querido/
 │       ├── config.py               # TOML config loading, connection resolution
 │       ├── cli/
 │       │   ├── __init__.py         # Package marker
+│       │   ├── _util.py            # CLI utilities (maybe_show_sql)
 │       │   ├── main.py             # Entry point, Typer app, registers subcommands
+│       │   ├── config.py           # `qdo config add/list` — connection management
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   └── profile.py          # `qdo profile` — data profiling
@@ -34,7 +36,7 @@ querido/
 │       │   ├── base.py             # Connector Protocol, table name validation
 │       │   ├── factory.py          # Creates connector from config/args
 │       │   ├── sqlite.py           # SQLite connector (stdlib, always available)
-│       │   ├── duckdb.py           # DuckDB connector (optional install)
+│       │   ├── duckdb.py           # DuckDB connector (optional install, also handles Parquet)
 │       │   └── snowflake.py        # Snowflake connector (optional install)
 │       ├── sql/
 │       │   ├── __init__.py         # Package marker
@@ -42,24 +44,30 @@ querido/
 │       │   └── templates/          # .sql files organized by command and dialect
 │       │       ├── count/
 │       │       │   └── common.sql
+│       │       ├── frequency/
+│       │       │   └── common.sql  # Top-N frequent values query
 │       │       ├── preview/
 │       │       │   └── common.sql
-│       │       ├── test/
-│       │       │   └── common.sql  # Used by renderer unit tests
-│       │       └── profile/
-│       │           ├── sqlite.sql
-│       │           ├── duckdb.sql
-│       │           └── snowflake.sql
+│       │       ├── profile/
+│       │       │   ├── sqlite.sql
+│       │       │   ├── duckdb.sql
+│       │       │   └── snowflake.sql
+│       │       └── test/
+│       │           └── common.sql  # Used by renderer unit tests
 │       └── output/
-│           ├── __init__.py         # Package marker
-│           └── console.py          # Rich terminal output (tables, panels)
+│           ├── __init__.py         # Package marker, shared helpers (_fmt)
+│           ├── console.py          # Rich terminal output (tables, panels, frequencies)
+│           └── formats.py          # Machine-readable output (markdown, JSON, CSV)
 └── tests/
     ├── conftest.py                 # Shared fixtures (temp databases, test tables)
-    ├── test_cli.py                 # CLI help/version tests
+    ├── test_cli.py                 # CLI help/version/show-sql tests
     ├── test_config.py              # Config loading and connection resolution tests
+    ├── test_config_cmd.py          # Config add/list command tests
     ├── test_connectors.py          # SQLite + DuckDB connector unit tests
     ├── test_inspect.py             # Inspect command tests (SQLite + DuckDB)
+    ├── test_parquet.py             # Parquet file support tests
     ├── test_preview.py             # Preview command tests (SQLite + DuckDB)
+    ├── test_profile.py             # Profile command tests (top-N, frequencies)
     ├── test_renderer.py            # SQL template rendering tests
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
     └── integration/
@@ -79,7 +87,7 @@ qdo follows a strict "pay for what you use" model at every level:
 
 ```bash
 pip install querido              # SQLite only (no extra dependencies)
-pip install 'querido[duckdb]'    # + DuckDB
+pip install 'querido[duckdb]'    # + DuckDB + Parquet support
 pip install 'querido[snowflake]' # + Snowflake
 ```
 
@@ -110,6 +118,7 @@ class Connector(Protocol):
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]: ...
     def get_columns(self, table: str) -> list[dict]: ...
+    def get_table_comment(self, table: str) -> str | None: ...
     def close(self) -> None: ...
     def __enter__(self) -> Self: ...
     def __exit__(self, *args: object) -> None: ...
@@ -123,6 +132,8 @@ with create_connector(config) as conn:
 
 A factory function creates the right connector based on the connection config's `type` field.
 
+**Parquet support**: The DuckDB connector has a `register_parquet()` method that creates an in-memory view from a Parquet file. The factory calls this automatically when `parquet_path` is present in the config.
+
 ### 3. SQL Templates
 
 SQL queries live in `.sql` files using Jinja2 syntax. Templates are organized by command and dialect:
@@ -131,6 +142,7 @@ SQL queries live in `.sql` files using Jinja2 syntax. Templates are organized by
 sql/templates/profile/sqlite.sql    # SQLite-specific profiling query
 sql/templates/profile/duckdb.sql    # DuckDB-specific profiling query
 sql/templates/preview/common.sql    # Shared across dialects (simple SELECT)
+sql/templates/frequency/common.sql  # Top-N frequent values (shared)
 ```
 
 The renderer loads templates by command name and dialect, falling back to `common.sql` if no dialect-specific template exists.
@@ -146,11 +158,11 @@ LIMIT {{ limit }}
 -- Values are passed as bind parameters to the driver, NOT rendered by Jinja2
 ```
 
-Note: Column metadata queries (`get_columns`) are implemented directly in each connector rather than as SQL templates, since each database uses different mechanisms (e.g. SQLite uses `PRAGMA table_info`, DuckDB/Snowflake use `information_schema`).
+Note: Column metadata queries (`get_columns`) are implemented directly in each connector rather than as SQL templates, since each database uses different mechanisms (e.g. SQLite uses `PRAGMA table_info`, DuckDB uses `duckdb_columns()`, Snowflake uses `information_schema`). Each connector also provides `get_table_comment()` — DuckDB queries `duckdb_tables()`, Snowflake queries `information_schema.tables`, and SQLite returns None (no native comment support). Column-level comments are included in the `get_columns()` dict as the `"comment"` key.
 
 ### 4. Input Validation
 
-Table names are validated at the CLI boundary using `validate_table_name()` from `connectors/base.py`. Since table names are interpolated into SQL templates (Jinja2) and sampling subqueries (f-strings), they must be safe identifiers — letters, digits, underscores, and dots only.
+Table and column names are validated at the CLI boundary using `validate_table_name()` and `validate_column_name()` from `connectors/base.py`. Since these names are interpolated into SQL templates (Jinja2) and sampling subqueries (f-strings), they must be safe identifiers — letters, digits, underscores, and dots only.
 
 ### 5. Configuration
 
@@ -176,15 +188,29 @@ schema = "PUBLIC"
 auth = "externalbrowser"
 ```
 
+Connections can be managed via CLI (`qdo config add` / `qdo config list`) or by editing the file directly.
+
 CLI resolves `--connection` by:
 1. Looking up as a named connection in the config file
-2. If not found, treating it as a file path (for SQLite/DuckDB)
+2. If not found, treating it as a file path (for SQLite/DuckDB/Parquet)
+3. `.duckdb`/`.ddb` → DuckDB, `.parquet` → Parquet (via DuckDB), else → SQLite
 
 ### 6. Output
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Future: Textual TUI for interactive exploration, HTML export for browser viewing.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_frequencies`.
+
+Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
+
+### 7. Global Flags
+
+- `--version` / `-V`: Show version and exit
+- `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_util.py:maybe_show_sql()`.
+- `--format {rich,markdown,json,csv}` / `-f`: Output format. Default is `rich` (Rich terminal tables). Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_util.py:get_output_format()`.
+
+Command-specific flags:
+- `inspect --verbose` / `-v`: Show extended metadata (table and column comments/descriptions).
 
 ## Data Flow
 
@@ -193,7 +219,9 @@ CLI (Typer)
   → validate table name (base.py)
   → resolve connection (config.py)
   → create connector (factory.py)
+  → [show spinner on stderr]
   → load + render SQL template (renderer.py)
+  → [maybe_show_sql to stderr if --show-sql]
   → execute query (connector)
   → format + display results (output/console.py)
 ```
@@ -206,16 +234,15 @@ CLI (Typer)
 | platformdirs | Cross-platform config paths | Default | In config.py only |
 | jinja2 | SQL template rendering | Default | In renderer.py only |
 | rich | Terminal output | Default | In output functions only |
-| duckdb | DuckDB connector | `pip install 'querido[duckdb]'` | In connectors/duckdb.py only |
+| duckdb | DuckDB + Parquet connector | `pip install 'querido[duckdb]'` | In connectors/duckdb.py only |
 | snowflake-connector-python | Snowflake connector | `pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
-| tomli-w | Writing TOML configs | Future | In config commands only |
 
 Note: `sqlite3` is stdlib — no extra dependency needed, always available.
 
 ## Testing Strategy
 
 - pytest for all tests
-- Integration tests create temporary in-memory databases with test data
+- Unit tests create temporary in-memory databases with test data
 - Tests run actual CLI commands via `typer.testing.CliRunner` or call connector methods directly
 - SQLite and DuckDB tests run in every phase; Snowflake tests are separate (require credentials)
 - DuckDB is included in dev dependencies so all tests run regardless of install extras

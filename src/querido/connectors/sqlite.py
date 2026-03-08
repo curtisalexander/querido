@@ -32,9 +32,14 @@ class SQLiteConnector:
                 "nullable": not r["notnull"],
                 "default": r["dflt_value"],
                 "primary_key": bool(r["pk"]),
+                "comment": None,
             }
             for r in rows
         ]
+
+    def get_table_comment(self, table: str) -> str | None:
+        """SQLite does not support table comments."""
+        return None
 
     def close(self) -> None:
         self.conn.close()

@@ -39,6 +39,23 @@ def duckdb_path(tmp_path: Path) -> str:
     return db_path
 
 
+@pytest.fixture
+def duckdb_with_comments_path(tmp_path: Path) -> str:
+    """DuckDB database with table and column comments set."""
+    import duckdb
+
+    db_path = str(tmp_path / "commented.duckdb")
+    conn = duckdb.connect(db_path)
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR NOT NULL, age INTEGER)")
+    conn.execute("INSERT INTO users VALUES (1, 'Alice', 30)")
+    conn.execute("INSERT INTO users VALUES (2, 'Bob', 25)")
+    conn.execute("COMMENT ON TABLE users IS 'Application user accounts'")
+    conn.execute("COMMENT ON COLUMN users.name IS 'Full legal name'")
+    conn.execute("COMMENT ON COLUMN users.age IS 'Age in years'")
+    conn.close()
+    return db_path
+
+
 # --- Integration test fixtures (real data, requires init-test-data) ---
 
 
