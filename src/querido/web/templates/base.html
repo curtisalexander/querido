@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}qdo{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="/static/app.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">qdo</a>
+    <span class="connection-name">{{ connection_name }}</span>
+    <div class="nav-links">
+      <a href="/">Tables</a>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <input type="text"
+             id="sidebar-search"
+             class="search-input"
+             placeholder="Search tables... (press /)"
+             name="q"
+             hx-get="/fragments/search"
+             hx-trigger="keyup changed delay:300ms"
+             hx-target="#sidebar-table-list"
+             hx-include="this">
+      <div id="sidebar-table-list">
+        {% block sidebar %}
+        {% if tables is defined %}
+        <ul class="table-list">
+          {% for tbl in tables %}
+          <li>
+            <a href="/table/{{ tbl.name }}"
+               {% if table_name is defined and tbl.name == table_name %}class="active"{% endif %}>
+              <span class="table-type-badge">{{ tbl.type[:1] }}</span>
+              {{ tbl.name }}
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% endblock %}
+      </div>
+    </aside>
+
+    <main class="main-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Help overlay -->
+  <div class="help-overlay" @keydown.escape.window="$el.classList.remove('show')">
+    <div class="help-content">
+      <h3>Keyboard shortcuts</h3>
+      <dl>
+        <dt>?</dt><dd>Toggle this help</dd>
+        <dt>/</dt><dd>Focus search</dd>
+        <dt>Esc</dt><dd>Close overlay / blur input</dd>
+      </dl>
+      <p style="margin-top:12px;font-size:0.8rem;color:#6c757d">Click outside or press Esc to close</p>
+    </div>
+  </div>
+
+  <!-- HTMX loading indicator -->
+  <div class="htmx-indicator" id="global-indicator" style="position:fixed;top:50px;right:24px;z-index:50;">
+    <span class="spinner"></span> Loading...
+  </div>
+</body>
+</html>

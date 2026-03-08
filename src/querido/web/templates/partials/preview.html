@@ -1,0 +1,38 @@
+{% if not rows %}
+<p class="empty-msg">No rows found.</p>
+{% else %}
+<p class="page-subtitle">Showing {{ rows|length }} row(s) (limit {{ limit }})</p>
+
+<div class="toolbar">
+  <input type="text" placeholder="Filter rows..." data-filter-table="preview-table">
+  <span class="badge" data-count-for="preview-table"></span>
+  <button onclick="copyTable('preview-table')">Copy</button>
+  <button onclick="exportCSV('preview-table')">Export CSV</button>
+</div>
+
+<div class="table-wrapper">
+  <table id="preview-table" data-sortable>
+    <thead>
+      <tr>
+        {% for h in headers %}
+        <th>{{ h }}<span class="sort-arrow"></span></th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr data-idx="{{ loop.index0 }}">
+        {% for h in headers %}
+        {% set val = row[h] %}
+        {% if val is none %}
+        <td class="null-val">NULL</td>
+        {% else %}
+        <td>{{ val }}</td>
+        {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

@@ -432,13 +432,31 @@ Export tables, profiles, and graphs to HTML for viewing in a browser. Start with
 - [x] Tables in the browser support: click-to-sort columns, filter rows by text, copy visible rows to clipboard, export visible rows as CSV download
 - [x] **Tests**: `tests/test_html_format.py` — 10 tests covering all commands, interactive JS presence, dark mode, export buttons
 
-#### Phase B: `qdo serve` (local web app) — future
+#### Phase B: `qdo serve` (local web app) ✅
 
-- `qdo serve` launches a local web server (FastAPI/Starlette) showing connected tables with interactive exploration
-- Phase B reuses the same `_html_page()` shell and `_build_table()` from `output/html.py`
-- Phase B reuses the same core logic as CLI and TUI
+- [x] `web = ["fastapi>=0.115", "uvicorn[standard]>=0.34", "python-multipart>=0.0.18"]` optional dependency group
+- [x] `src/querido/web/__init__.py` — FastAPI app factory (`create_app(connector, connection_name)`)
+- [x] `src/querido/web/routes/pages.py` — Full-page routes: landing (`/`), table detail (`/table/{name}`)
+- [x] `src/querido/web/routes/fragments.py` — HTMX fragment endpoints: inspect, preview, profile, dist, template, lineage, search
+- [x] `src/querido/web/routes/pivot.py` — Pivot builder page + POST execution endpoint
+- [x] `src/querido/web/static/style.css` — Extended Phase A CSS (nav, sidebar, cards, tabs, dist bars, pivot form, light/dark mode)
+- [x] `src/querido/web/static/app.js` — Sort/filter/copy/export JS + keyboard shortcuts (`?` help, `/` search, `Esc` close)
+- [x] `src/querido/web/templates/` — Jinja2 templates: base layout, landing, table detail, pivot builder, 7 partials
+- [x] `src/querido/core/pivot.py` — `build_pivot_query()` + `get_pivot()` for ad-hoc GROUP BY summarization
+- [x] `src/querido/cli/serve.py` — `qdo serve --connection <name> --port 8888 --host 127.0.0.1`
+- [x] Frontend: server-rendered Jinja2 + HTMX for dynamic tab loading + Alpine.js for UI state — no Node/npm build step
+- [x] HTMX interaction: tabs load fragments into `#tab-content`, search debounces with 300ms delay, column names click for distribution
+- [x] Error handling: `ValueError` → 400, `LookupError` → 404, user-friendly HTML error messages
+- [x] SQLite `check_same_thread=False` for async web server compatibility
+- [x] `tests/test_web.py` — 27 tests via FastAPI `TestClient` (landing, table detail, all fragments, search, pivot, input validation, pivot query builder)
 
-**Architectural note:** Same separation concern as F10. The web layer should call into shared business logic, not reimplement queries. See architectural notes at the bottom.
+#### Phase C: `qdo serve` polish — future
+
+- SQL workspace tab with CodeMirror editor (deferred from Phase B)
+- WebSocket for live query execution progress
+- Multiple connection switching (dropdown in nav)
+- Saved pivot queries / bookmarks
+- Chart rendering for distributions (e.g., Chart.js or Observable Plot)
 
 ### F12: Register & discover example programs
 **Ease: Medium-Hard** — More of a design/workflow challenge than a technical one.
@@ -516,14 +534,14 @@ The `core/` refactor (Phase 7) addresses the separation between **business logic
 - `tui/*.py` calls core functions → passes results to Textual widgets
 - `web/*.py` (future F11) calls core functions → passes results to HTML templates or JSON API
 
-### Optional dependency groups (projected)
+### Optional dependency groups
 
 ```toml
 [project.optional-dependencies]
-duckdb = ["duckdb>=1.0"]
-snowflake = ["snowflake-connector-python>=3.0"]
+duckdb = ["duckdb>=1"]
+snowflake = ["snowflake-connector-python>=3.6", "pyarrow>=14"]
 tui = ["textual>=0.50"]
-web = ["fastapi", "uvicorn", "jinja2"]  # jinja2 already a dep
-embeddings = ["numpy", "openai"]  # or sentence-transformers for local
-ai = ["llama-cpp-python"]  # or separate package entirely
+web = ["fastapi>=0.115", "uvicorn[standard]>=0.34", "python-multipart>=0.0.18"]
+embeddings = ["numpy", "openai"]  # or sentence-transformers for local — future
+ai = ["llama-cpp-python"]  # or separate package entirely — future
 ```

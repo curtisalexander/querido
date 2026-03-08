@@ -1,0 +1,59 @@
+<div class="dist-panel">
+  <h3>Distribution: {{ dist_result.table }}.{{ dist_result.column }}</h3>
+  <p class="page-subtitle">
+    Mode: {{ dist_result.mode }} &middot;
+    Total: {{ "{:,}".format(dist_result.total_rows) }}
+    {% if dist_result.null_count %} &middot; Nulls: {{ "{:,}".format(dist_result.null_count) }}{% endif %}
+  </p>
+
+  {% if dist_result.mode == "numeric" %}
+  {% set buckets = dist_result["buckets"] %}
+  {% set max_count = buckets|map(attribute='count')|max if buckets else 1 %}
+  <div class="table-wrapper">
+    <table id="dist-table" data-sortable>
+      <thead>
+        <tr>
+          <th>Bucket Min<span class="sort-arrow"></span></th>
+          <th>Bucket Max<span class="sort-arrow"></span></th>
+          <th>Count<span class="sort-arrow"></span></th>
+          <th>Bar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in buckets %}
+        <tr data-idx="{{ loop.index0 }}">
+          <td>{{ b.bucket_min }}</td>
+          <td>{{ b.bucket_max }}</td>
+          <td>{{ "{:,}".format(b.count) }}</td>
+          <td><span class="dist-bar" style="width:{{ (b.count / max_count * 120)|int }}px"></span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  {% set cat_values = dist_result["values"] %}
+  {% set max_count = cat_values|map(attribute='count')|max if cat_values else 1 %}
+  <div class="table-wrapper">
+    <table id="dist-table" data-sortable>
+      <thead>
+        <tr>
+          <th>Value<span class="sort-arrow"></span></th>
+          <th>Count<span class="sort-arrow"></span></th>
+          <th>Bar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in cat_values %}
+        <tr data-idx="{{ loop.index0 }}">
+          <td>{% if v.value is none %}<span class="null-val">(NULL)</span>{% else %}{{ v.value }}{% endif %}</td>
+          <td>{{ "{:,}".format(v.count) }}</td>
+          <td><span class="dist-bar" style="width:{{ (v.count / max_count * 120)|int }}px"></span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>

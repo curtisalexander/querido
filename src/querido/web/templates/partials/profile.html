@@ -1,0 +1,59 @@
+<p class="page-subtitle">
+  {{ "{:,}".format(row_count) }} rows
+  {% if sampled and sample_size %} (sampled {{ "{:,}".format(sample_size) }} rows){% endif %}
+</p>
+
+{% if not stats %}
+<p class="empty-msg">No columns to profile.</p>
+{% else %}
+<div class="toolbar">
+  <input type="text" placeholder="Filter columns..." data-filter-table="profile-table">
+  <span class="badge" data-count-for="profile-table"></span>
+  <button onclick="copyTable('profile-table')">Copy</button>
+  <button onclick="exportCSV('profile-table')">Export CSV</button>
+</div>
+
+<div class="table-wrapper">
+  <table id="profile-table" data-sortable>
+    <thead>
+      <tr>
+        <th>Column<span class="sort-arrow"></span></th>
+        <th>Type<span class="sort-arrow"></span></th>
+        <th>Min<span class="sort-arrow"></span></th>
+        <th>Max<span class="sort-arrow"></span></th>
+        <th>Mean<span class="sort-arrow"></span></th>
+        <th>Median<span class="sort-arrow"></span></th>
+        <th>Stddev<span class="sort-arrow"></span></th>
+        <th>Min Len<span class="sort-arrow"></span></th>
+        <th>Max Len<span class="sort-arrow"></span></th>
+        <th>Nulls<span class="sort-arrow"></span></th>
+        <th>Null %<span class="sort-arrow"></span></th>
+        <th>Distinct<span class="sort-arrow"></span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in stats %}
+      <tr data-idx="{{ loop.index0 }}">
+        <td><span class="col-link"
+                   hx-get="/fragments/dist/{{ table_name }}/{{ row.column_name }}"
+                   hx-target="#dist-panel"
+                   hx-indicator="#global-indicator">{{ row.column_name }}</span></td>
+        <td>{{ row.column_type }}</td>
+        <td>{{ row.min_val if row.min_val is not none else "" }}</td>
+        <td>{{ row.max_val if row.max_val is not none else "" }}</td>
+        <td>{{ row.mean_val if row.mean_val is not none else "" }}</td>
+        <td>{{ row.median_val if row.median_val is not none else "" }}</td>
+        <td>{{ row.stddev_val if row.stddev_val is not none else "" }}</td>
+        <td>{{ row.min_length if row.min_length is not none else "" }}</td>
+        <td>{{ row.max_length if row.max_length is not none else "" }}</td>
+        <td>{{ row.null_count if row.null_count is not none else "" }}</td>
+        <td>{{ row.null_pct if row.null_pct is not none else "" }}</td>
+        <td>{{ row.distinct_count if row.distinct_count is not none else "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="dist-panel"></div>
+{% endif %}

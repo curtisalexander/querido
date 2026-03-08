@@ -89,11 +89,27 @@ querido/
 │       │       ├── filter_bar.py   # FilterBar — SQL WHERE expression input
 │       │       ├── sidebar.py      # MetadataSidebar — column stats panel
 │       │       └── status_bar.py   # StatusBar — table info, row count, filter/sort status
-│       └── output/
-│           ├── __init__.py         # Package marker, shared helpers (fmt_value)
-│           ├── console.py          # Rich terminal output (tables, panels, frequencies)
-│           ├── formats.py          # Machine-readable output (markdown, JSON, CSV)
-│           └── html.py             # Standalone HTML pages with interactive tables
+│       ├── output/
+│       │   ├── __init__.py         # Package marker, shared helpers (fmt_value)
+│       │   ├── console.py          # Rich terminal output (tables, panels, frequencies)
+│       │   ├── formats.py          # Machine-readable output (markdown, JSON, CSV)
+│       │   └── html.py             # Standalone HTML pages with interactive tables
+│       └── web/
+│           ├── __init__.py         # FastAPI app factory (create_app)
+│           ├── routes/
+│           │   ├── __init__.py
+│           │   ├── pages.py        # Full-page routes (landing, table detail)
+│           │   ├── fragments.py    # HTMX partial endpoints (inspect, preview, profile, etc.)
+│           │   └── pivot.py        # Pivot builder endpoints
+│           ├── static/
+│           │   ├── style.css       # Shared CSS (light/dark mode, nav, tabs, cards)
+│           │   └── app.js          # Shared JS (sort, filter, copy, export, keyboard shortcuts)
+│           └── templates/
+│               ├── base.html       # Layout shell: nav, sidebar, HTMX/Alpine script tags
+│               ├── landing.html    # Connection info + table card grid
+│               ├── table.html      # Table detail page with tab navigation
+│               ├── pivot.html      # Pivot builder form
+│               └── partials/       # HTMX fragments (inspect, preview, profile, dist, etc.)
 └── tests/
     ├── conftest.py                 # Shared fixtures (temp databases, test tables)
     ├── test_cli.py                 # CLI help/version/show-sql tests
@@ -115,6 +131,7 @@ querido/
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
     ├── test_sql.py                 # SQL generation command tests
     ├── test_template.py            # Template command tests (all formats, SQLite + DuckDB)
+    ├── test_web.py                 # Web UI tests (FastAPI TestClient, all endpoints)
     └── integration/
         ├── test_connectors.py      # Connector tests against real data
         ├── test_inspect.py         # Inspect tests against real data
@@ -246,7 +263,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_lineage`, `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_lineage`, `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The web UI (`web/`) serves the same data via FastAPI + Jinja2 templates + HTMX for interactive browsing.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
@@ -285,6 +302,8 @@ CLI (Typer)
 | duckdb | DuckDB + Parquet connector | `pip install 'querido[duckdb]'` | In connectors/duckdb.py only |
 | snowflake-connector-python | Snowflake connector | `pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
 | textual | Interactive TUI | `pip install 'querido[tui]'` | In tui/ only |
+| fastapi | Web UI backend | `pip install 'querido[web]'` | In web/ only |
+| uvicorn | ASGI server | `pip install 'querido[web]'` | In cli/serve.py only |
 
 Note: `sqlite3` is stdlib — no extra dependency needed, always available.
 

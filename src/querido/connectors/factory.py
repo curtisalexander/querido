@@ -21,7 +21,8 @@ def create_connector(config: dict) -> Connector:
         path = config.get("path")
         if not path:
             raise ValueError("SQLite connection config missing required 'path' key.")
-        return SQLiteConnector(path)
+        check_same_thread = config.get("check_same_thread", True)
+        return SQLiteConnector(path, check_same_thread=check_same_thread)
     elif db_type == "duckdb":
         try:
             from querido.connectors.duckdb import DuckDBConnector

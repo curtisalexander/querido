@@ -1,0 +1,13 @@
+<ul class="table-list">
+  {% for tbl in tables %}
+  <li>
+    <a href="/table/{{ tbl.name }}">
+      <span class="table-type-badge">{{ tbl.type[:1] }}</span>
+      {{ tbl.name }}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% if not tables %}
+<p class="empty-msg">No matches{% if query %} for "{{ query }}"{% endif %}</p>
+{% endif %}
