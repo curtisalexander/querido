@@ -8,12 +8,17 @@ def create_connector(config: dict) -> Connector:
 
     Config must have a 'type' key ('sqlite', 'duckdb', or 'snowflake').
     """
-    db_type = config["type"]
+    db_type = config.get("type")
+    if not db_type:
+        raise ValueError("Connection config missing required 'type' key.")
 
     if db_type == "sqlite":
         from querido.connectors.sqlite import SQLiteConnector
 
-        return SQLiteConnector(config["path"])
+        path = config.get("path")
+        if not path:
+            raise ValueError("SQLite connection config missing required 'path' key.")
+        return SQLiteConnector(path)
     elif db_type == "duckdb":
         try:
             from querido.connectors.duckdb import DuckDBConnector

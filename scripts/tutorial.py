@@ -139,8 +139,59 @@ def main() -> None:
         "  Shows count and percentage of total rows.",
     )
 
+    # --- Search ---
+    banner("5. Searching Metadata")
+
+    step(
+        "Search for tables and columns",
+        f"search -p email -c {SQLITE_DB}",
+        "Find tables and columns matching a pattern.\n"
+        "  Case-insensitive substring match. Returns table names,\n"
+        "  column names, and types.",
+    )
+
+    step(
+        "Search only column names",
+        f"search -p price -c {DUCKDB_DB} --type column",
+        "Use --type to narrow search: table, column, or all (default).",
+    )
+
+    # --- Distribution ---
+    banner("6. Column Distributions")
+
+    step(
+        "Numeric distribution (histogram)",
+        f"dist -c {SQLITE_DB} -t products -col price",
+        "Visualize how values are distributed. Numeric columns get a\n"
+        "  histogram with bucket counts. Default is 20 buckets.",
+    )
+
+    step(
+        "Categorical distribution (frequency table)",
+        f"dist -c {DUCKDB_DB} -t customers -col country --top 10",
+        "String/categorical columns show the top values by frequency\n"
+        "  with counts and percentages. Use --top to control how many.",
+    )
+
+    # --- SQL Generation ---
+    banner("7. SQL Generation")
+
+    step(
+        "Generate a SELECT statement",
+        f"sql select -c {SQLITE_DB} -t customers",
+        "Generates a SELECT with all column names from the table.\n"
+        "  Copy-paste ready SQL, output to stdout.",
+    )
+
+    step(
+        "Generate a scratch table",
+        f"sql scratch -c {DUCKDB_DB} -t products --rows 3",
+        "Creates a CREATE TEMP TABLE + INSERT statements with real\n"
+        "  sample data. Great for building test fixtures.",
+    )
+
     # --- Config ---
-    banner("5. Managing Connections")
+    banner("8. Managing Connections")
 
     print("  qdo stores named connections in connections.toml so you don't")
     print("  have to type file paths every time.")
@@ -156,7 +207,7 @@ def main() -> None:
     wait()
 
     # --- Output Formats ---
-    banner("6. Output Formats")
+    banner("9. Output Formats")
 
     step(
         "JSON output for piping",
@@ -166,7 +217,7 @@ def main() -> None:
     )
 
     # --- Show SQL ---
-    banner("7. Debugging with --show-sql")
+    banner("10. Debugging with --show-sql")
 
     step(
         "See the SQL being executed",
@@ -177,7 +228,7 @@ def main() -> None:
     )
 
     # --- Wrap up ---
-    banner("8. Tutorial Complete!")
+    banner("11. Tutorial Complete!")
 
     print("  You've learned the core qdo commands:")
     print()
@@ -185,6 +236,9 @@ def main() -> None:
     print("    qdo preview -c <db> -t <table>          Preview rows")
     print("    qdo profile -c <db> -t <table>          Statistical profiling")
     print("    qdo profile ... --top N                 Top frequent values")
+    print("    qdo search -p <pattern> -c <db>         Search metadata")
+    print("    qdo dist -c <db> -t <tbl> -col <col>   Column distribution")
+    print("    qdo sql select/insert/ddl/scratch ...   Generate SQL")
     print("    qdo config add/list                     Manage connections")
     print("    qdo --show-sql <command>                See rendered SQL")
     print("    qdo --format json <command>             Machine-readable output")

@@ -2,25 +2,6 @@ import typer
 
 app = typer.Typer(help="Column distribution visualization.")
 
-NUMERIC_TYPE_PREFIXES = (
-    "int",
-    "integer",
-    "bigint",
-    "smallint",
-    "tinyint",
-    "float",
-    "double",
-    "real",
-    "decimal",
-    "numeric",
-    "number",
-    "hugeint",
-)
-
-
-def _is_numeric(type_str: str) -> bool:
-    return type_str.lower().startswith(NUMERIC_TYPE_PREFIXES)
-
 
 @app.callback(invoke_without_command=True)
 def dist(
@@ -36,7 +17,7 @@ def dist(
     ),
 ) -> None:
     """Visualize distribution of a column's values."""
-    from querido.cli._util import get_output_format, maybe_show_sql
+    from querido.cli._util import get_output_format, is_numeric_type, maybe_show_sql
     from querido.config import resolve_connection
     from querido.connectors.base import validate_column_name, validate_table_name
     from querido.connectors.factory import create_connector
@@ -58,7 +39,7 @@ def dist(
             raise typer.BadParameter(f"Column '{column}' not found in table '{table}'.")
 
         col_type = col_match[0]["type"]
-        is_num = _is_numeric(col_type)
+        is_num = is_numeric_type(col_type)
 
         # Count nulls
         null_sql = f'SELECT COUNT(*) AS total, SUM(CASE WHEN "{column}" IS NULL THEN 1 ELSE 0 END) AS null_count FROM {table}'
