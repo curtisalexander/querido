@@ -13,7 +13,6 @@ querido/
 ├── PLAN.md                         # Incremental build plan with phases
 ├── AGENTS.md                       # Agent onboarding guide
 ├── ARCHITECTURE.md                 # This file
-├── QUICKSTART.md                   # Agent-friendly quick reference
 ├── README.md
 ├── scripts/
 │   ├── init_test_data.py           # Generate synthetic data → data/test.db + data/test.duckdb
@@ -53,6 +52,8 @@ querido/
 │       │       │   └── snowflake.sql   # WIDTH_BUCKET binning
 │       │       ├── frequency/
 │       │       │   └── common.sql  # Top-N frequent values query
+│       │       ├── null_count/
+│       │       │   └── common.sql  # NULL count + total rows for a column
 │       │       ├── generate/           # SQL generation templates (qdo sql)
 │       │       │   ├── select/common.sql
 │       │       │   ├── insert/common.sql
@@ -255,6 +256,7 @@ CLI (Typer)
 | platformdirs | Cross-platform config paths | Default | In config.py only |
 | jinja2 | SQL template rendering | Default | In renderer.py only |
 | rich | Terminal output | Default | In output functions only |
+| tomli-w | TOML writing (config) | Default | In cli/config.py only |
 | duckdb | DuckDB + Parquet connector | `pip install 'querido[duckdb]'` | In connectors/duckdb.py only |
 | snowflake-connector-python | Snowflake connector | `pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
 

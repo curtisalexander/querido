@@ -3,9 +3,6 @@
 from typer.testing import CliRunner
 
 from querido.cli.main import app
-from tests.conftest import integration_skip
-
-pytestmark = integration_skip
 
 runner = CliRunner()
 

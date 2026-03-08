@@ -51,7 +51,7 @@ def my_command():
 from rich.table import Table  # slows down every command, even --help
 ```
 
-This applies to everything that isn't `typer` or stdlib: database drivers, Rich, Jinja2, platformdirs.
+This applies to everything that isn't `typer` or stdlib: database drivers, Rich, Jinja2, platformdirs, tomli-w.
 
 ### SQL Templates
 All database queries must use `.sql` template files in `src/querido/sql/templates/`. Never hardcode SQL strings in Python code (exception: connector `get_columns` methods, which use database-specific mechanisms like `PRAGMA`). Templates use Jinja2 syntax. See `ARCHITECTURE.md` for details.
@@ -72,6 +72,80 @@ Read `ARCHITECTURE.md` for the full structure. Key locations:
 - `src/querido/output/` — Output formatting (Rich tables, frequencies, future HTML export)
 - `src/querido/config.py` — TOML config loading, connection resolution (incl. Parquet detection)
 - `tests/integration/` — Integration tests (SQLite + DuckDB)
+
+## Commands
+
+### inspect — table structure
+```bash
+qdo inspect -c <connection> -t <table> [-v]
+```
+Shows: column names, types, nullable, default, primary key, row count. Use `-v` for comments.
+
+### preview — see rows
+```bash
+qdo preview -c <connection> -t <table> [-r <rows>]
+```
+Default 20 rows. Use `-r` to change.
+
+### profile — data profiling
+```bash
+qdo profile -c <connection> -t <table> [--columns col1,col2] [--sample N] [--no-sample] [--top N]
+```
+Numeric: min, max, mean, median, stddev, null count/%, distinct. String: min/max length, null count/%, distinct. Auto-samples at >1M rows (100k sample). `--top N` shows most frequent values.
+
+### dist — column distribution
+```bash
+qdo dist -c <connection> -t <table> -col <column> [--buckets N] [--top N]
+```
+Numeric: histogram with N buckets (default 20). Categorical: top N values by frequency (default 20).
+
+### search — find tables and columns
+```bash
+qdo search -p <pattern> -c <connection> [--type {table,column,all}]
+```
+Case-insensitive substring match across table and column names.
+
+### sql — generate SQL statements
+```bash
+qdo sql select -c <conn> -t <table>     # SELECT with all columns
+qdo sql insert -c <conn> -t <table>     # INSERT with placeholders
+qdo sql ddl -c <conn> -t <table>        # CREATE TABLE DDL
+qdo sql scratch -c <conn> -t <table>    # TEMP TABLE + sample INSERTs
+qdo sql task -c <conn> -t <table>       # Snowflake task template
+qdo sql udf -c <conn> -t <table>        # UDF template
+qdo sql procedure -c <conn> -t <table>  # Stored procedure (Snowflake)
+```
+
+### config — manage connections
+```bash
+qdo config add --name mydb --type sqlite --path ./data.db
+qdo config list
+```
+
+### Global flags
+- `--show-sql` — print rendered SQL to stderr with syntax highlighting
+- `--format {rich,markdown,json,csv}` / `-f` — output format (default: rich)
+- `--version` / `-V` — show version
+
+### Connection resolution
+`-c` accepts a named connection from `connections.toml` or a file path. Extension determines type: `.duckdb`/`.ddb` → DuckDB, `.parquet` → Parquet (via DuckDB), else → SQLite. Override with `--db-type`.
+
+## Test Data
+
+```bash
+uv run python scripts/init_test_data.py   # creates data/test.db and data/test.duckdb
+```
+
+| Database | Tables | Rows |
+|----------|--------|------|
+| test.db (SQLite) | customers, products, datatypes | 1000 / 1000 / 100 |
+| test.duckdb | customers, products, datatypes | 1000 / 1000 / 100 |
+
+**customers**: customer_id, first_name, last_name, company, city, country, phone1, phone2, email, subscription_date, website
+
+**products**: name, description, brand, category, price, currency, stock, ean, color, size, availability, internal_id
+
+**datatypes**: mixed types for edge-case testing (blobs, JSON, nulls, negatives, large ints)
 
 ## Build Plan
 

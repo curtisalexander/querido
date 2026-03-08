@@ -56,11 +56,11 @@ def profile(
             col_meta = connector.get_columns(table)
 
             if columns:
+                all_col_meta = col_meta
                 filter_names = {c.strip().lower() for c in columns.split(",")}
                 col_meta = [c for c in col_meta if c["name"].lower() in filter_names]
                 if not col_meta:
-                    all_cols = connector.get_columns(table)
-                    available = ", ".join(c["name"] for c in all_cols)
+                    available = ", ".join(c["name"] for c in all_col_meta)
                     raise typer.BadParameter(
                         f"No matching columns found in '{table}'.\nAvailable columns: {available}"
                     )

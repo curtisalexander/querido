@@ -110,16 +110,26 @@ def list_connections() -> None:
 
 
 def _write_connections(config_file: Path | str, connections: dict) -> None:
-    """Write connections dict back to TOML format.
+    """Write connections dict back to TOML format using tomli-w.
 
-    All connection values are currently strings, so we quote everything.
-    If non-string values are needed in the future, use a proper TOML writer.
+    Uses a temp file + atomic rename so a crash mid-write can't corrupt the config.
     """
-    lines = []
-    for name, config in connections.items():
-        lines.append(f"[connections.{name}]")
-        for key, val in config.items():
-            lines.append(f'{key} = "{val}"')
-        lines.append("")
+    import os
+    import tempfile
 
-    Path(config_file).write_text("\n".join(lines) + "\n")
+    import tomli_w
+
+    config_file = Path(config_file)
+    data = tomli_w.dumps({"connections": connections}).encode()
+    fd, tmp = tempfile.mkstemp(dir=config_file.parent, suffix=".tmp")
+    closed = False
+    try:
+        os.write(fd, data)
+        os.close(fd)
+        closed = True
+        Path(tmp).replace(config_file)
+    except BaseException:
+        if not closed:
+            os.close(fd)
+        Path(tmp).unlink(missing_ok=True)
+        raise

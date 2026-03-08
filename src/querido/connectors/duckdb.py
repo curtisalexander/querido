@@ -20,8 +20,8 @@ class DuckDBConnector:
             raise FileNotFoundError(f"Parquet file not found: {parquet_path}")
         resolved = str(p.resolve())
         name = p.stem
-        # Escape single quotes in the path to prevent injection
-        safe_path = resolved.replace("'", "''")
+        # Use forward slashes (works on all platforms in DuckDB) and escape quotes
+        safe_path = resolved.replace("\\", "/").replace("'", "''")
         self.conn.execute(
             f"CREATE OR REPLACE VIEW \"{name}\" AS SELECT * FROM read_parquet('{safe_path}')"
         )
@@ -29,6 +29,8 @@ class DuckDBConnector:
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         result = self.conn.execute(sql, params) if params else self.conn.execute(sql)
+        if result.description is None:
+            return []
         columns = [desc[0] for desc in result.description]
         rows = result.fetchall()
         return [dict(zip(columns, row, strict=True)) for row in rows]
