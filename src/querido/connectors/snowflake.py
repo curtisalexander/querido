@@ -20,6 +20,12 @@ class SnowflakeConnector:
         if "snowflake_connection" in kwargs:
             kwargs["connection_name"] = kwargs.pop("snowflake_connection")
 
+        # Enable credential caching by default so SSO/MFA users aren't
+        # re-prompted on every CLI invocation.  Users can disable with
+        # client_store_temporary_credential = false in their connection config.
+        kwargs.setdefault("client_store_temporary_credential", True)
+        kwargs.setdefault("client_request_mfa_token", True)
+
         self.conn = snowflake.connector.connect(**kwargs)
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:

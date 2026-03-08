@@ -14,6 +14,8 @@ def render_template(command: str, dialect: str, **kwargs: object) -> str:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
         keep_trailing_newline=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
     )
 
     dialect_path = f"{command}/{dialect}.sql"

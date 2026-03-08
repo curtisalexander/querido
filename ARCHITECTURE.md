@@ -30,7 +30,8 @@ querido/
 │       │   ├── config.py           # `qdo config add/list` — connection management
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
 │       │   ├── preview.py          # `qdo preview` — row preview
-│       │   └── profile.py          # `qdo profile` — data profiling
+│       │   ├── profile.py          # `qdo profile` — data profiling
+│       │   └── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
 │       ├── connectors/
 │       │   ├── __init__.py         # Public API (__all__: Connector, create_connector)
 │       │   ├── base.py             # Connector Protocol, table name validation
@@ -70,6 +71,7 @@ querido/
     ├── test_profile.py             # Profile command tests (top-N, frequencies)
     ├── test_renderer.py            # SQL template rendering tests
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
+    ├── test_sql.py                 # SQL generation command tests
     └── integration/
         ├── test_connectors.py      # Connector tests against real data
         ├── test_inspect.py         # Inspect tests against real data
