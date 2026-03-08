@@ -41,6 +41,10 @@ class Connector(Protocol):
         """Execute SQL and return results as list of dicts."""
         ...
 
+    def get_tables(self) -> list[dict]:
+        """Return list of tables/views with keys: name, type."""
+        ...
+
     def get_columns(self, table: str) -> list[dict]:
         """Return column metadata for a table."""
         ...

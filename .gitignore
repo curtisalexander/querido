@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 *.egg-info/
 *.egg
-dist/
+/dist/
 build/
 
 # Virtual environments

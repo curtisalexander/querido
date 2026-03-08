@@ -174,16 +174,18 @@ The items below are documented for future work. They are ordered from easiest to
 - [x] All use `get_columns()` metadata, output plain text to stdout for copy-paste
 - [x] Tests: 13 tests covering all subcommands, dialect routing, Snowflake-only guards
 
-### F4: Metadata search with fuzzy matching
+### F4: Metadata search with fuzzy matching ✅
 **Ease: Easy-Medium** — We have connectors and info schema access already.
 
-Search across tables/views/columns in a database with fuzzy matching. For Snowflake, query `INFORMATION_SCHEMA.TABLES` and `INFORMATION_SCHEMA.COLUMNS`. For SQLite/DuckDB, use their respective catalog queries. Fuzzy matching can start simple (case-insensitive substring/LIKE) and optionally add edit-distance later.
-
-- `qdo search <pattern>` command
-- `--type {table,column,all}` filter
-- `--schema` filter for Snowflake
-- Results: table/view name, type, matching columns, schema
-- Start with LIKE/ILIKE matching, consider `thefuzz` or similar lib for true fuzzy matching later
+- [x] `qdo search` command with `--pattern` / `-p` for case-insensitive substring matching
+- [x] `--type {table,column,all}` filter (default: `all`)
+- [x] `--schema` filter for Snowflake
+- [x] `get_tables()` method added to Connector Protocol and all connectors (SQLite, DuckDB, Snowflake)
+- [x] Results: table/view name, type, match type (table/column), column name, column type
+- [x] All output formats supported (rich, markdown, json, csv)
+- [x] Detects views vs tables
+- [x] Tests: 13 tests covering table/column search, type filter, view detection, DuckDB, all output formats
+- Future: consider `thefuzz` or edit-distance for true fuzzy matching
 
 ### F5: Column distribution visualization
 **Ease: Medium** — We have profile (stats). Need to add histogram rendering and frequency tables.

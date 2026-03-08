@@ -211,6 +211,126 @@ def format_profile(
     return "\n".join(lines)
 
 
+# -- search --------------------------------------------------------------------
+
+
+def format_search(
+    pattern: str,
+    results: list[dict],
+    fmt: str,
+) -> str:
+    if not results:
+        if fmt == "csv":
+            return ""
+        if fmt == "json":
+            return json.dumps({"pattern": pattern, "results": []}, indent=2)
+        return f"No matches found for '{pattern}'."
+
+    if fmt == "json":
+        return json.dumps({"pattern": pattern, "results": results}, indent=2, default=str)
+
+    if fmt == "csv":
+        flat = [
+            {
+                "table_name": r["table_name"],
+                "table_type": r["table_type"],
+                "match_type": r["match_type"],
+                "column_name": r["column_name"] or "",
+                "column_type": r["column_type"] or "",
+            }
+            for r in results
+        ]
+        return _dicts_to_csv(flat)
+
+    # markdown
+    lines = [f"## Search: '{pattern}'", ""]
+    headers = ["Table", "Type", "Match", "Column", "Column Type"]
+    rows = [
+        [
+            r["table_name"],
+            r["table_type"],
+            r["match_type"],
+            r["column_name"] or "",
+            r["column_type"] or "",
+        ]
+        for r in results
+    ]
+    lines.append(_to_markdown_table(headers, rows))
+    lines.append("")
+    lines.append(f"{len(results)} match(es)")
+    return "\n".join(lines)
+
+
+# -- dist ----------------------------------------------------------------------
+
+
+def format_dist(
+    dist_result: dict,
+    fmt: str,
+) -> str:
+    table_name = dist_result["table"]
+    column = dist_result["column"]
+    mode = dist_result["mode"]
+    total_rows = dist_result["total_rows"]
+    null_count = dist_result["null_count"]
+
+    if fmt == "json":
+        return json.dumps(dist_result, indent=2, default=str)
+
+    if mode == "numeric":
+        buckets = dist_result["buckets"]
+        if fmt == "csv":
+            flat = [
+                {
+                    "bucket_min": b["bucket_min"],
+                    "bucket_max": b["bucket_max"],
+                    "count": b["count"],
+                }
+                for b in buckets
+            ]
+            return _dicts_to_csv(flat) if flat else ""
+
+        # markdown
+        lines = [f"## Distribution: {table_name}.{column}", ""]
+        headers = ["Bucket", "Count"]
+        rows = [
+            [f"{_fmt(b['bucket_min'])} – {_fmt(b['bucket_max'])}", f"{b['count']:,}"]
+            for b in buckets
+        ]
+        lines.append(_to_markdown_table(headers, rows))
+        lines.append("")
+        null_note = f" (nulls: {null_count:,})" if null_count else ""
+        lines.append(f"Total rows: {total_rows:,}{null_note}")
+        return "\n".join(lines)
+    else:
+        values = dist_result["values"]
+        if fmt == "csv":
+            flat = [
+                {
+                    "value": v["value"] if v["value"] is not None else "(NULL)",
+                    "count": v["count"],
+                }
+                for v in values
+            ]
+            return _dicts_to_csv(flat) if flat else ""
+
+        # markdown
+        lines = [f"## Distribution: {table_name}.{column}", ""]
+        headers = ["Value", "Count"]
+        rows = [
+            [
+                str(v["value"]) if v["value"] is not None else "(NULL)",
+                f"{v['count']:,}",
+            ]
+            for v in values
+        ]
+        lines.append(_to_markdown_table(headers, rows))
+        lines.append("")
+        null_note = f" (nulls: {null_count:,})" if null_count else ""
+        lines.append(f"Total rows: {total_rows:,}{null_note}")
+        return "\n".join(lines)
+
+
 # -- frequencies ---------------------------------------------------------------
 
 
