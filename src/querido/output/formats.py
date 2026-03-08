@@ -431,6 +431,36 @@ def format_template(
     return "\n".join(lines)
 
 
+# -- lineage -------------------------------------------------------------------
+
+
+def format_lineage(
+    lineage_result: dict,
+    fmt: str,
+) -> str:
+    view_name = lineage_result["view"]
+    dialect = lineage_result["dialect"]
+    definition = lineage_result["definition"]
+
+    if fmt == "json":
+        return json.dumps(lineage_result, indent=2, default=str)
+
+    if fmt == "csv":
+        return _dicts_to_csv([{"view": view_name, "dialect": dialect, "definition": definition}])
+
+    # markdown
+    lines = [
+        f"## View: {view_name}",
+        "",
+        f"Dialect: {dialect}",
+        "",
+        "```sql",
+        definition,
+        "```",
+    ]
+    return "\n".join(lines)
+
+
 # -- frequencies ---------------------------------------------------------------
 
 

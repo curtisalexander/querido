@@ -83,6 +83,19 @@ class DuckDBConnector:
             return rows[0]["comment"]
         return None
 
+    def get_view_definition(self, view: str) -> str | None:
+        """Return the SQL definition of a view from duckdb_views()."""
+        from querido.connectors.base import validate_table_name
+
+        validate_table_name(view)
+        rows = self.execute(
+            "SELECT sql FROM duckdb_views() WHERE lower(view_name) = lower($view_name)",
+            {"view_name": view},
+        )
+        if rows and rows[0]["sql"]:
+            return rows[0]["sql"]
+        return None
+
     def close(self) -> None:
         self.conn.close()
 

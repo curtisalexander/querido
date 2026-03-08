@@ -187,17 +187,16 @@ The items below are documented for future work. They are ordered from easiest to
 - [x] Tests: 13 tests covering table/column search, type filter, view detection, DuckDB, all output formats
 - Future: consider `thefuzz` or edit-distance for true fuzzy matching
 
-### F5: Column distribution visualization
+### F5: Column distribution visualization ✅
 **Ease: Medium** — We have profile (stats). Need to add histogram rendering and frequency tables.
 
-Quickly visualize how a column's values are distributed. Numeric columns get a text-based histogram (Rich sparkline or bar chart). String/categorical columns get a frequency table with counts, percentages, and null handling. Always show null count and null percentage.
-
-- `qdo dist <table> <column>` command (or `qdo profile --dist`)
-- Numeric: bin values into N buckets (default 10-20), render as horizontal bar chart using Rich
-- Categorical/string: top N values by frequency, count, percentage, cumulative %
-- Always include NULL as a category
-- Consider Rich's `Bar` or unicode block characters for histograms
-- SQL: use `WIDTH_BUCKET` (DuckDB/Snowflake) or CASE-based binning (SQLite)
+- [x] `qdo dist` command with `--table`, `--column`, `--connection` options
+- [x] Numeric columns: bin values into N buckets (`--buckets`, default 20), render as horizontal bar chart with unicode block characters
+- [x] Categorical/string columns: top N values by frequency (`--top`, default 20), count, percentage
+- [x] NULL count always shown
+- [x] SQL templates: `WIDTH_BUCKET` (DuckDB), `FLOOR`-based binning (DuckDB), CASE-based binning (SQLite), Snowflake `WIDTH_BUCKET`
+- [x] All output formats supported (rich, markdown, json, csv)
+- [x] Tests: 15 tests covering numeric/categorical, SQLite/DuckDB, all formats, edge cases (empty table, single value, top flag)
 
 ### F6: Table metadata template generation ✅
 **Ease: Medium** — Combines inspect + profile output into a structured template.
@@ -211,16 +210,18 @@ Quickly visualize how a column's values are distributed. Numeric columns get a t
 - [x] All output formats: rich, markdown, json, csv
 - [x] Tests: 10 tests covering SQLite, DuckDB, all formats, comments, error handling
 
-### F7: View definition / simple lineage
+### F7: View definition / simple lineage ✅
 **Ease: Medium** — Each DB has a way to retrieve view DDL.
 
-Retrieve the SQL definition of a view to understand what it's built from. This is the simplest form of lineage.
-
-- `qdo lineage <view>` or `qdo view-sql <view>` command
-- Snowflake: `GET_DDL('VIEW', '<name>')` or `INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION`
-- DuckDB: `duckdb_views()` table function has `sql` column
-- SQLite: `sqlite_master` table has `sql` column for views
-- Display with syntax highlighting (Rich `Syntax` panel)
+- [x] `qdo lineage` command with `--view`, `--connection` options
+- [x] `get_view_definition()` method added to Connector Protocol and all connectors
+- [x] SQLite: queries `sqlite_master WHERE type='view'` for the `sql` column
+- [x] DuckDB: queries `duckdb_views()` for the `sql` column
+- [x] Snowflake: queries `information_schema.views` for `VIEW_DEFINITION`
+- [x] Rich output: syntax-highlighted SQL in a Rich Panel with line numbers
+- [x] All output formats supported (rich, markdown, json, csv)
+- [x] Graceful errors: table-not-view, nonexistent view, invalid name
+- [x] Tests: 11 tests covering SQLite/DuckDB, all formats, error cases, connector methods
 
 ### F8: Snowflake semantic layer YAML templates
 **Ease: Medium** — Generate YAML from metadata we already collect. Snowflake-specific.
@@ -322,20 +323,20 @@ When a user types a table or column name that doesn't exist, suggest close match
 - For large databases (Snowflake with thousands of tables), limit the "Available tables" list to fuzzy matches only — don't dump thousands of names into the terminal
 - Consider `thefuzz` (optional dependency) for higher-quality fuzzy matching later
 
-### F16: Local metadata cache for fast search and suggestions
+### F16: Local metadata cache for fast search and suggestions ✅
 **Ease: Medium** — Requires cache invalidation strategy and schema change detection.
 
-For large Snowflake databases with hundreds of schemas and thousands of tables, fetching metadata on every command is slow. Cache table/column metadata locally so that operations like search, fuzzy suggestions, and tab completion can be instant.
-
-- `qdo cache sync --connection <name>` — fetch all table/column metadata and store locally
-- `qdo cache status` — show cache age, table count, staleness
-- `qdo cache clear` — remove cached metadata
-- Storage: local SQLite database in the config directory (`~/.config/qdo/cache.db`)
-  - Tables: `cached_tables(connection, schema, table_name, table_type, cached_at)`
-  - Columns: `cached_columns(connection, schema, table_name, column_name, data_type, ...)`
-- Automatic staleness detection: cache expires after configurable TTL (default: 24h)
-- Commands like `search` and error handlers check cache first, fall back to live query
-- `--no-cache` flag to bypass cache when fresh metadata is needed
+- [x] `qdo cache sync --connection <name>` — fetch all table/column metadata and store locally
+- [x] `qdo cache status` — show cache age, table count, staleness (all output formats)
+- [x] `qdo cache clear` — remove cached metadata (all connections or specific)
+- [x] `src/querido/cache.py` — `MetadataCache` class with SQLite-backed storage
+- [x] Storage: local SQLite database in the config directory (`~/.config/qdo/cache.db`)
+  - Tables: `cached_tables(connection, table_name, table_type, cached_at)`
+  - Columns: `cached_columns(connection, table_name, column_name, column_type, nullable, comment, cached_at)`
+- [x] Automatic staleness detection: cache expires after configurable TTL (default: 24h)
+- [x] `qdo search` checks cache first, falls back to live query
+- [x] `--no-cache` flag on `qdo search` to bypass cache
+- [x] Tests: 14 tests covering sync, status, clear, freshness, re-sync, CLI commands, search integration, DuckDB
 - Future: background cache refresh, incremental sync via `information_schema.tables.last_altered`
 - Future: use DuckDB instead of SQLite for cache to enable analytics on cached metadata
 
