@@ -75,24 +75,9 @@ def semantic(
 
 def _classify_semantic_column(col: dict) -> str:
     """Classify a column as 'dimension', 'time_dimension', or 'measure'."""
-    from querido.core.profile import is_numeric_type
+    from querido.core.profile import classify_column_kind
 
-    col_type = col["type"].upper()
-    col_name = col["name"].lower()
-
-    # Time dimensions
-    time_keywords = ("date", "time", "timestamp", "created", "updated", "modified")
-    if any(kw in col_type.lower() for kw in ("date", "time", "timestamp")):
-        return "time_dimension"
-    if any(kw in col_name for kw in time_keywords):
-        return "time_dimension"
-
-    # Measures (numeric types that aren't IDs/keys)
-    id_keywords = ("_id", "_key", "_pk", "_fk", "_code", "_num")
-    if is_numeric_type(col_type) and not any(kw in col_name for kw in id_keywords):
-        return "measure"
-
-    return "dimension"
+    return classify_column_kind(col)
 
 
 def _build_semantic_yaml(
@@ -257,6 +242,13 @@ def _query_lineage(
     from querido.connectors.base import validate_object_name
 
     validate_object_name(object_name)
+
+    # Validate allowlists here (not just in the caller) since these values
+    # are interpolated directly into SQL.
+    if direction not in ("upstream", "downstream"):
+        raise ValueError(f"Invalid direction: {direction!r}")
+    if domain not in ("table", "column"):
+        raise ValueError(f"Invalid domain: {domain!r}")
 
     sql = (
         f"SELECT * FROM TABLE("

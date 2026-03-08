@@ -31,16 +31,22 @@ def create_app(connector: Connector, connection_name: str):
     app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")
 
     # Error handlers -------------------------------------------------------
+    import html as _html
+
     from fastapi import Request as _Req
     from fastapi.responses import HTMLResponse as _HTML
 
     @app.exception_handler(ValueError)
     async def value_error_handler(request: _Req, exc: ValueError) -> _HTML:
-        return _HTML(f"<p class='error-msg'>{exc}</p>", status_code=400)
+        return _HTML(
+            f"<p class='error-msg'>{_html.escape(str(exc))}</p>", status_code=400
+        )
 
     @app.exception_handler(LookupError)
     async def lookup_error_handler(request: _Req, exc: LookupError) -> _HTML:
-        return _HTML(f"<p class='error-msg'>{exc}</p>", status_code=404)
+        return _HTML(
+            f"<p class='error-msg'>{_html.escape(str(exc))}</p>", status_code=404
+        )
 
     # Routes ---------------------------------------------------------------
     from querido.web.routes.fragments import router as fragments_router
