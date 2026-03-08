@@ -244,21 +244,21 @@ def _html_page(title: str, subtitle: str, table_html: str, footer_text: str = ""
 
 def _build_table(headers: list[str], rows: list[list[Any]]) -> str:
     """Build an HTML ``<table>`` with ``<thead>``/``<tbody>``."""
-    parts: list[str] = ['<table>']
-    parts.append('<thead><tr>')
+    parts: list[str] = ["<table>"]
+    parts.append("<thead><tr>")
     for h in headers:
         parts.append(f'<th>{html.escape(str(h))}<span class="sort-arrow"></span></th>')
-    parts.append('</tr></thead>')
-    parts.append('<tbody>')
+    parts.append("</tr></thead>")
+    parts.append("<tbody>")
     for idx, row in enumerate(rows):
         parts.append(f'<tr data-idx="{idx}">')
         for val in row:
             if val is None or val == "":
                 parts.append('<td class="null-val">NULL</td>')
             else:
-                parts.append(f'<td>{html.escape(str(val))}</td>')
-        parts.append('</tr>')
-    parts.append('</tbody></table>')
+                parts.append(f"<td>{html.escape(str(val))}</td>")
+        parts.append("</tr>")
+    parts.append("</tbody></table>")
     return "\n".join(parts)
 
 
@@ -367,25 +367,37 @@ def format_profile_html(
         )
 
     headers = [
-        "Column", "Type", "Min", "Max", "Mean", "Median", "Stddev",
-        "Min Len", "Max Len", "Nulls", "Null %", "Distinct",
+        "Column",
+        "Type",
+        "Min",
+        "Max",
+        "Mean",
+        "Median",
+        "Stddev",
+        "Min Len",
+        "Max Len",
+        "Nulls",
+        "Null %",
+        "Distinct",
     ]
     rows: list[list[Any]] = []
     for r in data:
-        rows.append([
-            r["column_name"],
-            r["column_type"],
-            fmt_value(r.get("min_val")),
-            fmt_value(r.get("max_val")),
-            fmt_value(r.get("mean_val")),
-            fmt_value(r.get("median_val")),
-            fmt_value(r.get("stddev_val")),
-            fmt_value(r.get("min_length")),
-            fmt_value(r.get("max_length")),
-            fmt_value(r.get("null_count")),
-            fmt_value(r.get("null_pct")),
-            fmt_value(r.get("distinct_count")),
-        ])
+        rows.append(
+            [
+                r["column_name"],
+                r["column_type"],
+                fmt_value(r.get("min_val")),
+                fmt_value(r.get("max_val")),
+                fmt_value(r.get("mean_val")),
+                fmt_value(r.get("median_val")),
+                fmt_value(r.get("stddev_val")),
+                fmt_value(r.get("min_length")),
+                fmt_value(r.get("max_length")),
+                fmt_value(r.get("null_count")),
+                fmt_value(r.get("null_pct")),
+                fmt_value(r.get("distinct_count")),
+            ]
+        )
 
     sample_note = ""
     if sampled and sample_size:
@@ -475,25 +487,39 @@ def format_template_html(template_result: dict) -> str:
     columns = template_result["columns"]
 
     headers = [
-        "Column", "Type", "Nullable", "Distinct", "Nulls", "Null %",
-        "Min", "Max", "Sample Values", "Business Definition", "Data Owner", "Notes",
+        "Column",
+        "Type",
+        "Nullable",
+        "Distinct",
+        "Nulls",
+        "Null %",
+        "Min",
+        "Max",
+        "Sample Values",
+        "Business Definition",
+        "Data Owner",
+        "Notes",
     ]
     rows: list[list[Any]] = []
     for col in columns:
         min_display = fmt_value(col.get("min_val")) or fmt_value(col.get("min_length"))
         max_display = fmt_value(col.get("max_val")) or fmt_value(col.get("max_length"))
-        rows.append([
-            col["name"],
-            col["type"],
-            "YES" if col["nullable"] else "NO",
-            fmt_value(col.get("distinct_count")),
-            fmt_value(col.get("null_count")),
-            fmt_value(col.get("null_pct")),
-            min_display,
-            max_display,
-            col.get("sample_values", ""),
-            "", "", "",  # placeholders
-        ])
+        rows.append(
+            [
+                col["name"],
+                col["type"],
+                "YES" if col["nullable"] else "NO",
+                fmt_value(col.get("distinct_count")),
+                fmt_value(col.get("null_count")),
+                fmt_value(col.get("null_pct")),
+                min_display,
+                max_display,
+                col.get("sample_values", ""),
+                "",
+                "",
+                "",  # placeholders
+            ]
+        )
 
     subtitle = f"Row count: {row_count:,}"
     if table_comment:
@@ -517,7 +543,7 @@ def format_lineage_html(lineage_result: dict) -> str:
     code_html = (
         f'<pre style="background:var(--header-bg);padding:16px;border-radius:6px;'
         f'overflow-x:auto;font-size:0.85rem;border:1px solid var(--border)">'
-        f'<code>{html.escape(definition)}</code></pre>'
+        f"<code>{html.escape(definition)}</code></pre>"
     )
 
     return _html_page(

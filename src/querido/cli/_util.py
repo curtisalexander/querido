@@ -9,27 +9,6 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
-NUMERIC_TYPE_PREFIXES = (
-    "int",
-    "integer",
-    "bigint",
-    "smallint",
-    "tinyint",
-    "float",
-    "double",
-    "real",
-    "decimal",
-    "numeric",
-    "number",
-    "hugeint",
-)
-
-
-def is_numeric_type(type_str: str) -> bool:
-    """Return True if the SQL type string represents a numeric type."""
-    return type_str.lower().startswith(NUMERIC_TYPE_PREFIXES)
-
-
 def _get_root_obj() -> dict:
     """Walk up the Click context chain and return the root context's obj dict."""
     import click

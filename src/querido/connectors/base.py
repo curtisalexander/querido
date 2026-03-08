@@ -33,6 +33,21 @@ def validate_column_name(name: str) -> str:
     return name
 
 
+def validate_object_name(name: str) -> str:
+    """Validate a fully-qualified object name for Snowflake queries.
+
+    Allows letters, digits, underscores, and dots (for db.schema.table).
+    Raises ValueError if the name contains unsafe characters.
+    """
+    if not _SAFE_IDENTIFIER.match(name):
+        raise ValueError(
+            f"Invalid object name: {name!r}. "
+            "Names must start with a letter or underscore and contain only "
+            "letters, digits, underscores, and dots."
+        )
+    return name
+
+
 @runtime_checkable
 class Connector(Protocol):
     dialect: str

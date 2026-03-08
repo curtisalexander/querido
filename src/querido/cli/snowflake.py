@@ -75,7 +75,7 @@ def semantic(
 
 def _classify_semantic_column(col: dict) -> str:
     """Classify a column as 'dimension', 'time_dimension', or 'measure'."""
-    from querido.cli._util import is_numeric_type
+    from querido.core.profile import is_numeric_type
 
     col_type = col["type"].upper()
     col_name = col["name"].lower()
@@ -101,8 +101,6 @@ def _build_semantic_yaml(
     table_comment: str | None,
 ) -> str:
     """Build a Cortex Analyst semantic model YAML string."""
-    import io
-
     buf = io.StringIO()
     indent = "  "
 
@@ -256,6 +254,10 @@ def _query_lineage(
     depth: int,
 ) -> list[dict]:
     """Execute GET_LINEAGE and return results."""
+    from querido.connectors.base import validate_object_name
+
+    validate_object_name(object_name)
+
     sql = (
         f"SELECT * FROM TABLE("
         f"SNOWFLAKE.CORE.GET_LINEAGE('{object_name}', '{domain}', '{direction}', {depth})"

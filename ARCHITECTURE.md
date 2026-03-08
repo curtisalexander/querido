@@ -36,8 +36,9 @@ querido/
 │       │   ├── profile.py          # `qdo profile` — data profiling
 │       │   ├── search.py           # `qdo search` — metadata search across tables/columns (cache-aware)
 │       │   ├── explore.py          # `qdo explore` — interactive TUI launcher
+│       │   ├── snowflake.py         # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
 │       │   ├── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
-│       │   └── template.py        # `qdo template` — documentation template generation
+│       │   └── template.py         # `qdo template` — documentation template generation
 │       ├── connectors/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── base.py             # Connector Protocol, table name validation
@@ -89,9 +90,10 @@ querido/
 │       │       ├── sidebar.py      # MetadataSidebar — column stats panel
 │       │       └── status_bar.py   # StatusBar — table info, row count, filter/sort status
 │       └── output/
-│           ├── __init__.py         # Package marker, shared helpers (_fmt)
+│           ├── __init__.py         # Package marker, shared helpers (fmt_value)
 │           ├── console.py          # Rich terminal output (tables, panels, frequencies)
-│           └── formats.py          # Machine-readable output (markdown, JSON, CSV)
+│           ├── formats.py          # Machine-readable output (markdown, JSON, CSV)
+│           └── html.py             # Standalone HTML pages with interactive tables
 └── tests/
     ├── conftest.py                 # Shared fixtures (temp databases, test tables)
     ├── test_cli.py                 # CLI help/version/show-sql tests
@@ -244,7 +246,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_lineage`, `print_frequencies`, `print_template`.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_lineage`, `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
@@ -252,7 +254,7 @@ Progress spinners (Rich `Status`) display on stderr during query execution so th
 
 - `--version` / `-V`: Show version and exit
 - `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_util.py:maybe_show_sql()`.
-- `--format {rich,markdown,json,csv}` / `-f`: Output format. Default is `rich` (Rich terminal tables). Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_util.py:get_output_format()`.
+- `--format {rich,markdown,json,csv,html}` / `-f`: Output format. Default is `rich` (Rich terminal tables). `html` opens results in the default browser. Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_util.py:get_output_format()`.
 
 Command-specific flags:
 - `inspect --verbose` / `-v`: Show extended metadata (table and column comments/descriptions).
