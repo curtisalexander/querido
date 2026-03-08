@@ -1,18 +1,23 @@
 """Tests for the explore CLI entry point."""
 
+import re
+
 from typer.testing import CliRunner
 
 from querido.cli.main import app
 
 runner = CliRunner()
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
 
 def test_explore_help():
     result = runner.invoke(app, ["explore", "--help"])
     assert result.exit_code == 0
-    assert "explore" in result.output.lower()
-    assert "--table" in result.output
-    assert "--connection" in result.output
+    plain = _ANSI_RE.sub("", result.output)
+    assert "explore" in plain.lower()
+    assert "--table" in plain
+    assert "--connection" in plain
 
 
 def test_explore_missing_table():
