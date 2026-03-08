@@ -82,7 +82,9 @@ class TestSqlSnowflakeOnly:
 
 class TestSqlScratch:
     def test_scratch_sqlite(self, sqlite_path: str) -> None:
-        result = runner.invoke(app, ["sql", "scratch", "-t", "users", "-c", sqlite_path, "-r", "2"])
+        result = runner.invoke(
+            app, ["sql", "scratch", "-t", "users", "-c", sqlite_path, "-r", "2"]
+        )
         assert result.exit_code == 0
         assert "CREATE TEMP TABLE tmp_users" in result.output
         assert "INSERT INTO tmp_users" in result.output
@@ -91,7 +93,9 @@ class TestSqlScratch:
         assert "SELECT * FROM tmp_users" in result.output
 
     def test_scratch_duckdb(self, duckdb_path: str) -> None:
-        result = runner.invoke(app, ["sql", "scratch", "-t", "users", "-c", duckdb_path, "-r", "1"])
+        result = runner.invoke(
+            app, ["sql", "scratch", "-t", "users", "-c", duckdb_path, "-r", "1"]
+        )
         assert result.exit_code == 0
         assert "CREATE TEMP TABLE tmp_users" in result.output
         assert "INSERT INTO tmp_users" in result.output

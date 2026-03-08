@@ -15,7 +15,9 @@ def dist_sqlite(tmp_path: Path) -> str:
     """SQLite database with numeric and text columns for distribution testing."""
     db_path = str(tmp_path / "dist.db")
     conn = sqlite3.connect(db_path)
-    conn.execute("CREATE TABLE sales (id INTEGER PRIMARY KEY, amount REAL, category TEXT, notes TEXT)")
+    conn.execute(
+        "CREATE TABLE sales (id INTEGER PRIMARY KEY, amount REAL, category TEXT, notes TEXT)"
+    )
     # Insert data with known distribution
     rows = []
     for i in range(100):
@@ -79,7 +81,19 @@ def test_dist_numeric_buckets_count(dist_sqlite: str):
     """Should have at most the requested number of buckets."""
     result = runner.invoke(
         app,
-        ["--format", "json", "dist", "-t", "sales", "-col", "amount", "-c", dist_sqlite, "-b", "5"],
+        [
+            "--format",
+            "json",
+            "dist",
+            "-t",
+            "sales",
+            "-col",
+            "amount",
+            "-c",
+            dist_sqlite,
+            "-b",
+            "5",
+        ],
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -92,9 +106,7 @@ def test_dist_numeric_buckets_count(dist_sqlite: str):
 
 
 def test_dist_categorical_sqlite(dist_sqlite: str):
-    result = runner.invoke(
-        app, ["dist", "-t", "sales", "-col", "category", "-c", dist_sqlite]
-    )
+    result = runner.invoke(app, ["dist", "-t", "sales", "-col", "category", "-c", dist_sqlite])
     assert result.exit_code == 0
     assert "Distribution" in result.output
     assert "electronics" in result.output
@@ -141,9 +153,7 @@ def test_dist_numeric_duckdb(dist_duckdb: str):
 
 
 def test_dist_categorical_duckdb(dist_duckdb: str):
-    result = runner.invoke(
-        app, ["dist", "-t", "sales", "-col", "category", "-c", dist_duckdb]
-    )
+    result = runner.invoke(app, ["dist", "-t", "sales", "-col", "category", "-c", dist_duckdb])
     assert result.exit_code == 0
     assert "electronics" in result.output
     assert "clothing" in result.output
@@ -155,7 +165,19 @@ def test_dist_categorical_duckdb(dist_duckdb: str):
 def test_dist_markdown_format(dist_sqlite: str):
     result = runner.invoke(
         app,
-        ["--format", "markdown", "dist", "-t", "sales", "-col", "amount", "-c", dist_sqlite, "-b", "5"],
+        [
+            "--format",
+            "markdown",
+            "dist",
+            "-t",
+            "sales",
+            "-col",
+            "amount",
+            "-c",
+            dist_sqlite,
+            "-b",
+            "5",
+        ],
     )
     assert result.exit_code == 0
     assert "## Distribution:" in result.output
@@ -177,9 +199,7 @@ def test_dist_csv_format(dist_sqlite: str):
 
 
 def test_dist_invalid_column(dist_sqlite: str):
-    result = runner.invoke(
-        app, ["dist", "-t", "sales", "-col", "nonexistent", "-c", dist_sqlite]
-    )
+    result = runner.invoke(app, ["dist", "-t", "sales", "-col", "nonexistent", "-c", dist_sqlite])
     assert result.exit_code != 0
 
 

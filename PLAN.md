@@ -309,6 +309,35 @@ Use an open-weight local LLM to generate SQL from natural language, informed by 
 - This should be the LAST feature implemented due to dependency weight and complexity
 - Consider making this a separate package (`qdo-ai`) that extends qdo via plugin
 
+### F15: Fuzzy table/column name suggestions in error messages
+**Ease: Easy-Medium** — Small addition to the existing error handling infrastructure.
+
+When a user types a table or column name that doesn't exist, suggest close matches using edit distance. This is already partially implemented — `check_table_exists()` in `_util.py` lists available tables on mismatch. The next step is to rank those suggestions by similarity.
+
+- Add fuzzy matching to `check_table_exists()` and `resolve_column()` in `cli/_util.py`
+- Use `difflib.get_close_matches()` (stdlib, zero dependencies) for basic fuzzy matching
+- Show top 3 closest matches: `Did you mean: users, user_roles?`
+- Keep the full "Available tables:" list as a fallback for small table counts
+- For large databases (Snowflake with thousands of tables), limit the "Available tables" list to fuzzy matches only — don't dump thousands of names into the terminal
+- Consider `thefuzz` (optional dependency) for higher-quality fuzzy matching later
+
+### F16: Local metadata cache for fast search and suggestions
+**Ease: Medium** — Requires cache invalidation strategy and schema change detection.
+
+For large Snowflake databases with hundreds of schemas and thousands of tables, fetching metadata on every command is slow. Cache table/column metadata locally so that operations like search, fuzzy suggestions, and tab completion can be instant.
+
+- `qdo cache sync --connection <name>` — fetch all table/column metadata and store locally
+- `qdo cache status` — show cache age, table count, staleness
+- `qdo cache clear` — remove cached metadata
+- Storage: local SQLite database in the config directory (`~/.config/qdo/cache.db`)
+  - Tables: `cached_tables(connection, schema, table_name, table_type, cached_at)`
+  - Columns: `cached_columns(connection, schema, table_name, column_name, data_type, ...)`
+- Automatic staleness detection: cache expires after configurable TTL (default: 24h)
+- Commands like `search` and error handlers check cache first, fall back to live query
+- `--no-cache` flag to bypass cache when fresh metadata is needed
+- Future: background cache refresh, incremental sync via `information_schema.tables.last_altered`
+- Future: use DuckDB instead of SQLite for cache to enable analytics on cached metadata
+
 ---
 
 ## Architectural Notes for Future Features

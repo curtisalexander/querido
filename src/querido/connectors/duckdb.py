@@ -53,7 +53,7 @@ class DuckDBConnector:
         rows = self.execute(
             "SELECT column_name, data_type, is_nullable, column_default, comment "
             "FROM duckdb_columns() "
-            "WHERE table_name = $table_name",
+            "WHERE lower(table_name) = lower($table_name)",
             {"table_name": table},
         )
         return [
@@ -74,7 +74,7 @@ class DuckDBConnector:
 
         validate_table_name(table)
         rows = self.execute(
-            "SELECT comment FROM duckdb_tables() WHERE table_name = $table_name",
+            "SELECT comment FROM duckdb_tables() WHERE lower(table_name) = lower($table_name)",
             {"table_name": table},
         )
         if rows and rows[0]["comment"]:
