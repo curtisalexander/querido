@@ -35,6 +35,7 @@ querido/
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   ├── profile.py          # `qdo profile` — data profiling
 │       │   ├── search.py           # `qdo search` — metadata search across tables/columns (cache-aware)
+│       │   ├── explore.py          # `qdo explore` — interactive TUI launcher
 │       │   ├── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
 │       │   └── template.py        # `qdo template` — documentation template generation
 │       ├── connectors/
@@ -75,6 +76,18 @@ querido/
 │       │       │   └── snowflake.sql
 │       │       └── test/
 │       │           └── common.sql  # Used by renderer unit tests
+│       ├── tui/
+│       │   ├── __init__.py         # Package marker
+│       │   ├── app.py              # ExploreApp — main Textual TUI application
+│       │   ├── screens/
+│       │   │   ├── __init__.py
+│       │   │   ├── help.py         # HelpScreen — key binding reference overlay
+│       │   │   └── inspect.py      # InspectScreen — column metadata modal
+│       │   └── widgets/
+│       │       ├── __init__.py
+│       │       ├── filter_bar.py   # FilterBar — SQL WHERE expression input
+│       │       ├── sidebar.py      # MetadataSidebar — column stats panel
+│       │       └── status_bar.py   # StatusBar — table info, row count, filter/sort status
 │       └── output/
 │           ├── __init__.py         # Package marker, shared helpers (_fmt)
 │           ├── console.py          # Rich terminal output (tables, panels, frequencies)
@@ -87,6 +100,8 @@ querido/
     ├── test_connectors.py          # SQLite + DuckDB connector unit tests
     ├── test_cache.py               # Metadata cache tests (sync, status, clear, search integration)
     ├── test_dist.py                # Distribution command tests (numeric + categorical)
+    ├── test_explore.py             # Explore CLI entry point tests
+    ├── test_tui.py                 # TUI widget and app tests (Textual pilot framework)
     ├── test_format.py              # Output format tests (markdown, JSON, CSV)
     ├── test_inspect.py             # Inspect command tests (SQLite + DuckDB)
     ├── test_lineage.py             # Lineage/view definition tests (SQLite + DuckDB)
@@ -267,6 +282,7 @@ CLI (Typer)
 | tomli-w | TOML writing (config) | Default | In cli/config.py only |
 | duckdb | DuckDB + Parquet connector | `pip install 'querido[duckdb]'` | In connectors/duckdb.py only |
 | snowflake-connector-python | Snowflake connector | `pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
+| textual | Interactive TUI | `pip install 'querido[tui]'` | In tui/ only |
 
 Note: `sqlite3` is stdlib — no extra dependency needed, always available.
 

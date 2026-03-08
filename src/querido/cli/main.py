@@ -3,6 +3,7 @@ import typer
 from querido.cli.cache import app as cache_app
 from querido.cli.config import app as config_app
 from querido.cli.dist import app as dist_app
+from querido.cli.explore import app as explore_app
 from querido.cli.inspect import app as inspect_app
 from querido.cli.lineage import app as lineage_app
 from querido.cli.preview import app as preview_app
@@ -21,6 +22,7 @@ app = typer.Typer(
 app.add_typer(cache_app, name="cache")
 app.add_typer(config_app, name="config")
 app.add_typer(dist_app, name="dist")
+app.add_typer(explore_app, name="explore")
 app.add_typer(inspect_app, name="inspect")
 app.add_typer(lineage_app, name="lineage")
 app.add_typer(preview_app, name="preview")
