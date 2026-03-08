@@ -50,6 +50,16 @@ def get_output_format() -> str:
     return _get_root_obj().get("format", "rich")
 
 
+def emit_html(html_content: str, prefix: str = "qdo-") -> None:
+    """Write *html_content* to a temp file, open it in the browser, and print the path."""
+    from querido.output.html import open_html
+
+    path = open_html(html_content, prefix=prefix)
+    import sys
+
+    print(f"Opened {path}", file=sys.stderr)
+
+
 def maybe_show_sql(sql: str) -> None:
     """Print SQL to stderr if --show-sql was passed."""
     if not _get_root_obj().get("show_sql"):

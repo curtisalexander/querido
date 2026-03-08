@@ -55,6 +55,11 @@ def template(
                 from querido.output.console import print_template
 
                 print_template(template_result)
+            elif fmt == "html":
+                from querido.cli._util import emit_html
+                from querido.output.html import format_template_html
+
+                emit_html(format_template_html(template_result))
             else:
                 from querido.output.formats import format_template
 

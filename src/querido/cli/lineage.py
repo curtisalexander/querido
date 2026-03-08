@@ -46,6 +46,11 @@ def lineage(
                 from querido.output.console import print_lineage
 
                 print_lineage(result)
+            elif fmt == "html":
+                from querido.cli._util import emit_html
+                from querido.output.html import format_lineage_html
+
+                emit_html(format_lineage_html(result))
             else:
                 from querido.output.formats import format_lineage
 

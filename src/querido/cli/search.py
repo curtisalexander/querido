@@ -64,6 +64,11 @@ def search(
             from querido.output.console import print_search
 
             print_search(pattern, results)
+        elif fmt == "html":
+            from querido.cli._util import emit_html
+            from querido.output.html import format_search_html
+
+            emit_html(format_search_html(pattern, results))
         else:
             from querido.output.formats import format_search
 

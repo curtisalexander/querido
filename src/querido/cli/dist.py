@@ -69,6 +69,11 @@ def dist(
                 from querido.output.console import print_dist
 
                 print_dist(dist_result)
+            elif fmt == "html":
+                from querido.cli._util import emit_html
+                from querido.output.html import format_dist_html
+
+                emit_html(format_dist_html(dist_result))
             else:
                 from querido.output.formats import format_dist
 

@@ -50,6 +50,11 @@ def preview(
                 from querido.output.console import print_preview
 
                 print_preview(table, data, rows)
+            elif fmt == "html":
+                from querido.cli._util import emit_html
+                from querido.output.html import format_preview_html
+
+                emit_html(format_preview_html(table, data, rows))
             else:
                 from querido.output.formats import format_preview
 
