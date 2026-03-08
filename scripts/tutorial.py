@@ -184,14 +184,89 @@ def main() -> None:
     )
 
     step(
+        "Generate a DDL statement",
+        f"sql ddl -c {DUCKDB_DB} -t products",
+        "Generates a CREATE TABLE statement matching the table schema.\n"
+        "  Useful for recreating tables in another database.",
+    )
+
+    step(
+        "Generate an INSERT template",
+        f"sql insert -c {SQLITE_DB} -t customers",
+        "Generates an INSERT statement with named placeholders.\n"
+        "  Ready to fill in or use with parameterized queries.",
+    )
+
+    step(
         "Generate a scratch table",
         f"sql scratch -c {DUCKDB_DB} -t products --rows 3",
         "Creates a CREATE TEMP TABLE + INSERT statements with real\n"
         "  sample data. Great for building test fixtures.",
     )
 
+    print("\n  Additional SQL subcommands (Snowflake only):")
+    print("    qdo sql task -c <sf-conn> -t <table>       Snowflake task template")
+    print("    qdo sql udf -c <conn> -t <table>           UDF template from columns")
+    print("    qdo sql procedure -c <sf-conn> -t <table>  Stored procedure template")
+    wait()
+
+    # --- Template ---
+    banner("8. Documentation Templates")
+
+    step(
+        "Generate a doc template",
+        f"template -c {SQLITE_DB} -t customers",
+        "Auto-generates a documentation template with column metadata:\n"
+        "  name, type, nullable, distinct count, min/max, and sample values.\n"
+        "  Leaves placeholders for business definitions and data owner.",
+    )
+
+    step(
+        "Template with fewer sample values",
+        f"template -c {DUCKDB_DB} -t products --sample-values 1",
+        "Use --sample-values to control how many example values per column\n"
+        "  (0 to skip samples entirely, max 10).",
+    )
+
+    # --- Lineage ---
+    banner("9. View Lineage")
+
+    print("  Retrieve the SQL definition of a view:")
+    print("    qdo lineage -c <db> --view <view_name>")
+    print()
+    print("  (Requires a view in your database — skipping live demo.)")
+    wait()
+
+    # --- Cache ---
+    banner("10. Metadata Cache")
+
+    step(
+        "Check cache status",
+        "cache status",
+        "The metadata cache stores table/column info locally for\n"
+        "  faster search. Check what's currently cached.",
+    )
+
+    step(
+        "Sync metadata to cache",
+        f"cache sync -c {SQLITE_DB}",
+        "Fetch all table and column metadata and store it locally.\n"
+        "  Makes 'qdo search' faster on large databases.",
+    )
+
+    step(
+        "Check cache after sync",
+        "cache status",
+        "Now you can see the cached metadata summary.",
+    )
+
+    print("\n  Other cache commands:")
+    print("    qdo cache clear                  Clear all cached metadata")
+    print("    qdo cache clear -c <connection>  Clear cache for one connection")
+    wait()
+
     # --- Config ---
-    banner("8. Managing Connections")
+    banner("11. Managing Connections")
 
     print("  qdo stores named connections in connections.toml so you don't")
     print("  have to type file paths every time.")
@@ -206,18 +281,44 @@ def main() -> None:
     print("    $ qdo inspect -c mydb -t users")
     wait()
 
+    # --- Explore ---
+    banner("12. Interactive Exploration (TUI)")
+
+    print("  Launch an interactive terminal UI for exploring table data:")
+    print("    qdo explore -c <db> -t <table>")
+    print()
+    print("  Features: sorting, filtering, column inspection.")
+    print("  Requires the TUI extra: pip install 'querido[tui]'")
+    print()
+    print("  (Skipping live demo — try it yourself!)")
+    wait()
+
+    # --- Snowflake ---
+    banner("13. Snowflake-Specific Commands")
+
+    print("  These commands require a Snowflake connection:")
+    print()
+    print("  Generate a Cortex Analyst semantic model YAML:")
+    print("    qdo snowflake semantic -c <sf-conn> -t <table>")
+    print("    qdo snowflake semantic -c <sf-conn> -t <table> -o model.yaml")
+    print()
+    print("  Trace upstream/downstream lineage via GET_LINEAGE:")
+    print("    qdo snowflake lineage -c <sf-conn> --object DB.SCHEMA.TABLE")
+    print("    qdo snowflake lineage ... --direction upstream --depth 3")
+    wait()
+
     # --- Output Formats ---
-    banner("9. Output Formats")
+    banner("14. Output Formats")
 
     step(
         "JSON output for piping",
         f"--format json inspect -c {SQLITE_DB} -t customers",
         "Use --format (or -f) to get machine-readable output.\n"
-        "  Options: rich (default), markdown, json, csv.",
+        "  Options: rich (default), markdown, json, csv, html.",
     )
 
     # --- Show SQL ---
-    banner("10. Debugging with --show-sql")
+    banner("15. Debugging with --show-sql")
 
     step(
         "See the SQL being executed",
@@ -228,9 +329,9 @@ def main() -> None:
     )
 
     # --- Wrap up ---
-    banner("11. Tutorial Complete!")
+    banner("16. Tutorial Complete!")
 
-    print("  You've learned the core qdo commands:")
+    print("  You've learned all of qdo's commands:")
     print()
     print("    qdo inspect -c <db> -t <table>          See table structure")
     print("    qdo preview -c <db> -t <table>          Preview rows")
@@ -239,6 +340,12 @@ def main() -> None:
     print("    qdo search -p <pattern> -c <db>         Search metadata")
     print("    qdo dist -c <db> -t <tbl> -col <col>   Column distribution")
     print("    qdo sql select/insert/ddl/scratch ...   Generate SQL")
+    print("    qdo sql task/udf/procedure ...          Snowflake SQL templates")
+    print("    qdo template -c <db> -t <table>         Doc template generation")
+    print("    qdo lineage -c <db> --view <view>       View SQL definition")
+    print("    qdo cache sync/status/clear             Metadata cache")
+    print("    qdo explore -c <db> -t <table>          Interactive TUI")
+    print("    qdo snowflake semantic/lineage ...       Snowflake-specific")
     print("    qdo config add/list                     Manage connections")
     print("    qdo --show-sql <command>                See rendered SQL")
     print("    qdo --format json <command>             Machine-readable output")

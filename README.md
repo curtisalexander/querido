@@ -8,12 +8,60 @@ A fast CLI toolkit for common data analysis tasks against SQLite, DuckDB, Snowfl
 
 ## Install
 
+Pre-built wheels are available from [GitHub Releases](https://github.com/curtisalexander/querido/releases). Requires Python >= 3.12 and [uv](https://docs.astral.sh/uv/).
+
+### With `uv tool install` (recommended)
+
+Install globally so the `qdo` command is always available:
+
+```bash
+uv tool install querido \
+  --no-index \
+  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+```
+
+With optional backends:
+
+```bash
+uv tool install 'querido[duckdb]' \
+  --no-index \
+  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+```
+
+To upgrade later (update the version in the URL):
+
+```bash
+uv tool install --upgrade querido \
+  --no-index \
+  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+```
+
+To uninstall:
+
+```bash
+uv tool uninstall querido
+```
+
+### With `uvx` (one-off runs)
+
+Run without installing:
+
+```bash
+uvx \
+  --no-index \
+  --from querido \
+  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0 \
+  qdo --help
+```
+
+### From source
+
 ```bash
 # Development — run via uv from the project directory
 uv sync
 uv run qdo --help
 
-# Global install — puts qdo on your PATH
+# Global install from local checkout
 uv tool install .
 qdo --help
 ```
@@ -25,6 +73,7 @@ SQLite support is always available (stdlib). Other backends are opt-in:
 ```bash
 pip install 'querido[duckdb]'      # DuckDB + Parquet support
 pip install 'querido[snowflake]'   # Snowflake support
+pip install 'querido[tui]'        # Interactive TUI (qdo explore)
 ```
 
 ## Usage
@@ -57,12 +106,42 @@ qdo dist --connection my-db --table users --column age
 # Generate SQL statements (select, insert, ddl, scratch, udf, task, procedure)
 qdo sql select --connection my-db --table users
 qdo sql ddl --connection my-db --table users
+qdo sql scratch --connection my-db --table users --rows 5
 
-# Output as JSON, CSV, or Markdown instead of Rich tables
+# Generate a documentation template with auto-populated metadata
+qdo template --connection my-db --table users
+
+# Retrieve the SQL definition of a view
+qdo lineage --connection my-db --view my_view
+
+# Cache table/column metadata locally for faster search
+qdo cache sync --connection my-db
+qdo cache status
+qdo cache clear
+
+# Interactive TUI for exploring data (requires querido[tui])
+qdo explore --connection my-db --table users
+
+# Output as JSON, CSV, Markdown, or HTML instead of Rich tables
 qdo inspect --connection my-db --table users --format json
+qdo inspect --connection my-db --table users --format html
 
 # Query a Parquet file directly (table name = filename stem)
 qdo preview --connection data.parquet --table data
+```
+
+### Snowflake-specific commands
+
+```bash
+# Generate a Cortex Analyst semantic model YAML
+qdo snowflake semantic --connection prod --table my_table
+
+# Trace upstream/downstream lineage via GET_LINEAGE
+qdo snowflake lineage --connection prod --object DB.SCHEMA.TABLE --direction downstream
+
+# Snowflake-only SQL templates
+qdo sql task --connection prod --table my_table
+qdo sql procedure --connection prod --table my_table
 ```
 
 ## Configuration

@@ -354,6 +354,117 @@ def format_dist(
 # -- template ------------------------------------------------------------------
 
 
+def _classify_column_kind(col: dict) -> str:
+    """Classify a column as 'dimension', 'time_dimension', or 'measure'."""
+    col_type = col["type"].upper()
+    col_name = col["name"].lower()
+
+    time_keywords = ("date", "time", "timestamp", "created", "updated", "modified")
+    if any(kw in col_type.lower() for kw in ("date", "time", "timestamp")):
+        return "time_dimension"
+    if any(kw in col_name for kw in time_keywords):
+        return "time_dimension"
+
+    numeric_prefixes = (
+        "INT",
+        "BIGINT",
+        "SMALLINT",
+        "TINYINT",
+        "FLOAT",
+        "DOUBLE",
+        "REAL",
+        "DECIMAL",
+        "NUMERIC",
+        "NUMBER",
+        "HUGEINT",
+    )
+    is_numeric = any(col_type.startswith(p) for p in numeric_prefixes)
+    id_keywords = ("_id", "_key", "_pk", "_fk", "_code", "_num")
+    if is_numeric and not any(kw in col_name for kw in id_keywords):
+        return "measure"
+
+    return "dimension"
+
+
+def _yaml_escape(value: str) -> str:
+    """Escape a string for safe YAML output."""
+    if not value:
+        return '""'
+    # Quote strings that contain special YAML characters or look like non-strings
+    yaml_special = ":{}\n[]#&*!|>',\"@`"
+    yaml_keywords = ("true", "false", "null", "yes", "no")
+    needs_quoting = any(c in value for c in yaml_special) or value in yaml_keywords
+    if needs_quoting:
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return value
+
+
+def _format_template_yaml(template_result: dict) -> str:
+    """Render template metadata as a Cortex Analyst-compatible semantic model YAML."""
+    table_name = template_result["table"]
+    table_comment = template_result["table_comment"]
+    row_count = template_result["row_count"]
+    columns = template_result["columns"]
+
+    ind = "  "
+    lines: list[str] = []
+
+    lines.append(f"name: {table_name.lower()}_semantic_model")
+    desc = table_comment or f"Semantic model for {table_name}"
+    lines.append(f"description: {_yaml_escape(desc)}")
+    lines.append("")
+    lines.append("tables:")
+    lines.append(f"{ind}- name: {table_name}")
+    lines.append(f"{ind}  base_table: {table_name}")
+    lines.append(f"{ind}  description: {_yaml_escape(desc)}")
+    lines.append(f"{ind}  row_count: {row_count}")
+
+    dimensions: list[dict] = []
+    time_dimensions: list[dict] = []
+    measures: list[dict] = []
+    for col in columns:
+        kind = _classify_column_kind(col)
+        if kind == "time_dimension":
+            time_dimensions.append(col)
+        elif kind == "measure":
+            measures.append(col)
+        else:
+            dimensions.append(col)
+
+    def _write_col(col: dict, *, is_measure: bool = False) -> None:
+        prefix = ind * 2
+        col_desc = col.get("comment") or "<description>"
+        lines.append(f"{prefix}- name: {col['name']}")
+        lines.append(f"{prefix}  expr: {col['name']}")
+        lines.append(f"{prefix}  data_type: {col['type']}")
+        lines.append(f"{prefix}  description: {_yaml_escape(col_desc)}")
+        lines.append(f"{prefix}  synonyms:")
+        lines.append(f"{prefix}    - <synonym>")
+        if is_measure:
+            lines.append(f"{prefix}  default_aggregation: sum")
+        if col.get("sample_values"):
+            lines.append(f"{prefix}  sample_values: {_yaml_escape(col['sample_values'])}")
+
+    if dimensions:
+        lines.append(f"\n{ind}  dimensions:")
+        for col in dimensions:
+            _write_col(col)
+
+    if time_dimensions:
+        lines.append(f"\n{ind}  time_dimensions:")
+        for col in time_dimensions:
+            _write_col(col)
+
+    if measures:
+        lines.append(f"\n{ind}  measures:")
+        for col in measures:
+            _write_col(col, is_measure=True)
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def format_template(
     template_result: dict,
     fmt: str,
@@ -365,6 +476,9 @@ def format_template(
 
     if fmt == "json":
         return json.dumps(template_result, indent=2, default=str)
+
+    if fmt == "yaml":
+        return _format_template_yaml(template_result)
 
     if fmt == "csv":
         flat = []

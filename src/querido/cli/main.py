@@ -61,11 +61,11 @@ def main(
         "rich",
         "--format",
         "-f",
-        help="Output format: rich, markdown, json, csv, html.",
+        help="Output format: rich, markdown, json, csv, html, yaml.",
     ),
 ) -> None:
     """qdo — query, do. Data analysis from your terminal."""
-    valid = {"rich", "markdown", "json", "csv", "html"}
+    valid = {"rich", "markdown", "json", "csv", "html", "yaml"}
     if output_format not in valid:
         raise typer.BadParameter(f"--format must be one of: {', '.join(sorted(valid))}")
     ctx.ensure_object(dict)
