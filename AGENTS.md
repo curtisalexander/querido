@@ -69,7 +69,7 @@ Read `ARCHITECTURE.md` for the full structure. Key locations:
 - `src/querido/cli/` — CLI commands (one file per subcommand, plus `_util.py` for shared helpers)
 - `src/querido/connectors/` — Database connectors (one file per backend; DuckDB also handles Parquet)
 - `src/querido/sql/templates/` — SQL templates (organized by command, then dialect)
-- `src/querido/output/` — Output formatting (Rich tables, distributions, frequencies)
+- `src/querido/output/` — Output formatting (Rich tables, HTML pages, Markdown, JSON, CSV)
 - `src/querido/config.py` — TOML config loading, connection resolution (incl. Parquet detection)
 - `tests/integration/` — Integration tests (SQLite + DuckDB)
 
@@ -144,7 +144,7 @@ qdo config list
 
 ### Global flags
 - `--show-sql` — print rendered SQL to stderr with syntax highlighting
-- `--format {rich,markdown,json,csv}` / `-f` — output format (default: rich)
+- `--format {rich,markdown,json,csv,html}` / `-f` — output format (default: rich)
 - `--version` / `-V` — show version
 
 ### Connection resolution

@@ -77,7 +77,7 @@ class InspectScreen(ModalScreen):
                 col.get("type", ""),
                 "yes" if col.get("nullable") else "no",
                 str(col.get("default", "") or ""),
-                "yes" if col.get("pk") else "",
+                "yes" if col.get("primary_key") else "",
             ]
             if "Comment" in headers:
                 row.append(col.get("comment", "") or "")
@@ -87,5 +87,5 @@ class InspectScreen(ModalScreen):
         comment_str = f"\n{table_comment}" if table_comment else ""
         title.update(f"Column Metadata — {self.table}  ({row_count:,} rows){comment_str}")
 
-    def action_dismiss(self) -> None:
+    async def action_dismiss(self, result: object = None) -> None:
         self.app.pop_screen()

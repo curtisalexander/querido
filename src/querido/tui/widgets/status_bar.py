@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from textual.widgets import Static
 
+_UNSET: object = object()
+
 
 class StatusBar(Static):
     """Status bar showing connection info, row count, filter status, sort."""
@@ -23,8 +25,8 @@ class StatusBar(Static):
         displayed: int | None = None,
         total: int | None = None,
         filtered: bool | None = None,
-        sort_col: str | None = ...,
-        sort_dir: str | None = ...,
+        sort_col: str | None | object = _UNSET,
+        sort_dir: str | None | object = _UNSET,
     ) -> None:
         if table is not None:
             self._table = table
@@ -34,10 +36,10 @@ class StatusBar(Static):
             self._total = total
         if filtered is not None:
             self._filtered = filtered
-        if sort_col is not ...:
-            self._sort_col = sort_col
-        if sort_dir is not ...:
-            self._sort_dir = sort_dir
+        if sort_col is not _UNSET:
+            self._sort_col = sort_col  # type: ignore[assignment]
+        if sort_dir is not _UNSET:
+            self._sort_dir = sort_dir  # type: ignore[assignment]
 
         parts = [f" {self._table}"]
         parts.append(f"  {self._displayed:,}/{self._total:,} rows")

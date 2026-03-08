@@ -66,5 +66,5 @@ class HelpScreen(ModalScreen):
             yield Static("qdo explore — Help", id="help-title")
             yield Static(self.HELP_TEXT)
 
-    def action_dismiss(self) -> None:
+    async def action_dismiss(self, result: object = None) -> None:
         self.app.pop_screen()

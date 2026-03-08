@@ -28,7 +28,7 @@ class MetadataSidebar(Static):
             name = col.get("name", "")
             ctype = col.get("type", "")
             nullable = "nullable" if col.get("nullable") else "not null"
-            pk = " [PK]" if col.get("pk") else ""
+            pk = " [PK]" if col.get("primary_key") else ""
             comment = col.get("comment")
 
             lines.append(f"[bold cyan]{name}[/bold cyan]{pk}")

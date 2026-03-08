@@ -112,7 +112,7 @@ async def test_inspect_via_action(sqlite_connector):
 
         assert isinstance(app.screen, InspectScreen)
 
-        app.screen.action_dismiss()
+        await app.screen.action_dismiss()
         await pilot.pause()
         assert not isinstance(app.screen, InspectScreen)
 
@@ -129,7 +129,7 @@ async def test_help_via_action(sqlite_connector):
 
         assert isinstance(app.screen, HelpScreen)
 
-        app.screen.action_dismiss()
+        await app.screen.action_dismiss()
         await pilot.pause()
         assert not isinstance(app.screen, HelpScreen)
 
