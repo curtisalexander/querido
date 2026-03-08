@@ -124,15 +124,13 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 
 ### Connection caching (Snowflake performance)
 
-**Goal**: Avoid re-establishing connections (especially Snowflake, which has slow auth) when running multiple commands in sequence.
+**Goal**: Avoid repeated SSO/MFA prompts when running multiple `qdo` commands in sequence.
 
-- [ ] Implement a connection cache that keeps a connection alive across multiple `qdo` invocations
-- [ ] Options to explore:
-  - **Unix domain socket / named pipe approach**: A lightweight background daemon (`qdo serve-connections`) holds open connections. CLI commands connect to the daemon via local socket instead of directly to Snowflake. Daemon auto-exits after idle timeout (e.g. 5 minutes).
-  - **Connection file approach**: After first auth, cache the Snowflake session token to a temp file (Snowflake's connector supports `token` auth). Subsequent commands reuse the token until it expires.
-  - **Session multiplexing in TUI/web**: Once F10/F11 exist, those modes naturally hold a connection open. This is only needed for the CLI "run one command at a time" workflow.
-- [ ] Consider `qdo shell` — an interactive REPL mode that holds one connection open and accepts commands. This sidesteps the caching problem entirely for power users.
-- [ ] Security: cached tokens/connections must respect file permissions, auto-expire, and never log credentials
+- [x] Enable Snowflake's built-in credential caching by default (`client_store_temporary_credential=True`, `client_request_mfa_token=True`)
+- [x] SSO ID tokens cached to OS keyring (macOS/Windows) or `~/.cache/snowflake/` (Linux)
+- [x] MFA tokens cached to OS keyring so users aren't re-prompted
+- [x] Users can disable via connection config (`client_store_temporary_credential = false`)
+- [x] Tests: default-on behavior verified, opt-out verified
 
 ---
 
@@ -162,15 +160,19 @@ The items below are documented for future work. They are ordered from easiest to
 - [x] Tests: 5 new tests covering verbose inspect with DuckDB comments, SQLite graceful fallback, and all format outputs
 - Future: Parquet/Arrow metadata via `pyarrow.parquet.read_schema().metadata`
 
-### F3: Quick SQL statement generation
+### F3: Quick SQL statement generation ✅
 **Ease: Easy-Medium** — We already have Jinja2 templates and table metadata from `inspect`.
 
-Generate common SQL statements (SELECT, INSERT template, CREATE TABLE DDL) for a given table that users can copy-paste as a starting point. Uses metadata we already collect.
-
-- `qdo sql <table>` or `qdo generate-sql <table>` command
-- Templates: `SELECT` with all columns, `INSERT INTO` with placeholders, `CREATE TABLE` DDL
-- Dialect-aware (SQLite vs DuckDB vs Snowflake syntax differences)
-- Output as plain text for easy copy-paste
+- [x] `qdo sql` command group with subcommands: `select`, `insert`, `ddl`, `task`, `udf`, `procedure`
+- [x] `qdo sql select` — SELECT with all columns (all dialects)
+- [x] `qdo sql insert` — INSERT with named placeholders (all dialects)
+- [x] `qdo sql ddl` — CREATE TABLE DDL with types, nullability, defaults, PKs (all dialects)
+- [x] `qdo sql task` — Snowflake task template (Snowflake only, errors on other dialects)
+- [x] `qdo sql udf` — UDF template (SQLite: Python API guidance, DuckDB/Snowflake: SQL UDF)
+- [x] `qdo sql procedure` — Stored procedure template (Snowflake only)
+- [x] `qdo sql scratch` — CREATE TEMP TABLE + INSERTs with real sample data (`--rows N`, default 5)
+- [x] All use `get_columns()` metadata, output plain text to stdout for copy-paste
+- [x] Tests: 13 tests covering all subcommands, dialect routing, Snowflake-only guards
 
 ### F4: Metadata search with fuzzy matching
 **Ease: Easy-Medium** — We have connectors and info schema access already.

@@ -23,7 +23,8 @@ SELECT
     MIN(LENGTH("{{ col.name }}"::VARCHAR))::BIGINT AS min_length,
     MAX(LENGTH("{{ col.name }}"::VARCHAR))::BIGINT AS max_length
 {% endif %}
-FROM {{ source }}{% if not loop.last %}
+FROM {{ source }}
+{% if not loop.last %}
 UNION ALL
 {% endif %}
 {% endfor %}

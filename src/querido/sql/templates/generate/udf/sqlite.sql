@@ -1,0 +1,11 @@
+-- SQLite does not support CREATE FUNCTION natively.
+-- UDFs must be registered via the Python sqlite3 API:
+--
+-- import sqlite3
+-- conn = sqlite3.connect("{{ table }}.db")
+-- conn.create_function("my_udf", {{ columns | length }}, my_python_func)
+--
+-- Example function signature:
+-- def my_udf({{ columns | map(attribute='name') | map('lower') | join(', ') }}):
+--     ...
+--     return result

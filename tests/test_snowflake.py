@@ -79,11 +79,10 @@ class TestSnowflakeConnection:
             user="testuser",
             password="secret",
         )
-        mock_connect.assert_called_once_with(
-            account="test-account",
-            user="testuser",
-            password="secret",
-        )
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["account"] == "test-account"
+        assert call_kwargs["user"] == "testuser"
+        assert call_kwargs["password"] == "secret"
         assert connector.dialect == "snowflake"
 
     def test_auth_maps_to_authenticator(self):
@@ -133,6 +132,28 @@ class TestSnowflakeConnection:
         assert call_kwargs["database"] == "DB"
         assert call_kwargs["schema"] == "SCH"
         assert call_kwargs["role"] == "ANALYST"
+
+    def test_credential_caching_enabled_by_default(self):
+        """SSO/MFA credential caching flags are on by default."""
+        _, _, mock_connect = _make_connector(
+            type="snowflake",
+            account="x",
+        )
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["client_store_temporary_credential"] is True
+        assert call_kwargs["client_request_mfa_token"] is True
+
+    def test_credential_caching_can_be_disabled(self):
+        """Users can explicitly disable credential caching."""
+        _, _, mock_connect = _make_connector(
+            type="snowflake",
+            account="x",
+            client_store_temporary_credential=False,
+            client_request_mfa_token=False,
+        )
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["client_store_temporary_credential"] is False
+        assert call_kwargs["client_request_mfa_token"] is False
 
     def test_close(self):
         connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
