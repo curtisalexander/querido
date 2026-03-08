@@ -82,7 +82,6 @@ def _search_metadata(
         tables = [
             t for t in tables
             if t["name"].lower().startswith(schema_lower + ".")
-            or True  # Snowflake tables come from current schema by default
         ]
 
     search_tables = search_type in ("table", "all")
@@ -91,7 +90,6 @@ def _search_metadata(
     for tbl in tables:
         tbl_name = tbl["name"]
         tbl_type = tbl["type"]
-        table_matched = False
 
         # Match table name
         if search_tables and pat in tbl_name.lower():
@@ -102,13 +100,18 @@ def _search_metadata(
                 "column_name": None,
                 "column_type": None,
             })
-            table_matched = True
 
         # Match column names
         if search_columns:
             try:
                 columns = conn.get_columns(tbl_name)
             except Exception:
+                import sys
+
+                print(
+                    f"Warning: could not read columns for '{tbl_name}', skipping.",
+                    file=sys.stderr,
+                )
                 continue
             for col in columns:
                 if pat in col["name"].lower():

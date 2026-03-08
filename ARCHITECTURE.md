@@ -25,13 +25,14 @@ querido/
 │       ├── config.py               # TOML config loading, connection resolution
 │       ├── cli/
 │       │   ├── __init__.py         # Package marker
-│       │   ├── _util.py            # CLI utilities (maybe_show_sql)
+│       │   ├── _util.py            # CLI utilities (maybe_show_sql, is_numeric_type)
 │       │   ├── main.py             # Entry point, Typer app, registers subcommands
 │       │   ├── config.py           # `qdo config add/list` — connection management
+│       │   ├── dist.py             # `qdo dist` — column distribution visualization
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   ├── profile.py          # `qdo profile` — data profiling
-│       │   ├── search.py          # `qdo search` — metadata search across tables/columns
+│       │   ├── search.py           # `qdo search` — metadata search across tables/columns
 │       │   └── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
 │       ├── connectors/
 │       │   ├── __init__.py         # Public API (__all__: Connector, create_connector)
@@ -46,8 +47,21 @@ querido/
 │       │   └── templates/          # .sql files organized by command and dialect
 │       │       ├── count/
 │       │       │   └── common.sql
+│       │       ├── dist/
+│       │       │   ├── sqlite.sql      # CASE-based binning
+│       │       │   ├── duckdb.sql      # FLOOR-based binning
+│       │       │   └── snowflake.sql   # WIDTH_BUCKET binning
 │       │       ├── frequency/
 │       │       │   └── common.sql  # Top-N frequent values query
+│       │       ├── generate/           # SQL generation templates (qdo sql)
+│       │       │   ├── select/common.sql
+│       │       │   ├── insert/common.sql
+│       │       │   ├── ddl/common.sql
+│       │       │   ├── scratch/common.sql
+│       │       │   ├── scratch/snowflake.sql
+│       │       │   ├── task/snowflake.sql
+│       │       │   ├── udf/{sqlite,duckdb,snowflake}.sql
+│       │       │   └── procedure/snowflake.sql
 │       │       ├── preview/
 │       │       │   └── common.sql
 │       │       ├── profile/
@@ -66,6 +80,8 @@ querido/
     ├── test_config.py              # Config loading and connection resolution tests
     ├── test_config_cmd.py          # Config add/list command tests
     ├── test_connectors.py          # SQLite + DuckDB connector unit tests
+    ├── test_dist.py                # Distribution command tests (numeric + categorical)
+    ├── test_format.py              # Output format tests (markdown, JSON, CSV)
     ├── test_inspect.py             # Inspect command tests (SQLite + DuckDB)
     ├── test_parquet.py             # Parquet file support tests
     ├── test_preview.py             # Preview command tests (SQLite + DuckDB)

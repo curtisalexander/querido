@@ -52,6 +52,28 @@ qdo search -p <pattern> -c <connection> [--type {table,column,all}]
 ```
 Case-insensitive substring match across table names and column names. Use `--type table` to search only table/view names, `--type column` for only columns.
 
+### dist — column distribution
+```bash
+qdo dist -c <connection> -t <table> -col <column> [--buckets N] [--top N]
+```
+Visualize how a column's values are distributed:
+- **Numeric columns**: histogram with N buckets (default 20, range 2-100)
+- **Categorical columns**: top N values by frequency (default 20)
+
+Always shows null count and percentage.
+
+### sql — generate SQL statements
+```bash
+qdo sql select -c <connection> -t <table>     # SELECT with all columns
+qdo sql insert -c <connection> -t <table>     # INSERT with named placeholders
+qdo sql ddl -c <connection> -t <table>        # CREATE TABLE DDL
+qdo sql scratch -c <connection> -t <table>    # CREATE TEMP TABLE + sample INSERTs
+qdo sql task -c <connection> -t <table>       # Snowflake task template
+qdo sql udf -c <connection> -t <table>        # UDF template
+qdo sql procedure -c <connection> -t <table>  # Stored procedure (Snowflake only)
+```
+Generates copy-paste-ready SQL using table metadata. Output goes to stdout.
+
 ### config — manage connections
 ```bash
 qdo config add --name mydb --type sqlite --path ./data.db
@@ -134,8 +156,13 @@ qdo preview -c data/test.duckdb -t products     # default 20 rows
 qdo profile -c data/test.db -t products         # full profile
 qdo profile -c data/test.duckdb -t products --columns price,stock  # specific columns
 qdo profile -c data/test.db -t customers --top 5  # top 5 frequent values
-qdo --show-sql inspect -c data/test.db -t customers  # see the SQL being run
-qdo config list                                  # see configured connections
+qdo dist -c data/test.db -t products -col price       # numeric distribution
+qdo dist -c data/test.db -t customers -col country    # categorical distribution
+qdo search -p email -c data/test.db                    # find tables/columns matching "email"
+qdo sql select -c data/test.db -t customers            # generate SELECT statement
+qdo sql scratch -c data/test.db -t products            # scratch table with sample data
+qdo --show-sql inspect -c data/test.db -t customers    # see the SQL being run
+qdo config list                                        # see configured connections
 ```
 
 ## Development

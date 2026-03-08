@@ -2,25 +2,6 @@ import typer
 
 app = typer.Typer(help="Profile table data.")
 
-NUMERIC_TYPE_PREFIXES = (
-    "int",
-    "integer",
-    "bigint",
-    "smallint",
-    "tinyint",
-    "float",
-    "double",
-    "real",
-    "decimal",
-    "numeric",
-    "number",
-    "hugeint",
-)
-
-
-def _is_numeric(type_str: str) -> bool:
-    return type_str.lower().startswith(NUMERIC_TYPE_PREFIXES)
-
 
 @app.callback(invoke_without_command=True)
 def profile(
@@ -47,7 +28,7 @@ def profile(
     ),
 ) -> None:
     """Statistical profile of table columns."""
-    from querido.cli._util import maybe_show_sql
+    from querido.cli._util import is_numeric_type, maybe_show_sql
     from querido.config import resolve_connection
     from querido.connectors.base import validate_column_name, validate_table_name
     from querido.connectors.factory import create_connector
@@ -74,7 +55,7 @@ def profile(
             {
                 "name": validate_column_name(c["name"]),
                 "type": c["type"],
-                "numeric": _is_numeric(c["type"]),
+                "numeric": is_numeric_type(c["type"]),
             }
             for c in col_meta
         ]
