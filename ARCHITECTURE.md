@@ -21,19 +21,22 @@ querido/
 │   └── querido/
 │       ├── __init__.py             # Version string (__version__)
 │       ├── py.typed                # PEP 561 marker for typed package
+│       ├── cache.py                # Local metadata cache (SQLite-backed)
 │       ├── config.py               # TOML config loading, connection resolution
 │       ├── cli/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── _util.py            # CLI utilities (maybe_show_sql, is_numeric_type)
 │       │   ├── main.py             # Entry point, Typer app, registers subcommands
+│       │   ├── cache.py            # `qdo cache sync/status/clear` — metadata cache management
 │       │   ├── config.py           # `qdo config add/list` — connection management
 │       │   ├── dist.py             # `qdo dist` — column distribution visualization
-│       │   ├── template.py        # `qdo template` — documentation template generation
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
+│       │   ├── lineage.py          # `qdo lineage` — view SQL definition retrieval
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   ├── profile.py          # `qdo profile` — data profiling
-│       │   ├── search.py           # `qdo search` — metadata search across tables/columns
-│       │   └── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
+│       │   ├── search.py           # `qdo search` — metadata search across tables/columns (cache-aware)
+│       │   ├── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
+│       │   └── template.py        # `qdo template` — documentation template generation
 │       ├── connectors/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── base.py             # Connector Protocol, table name validation
@@ -82,10 +85,11 @@ querido/
     ├── test_config.py              # Config loading and connection resolution tests
     ├── test_config_cmd.py          # Config add/list command tests
     ├── test_connectors.py          # SQLite + DuckDB connector unit tests
+    ├── test_cache.py               # Metadata cache tests (sync, status, clear, search integration)
     ├── test_dist.py                # Distribution command tests (numeric + categorical)
-    ├── test_template.py             # Template command tests (all formats, SQLite + DuckDB)
     ├── test_format.py              # Output format tests (markdown, JSON, CSV)
     ├── test_inspect.py             # Inspect command tests (SQLite + DuckDB)
+    ├── test_lineage.py             # Lineage/view definition tests (SQLite + DuckDB)
     ├── test_parquet.py             # Parquet file support tests
     ├── test_preview.py             # Preview command tests (SQLite + DuckDB)
     ├── test_profile.py             # Profile command tests (top-N, frequencies)
@@ -93,6 +97,7 @@ querido/
     ├── test_search.py              # Search command tests (SQLite + DuckDB)
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
     ├── test_sql.py                 # SQL generation command tests
+    ├── test_template.py            # Template command tests (all formats, SQLite + DuckDB)
     └── integration/
         ├── test_connectors.py      # Connector tests against real data
         ├── test_inspect.py         # Inspect tests against real data
@@ -143,6 +148,7 @@ class Connector(Protocol):
     def get_tables(self) -> list[dict]: ...
     def get_columns(self, table: str) -> list[dict]: ...
     def get_table_comment(self, table: str) -> str | None: ...
+    def get_view_definition(self, view: str) -> str | None: ...
     def close(self) -> None: ...
     def __enter__(self) -> Self: ...
     def __exit__(self, *args: object) -> None: ...
@@ -223,7 +229,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_frequencies`, `print_template`.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_lineage`, `print_frequencies`, `print_template`.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 

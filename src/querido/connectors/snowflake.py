@@ -108,6 +108,20 @@ class SnowflakeConnector:
             return rows[0]["COMMENT"]
         return None
 
+    def get_view_definition(self, view: str) -> str | None:
+        """Return the SQL definition of a view from information_schema.views."""
+        from querido.connectors.base import validate_table_name
+
+        validate_table_name(view)
+        rows = self.execute(
+            "SELECT view_definition FROM information_schema.views "
+            "WHERE table_name = UPPER(%s)",
+            (view,),
+        )
+        if rows and rows[0].get("VIEW_DEFINITION"):
+            return rows[0]["VIEW_DEFINITION"]
+        return None
+
     def close(self) -> None:
         self.conn.close()
 

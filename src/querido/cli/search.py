@@ -27,6 +27,9 @@ def search(
         help="What to search: table, column, or all.",
     ),
     schema: str | None = typer.Option(None, "--schema", help="Schema filter (Snowflake only)."),
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Bypass cache and query the database directly."
+    ),
 ) -> None:
     """Search for tables and columns matching a pattern."""
     from querido.cli._util import friendly_errors
@@ -42,26 +45,52 @@ def search(
 
         config = resolve_connection(connection, db_type)
 
-        with create_connector(config) as connector:
-            from rich.console import Console
+        # Try cache first (unless --no-cache)
+        results = None
+        if not no_cache:
+            results = _try_cached_search(connection, pattern, search_type)
 
-            console = Console(stderr=True)
-            with console.status(f"Searching for [bold]{pattern}[/bold]…"):
-                results = _search_metadata(connector, pattern, search_type, schema)
+        if results is None:
+            with create_connector(config) as connector:
+                from rich.console import Console
 
-            from querido.cli._util import get_output_format
+                console = Console(stderr=True)
+                with console.status(f"Searching for [bold]{pattern}[/bold]…"):
+                    results = _search_metadata(connector, pattern, search_type, schema)
 
-            fmt = get_output_format()
-            if fmt == "rich":
-                from querido.output.console import print_search
+        from querido.cli._util import get_output_format
 
-                print_search(pattern, results)
-            else:
-                from querido.output.formats import format_search
+        fmt = get_output_format()
+        if fmt == "rich":
+            from querido.output.console import print_search
 
-                print(format_search(pattern, results, fmt))
+            print_search(pattern, results)
+        else:
+            from querido.output.formats import format_search
+
+            print(format_search(pattern, results, fmt))
 
     _run()
+
+
+def _try_cached_search(
+    connection_name: str,
+    pattern: str,
+    search_type: str,
+) -> list[dict] | None:
+    """Try to search from cache. Returns None if cache is stale or empty."""
+    try:
+        from querido.cache import MetadataCache
+
+        cache = MetadataCache()
+        try:
+            if not cache.is_fresh(connection_name):
+                return None
+            return cache.search(connection_name, pattern, search_type)
+        finally:
+            cache.close()
+    except Exception:
+        return None
 
 
 def _search_metadata(

@@ -313,6 +313,27 @@ def print_template(
     console.print(f"\n  Row count: [bold]{row_count:,}[/bold]")
 
 
+def print_lineage(
+    lineage_result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print a view definition with syntax highlighting."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.syntax import Syntax
+
+    if console is None:
+        console = Console()
+
+    view_name = lineage_result["view"]
+    dialect = lineage_result["dialect"]
+    definition = lineage_result["definition"]
+
+    syntax = Syntax(definition, "sql", theme="monokai", line_numbers=True)
+    panel = Panel(syntax, title=f"View: {view_name} ({dialect})", border_style="cyan")
+    console.print(panel)
+
+
 def print_frequencies(
     table_name: str,
     freq_data: dict[str, list[dict]],
