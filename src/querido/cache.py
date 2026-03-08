@@ -148,13 +148,15 @@ class MetadataCache:
             last_cached = row["last_cached"]
             age_hours = round((now - last_cached) / 3600, 1) if last_cached else None
 
-            results.append({
-                "connection": conn_name,
-                "tables": row["table_count"],
-                "columns": col_count,
-                "cached_at": last_cached,
-                "age_hours": age_hours,
-            })
+            results.append(
+                {
+                    "connection": conn_name,
+                    "tables": row["table_count"],
+                    "columns": col_count,
+                    "cached_at": last_cached,
+                    "age_hours": age_hours,
+                }
+            )
 
         return results
 
@@ -204,13 +206,15 @@ class MetadataCache:
                 (connection_name, pat),
             ).fetchall()
             for r in rows:
-                results.append({
-                    "table_name": r["table_name"],
-                    "table_type": r["table_type"],
-                    "match_type": "table",
-                    "column_name": None,
-                    "column_type": None,
-                })
+                results.append(
+                    {
+                        "table_name": r["table_name"],
+                        "table_type": r["table_type"],
+                        "match_type": "table",
+                        "column_name": None,
+                        "column_type": None,
+                    }
+                )
 
         if search_columns:
             rows = self._conn.execute(
@@ -224,13 +228,15 @@ class MetadataCache:
                 (connection_name, pat),
             ).fetchall()
             for r in rows:
-                results.append({
-                    "table_name": r["table_name"],
-                    "table_type": r["table_type"],
-                    "match_type": "column",
-                    "column_name": r["column_name"],
-                    "column_type": r["column_type"],
-                })
+                results.append(
+                    {
+                        "table_name": r["table_name"],
+                        "table_type": r["table_type"],
+                        "match_type": "column",
+                        "column_name": r["column_name"],
+                        "column_type": r["column_type"],
+                    }
+                )
 
         return results
 

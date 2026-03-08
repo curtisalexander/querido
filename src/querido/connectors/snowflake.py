@@ -114,8 +114,7 @@ class SnowflakeConnector:
 
         validate_table_name(view)
         rows = self.execute(
-            "SELECT view_definition FROM information_schema.views "
-            "WHERE table_name = UPPER(%s)",
+            "SELECT view_definition FROM information_schema.views WHERE table_name = UPPER(%s)",
             (view,),
         )
         if rows and rows[0].get("VIEW_DEFINITION"):

@@ -74,6 +74,46 @@ def _print_sql(sql: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _fuzzy_suggestions(name: str, candidates: list[str], *, n: int = 3) -> list[str]:
+    """Return up to *n* close matches for *name* from *candidates* using difflib."""
+    from difflib import get_close_matches
+
+    return get_close_matches(name.lower(), [c.lower() for c in candidates], n=n, cutoff=0.4)
+
+
+def _format_not_found(
+    kind: str,
+    name: str,
+    candidates: list[str],
+    *,
+    context: str = "",
+    max_available: int = 30,
+) -> str:
+    """Build a 'not found' message with fuzzy suggestions.
+
+    For small candidate lists, the full list is always shown.  For large lists
+    (e.g. thousands of Snowflake tables) only fuzzy matches are shown.
+    """
+    msg = f"{kind} '{name}' not found"
+    if context:
+        msg += f" in {context}"
+    msg += "."
+
+    suggestions = _fuzzy_suggestions(name, candidates)
+    if suggestions:
+        # Map back to original casing
+        lower_to_orig: dict[str, str] = {}
+        for c in candidates:
+            lower_to_orig.setdefault(c.lower(), c)
+        originals = [lower_to_orig[s] for s in suggestions]
+        msg += f"\nDid you mean: {', '.join(originals)}?"
+
+    if candidates and len(candidates) <= max_available:
+        msg += f"\nAvailable {kind.lower()}s: {', '.join(sorted(candidates))}"
+
+    return msg
+
+
 def check_table_exists(connector: Connector, table: str) -> None:
     """Raise typer.BadParameter if *table* does not exist in the database."""
     import typer
@@ -82,17 +122,14 @@ def check_table_exists(connector: Connector, table: str) -> None:
     table_names = [t["name"] for t in tables]
 
     if not any(t.lower() == table.lower() for t in table_names):
-        msg = f"Table '{table}' not found."
-        if table_names:
-            msg += f"\nAvailable tables: {', '.join(sorted(table_names))}"
-        raise typer.BadParameter(msg)
+        raise typer.BadParameter(_format_not_found("Table", table, table_names))
 
 
 def resolve_column(connector: Connector, table: str, column: str, *, label: str = "column") -> str:
     """Return the canonical column name (as stored in the database).
 
     Uses case-insensitive matching so users don't need to worry about casing.
-    Raises typer.BadParameter with available columns listed on mismatch.
+    Raises typer.BadParameter with fuzzy suggestions on mismatch.
     """
     import typer
 
@@ -103,10 +140,9 @@ def resolve_column(connector: Connector, table: str, column: str, *, label: str 
         if name.lower() == column.lower():
             return name
 
-    msg = f"Column '{column}' not found in table '{table}'."
-    if col_names:
-        msg += f"\nAvailable columns: {', '.join(col_names)}"
-    raise typer.BadParameter(msg)
+    raise typer.BadParameter(
+        _format_not_found("Column", column, col_names, context=f"table '{table}'")
+    )
 
 
 # ---------------------------------------------------------------------------

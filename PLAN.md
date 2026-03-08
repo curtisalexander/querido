@@ -223,31 +223,32 @@ The items below are documented for future work. They are ordered from easiest to
 - [x] Graceful errors: table-not-view, nonexistent view, invalid name
 - [x] Tests: 11 tests covering SQLite/DuckDB, all formats, error cases, connector methods
 
-### F8: Snowflake semantic layer YAML templates
+### F8: Snowflake semantic layer YAML templates ✅
 **Ease: Medium** — Generate YAML from metadata we already collect. Snowflake-specific.
 
-Generate a starting-point YAML file for Snowflake Cortex Analyst semantic models (or the newer Semantic Views). Auto-populate table names, column names, data types, and any existing comments as descriptions. User fills in synonyms, metrics, verified queries, and business descriptions.
+- [x] `qdo snowflake semantic --table <table> --connection <conn>` command
+- [x] Generates YAML following Cortex Analyst semantic model spec
+- [x] Structure: `name`, `tables[].name`, `tables[].base_table`, `tables[].dimensions[]`, `tables[].time_dimensions[]`, `tables[].measures[]`
+- [x] Auto-classifies columns: IDs/keys → dimensions, dates/timestamps → time_dimensions, numerics → measures
+- [x] Each dimension/measure: `name`, `expr`, `data_type`, `description` (from comments or `<description>` placeholder), `synonyms`
+- [x] Measures include `default_aggregation: sum`
+- [x] `--output / -o` flag to write YAML to file instead of stdout
+- [x] Errors gracefully on non-Snowflake connections
+- [x] Tests: 10 unit tests (YAML generation, column classification) + 2 CLI rejection tests
 
-- `qdo snowflake semantic <table>` command
-- Generates YAML following [Cortex Analyst semantic model spec](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst/semantic-model-spec)
-- Structure: `name`, `tables[].name`, `tables[].base_table`, `tables[].dimensions[]`, `tables[].measures[]`
-- Each dimension/measure: `name`, `expr`, `data_type`, `description` (from comments or placeholder)
-- Also consider [Semantic Views YAML spec](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec) as the newer recommended approach
-- Output to file or stdout
-
-### F9: Snowflake data lineage (GET_LINEAGE)
+### F9: Snowflake data lineage (GET_LINEAGE) ✅
 **Ease: Medium** — Snowflake-specific, uses their built-in lineage functions. Requires Enterprise Edition.
 
-Query Snowflake's [GET_LINEAGE](https://docs.snowflake.com/en/sql-reference/functions/get_lineage-snowflake-core) function to trace upstream and downstream dependencies for tables and columns.
-
-- `qdo snowflake lineage <object>` command
-- `--direction {upstream,downstream}` (default: downstream)
-- `--domain {table,column}` — trace at table or column level
-- `--depth <n>` (default: 5) — how many levels to traverse
-- SQL: `SELECT * FROM TABLE(SNOWFLAKE.CORE.GET_LINEAGE('<object>', '<domain>', '<direction>', <depth>))`
-- Also consider `SNOWFLAKE.ACCOUNT_USAGE.OBJECT_DEPENDENCIES` for simpler object-level deps
-- Render as a Rich tree or table showing the dependency chain
-- Note: requires Enterprise Edition — detect and warn gracefully
+- [x] `qdo snowflake lineage --object <fqn> --connection <conn>` command
+- [x] `--direction {upstream,downstream}` (default: downstream)
+- [x] `--domain {table,column}` — trace at table or column level
+- [x] `--depth <n>` (default: 5) — how many levels to traverse
+- [x] SQL: `SELECT * FROM TABLE(SNOWFLAKE.CORE.GET_LINEAGE(...))`
+- [x] All output formats supported (rich, markdown, json, csv)
+- [x] Rich output: table with dynamic columns from GET_LINEAGE results
+- [x] Errors gracefully on non-Snowflake connections with clear message
+- [x] Input validation for direction and domain parameters
+- [x] Tests: 3 CLI rejection/validation tests + 6 output format unit tests
 
 ### F10: Interactive data exploration (Textual TUI)
 **Ease: Medium-Hard** — Textual is designed to work with Rich, but building interactive widgets (filtering, sorting, pivoting) is substantial.
@@ -311,17 +312,17 @@ Use an open-weight local LLM to generate SQL from natural language, informed by 
 - This should be the LAST feature implemented due to dependency weight and complexity
 - Consider making this a separate package (`qdo-ai`) that extends qdo via plugin
 
-### F15: Fuzzy table/column name suggestions in error messages
+### F15: Fuzzy table/column name suggestions in error messages ✅
 **Ease: Easy-Medium** — Small addition to the existing error handling infrastructure.
 
-When a user types a table or column name that doesn't exist, suggest close matches using edit distance. This is already partially implemented — `check_table_exists()` in `_util.py` lists available tables on mismatch. The next step is to rank those suggestions by similarity.
-
-- Add fuzzy matching to `check_table_exists()` and `resolve_column()` in `cli/_util.py`
-- Use `difflib.get_close_matches()` (stdlib, zero dependencies) for basic fuzzy matching
-- Show top 3 closest matches: `Did you mean: users, user_roles?`
-- Keep the full "Available tables:" list as a fallback for small table counts
-- For large databases (Snowflake with thousands of tables), limit the "Available tables" list to fuzzy matches only — don't dump thousands of names into the terminal
-- Consider `thefuzz` (optional dependency) for higher-quality fuzzy matching later
+- [x] `_fuzzy_suggestions()` helper using `difflib.get_close_matches()` (stdlib, zero deps)
+- [x] `_format_not_found()` shared helper for building "not found" messages with suggestions
+- [x] `check_table_exists()` shows "Did you mean: ..." with top 3 matches
+- [x] `resolve_column()` shows "Did you mean: ..." with top 3 matches and table context
+- [x] Full "Available tables/columns:" list shown for small counts (≤30), omitted for large databases
+- [x] Original casing preserved in suggestions (handles case-insensitive matching)
+- [x] Tests: 11 tests covering table/column fuzzy suggestions, large lists, casing, unit tests
+- Future: consider `thefuzz` (optional dependency) for higher-quality fuzzy matching
 
 ### F16: Local metadata cache for fast search and suggestions ✅
 **Ease: Medium** — Requires cache invalidation strategy and schema change detection.

@@ -178,9 +178,7 @@ def test_cli_cache_status_after_sync(
     assert cache_sqlite in result.output or "tables" in result.output.lower()
 
 
-def test_cli_cache_status_json(
-    cache_sqlite: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_cli_cache_status_json(cache_sqlite: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("QDO_CONFIG", str(tmp_path))
     runner.invoke(app, ["cache", "sync", "-c", cache_sqlite])
     result = runner.invoke(app, ["--format", "json", "cache", "status"])

@@ -461,6 +461,38 @@ def format_lineage(
     return "\n".join(lines)
 
 
+# -- snowflake lineage ---------------------------------------------------------
+
+
+def format_snowflake_lineage(
+    lineage_result: dict,
+    fmt: str,
+) -> str:
+    object_name = lineage_result["object"]
+    direction = lineage_result["direction"]
+    entries = lineage_result["entries"]
+
+    if fmt == "json":
+        return json.dumps(lineage_result, indent=2, default=str)
+
+    if not entries:
+        if fmt == "csv":
+            return ""
+        return f"No {direction} lineage found for '{object_name}'."
+
+    if fmt == "csv":
+        return _dicts_to_csv(entries)
+
+    # markdown
+    lines = [f"## Lineage: {object_name} ({direction})", ""]
+    headers = list(entries[0].keys())
+    rows = [[str(v) if v is not None else "" for v in row.values()] for row in entries]
+    lines.append(_to_markdown_table(headers, rows))
+    lines.append("")
+    lines.append(f"{len(entries)} lineage entries")
+    return "\n".join(lines)
+
+
 # -- frequencies ---------------------------------------------------------------
 
 
