@@ -22,8 +22,6 @@ def preview(
         from querido.config import resolve_connection
         from querido.connectors.base import validate_table_name
         from querido.connectors.factory import create_connector
-        from querido.output.console import print_preview
-        from querido.sql.renderer import render_template
 
         validate_table_name(table)
         config = resolve_connection(connection, db_type)
@@ -36,15 +34,21 @@ def preview(
             check_table_exists(connector, table)
 
             with console.status(f"Loading preview of [bold]{table}[/bold]…"):
+                from querido.core.preview import get_preview
+                from querido.sql.renderer import render_template
+
                 sql = render_template("preview", connector.dialect, table=table, limit=rows)
                 maybe_show_sql(sql)
                 set_last_sql(sql)
-                data = connector.execute(sql)
+
+                data = get_preview(connector, table, limit=rows)
 
             from querido.cli._util import get_output_format
 
             fmt = get_output_format()
             if fmt == "rich":
+                from querido.output.console import print_preview
+
                 print_preview(table, data, rows)
             else:
                 from querido.output.formats import format_preview

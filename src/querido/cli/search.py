@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import typer
-
-if TYPE_CHECKING:
-    from querido.connectors.base import Connector
 
 app = typer.Typer(help="Search table and column metadata.")
 
@@ -48,15 +43,19 @@ def search(
         # Try cache first (unless --no-cache)
         results = None
         if not no_cache:
-            results = _try_cached_search(connection, pattern, search_type)
+            from querido.core.search import try_cached_search
+
+            results = try_cached_search(connection, pattern, search_type)
 
         if results is None:
             with create_connector(config) as connector:
                 from rich.console import Console
 
+                from querido.core.search import search_metadata
+
                 console = Console(stderr=True)
                 with console.status(f"Searching for [bold]{pattern}[/bold]…"):
-                    results = _search_metadata(connector, pattern, search_type, schema)
+                    results = search_metadata(connector, pattern, search_type, schema)
 
         from querido.cli._util import get_output_format
 
@@ -71,94 +70,3 @@ def search(
             print(format_search(pattern, results, fmt))
 
     _run()
-
-
-def _try_cached_search(
-    connection_name: str,
-    pattern: str,
-    search_type: str,
-) -> list[dict] | None:
-    """Try to search from cache. Returns None if cache is stale or empty."""
-    try:
-        from querido.cache import MetadataCache
-
-        cache = MetadataCache()
-        try:
-            if not cache.is_fresh(connection_name):
-                return None
-            return cache.search(connection_name, pattern, search_type)
-        finally:
-            cache.close()
-    except Exception:
-        return None
-
-
-def _search_metadata(
-    connector: Connector,
-    pattern: str,
-    search_type: str,
-    schema: str | None,
-) -> list[dict]:
-    """Search tables and columns for pattern matches.
-
-    Returns a list of dicts with keys:
-      - table_name: str
-      - table_type: str ("table" or "view")
-      - match_type: str ("table" or "column")
-      - column_name: str | None (None for table-level matches)
-      - column_type: str | None
-    """
-    pat = pattern.lower()
-    results: list[dict] = []
-
-    tables = connector.get_tables()
-
-    # Filter by schema for Snowflake if specified
-    if schema:
-        schema_lower = schema.lower()
-        tables = [t for t in tables if t["name"].lower().startswith(schema_lower + ".")]
-
-    search_tables = search_type in ("table", "all")
-    search_columns = search_type in ("column", "all")
-
-    for tbl in tables:
-        tbl_name = tbl["name"]
-        tbl_type = tbl["type"]
-
-        # Match table name
-        if search_tables and pat in tbl_name.lower():
-            results.append(
-                {
-                    "table_name": tbl_name,
-                    "table_type": tbl_type,
-                    "match_type": "table",
-                    "column_name": None,
-                    "column_type": None,
-                }
-            )
-
-        # Match column names
-        if search_columns:
-            try:
-                columns = connector.get_columns(tbl_name)
-            except Exception:
-                import sys
-
-                print(
-                    f"Warning: could not read columns for '{tbl_name}', skipping.",
-                    file=sys.stderr,
-                )
-                continue
-            for col in columns:
-                if pat in col["name"].lower():
-                    results.append(
-                        {
-                            "table_name": tbl_name,
-                            "table_type": tbl_type,
-                            "match_type": "column",
-                            "column_name": col["name"],
-                            "column_type": col["type"],
-                        }
-                    )
-
-    return results

@@ -142,36 +142,36 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 
 ### Core modules to create
 
-- [ ] `src/querido/core/__init__.py` — package marker
-- [ ] `src/querido/core/preview.py` — `get_preview(connector, table, limit) → list[dict]`
+- [x] `src/querido/core/__init__.py` — package marker
+- [x] `src/querido/core/preview.py` — `get_preview(connector, table, limit) → list[dict]`
   - Renders preview template, executes, returns rows
-- [ ] `src/querido/core/inspect.py` — `get_inspect(connector, table, verbose=False) → dict`
+- [x] `src/querido/core/inspect.py` — `get_inspect(connector, table, verbose=False) → dict`
   - Returns `{"columns": [...], "row_count": int, "table_comment": str | None}`
   - Calls `get_columns()`, count template, optional `get_table_comment()`
-- [ ] `src/querido/core/profile.py` — `get_profile(connector, table, columns=None, sample=None, no_sample=False) → dict`
+- [x] `src/querido/core/profile.py` — `get_profile(connector, table, columns=None, sample=None, no_sample=False) → dict`
   - Returns `{"stats": [...], "row_count": int, "sampled": bool, "sample_size": int | None}`
   - Encapsulates sampling logic (auto-sample >1M rows, dialect-specific sample syntax)
   - `get_frequencies(connector, table_or_source, columns, top) → dict[str, list[dict]]`
-- [ ] `src/querido/core/search.py` — `search_metadata(connector, pattern, search_type, schema=None) → list[dict]`
+- [x] `src/querido/core/search.py` — `search_metadata(connector, pattern, search_type, schema=None) → list[dict]`
   - Move `_search_metadata()` from `cli/search.py`
   - `try_cached_search(connection_name, pattern, search_type) → list[dict] | None`
-- [ ] `src/querido/core/dist.py` — `get_distribution(connector, table, column, buckets=20, top=20) → dict`
+- [x] `src/querido/core/dist.py` — `get_distribution(connector, table, column, buckets=20, top=20) → dict`
   - Returns `{"mode": "numeric"|"categorical", "total_rows": int, "null_count": int, "buckets"|"values": [...]}`
   - Handles numeric vs categorical branching, null counting
-- [ ] `src/querido/core/lineage.py` — `get_view_definition(connector, view) → dict`
+- [x] `src/querido/core/lineage.py` — `get_view_definition(connector, view) → dict`
   - Returns `{"view": str, "dialect": str, "definition": str}`
-- [ ] `src/querido/core/template.py` — `get_template(connector, table, sample_values=3) → dict`
+- [x] `src/querido/core/template.py` — `get_template(connector, table, sample_values=3) → dict`
   - Orchestrates inspect + profile + preview to build documentation template
 
 ### CLI refactor
 
-- [ ] Refactor `cli/preview.py` to call `core.preview.get_preview()` then dispatch to output
-- [ ] Refactor `cli/inspect.py` to call `core.inspect.get_inspect()` then dispatch to output
-- [ ] Refactor `cli/profile.py` to call `core.profile.get_profile()` + `get_frequencies()` then dispatch to output
-- [ ] Refactor `cli/search.py` to call `core.search.search_metadata()` then dispatch to output
-- [ ] Refactor `cli/dist.py` to call `core.dist.get_distribution()` then dispatch to output
-- [ ] Refactor `cli/lineage.py` to call `core.lineage.get_view_definition()` then dispatch to output
-- [ ] Refactor `cli/template.py` to call `core.template.get_template()` then dispatch to output
+- [x] Refactor `cli/preview.py` to call `core.preview.get_preview()` then dispatch to output
+- [x] Refactor `cli/inspect.py` to call `core.inspect.get_inspect()` then dispatch to output
+- [x] Refactor `cli/profile.py` to call `core.profile.get_profile()` + `get_frequencies()` then dispatch to output
+- [x] Refactor `cli/search.py` to call `core.search.search_metadata()` then dispatch to output
+- [x] Refactor `cli/dist.py` to call `core.dist.get_distribution()` then dispatch to output
+- [x] Refactor `cli/lineage.py` to call `core.lineage.get_view_definition()` then dispatch to output
+- [x] Refactor `cli/template.py` to call `core.template.get_template()` then dispatch to output
 
 ### Design rules for core/
 
@@ -184,8 +184,8 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 
 ### Tests
 
-- [ ] `tests/test_core.py` — unit tests for each core function (SQLite + DuckDB)
-- [ ] Existing CLI tests must still pass (core is an internal refactor, not a behavior change)
+- [x] `tests/test_core.py` — 26 unit tests for each core function (SQLite + DuckDB)
+- [x] Existing CLI tests still pass (261 total, 24 skipped)
 
 ---
 
