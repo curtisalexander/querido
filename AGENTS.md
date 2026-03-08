@@ -111,6 +111,12 @@ qdo explore -c <connection> -t <table> [-r <rows>]
 ```
 Interactive terminal UI for data exploration. Requires `pip install 'querido[tui]'`. Key bindings: `q` quit, `?` help, `i` inspect metadata, `m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
 
+### serve — local web UI
+```bash
+qdo serve -c <connection> [--port 8888] [--host 127.0.0.1]
+```
+Launches a local web server for interactive data exploration in the browser. Requires `pip install 'querido[web]'`. Features: table list with search, tabbed detail pages (inspect, preview, profile, template, lineage), distribution drill-down, pivot table builder. Uses HTMX for dynamic loading, keyboard shortcuts (`?` help, `/` search).
+
 ### search — find tables and columns
 ```bash
 qdo search -p <pattern> -c <connection> [--type {table,column,all}]

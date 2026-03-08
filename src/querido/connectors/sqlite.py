@@ -9,8 +9,8 @@ from querido.connectors.base import validate_table_name
 class SQLiteConnector:
     dialect = "sqlite"
 
-    def __init__(self, path: str) -> None:
-        self.conn = sqlite3.connect(path)
+    def __init__(self, path: str, *, check_same_thread: bool = True) -> None:
+        self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
         self.conn.row_factory = sqlite3.Row
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:

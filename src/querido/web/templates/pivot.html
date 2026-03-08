@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Pivot: {{ table_name }} — qdo{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Pivot: {{ table_name }}</h1>
+<p class="page-subtitle"><a href="/table/{{ table_name }}">Back to table</a></p>
+
+<form class="pivot-form"
+      hx-post="/fragments/pivot/{{ table_name }}"
+      hx-target="#pivot-result"
+      hx-indicator="#global-indicator"
+      x-data="{ rows: [], values: [], agg: 'COUNT' }">
+
+  <fieldset>
+    <legend>Group by (rows)</legend>
+    <select name="rows" multiple size="6">
+      {% for col in columns %}
+      <option value="{{ col.name }}">{{ col.name }} ({{ col.type }})</option>
+      {% endfor %}
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <legend>Aggregate (values)</legend>
+    <select name="values" multiple size="6">
+      {% for col in columns %}
+      <option value="{{ col.name }}">{{ col.name }} ({{ col.type }})</option>
+      {% endfor %}
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <legend>Aggregation function</legend>
+    <select name="agg">
+      <option value="COUNT">COUNT</option>
+      <option value="SUM">SUM</option>
+      <option value="AVG">AVG</option>
+      <option value="MIN">MIN</option>
+      <option value="MAX">MAX</option>
+    </select>
+  </fieldset>
+
+  <button type="submit" class="submit-btn">Run pivot</button>
+</form>
+
+<div id="pivot-result"></div>
+{% endblock %}
