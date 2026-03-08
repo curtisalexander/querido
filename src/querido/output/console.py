@@ -334,6 +334,42 @@ def print_lineage(
     console.print(panel)
 
 
+def print_snowflake_lineage(
+    lineage_result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print Snowflake lineage results as a Rich tree or table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    object_name = lineage_result["object"]
+    direction = lineage_result["direction"]
+    entries = lineage_result["entries"]
+
+    if not entries:
+        console.print(f"[dim]No {direction} lineage found for '{object_name}'.[/dim]")
+        return
+
+    grid = Table(
+        title=f"Lineage: {object_name} ({direction})",
+        show_lines=True,
+    )
+
+    # GET_LINEAGE returns columns like SOURCE_OBJECT_NAME, TARGET_OBJECT_NAME, etc.
+    # Show whatever columns the query returned.
+    if entries:
+        for key in entries[0]:
+            grid.add_column(key, style="cyan")
+        for row in entries:
+            grid.add_row(*(str(v) if v is not None else "" for v in row.values()))
+
+    console.print(grid)
+    console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")
+
+
 def print_frequencies(
     table_name: str,
     freq_data: dict[str, list[dict]],

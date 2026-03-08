@@ -17,9 +17,7 @@ def view_sqlite(tmp_path: Path) -> str:
     conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)")
     conn.execute("INSERT INTO users VALUES (1, 'Alice', 'alice@example.com')")
     conn.execute("INSERT INTO users VALUES (2, 'Bob', 'bob@example.com')")
-    conn.execute(
-        "CREATE VIEW active_users AS SELECT id, name FROM users WHERE name IS NOT NULL"
-    )
+    conn.execute("CREATE VIEW active_users AS SELECT id, name FROM users WHERE name IS NOT NULL")
     conn.commit()
     conn.close()
     return db_path
@@ -33,9 +31,7 @@ def view_duckdb(tmp_path: Path) -> str:
     conn = duckdb.connect(db_path)
     conn.execute("CREATE TABLE orders (id INTEGER, customer TEXT, total DOUBLE)")
     conn.execute("INSERT INTO orders VALUES (1, 'Alice', 99.99)")
-    conn.execute(
-        "CREATE VIEW high_value_orders AS SELECT * FROM orders WHERE total > 50"
-    )
+    conn.execute("CREATE VIEW high_value_orders AS SELECT * FROM orders WHERE total > 50")
     conn.close()
     return db_path
 
@@ -84,9 +80,7 @@ def test_lineage_sqlite_csv(view_sqlite: str):
 
 
 def test_lineage_duckdb_rich(view_duckdb: str):
-    result = runner.invoke(
-        app, ["lineage", "-v", "high_value_orders", "-c", view_duckdb]
-    )
+    result = runner.invoke(app, ["lineage", "-v", "high_value_orders", "-c", view_duckdb])
     assert result.exit_code == 0
     assert "high_value_orders" in result.output
 
