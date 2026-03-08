@@ -134,6 +134,162 @@ This document tracks the incremental build plan for qdo. Each phase builds on th
 
 ---
 
+## Phase 7: Core Layer Refactor
+
+**Goal**: Extract business logic from CLI commands into a reusable `src/querido/core/` layer. Each core function accepts a `Connector` and returns plain data (dicts/lists) — no Rich imports, no CLI concerns, no display logic. This enables the TUI (F10), web app (F11), and any future presentation layer to share the same query logic.
+
+**Why now**: The CLI commands currently mix input validation, query execution, and output rendering in one function. Before building the Textual TUI (F10), we need to separate "get the data" from "display the data" so both CLI and TUI can call the same core functions.
+
+### Core modules to create
+
+- [ ] `src/querido/core/__init__.py` — package marker
+- [ ] `src/querido/core/preview.py` — `get_preview(connector, table, limit) → list[dict]`
+  - Renders preview template, executes, returns rows
+- [ ] `src/querido/core/inspect.py` — `get_inspect(connector, table, verbose=False) → dict`
+  - Returns `{"columns": [...], "row_count": int, "table_comment": str | None}`
+  - Calls `get_columns()`, count template, optional `get_table_comment()`
+- [ ] `src/querido/core/profile.py` — `get_profile(connector, table, columns=None, sample=None, no_sample=False) → dict`
+  - Returns `{"stats": [...], "row_count": int, "sampled": bool, "sample_size": int | None}`
+  - Encapsulates sampling logic (auto-sample >1M rows, dialect-specific sample syntax)
+  - `get_frequencies(connector, table_or_source, columns, top) → dict[str, list[dict]]`
+- [ ] `src/querido/core/search.py` — `search_metadata(connector, pattern, search_type, schema=None) → list[dict]`
+  - Move `_search_metadata()` from `cli/search.py`
+  - `try_cached_search(connection_name, pattern, search_type) → list[dict] | None`
+- [ ] `src/querido/core/dist.py` — `get_distribution(connector, table, column, buckets=20, top=20) → dict`
+  - Returns `{"mode": "numeric"|"categorical", "total_rows": int, "null_count": int, "buckets"|"values": [...]}`
+  - Handles numeric vs categorical branching, null counting
+- [ ] `src/querido/core/lineage.py` — `get_view_definition(connector, view) → dict`
+  - Returns `{"view": str, "dialect": str, "definition": str}`
+- [ ] `src/querido/core/template.py` — `get_template(connector, table, sample_values=3) → dict`
+  - Orchestrates inspect + profile + preview to build documentation template
+
+### CLI refactor
+
+- [ ] Refactor `cli/preview.py` to call `core.preview.get_preview()` then dispatch to output
+- [ ] Refactor `cli/inspect.py` to call `core.inspect.get_inspect()` then dispatch to output
+- [ ] Refactor `cli/profile.py` to call `core.profile.get_profile()` + `get_frequencies()` then dispatch to output
+- [ ] Refactor `cli/search.py` to call `core.search.search_metadata()` then dispatch to output
+- [ ] Refactor `cli/dist.py` to call `core.dist.get_distribution()` then dispatch to output
+- [ ] Refactor `cli/lineage.py` to call `core.lineage.get_view_definition()` then dispatch to output
+- [ ] Refactor `cli/template.py` to call `core.template.get_template()` then dispatch to output
+
+### Design rules for core/
+
+1. **No Rich, no Typer, no CLI imports** — core/ is pure business logic
+2. **Lazy imports** still apply — `jinja2`, `duckdb`, etc. imported inside functions
+3. **Accept a `Connector`** — never resolve connections; that's the caller's job
+4. **Return plain dicts/lists** — no dataclasses yet (keeps it simple, matches existing output functions)
+5. **Raise plain exceptions** — `ValueError`, `LookupError`; callers translate to `typer.BadParameter` or TUI error panels
+6. **`maybe_show_sql()` and `set_last_sql()`** remain in CLI layer — core functions can optionally return the rendered SQL for callers to log/display
+
+### Tests
+
+- [ ] `tests/test_core.py` — unit tests for each core function (SQLite + DuckDB)
+- [ ] Existing CLI tests must still pass (core is an internal refactor, not a behavior change)
+
+---
+
+## Phase 8: `qdo explore` — Interactive TUI (F10)
+
+**Goal**: Launch a Textual terminal UI for interactive data exploration — scrollable data tables, column sorting, row filtering, and a metadata sidebar.
+
+### New dependency
+
+- [ ] Add `textual` to `[project.optional-dependencies]`: `tui = ["textual>=0.50"]`
+- [ ] Add `textual-dev` to dev dependencies for testing/debugging
+- [ ] Lazy import in `cli/explore.py` with helpful install message if missing
+
+### CLI entry point
+
+- [ ] `src/querido/cli/explore.py` — `qdo explore -t <table> -c <connection> [--db-type]`
+  - Resolves connection, creates connector
+  - Launches Textual app, passing connector + table name
+  - Register in `cli/main.py`
+
+### TUI module structure
+
+```
+src/querido/tui/
+├── __init__.py
+├── app.py           # ExploreApp(App) — main Textual application
+├── screens/
+│   ├── __init__.py
+│   ├── table.py     # TableScreen — primary data exploration screen
+│   └── inspect.py   # InspectScreen — column metadata overlay
+└── widgets/
+    ├── __init__.py
+    ├── filter_bar.py  # FilterBar — input widget for row filtering
+    ├── status_bar.py  # StatusBar — connection info, row count, filter status
+    └── sidebar.py     # MetadataSidebar — column stats panel
+```
+
+### Core screens and widgets
+
+- [ ] **ExploreApp** (`tui/app.py`)
+  - Accepts connector + table name
+  - Default screen: `TableScreen`
+  - Key bindings: `q` quit, `?` help, `i` inspect, `/` filter, `Escape` clear filter
+  - CSS styling for layout (header, data table, sidebar, status bar)
+
+- [ ] **TableScreen** (`tui/screens/table.py`)
+  - Uses `core.preview.get_preview()` to load initial rows
+  - Textual `DataTable` widget with sortable columns
+  - Configurable row limit (start with 1000, paginate or lazy-load)
+  - Column sorting: click header or `s` key to cycle asc/desc/none
+  - Calls `core.inspect.get_inspect()` for column metadata
+
+- [ ] **FilterBar** (`tui/widgets/filter_bar.py`)
+  - Text input at top of screen
+  - Supports simple expressions: `column = value`, `column > N`, `column LIKE '%pattern%'`
+  - Translates filter to SQL WHERE clause, re-queries via `core/`
+  - Shows active filter count in status bar
+
+- [ ] **MetadataSidebar** (`tui/widgets/sidebar.py`)
+  - Toggle with `m` key
+  - Shows column stats for currently selected column (from profile data)
+  - Uses `core.inspect.get_inspect()` and optionally `core.profile.get_profile()`
+  - Displays: type, nullable, distinct count, null %, min/max
+
+- [ ] **StatusBar** (`tui/widgets/status_bar.py`)
+  - Shows: connection name, table name, row count, active filters, current sort
+
+- [ ] **InspectScreen** (`tui/screens/inspect.py`)
+  - Modal/overlay showing full column metadata (like `qdo inspect -v`)
+  - Uses `core.inspect.get_inspect(verbose=True)`
+  - Dismiss with `Escape`
+
+### Key bindings
+
+| Key | Action |
+|-----|--------|
+| `q` | Quit |
+| `?` | Show help overlay |
+| `i` | Toggle inspect panel |
+| `m` | Toggle metadata sidebar |
+| `/` | Focus filter bar |
+| `Escape` | Clear filter / close overlay |
+| `r` | Refresh data |
+
+### Tests
+
+- [ ] `tests/test_explore.py` — test CLI entry point (missing textual → helpful error, valid args → app creation)
+- [ ] `tests/test_tui.py` — Textual's `pilot` testing framework for widget behavior
+  - App launches with test data
+  - DataTable populates with rows
+  - Sort toggles work
+  - Filter bar filters rows
+  - Sidebar shows column metadata
+  - Key bindings respond correctly
+
+### Phased delivery
+
+Build incrementally within this phase:
+1. **P8a**: ExploreApp + TableScreen with DataTable (view-only, scrollable, sortable)
+2. **P8b**: FilterBar + StatusBar (filter rows by expression)
+3. **P8c**: MetadataSidebar + InspectScreen (column stats on demand)
+
+---
+
 ## Future Ideas (ordered by ease of implementation)
 
 The items below are documented for future work. They are ordered from easiest to hardest, considering what we've already built (connectors, inspect, preview, profile, SQL templates, Rich output).
@@ -250,19 +406,12 @@ The items below are documented for future work. They are ordered from easiest to
 - [x] Input validation for direction and domain parameters
 - [x] Tests: 3 CLI rejection/validation tests + 6 output format unit tests
 
-### F10: Interactive data exploration (Textual TUI)
+### F10: Interactive data exploration (Textual TUI) — see Phase 7 + Phase 8
 **Ease: Medium-Hard** — Textual is designed to work with Rich, but building interactive widgets (filtering, sorting, pivoting) is substantial.
 
-Build a terminal UI for interactive data exploration: scrollable data tables, filtering, sorting, and eventually pivot-table-like aggregation.
+Promoted to Phase 7 (core refactor) + Phase 8 (TUI implementation). See above for detailed plan.
 
-- `qdo explore <table>` command launches Textual app
-- DataTable widget for scrollable rows with column sorting
-- Filter bar: type expressions to filter rows
-- Column statistics sidebar
-- Future: pivot/group-by mode, plot panel
-- Textual is a natural extension of Rich (same author, designed to interoperate)
-
-**Architectural note:** This is where separation of business logic and display logic becomes critical. Query execution, data transformation, and statistics computation should live in a `core/` or `data/` layer that both CLI commands (Rich) and the TUI (Textual) can share. See architectural notes at the bottom.
+- Future extensions (post-Phase 8): pivot/group-by mode, plot panel, multi-table joins
 
 ### F11: Browser/HTML export & mini web app
 **Ease: Medium-Hard** — Starts simple (static HTML export) but grows into a web app.
@@ -345,28 +494,11 @@ Use an open-weight local LLM to generate SQL from natural language, informed by 
 
 ## Architectural Notes for Future Features
 
-Several future features (F10 TUI, F11 web app, F5 distribution, F6 templates) point to a need for better separation between **business logic** and **presentation**. Currently, CLI commands directly call connectors and pass results to Rich output. This works fine for a CLI-only tool but breaks down when the same logic needs to drive a TUI, web app, and export formats.
+The `core/` refactor (Phase 7) addresses the separation between **business logic** and **presentation** that was identified early in the project. Once Phase 7 is complete, all presentation layers share the same data-fetching logic:
 
-### Recommended refactor (before F10/F11)
-
-Introduce a `src/querido/core/` layer:
-
-```
-src/querido/core/
-├── inspect.py      # get_table_metadata(connector, table) → structured result
-├── preview.py      # get_preview(connector, table, limit) → rows
-├── profile.py      # get_profile(connector, table, columns, sample) → stats
-├── search.py       # search_metadata(connector, pattern, type) → matches
-├── distribution.py # get_distribution(connector, table, column) → bins/freqs
-└── lineage.py      # get_lineage(connector, object, direction) → tree
-```
-
-Each core function returns a typed dataclass/dict — no Rich imports, no display logic. Then:
 - `cli/*.py` calls core functions → passes results to `output/console.py` (Rich)
 - `tui/*.py` calls core functions → passes results to Textual widgets
-- `web/*.py` calls core functions → passes results to HTML templates or JSON API
-
-This refactor is **not needed now** — the current structure is fine for CLI-only phases. But it should happen before F10/F11 to avoid duplicating query logic across presentation layers.
+- `web/*.py` (future F11) calls core functions → passes results to HTML templates or JSON API
 
 ### Optional dependency groups (projected)
 
