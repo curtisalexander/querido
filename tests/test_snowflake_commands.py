@@ -18,7 +18,7 @@ runner = CliRunner()
 
 
 @pytest.fixture
-def sqlite_path(tmp_path: Path) -> str:
+def snowflake_cmd_sqlite(tmp_path: Path) -> str:
     """SQLite DB for testing non-Snowflake rejection."""
     db_path = str(tmp_path / "test.db")
     conn = sqlite3.connect(db_path)
@@ -135,8 +135,8 @@ class TestSemanticYamlGeneration:
 
 
 class TestSemanticCLI:
-    def test_semantic_rejects_sqlite(self, sqlite_path: str):
-        result = runner.invoke(app, ["snowflake", "semantic", "-t", "orders", "-c", sqlite_path])
+    def test_semantic_rejects_sqlite(self, snowflake_cmd_sqlite: str):
+        result = runner.invoke(app, ["snowflake", "semantic", "-t", "orders", "-c", snowflake_cmd_sqlite])
         assert result.exit_code != 0
         assert "Snowflake" in result.output
 
@@ -159,15 +159,15 @@ class TestSemanticCLI:
 
 
 class TestLineageCLI:
-    def test_lineage_rejects_sqlite(self, sqlite_path: str):
+    def test_lineage_rejects_sqlite(self, snowflake_cmd_sqlite: str):
         result = runner.invoke(
             app,
-            ["snowflake", "lineage", "--object", "db.schema.orders", "-c", sqlite_path],
+            ["snowflake", "lineage", "--object", "db.schema.orders", "-c", snowflake_cmd_sqlite],
         )
         assert result.exit_code != 0
         assert "Snowflake" in result.output
 
-    def test_lineage_invalid_direction(self, sqlite_path: str):
+    def test_lineage_invalid_direction(self, snowflake_cmd_sqlite: str):
         result = runner.invoke(
             app,
             [
@@ -176,14 +176,14 @@ class TestLineageCLI:
                 "--object",
                 "db.schema.orders",
                 "-c",
-                sqlite_path,
+                snowflake_cmd_sqlite,
                 "-d",
                 "sideways",
             ],
         )
         assert result.exit_code != 0
 
-    def test_lineage_invalid_domain(self, sqlite_path: str):
+    def test_lineage_invalid_domain(self, snowflake_cmd_sqlite: str):
         result = runner.invoke(
             app,
             [
@@ -192,7 +192,7 @@ class TestLineageCLI:
                 "--object",
                 "db.schema.orders",
                 "-c",
-                sqlite_path,
+                snowflake_cmd_sqlite,
                 "--domain",
                 "database",
             ],

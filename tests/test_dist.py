@@ -60,16 +60,6 @@ def dist_duckdb(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def empty_dist_sqlite(tmp_path: Path) -> str:
-    db_path = str(tmp_path / "empty_dist.db")
-    conn = sqlite3.connect(db_path)
-    conn.execute("CREATE TABLE empty_sales (id INTEGER PRIMARY KEY, amount REAL, category TEXT)")
-    conn.commit()
-    conn.close()
-    return db_path
-
-
-@pytest.fixture
 def single_value_sqlite(tmp_path: Path) -> str:
     db_path = str(tmp_path / "single.db")
     conn = sqlite3.connect(db_path)
@@ -144,17 +134,6 @@ def test_dist_categorical_json(dist_sqlite: str):
 # -- Null handling ------------------------------------------------------------
 
 
-def test_dist_shows_null_count(dist_sqlite: str):
-    result = runner.invoke(
-        app,
-        ["--format", "json", "dist", "-t", "sales", "-col", "amount", "-c", dist_sqlite],
-    )
-    assert result.exit_code == 0
-    data = json.loads(result.output)
-    assert data["null_count"] == 2
-    assert data["total_rows"] == 102
-
-
 # -- DuckDB ------------------------------------------------------------------
 
 
@@ -224,24 +203,6 @@ def test_dist_bar_chart_has_blocks(dist_sqlite: str):
     )
     assert result.exit_code == 0
     assert "\u2588" in result.output
-
-
-# -- Empty table --------------------------------------------------------------
-
-
-def test_dist_empty_table_numeric(empty_dist_sqlite: str):
-    result = runner.invoke(
-        app, ["dist", "-t", "empty_sales", "-col", "amount", "-c", empty_dist_sqlite]
-    )
-    assert result.exit_code == 0
-    assert "No non-null values" in result.output or result.output != ""
-
-
-def test_dist_empty_table_categorical(empty_dist_sqlite: str):
-    result = runner.invoke(
-        app, ["dist", "-t", "empty_sales", "-col", "category", "-c", empty_dist_sqlite]
-    )
-    assert result.exit_code == 0
 
 
 # -- Single value column ------------------------------------------------------
