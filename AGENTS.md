@@ -99,6 +99,12 @@ qdo dist -c <connection> -t <table> -col <column> [--buckets N] [--top N]
 ```
 Numeric: histogram with N buckets (default 20). Categorical: top N values by frequency (default 20).
 
+### template — documentation template
+```bash
+qdo template -c <connection> -t <table> [--sample-values N]
+```
+Generates a documentation template with auto-populated metadata (column name, type, nullable, distinct count, min/max, sample values) and placeholder fields for business definitions, data owner, and notes. Default 3 sample values per column; use `--sample-values 0` to skip.
+
 ### search — find tables and columns
 ```bash
 qdo search -p <pattern> -c <connection> [--type {table,column,all}]

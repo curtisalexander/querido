@@ -261,6 +261,58 @@ def print_dist(
     console.print(f"\n  Total rows: [bold]{total_rows:,}[/bold]{null_note}")
 
 
+def print_template(
+    template_result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print a documentation template as a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    table_name = template_result["table"]
+    table_comment = template_result["table_comment"]
+    row_count = template_result["row_count"]
+    columns = template_result["columns"]
+
+    grid = Table(title=f"Template: {table_name}", show_lines=True)
+    grid.add_column("Column", style="cyan bold")
+    grid.add_column("Type", style="green")
+    grid.add_column("Nullable", style="yellow")
+    grid.add_column("Distinct", justify="right")
+    grid.add_column("Nulls", justify="right")
+    grid.add_column("Min", justify="right")
+    grid.add_column("Max", justify="right")
+    grid.add_column("Sample Values", style="dim")
+    grid.add_column("Business Definition", style="italic magenta")
+    grid.add_column("Data Owner", style="italic magenta")
+    grid.add_column("Notes", style="italic magenta")
+
+    for col in columns:
+        min_display = fmt_value(col["min_val"]) or fmt_value(col["min_length"])
+        max_display = fmt_value(col["max_val"]) or fmt_value(col["max_length"])
+        grid.add_row(
+            col["name"],
+            col["type"],
+            "YES" if col["nullable"] else "NO",
+            fmt_value(col["distinct_count"]),
+            fmt_value(col["null_count"]),
+            min_display,
+            max_display,
+            col["sample_values"] or "",
+            "<business_definition>",
+            "<data_owner>",
+            "<notes>",
+        )
+
+    console.print(grid)
+    if table_comment:
+        console.print(f"\n  Comment: [italic]{table_comment}[/italic]")
+    console.print(f"\n  Row count: [bold]{row_count:,}[/bold]")
+
+
 def print_frequencies(
     table_name: str,
     freq_data: dict[str, list[dict]],

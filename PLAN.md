@@ -199,16 +199,17 @@ Quickly visualize how a column's values are distributed. Numeric columns get a t
 - Consider Rich's `Bar` or unicode block characters for histograms
 - SQL: use `WIDTH_BUCKET` (DuckDB/Snowflake) or CASE-based binning (SQLite)
 
-### F6: Table metadata template generation
+### F6: Table metadata template generation ✅
 **Ease: Medium** — Combines inspect + profile output into a structured template.
 
-Generate a documentation template for a table that a user can fill in with business definitions. Auto-populate what we can (column name, type, nullable, distinct count, min/max, sample values) and leave placeholders for what humans must provide (business definition, data owner, SLA).
-
-- `qdo template <table>` command
-- Output formats: markdown table, CSV, or YAML
-- Columns: name, type, nullable, distinct_count, min, max, sample_values, `<business_definition>`, `<data_owner>`, `<notes>`
-- Runs inspect + profile queries under the hood
-- Easy to copy into a wiki, spreadsheet, or docs repo
+- [x] `qdo template` command — generates a documentation template for a table
+- [x] Auto-populates: column name, type, nullable, distinct count, null count/%, min/max, sample values
+- [x] Leaves placeholder fields: `<business_definition>`, `<data_owner>`, `<notes>`
+- [x] `--sample-values N` flag (default 3, 0 to skip) — controls how many sample values per column
+- [x] Runs inspect + profile + preview queries under the hood
+- [x] Includes table/column comments when available (DuckDB, Snowflake)
+- [x] All output formats: rich, markdown, json, csv
+- [x] Tests: 10 tests covering SQLite, DuckDB, all formats, comments, error handling
 
 ### F7: View definition / simple lineage
 **Ease: Medium** — Each DB has a way to retrieve view DDL.

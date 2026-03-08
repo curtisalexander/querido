@@ -351,6 +351,86 @@ def format_dist(
         return "\n".join(lines)
 
 
+# -- template ------------------------------------------------------------------
+
+
+def format_template(
+    template_result: dict,
+    fmt: str,
+) -> str:
+    table_name = template_result["table"]
+    table_comment = template_result["table_comment"]
+    row_count = template_result["row_count"]
+    columns = template_result["columns"]
+
+    if fmt == "json":
+        return json.dumps(template_result, indent=2, default=str)
+
+    if fmt == "csv":
+        flat = []
+        for col in columns:
+            flat.append(
+                {
+                    "column": col["name"],
+                    "type": col["type"],
+                    "nullable": "YES" if col["nullable"] else "NO",
+                    "distinct_count": fmt_value(col["distinct_count"]),
+                    "null_count": fmt_value(col["null_count"]),
+                    "null_pct": fmt_value(col["null_pct"]),
+                    "min": fmt_value(col["min_val"]) or fmt_value(col["min_length"]),
+                    "max": fmt_value(col["max_val"]) or fmt_value(col["max_length"]),
+                    "sample_values": col["sample_values"],
+                    "business_definition": "",
+                    "data_owner": "",
+                    "notes": "",
+                }
+            )
+        return _dicts_to_csv(flat) if flat else ""
+
+    # markdown
+    lines: list[str] = [f"## {table_name}", ""]
+    if table_comment:
+        lines.append(f"> {table_comment}")
+        lines.append("")
+    lines.append(f"Row count: {row_count:,}")
+    lines.append("")
+
+    headers = [
+        "Column",
+        "Type",
+        "Nullable",
+        "Distinct",
+        "Nulls",
+        "Min",
+        "Max",
+        "Sample Values",
+        "Business Definition",
+        "Data Owner",
+        "Notes",
+    ]
+    rows = []
+    for col in columns:
+        min_display = fmt_value(col["min_val"]) or fmt_value(col["min_length"])
+        max_display = fmt_value(col["max_val"]) or fmt_value(col["max_length"])
+        rows.append(
+            [
+                col["name"],
+                col["type"],
+                "YES" if col["nullable"] else "NO",
+                fmt_value(col["distinct_count"]),
+                fmt_value(col["null_count"]),
+                min_display,
+                max_display,
+                col["sample_values"],
+                "",
+                "",
+                "",
+            ]
+        )
+    lines.append(_to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
 # -- frequencies ---------------------------------------------------------------
 
 

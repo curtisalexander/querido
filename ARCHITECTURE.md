@@ -28,6 +28,7 @@ querido/
 │       │   ├── main.py             # Entry point, Typer app, registers subcommands
 │       │   ├── config.py           # `qdo config add/list` — connection management
 │       │   ├── dist.py             # `qdo dist` — column distribution visualization
+│       │   ├── template.py        # `qdo template` — documentation template generation
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   ├── profile.py          # `qdo profile` — data profiling
@@ -82,6 +83,7 @@ querido/
     ├── test_config_cmd.py          # Config add/list command tests
     ├── test_connectors.py          # SQLite + DuckDB connector unit tests
     ├── test_dist.py                # Distribution command tests (numeric + categorical)
+    ├── test_template.py             # Template command tests (all formats, SQLite + DuckDB)
     ├── test_format.py              # Output format tests (markdown, JSON, CSV)
     ├── test_inspect.py             # Inspect command tests (SQLite + DuckDB)
     ├── test_parquet.py             # Parquet file support tests
@@ -221,7 +223,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_frequencies`.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_frequencies`, `print_template`.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
