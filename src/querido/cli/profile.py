@@ -31,7 +31,6 @@ def profile(
     from querido.cli._util import (
         check_table_exists,
         friendly_errors,
-        is_numeric_type,
         maybe_show_sql,
         set_last_sql,
     )
@@ -39,10 +38,8 @@ def profile(
     @friendly_errors
     def _run() -> None:
         from querido.config import resolve_connection
-        from querido.connectors.base import validate_column_name, validate_table_name
+        from querido.connectors.base import validate_table_name
         from querido.connectors.factory import create_connector
-        from querido.output.console import print_frequencies, print_profile
-        from querido.sql.renderer import render_template
 
         validate_table_name(table)
         config = resolve_connection(connection, db_type)
@@ -53,69 +50,48 @@ def profile(
             console = Console(stderr=True)
 
             check_table_exists(connector, table)
-            col_meta = connector.get_columns(table)
-
-            if columns:
-                all_col_meta = col_meta
-                filter_names = {c.strip().lower() for c in columns.split(",")}
-                col_meta = [c for c in col_meta if c["name"].lower() in filter_names]
-                if not col_meta:
-                    available = ", ".join(c["name"] for c in all_col_meta)
-                    raise typer.BadParameter(
-                        f"No matching columns found in '{table}'.\nAvailable columns: {available}"
-                    )
-
-            col_info = [
-                {
-                    "name": validate_column_name(c["name"]),
-                    "type": c["type"],
-                    "numeric": is_numeric_type(c["type"]),
-                }
-                for c in col_meta
-            ]
-
-            # Determine source expression (table or sampled subquery)
-            count_sql = render_template("count", connector.dialect, table=table)
-            maybe_show_sql(count_sql)
-            set_last_sql(count_sql)
-            row_count_result = connector.execute(count_sql)
-            row_count = row_count_result[0]["cnt"]
-
-            source = table
-            sampled = False
-            sample_size = None
-
-            if not no_sample:
-                auto_threshold = 1_000_000
-                if sample is not None:
-                    sample_size = sample
-                elif row_count > auto_threshold:
-                    sample_size = 100_000
-
-                if sample_size is not None and sample_size < row_count:
-                    if connector.dialect == "duckdb":
-                        source = f"(SELECT * FROM {table} USING SAMPLE {sample_size}) AS _sample"
-                    elif connector.dialect == "snowflake":
-                        source = f"(SELECT * FROM {table} SAMPLE ({sample_size} ROWS)) AS _sample"
-                    else:
-                        source = (
-                            f"(SELECT * FROM {table} ORDER BY RANDOM()"
-                            f" LIMIT {sample_size}) AS _sample"
-                        )
-                    sampled = True
-
-            sql = render_template("profile", connector.dialect, columns=col_info, source=source)
-            maybe_show_sql(sql)
-            set_last_sql(sql)
 
             with console.status(f"Profiling [bold]{table}[/bold]…"):
-                data = connector.execute(sql)
+                from querido.core.profile import get_profile
+                from querido.sql.renderer import render_template
+
+                # Show SQL if requested
+                count_sql = render_template("count", connector.dialect, table=table)
+                maybe_show_sql(count_sql)
+                set_last_sql(count_sql)
+
+                try:
+                    result = get_profile(
+                        connector,
+                        table,
+                        columns=columns,
+                        sample=sample,
+                        no_sample=no_sample,
+                    )
+                except ValueError as exc:
+                    raise typer.BadParameter(str(exc)) from exc
+
+                # Show the profile SQL too
+                profile_sql = render_template(
+                    "profile",
+                    connector.dialect,
+                    columns=result["col_info"],
+                    source=result["source"],
+                )
+                maybe_show_sql(profile_sql)
+                set_last_sql(profile_sql)
 
             from querido.cli._util import get_output_format
 
             fmt = get_output_format()
+            data = result["stats"]
+            row_count = result["row_count"]
+            sampled = result["sampled"]
+            sample_size = result["sample_size"]
 
             if fmt == "rich":
+                from querido.output.console import print_profile
+
                 print_profile(table, data, row_count, sampled, sample_size)
             else:
                 from querido.output.formats import format_profile
@@ -123,22 +99,19 @@ def profile(
                 print(format_profile(table, data, row_count, sampled, sample_size, fmt))
 
             if top > 0:
-                freq_data: dict[str, list[dict]] = {}
                 with console.status(f"Computing top {top} values…"):
-                    for col in col_info:
-                        col_name = str(col["name"])
-                        freq_sql = render_template(
-                            "frequency",
-                            connector.dialect,
-                            column=col_name,
-                            source=source,
-                            top=top,
-                        )
-                        maybe_show_sql(freq_sql)
-                        set_last_sql(freq_sql)
-                        freq_data[col_name] = connector.execute(freq_sql)
+                    from querido.core.profile import get_frequencies
+
+                    freq_data = get_frequencies(
+                        connector,
+                        result["source"],
+                        result["col_info"],
+                        top,
+                    )
 
                 if fmt == "rich":
+                    from querido.output.console import print_frequencies
+
                     print_frequencies(table, freq_data, row_count)
                 else:
                     from querido.output.formats import format_frequencies

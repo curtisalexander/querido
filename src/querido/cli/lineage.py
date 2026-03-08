@@ -32,23 +32,16 @@ def lineage(
             console = Console(stderr=True)
 
             with console.status(f"Retrieving definition for [bold]{view}[/bold]…"):
-                sql_def = connector.get_view_definition(view)
+                from querido.core.lineage import get_view_definition
 
-            if sql_def is None:
-                raise typer.BadParameter(
-                    f"'{view}' is not a view or does not exist. "
-                    "Use `qdo search` to find available views."
-                )
+                try:
+                    result = get_view_definition(connector, view)
+                except LookupError as exc:
+                    raise typer.BadParameter(str(exc)) from exc
 
-            maybe_show_sql(sql_def)
+            maybe_show_sql(result["definition"])
 
             fmt = get_output_format()
-            result = {
-                "view": view,
-                "dialect": connector.dialect,
-                "definition": sql_def,
-            }
-
             if fmt == "rich":
                 from querido.output.console import print_lineage
 

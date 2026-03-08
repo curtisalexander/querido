@@ -29,8 +29,6 @@ def inspect(
         from querido.config import resolve_connection
         from querido.connectors.base import validate_table_name
         from querido.connectors.factory import create_connector
-        from querido.output.console import print_inspect
-        from querido.sql.renderer import render_template
 
         validate_table_name(table)
         config = resolve_connection(connection, db_type)
@@ -43,21 +41,25 @@ def inspect(
             check_table_exists(connector, table)
 
             with console.status(f"Inspecting [bold]{table}[/bold]…"):
-                columns = connector.get_columns(table)
+                from querido.core.inspect import get_inspect
+                from querido.sql.renderer import render_template
+
                 count_sql = render_template("count", connector.dialect, table=table)
                 maybe_show_sql(count_sql)
                 set_last_sql(count_sql)
-                rows = connector.execute(count_sql)
-                row_count = rows[0]["cnt"]
 
-                table_comment = None
-                if verbose:
-                    table_comment = connector.get_table_comment(table)
+                result = get_inspect(connector, table, verbose=verbose)
 
             from querido.cli._util import get_output_format
 
             fmt = get_output_format()
+            columns = result["columns"]
+            row_count = result["row_count"]
+            table_comment = result["table_comment"]
+
             if fmt == "rich":
+                from querido.output.console import print_inspect
+
                 print_inspect(
                     table, columns, row_count, verbose=verbose, table_comment=table_comment
                 )
