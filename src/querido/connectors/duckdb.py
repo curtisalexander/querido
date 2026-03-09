@@ -32,7 +32,7 @@ class DuckDBConnector:
         return name
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
-        result = self.conn.execute(sql, params) if params else self.conn.execute(sql)
+        result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
         if result.description is None:
             return []
         columns = [desc[0] for desc in result.description]

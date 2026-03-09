@@ -49,6 +49,24 @@ class SnowflakeConnector:
             finally:
                 cursor.close()
 
+        # Validate that database/schema are set and safe for SQL interpolation.
+        # These values are used in f-string SQL (e.g. {self._database}.information_schema)
+        # so they must be non-empty and match the safe identifier pattern.
+        if not self._database or not self._schema:
+            self.conn.close()
+            raise ValueError(
+                "Could not determine Snowflake database/schema. "
+                "Set 'database' and 'schema' in your connection config."
+            )
+        from querido.connectors.base import validate_object_name
+
+        try:
+            validate_object_name(self._database)
+            validate_object_name(self._schema)
+        except ValueError:
+            self.conn.close()
+            raise
+
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         cursor = self.conn.cursor()
         try:
