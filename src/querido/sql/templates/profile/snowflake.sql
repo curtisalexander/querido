@@ -4,7 +4,7 @@ SELECT
     '{{ col.type }}' AS column_type,
     COUNT(*) AS total_rows,
     SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) AS null_count,
-    ROUND(100.0 * SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) / COUNT(*), 2) AS null_pct,
+    ROUND(100.0 * SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS null_pct,
     COUNT(DISTINCT "{{ col.name }}") AS distinct_count,
 {% if col.numeric %}
     MIN("{{ col.name }}") AS min_val,

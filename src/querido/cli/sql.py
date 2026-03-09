@@ -176,7 +176,7 @@ def scratch(
     table: str = _table_opt,
     connection: str = _conn_opt,
     db_type: str | None = _dbtype_opt,
-    rows: int = typer.Option(5, "--rows", "-r", help="Number of sample rows to include."),
+    rows: int = typer.Option(5, "--rows", "-r", min=1, help="Number of sample rows to include."),
 ) -> None:
     """Generate a temp table with sample data for experimentation."""
     from querido.cli._util import friendly_errors
