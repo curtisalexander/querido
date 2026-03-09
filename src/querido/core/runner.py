@@ -65,6 +65,6 @@ def run_cancellable[T](
     elapsed = time.monotonic() - t0
 
     if error_box:
-        raise error_box[0]
+        raise error_box[0].with_traceback(error_box[0].__traceback__)
 
     return result_box[0], elapsed

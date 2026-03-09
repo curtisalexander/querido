@@ -43,14 +43,17 @@ def serve(
         if config.get("type") == "sqlite":
             config["check_same_thread"] = False
         connector = create_connector(config)
-        application = create_app(connector, connection)
+        try:
+            application = create_app(connector, connection)
 
-        from rich.console import Console
+            from rich.console import Console
 
-        console = Console(stderr=True)
-        console.print(f"\n  [bold]qdo serve[/bold] — {connection}")
-        console.print(f"  [dim]http://{host}:{port}[/dim]\n")
+            console = Console(stderr=True)
+            console.print(f"\n  [bold]qdo serve[/bold] — {connection}")
+            console.print(f"  [dim]http://{host}:{port}[/dim]\n")
 
-        uvicorn.run(application, host=host, port=port, log_level="warning")
+            uvicorn.run(application, host=host, port=port, log_level="warning")
+        finally:
+            connector.close()
 
     _run()

@@ -1,5 +1,6 @@
 from typer.testing import CliRunner
 
+from querido import __version__
 from querido.cli.main import app
 
 runner = CliRunner()
@@ -14,7 +15,7 @@ def test_help():
 def test_version():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "0.1.0" in result.output
+    assert __version__ in result.output
 
 
 def test_show_sql_flag(sqlite_path: str):

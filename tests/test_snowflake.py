@@ -59,6 +59,12 @@ def _make_connector(**connect_kwargs):
     mock_conn = MagicMock()
     _mock_connect.return_value = mock_conn
 
+    # The __init__ now runs SELECT CURRENT_DATABASE(), CURRENT_SCHEMA()
+    # via a cursor, so set up the init cursor to return test values.
+    init_cursor = MagicMock()
+    init_cursor.fetchone.return_value = ("TEST_DB", "PUBLIC")
+    mock_conn.cursor.return_value = init_cursor
+
     from querido.connectors.snowflake import SnowflakeConnector
 
     connector = SnowflakeConnector(**connect_kwargs)
@@ -345,7 +351,11 @@ class TestSnowflakeFactory:
     def test_factory_creates_snowflake_connector(self):
         """create_connector routes type='snowflake' correctly."""
         _mock_connect.reset_mock()
-        _mock_connect.return_value = MagicMock()
+        mock_conn = MagicMock()
+        init_cursor = MagicMock()
+        init_cursor.fetchone.return_value = ("TEST_DB", "PUBLIC")
+        mock_conn.cursor.return_value = init_cursor
+        _mock_connect.return_value = mock_conn
         from querido.connectors.factory import create_connector
 
         config = {

@@ -1,7 +1,7 @@
 import re
 from typing import Protocol, Self, runtime_checkable
 
-_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
 def validate_table_name(name: str) -> str:

@@ -51,12 +51,25 @@ def test_profile_no_sample_flag(sqlite_path: str):
 def test_profile_columns_filter(sqlite_path: str):
     result = runner.invoke(
         app,
-        ["profile", "--connection", sqlite_path, "--table", "users", "--columns", "name"],
+        [
+            "--format",
+            "json",
+            "profile",
+            "--connection",
+            sqlite_path,
+            "--table",
+            "users",
+            "--columns",
+            "name",
+        ],
     )
     assert result.exit_code == 0
-    assert "String Columns" in result.output
-    # Should not include numeric column 'id'
-    assert "id" not in result.output or "Numeric Columns" not in result.output
+    import json
+
+    data = json.loads(result.output)
+    col_names = [c["column_name"] for c in data["columns"]]
+    assert "name" in col_names
+    assert "id" not in col_names
 
 
 @pytest.fixture

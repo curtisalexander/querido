@@ -33,6 +33,10 @@ def build_pivot_query(
         SQL query string.
     """
 
+    valid_aggs = {"COUNT", "SUM", "AVG", "MIN", "MAX"}
+    if agg.upper() not in valid_aggs:
+        raise ValueError(f"Invalid aggregation: {agg!r}. Must be one of: {sorted(valid_aggs)}")
+
     def _q(name: str) -> str:
         """Quote an identifier with double quotes."""
         return '"' + name.replace('"', '""') + '"'
@@ -40,7 +44,7 @@ def build_pivot_query(
     group_cols = ", ".join(_q(r) for r in rows)
     agg_exprs = ", ".join(f'{agg}({_q(v)}) AS "{agg.lower()}_{v}"' for v in values)
     return (
-        f"SELECT {group_cols}, {agg_exprs} FROM {table}"
+        f"SELECT {group_cols}, {agg_exprs} FROM {_q(table)}"
         f" GROUP BY {group_cols} ORDER BY {group_cols}"
     )
 

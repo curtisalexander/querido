@@ -89,15 +89,26 @@ async def test_app_max_rows_limit(sqlite_connector):
 
 async def test_sort_via_action(sqlite_connector):
     """Sort action updates internal sort state."""
+    from textual.widgets import DataTable
+
     from querido.tui.app import ExploreApp
 
     app = ExploreApp(connector=sqlite_connector, table="products", max_rows=100)
-    async with app.run_test(size=(120, 40)):
+    async with app.run_test(size=(120, 40)) as pilot:
         # Initially no sort
         assert app._sort_column is None
-
-        # Verify data is loaded
         assert len(app._rows) == 50
+
+        # Simulate sorting by clicking a column header
+        dt = app.query_one("#data-table", DataTable)
+        first_col_key = next(iter(dt.columns.keys()))
+        app._sort_column = str(first_col_key)
+        app._sort_reverse = False
+        app._apply_sort()
+        await pilot.pause()
+
+        assert app._sort_column == str(first_col_key)
+        assert app._sort_reverse is False
 
 
 async def test_inspect_via_action(sqlite_connector):

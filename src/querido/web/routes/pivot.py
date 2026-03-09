@@ -49,10 +49,12 @@ async def pivot_result(
     for col in values:
         validate_column_name(col)
 
+    import html as _html
+
     valid_aggs = {"COUNT", "SUM", "AVG", "MIN", "MAX"}
     if agg.upper() not in valid_aggs:
         return HTMLResponse(
-            f"<p class='error-msg'>Invalid aggregation: {agg}. "
+            f"<p class='error-msg'>Invalid aggregation: {_html.escape(agg)}. "
             f"Must be one of: {', '.join(sorted(valid_aggs))}</p>"
         )
 

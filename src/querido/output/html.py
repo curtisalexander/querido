@@ -253,8 +253,10 @@ def _build_table(headers: list[str], rows: list[list[Any]]) -> str:
     for idx, row in enumerate(rows):
         parts.append(f'<tr data-idx="{idx}">')
         for val in row:
-            if val is None or val == "":
+            if val is None:
                 parts.append('<td class="null-val">NULL</td>')
+            elif val == "":
+                parts.append("<td></td>")
             else:
                 parts.append(f"<td>{html.escape(str(val))}</td>")
         parts.append("</tr>")
