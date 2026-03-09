@@ -238,7 +238,7 @@ Connections are stored in TOML at the platform-appropriate config directory (via
 
 - Linux: `~/.config/qdo/connections.toml`
 - macOS: `~/Library/Application Support/qdo/connections.toml`
-- Windows: `%APPDATA%\qdo\connections.toml`
+- Windows: `%LOCALAPPDATA%\qdo\connections.toml`
 
 Override with `QDO_CONFIG` environment variable.
 

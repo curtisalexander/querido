@@ -24,7 +24,7 @@ qdo preview -c ./data.duckdb -t sales
 qdo preview -c ./file.parquet -t file   # DuckDB auto-registers parquet
 ```
 
-Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/Application Support/qdo/connections.toml` (macOS), or `%APPDATA%\qdo\connections.toml` (Windows). Override with `QDO_CONFIG` env var.
+Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/Application Support/qdo/connections.toml` (macOS), or `%LOCALAPPDATA%\qdo\connections.toml` (Windows). Override with `QDO_CONFIG` env var.
 
 ## Commands
 

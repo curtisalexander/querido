@@ -150,7 +150,7 @@ Connections are stored in `connections.toml` at your platform's config directory
 
 - **Linux**: `~/.config/qdo/connections.toml`
 - **macOS**: `~/Library/Application Support/qdo/connections.toml`
-- **Windows**: `%APPDATA%\qdo\connections.toml`
+- **Windows**: `%LOCALAPPDATA%\qdo\connections.toml`
 
 ```toml
 [connections.my-db]
