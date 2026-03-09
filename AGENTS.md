@@ -191,7 +191,7 @@ See `PLAN.md` for the phased build plan. Work through phases in order. Each phas
 Connections are stored in TOML. Location determined by `platformdirs`:
 - Linux: `~/.config/qdo/connections.toml`
 - macOS: `~/Library/Application Support/qdo/connections.toml`
-- Windows: `%APPDATA%\qdo\connections.toml`
+- Windows: `%LOCALAPPDATA%\qdo\connections.toml`
 - Override: `QDO_CONFIG` env var
 
 ## Code Quality
