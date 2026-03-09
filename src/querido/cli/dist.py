@@ -52,7 +52,8 @@ def dist(
 
             from querido.cli._progress import query_status
 
-            with query_status(console, f"Computing distribution for [bold]{canonical_col}[/bold]", connector):
+            msg = f"Computing distribution for [bold]{canonical_col}[/bold]"
+            with query_status(console, msg, connector):
                 from querido.core.dist import get_distribution
                 from querido.sql.renderer import render_template
 

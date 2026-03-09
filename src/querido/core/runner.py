@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from dataclasses import dataclass
@@ -31,7 +32,7 @@ class QueryResult(dict[str, object]):
     pass
 
 
-def run_cancellable(
+def run_cancellable[T](
     fn: Callable[..., T],
     *args: object,
     connector: Connector | None = None,
@@ -66,10 +67,8 @@ def run_cancellable(
         elapsed = time.monotonic() - t0
         # Attempt to cancel the in-flight query
         if connector is not None and hasattr(connector, "cancel"):
-            try:
+            with contextlib.suppress(Exception):
                 connector.cancel()
-            except Exception:
-                pass
         # Wait briefly for the thread to finish after cancel
         thread.join(timeout=2.0)
         raise QueryCancelled(elapsed) from None

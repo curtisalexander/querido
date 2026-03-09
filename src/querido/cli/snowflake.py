@@ -206,7 +206,8 @@ def lineage(
 
             from querido.cli._progress import query_status
 
-            with query_status(console, f"Querying lineage for [bold]{object_name}[/bold] ({direction})", connector):
+            msg = f"Querying lineage for [bold]{object_name}[/bold] ({direction})"
+            with query_status(console, msg, connector):
                 rows = _query_lineage(connector, object_name, direction, domain, depth)
 
         result = {
