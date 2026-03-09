@@ -6,12 +6,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from fastapi import FastAPI
+
     from querido.connectors.base import Connector
 
 _HERE = Path(__file__).resolve().parent
 
 
-def create_app(connector: Connector, connection_name: str):
+def create_app(connector: Connector, connection_name: str) -> FastAPI:
     """Build and return a configured FastAPI application.
 
     The *connector* is stored on ``app.state`` so route handlers can access it.

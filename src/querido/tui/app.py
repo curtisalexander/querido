@@ -8,6 +8,7 @@ from textual.widgets import DataTable
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+    from querido.tui.widgets.filter_bar import FilterBar
 
 
 class ExploreApp(App):
@@ -93,7 +94,6 @@ class ExploreApp(App):
         self._filter_sql: str | None = None
         self._sort_column: str | None = None
         self._sort_reverse: bool = False
-        self._sidebar_visible: bool = False
 
     def compose(self) -> ComposeResult:
         from textual.containers import Horizontal, Vertical
@@ -223,7 +223,6 @@ class ExploreApp(App):
         sidebar = self.query_one("#sidebar")
         if not sidebar.has_class("hidden"):
             sidebar.add_class("hidden")
-            self._sidebar_visible = False
             return
 
         if self._filter_sql:
@@ -238,14 +237,12 @@ class ExploreApp(App):
         sidebar = self.query_one("#sidebar")
         if sidebar.has_class("hidden"):
             sidebar.remove_class("hidden")
-            self._sidebar_visible = True
             from querido.tui.widgets.sidebar import MetadataSidebar
 
             sb = self.query_one("#sidebar", MetadataSidebar)
             sb.show_metadata(self._columns, self.connector, self.table)
         else:
             sidebar.add_class("hidden")
-            self._sidebar_visible = False
 
     def action_inspect(self) -> None:
         from querido.tui.screens.inspect import InspectScreen
@@ -260,7 +257,7 @@ class ExploreApp(App):
     async def action_refresh(self) -> None:
         await self._load_data()
 
-    async def on_filter_bar_submitted(self, event) -> None:
+    async def on_filter_bar_submitted(self, event: FilterBar.Submitted) -> None:
         expr = event.value.strip()
         if expr:
             self._filter_sql = expr

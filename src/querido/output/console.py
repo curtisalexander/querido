@@ -46,7 +46,11 @@ def print_inspect(
 
     console.print(grid)
     if table_comment:
-        console.print(f"\n  Comment: [italic]{table_comment}[/italic]")
+        from rich.text import Text
+
+        label = Text("\n  Comment: ")
+        label.append(table_comment, style="italic")
+        console.print(label)
     console.print(f"\n  Row count: [bold]{row_count:,}[/bold]")
 
 
@@ -309,7 +313,11 @@ def print_template(
 
     console.print(grid)
     if table_comment:
-        console.print(f"\n  Comment: [italic]{table_comment}[/italic]")
+        from rich.text import Text
+
+        label = Text("\n  Comment: ")
+        label.append(table_comment, style="italic")
+        console.print(label)
     console.print(f"\n  Row count: [bold]{row_count:,}[/bold]")
 
 
