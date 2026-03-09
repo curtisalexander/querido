@@ -16,7 +16,6 @@ Install globally so the `qdo` command is always available:
 
 ```bash
 uv tool install querido \
-  --no-index \
   --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
 ```
 
@@ -24,7 +23,6 @@ With optional backends:
 
 ```bash
 uv tool install 'querido[duckdb]' \
-  --no-index \
   --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
 ```
 
@@ -32,7 +30,6 @@ To upgrade later (update the version in the URL):
 
 ```bash
 uv tool install --upgrade querido \
-  --no-index \
   --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
 ```
 
@@ -48,7 +45,6 @@ Run without installing:
 
 ```bash
 uvx \
-  --no-index \
   --from querido \
   --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0 \
   qdo --help
