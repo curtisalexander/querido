@@ -45,7 +45,7 @@ def search(
         if not no_cache:
             from querido.core.search import try_cached_search
 
-            results = try_cached_search(connection, pattern, search_type)
+            results = try_cached_search(connection, pattern, search_type, schema)
 
         if results is None:
             with create_connector(config) as connector:

@@ -33,6 +33,7 @@ class SnowflakeConnector:
         cfg_schema = str(kwargs.get("schema", "")).upper()
 
         self.conn = snowflake.connector.connect(**kwargs)
+        self._active_cursor: object | None = None
 
         # Use config values when available; fall back to querying the session
         # (needed for connections.toml where db/schema are set externally).
@@ -69,6 +70,7 @@ class SnowflakeConnector:
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         cursor = self.conn.cursor()
+        self._active_cursor = cursor
         try:
             cursor.execute(sql, params)
             if cursor.description is None:
@@ -78,6 +80,7 @@ class SnowflakeConnector:
             except (ImportError, NotImplementedError, RuntimeError):
                 return self._fetch_standard(cursor)
         finally:
+            self._active_cursor = None
             cursor.close()
 
     def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> object:
@@ -85,6 +88,7 @@ class SnowflakeConnector:
         import pyarrow as pa
 
         cursor = self.conn.cursor()
+        self._active_cursor = cursor
         try:
             cursor.execute(sql, params)
             if cursor.description is None:
@@ -94,6 +98,7 @@ class SnowflakeConnector:
                 return pa.table({})
             return pa.concat_tables(batches)
         finally:
+            self._active_cursor = None
             cursor.close()
 
     def get_tables(self) -> list[dict]:
@@ -165,15 +170,12 @@ class SnowflakeConnector:
 
     def cancel(self) -> None:
         """Cancel the currently executing query on the Snowflake connection."""
-        # Snowflake's cursor.cancel() is not available without a reference to the
-        # active cursor, but closing the connection aborts any in-flight query.
-        # Use a fresh cursor to issue a session-level cancel via the connection.
-        try:
-            cursor = self.conn.cursor()
-            cursor.cancel()
-            cursor.close()
-        except Exception:
-            pass
+        import contextlib
+
+        cursor = self._active_cursor
+        if cursor is not None:
+            with contextlib.suppress(Exception):
+                cursor.cancel()  # type: ignore[union-attr]
 
     def close(self) -> None:
         self.conn.close()

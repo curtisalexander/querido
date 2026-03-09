@@ -2,27 +2,35 @@
 
 from __future__ import annotations
 
+import asyncio
+from functools import partial
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 router = APIRouter()
 
 
+def _get_tables_with_counts(connector: object) -> list[dict]:
+    """Fetch table list enriched with row counts (blocking)."""
+    from querido.sql.renderer import render_template
+
+    tables = connector.get_tables()  # type: ignore[union-attr]
+    for tbl in tables:
+        try:
+            count_sql = render_template("count", connector.dialect, table=tbl["name"])  # type: ignore[union-attr]
+            tbl["row_count"] = connector.execute(count_sql)[0]["cnt"]  # type: ignore[union-attr]
+        except Exception:
+            tbl["row_count"] = None
+    return tables
+
+
 @router.get("/", response_class=HTMLResponse)
 async def landing(request: Request) -> HTMLResponse:
     """Landing page — connection info and table list."""
     connector = request.app.state.connector
-    tables = connector.get_tables()
-
-    # Enrich with row counts
-    from querido.sql.renderer import render_template
-
-    for tbl in tables:
-        try:
-            count_sql = render_template("count", connector.dialect, table=tbl["name"])
-            tbl["row_count"] = connector.execute(count_sql)[0]["cnt"]
-        except Exception:
-            tbl["row_count"] = None
+    loop = asyncio.get_running_loop()
+    tables = await loop.run_in_executor(None, partial(_get_tables_with_counts, connector))
 
     templates = request.app.state.templates
     return templates.TemplateResponse(
@@ -43,7 +51,8 @@ async def table_detail(request: Request, name: str) -> HTMLResponse:
     validate_table_name(name)
 
     connector = request.app.state.connector
-    tables = connector.get_tables()
+    loop = asyncio.get_running_loop()
+    tables = await loop.run_in_executor(None, connector.get_tables)
     table_info = next((t for t in tables if t["name"] == name), None)
     table_type = table_info["type"] if table_info else "table"
 
