@@ -79,7 +79,7 @@ class SnowflakeConnector:
         rows = self.execute(
             "SELECT column_name, data_type, is_nullable, column_default, comment "
             "FROM information_schema.columns "
-            "WHERE table_name = UPPER(%s) "
+            "WHERE table_schema = CURRENT_SCHEMA() AND table_name = UPPER(%s) "
             "ORDER BY ordinal_position",
             (table,),
         )
@@ -101,7 +101,8 @@ class SnowflakeConnector:
 
         validate_table_name(table)
         rows = self.execute(
-            "SELECT comment FROM information_schema.tables WHERE table_name = UPPER(%s)",
+            "SELECT comment FROM information_schema.tables "
+            "WHERE table_schema = CURRENT_SCHEMA() AND table_name = UPPER(%s)",
             (table,),
         )
         if rows and rows[0].get("COMMENT"):
@@ -114,7 +115,8 @@ class SnowflakeConnector:
 
         validate_table_name(view)
         rows = self.execute(
-            "SELECT view_definition FROM information_schema.views WHERE table_name = UPPER(%s)",
+            "SELECT view_definition FROM information_schema.views "
+            "WHERE table_schema = CURRENT_SCHEMA() AND table_name = UPPER(%s)",
             (view,),
         )
         if rows and rows[0].get("VIEW_DEFINITION"):

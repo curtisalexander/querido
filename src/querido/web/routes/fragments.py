@@ -96,6 +96,7 @@ async def preview_fragment(request: Request, table: str, limit: int = 50) -> HTM
     from querido.core.preview import get_preview
 
     validate_table_name(table)
+    limit = min(max(limit, 1), 10_000)
     connector = request.app.state.connector
     data, elapsed = await _run_query(request, get_preview, connector, table, limit=limit)
 

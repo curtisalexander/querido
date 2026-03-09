@@ -193,7 +193,8 @@ class MetadataCache:
 
         Returns results in the same format as cli/search.py's _search_metadata.
         """
-        pat = f"%{pattern.lower()}%"
+        escaped = pattern.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pat = f"%{escaped}%"
         results: list[dict] = []
 
         search_tables = search_type in ("table", "all")
@@ -202,7 +203,7 @@ class MetadataCache:
         if search_tables:
             rows = self._conn.execute(
                 "SELECT table_name, table_type FROM cached_tables "
-                "WHERE connection = ? AND lower(table_name) LIKE ?",
+                "WHERE connection = ? AND lower(table_name) LIKE ? ESCAPE '\\'",
                 (connection_name, pat),
             ).fetchall()
             for r in rows:
@@ -224,7 +225,7 @@ class MetadataCache:
                 "JOIN cached_tables t "
                 "ON c.connection = t.connection "
                 "AND c.table_name = t.table_name "
-                "WHERE c.connection = ? AND lower(c.column_name) LIKE ?",
+                "WHERE c.connection = ? AND lower(c.column_name) LIKE ? ESCAPE '\\'",
                 (connection_name, pat),
             ).fetchall()
             for r in rows:

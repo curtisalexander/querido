@@ -11,11 +11,15 @@ from querido.output import fmt_value
 
 def _to_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     """Render a list of rows as a markdown table."""
+
+    def _esc(s: str) -> str:
+        return s.replace("|", "\\|")
+
     lines = []
-    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("| " + " | ".join(_esc(h) for h in headers) + " |")
     lines.append("| " + " | ".join("---" for _ in headers) + " |")
     for row in rows:
-        lines.append("| " + " | ".join(row) + " |")
+        lines.append("| " + " | ".join(_esc(cell) for cell in row) + " |")
     return "\n".join(lines)
 
 
@@ -364,6 +368,7 @@ def _yaml_escape(value: str) -> str:
     needs_quoting = any(c in value for c in yaml_special) or value.lower() in yaml_keywords
     if needs_quoting:
         escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        escaped = escaped.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
         return f'"{escaped}"'
     return value
 
@@ -463,7 +468,7 @@ def format_template(
                     "null_pct": fmt_value(col["null_pct"]),
                     "min": fmt_value(col["min_val"]) or fmt_value(col["min_length"]),
                     "max": fmt_value(col["max_val"]) or fmt_value(col["max_length"]),
-                    "sample_values": col["sample_values"],
+                    "sample_values": col.get("sample_values") or "",
                     "business_definition": "",
                     "data_owner": "",
                     "notes": "",
@@ -505,7 +510,7 @@ def format_template(
                 fmt_value(col["null_count"]),
                 min_display,
                 max_display,
-                col["sample_values"],
+                col.get("sample_values") or "",
                 "",
                 "",
                 "",

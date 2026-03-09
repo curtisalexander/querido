@@ -129,7 +129,12 @@ class ExploreApp(App):
             # This is intentional — the user already has direct database access
             # and the TUI is a local-only tool, so this is not a security risk.
             sql = f"SELECT * FROM {self.table} WHERE {self._filter_sql} LIMIT {self.max_rows}"
-            self._rows = self.connector.execute(sql)
+            try:
+                self._rows = self.connector.execute(sql)
+            except Exception as exc:
+                self.notify(f"Filter error: {exc}", severity="error")
+                self._filter_sql = None
+                self._rows = get_preview(self.connector, self.table, limit=self.max_rows)
         else:
             self._rows = get_preview(self.connector, self.table, limit=self.max_rows)
 
@@ -161,10 +166,20 @@ class ExploreApp(App):
         if not self._sort_column or not self._rows:
             return
         col = self._sort_column
-        self._rows.sort(
-            key=lambda r: (r.get(col) is None, r.get(col)),
-            reverse=self._sort_reverse,
-        )
+        try:
+            self._rows.sort(
+                key=lambda r: (r.get(col) is None, r.get(col)),
+                reverse=self._sort_reverse,
+            )
+        except TypeError:
+            # Mixed types — fall back to string comparison
+            self._rows.sort(
+                key=lambda r: (
+                    r.get(col) is None,
+                    str(r.get(col)) if r.get(col) is not None else "",
+                ),
+                reverse=self._sort_reverse,
+            )
 
     async def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
         col_key = str(event.column_key)
@@ -180,10 +195,15 @@ class ExploreApp(App):
 
         if self._sort_column:
             self._apply_sort()
-            dt = self.query_one("#data-table", DataTable)
-            dt.clear()
-            for row in self._rows:
-                dt.add_row(*row.values())
+        else:
+            # Sort cleared — reload to restore original order
+            await self._load_data()
+            return
+
+        dt = self.query_one("#data-table", DataTable)
+        dt.clear()
+        for row in self._rows:
+            dt.add_row(*row.values())
 
         from querido.tui.widgets.status_bar import StatusBar
 
