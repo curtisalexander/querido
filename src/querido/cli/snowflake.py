@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import io
+from typing import TYPE_CHECKING
 
 import typer
+
+if TYPE_CHECKING:
+    from querido.connectors.base import Connector
 
 app = typer.Typer(help="Snowflake-specific commands.")
 
@@ -84,14 +88,16 @@ def _build_semantic_yaml(
     buf = io.StringIO()
     indent = "  "
 
+    from querido.output.formats import _yaml_escape
+
     buf.write(f"name: {table.lower()}_semantic_model\n")
     desc = table_comment or f"Semantic model for {table}"
-    buf.write(f"description: {desc}\n")
+    buf.write(f"description: {_yaml_escape(desc)}\n")
     buf.write("\n")
     buf.write("tables:\n")
     buf.write(f"{indent}- name: {table}\n")
     buf.write(f"{indent}  base_table: {table}\n")
-    buf.write(f"{indent}  description: {desc}\n")
+    buf.write(f"{indent}  description: {_yaml_escape(desc)}\n")
 
     # Group columns
     from querido.core.profile import classify_column_kind
@@ -135,6 +141,8 @@ def _write_column_entry(
 ) -> None:
     """Write a single column entry in the semantic model YAML."""
 
+    from querido.output.formats import _yaml_escape
+
     name = col["name"]
     col_type = col["type"]
     comment = col.get("comment") or "<description>"
@@ -142,7 +150,7 @@ def _write_column_entry(
     buf.write(f"{prefix}- name: {name}\n")
     buf.write(f"{prefix}  expr: {name}\n")
     buf.write(f"{prefix}  data_type: {col_type}\n")
-    buf.write(f"{prefix}  description: {comment}\n")
+    buf.write(f"{prefix}  description: {_yaml_escape(comment)}\n")
     buf.write(f"{prefix}  synonyms:\n")
     buf.write(f"{prefix}    - <synonym>\n")
 
@@ -232,7 +240,7 @@ def lineage(
 
 
 def _query_lineage(
-    connector: object,
+    connector: Connector,
     object_name: str,
     direction: str,
     domain: str,
@@ -261,4 +269,4 @@ def _query_lineage(
     maybe_show_sql(sql)
     set_last_sql(sql)
 
-    return connector.execute(sql)  # type: ignore[union-attr]
+    return connector.execute(sql)
