@@ -6,6 +6,7 @@ from querido.cli.dist import app as dist_app
 from querido.cli.explore import app as explore_app
 from querido.cli.inspect import app as inspect_app
 from querido.cli.lineage import app as lineage_app
+from querido.cli.overview import app as overview_app
 from querido.cli.preview import app as preview_app
 from querido.cli.profile import app as profile_app
 from querido.cli.search import app as search_app
@@ -26,6 +27,7 @@ app.add_typer(dist_app, name="dist")
 app.add_typer(explore_app, name="explore")
 app.add_typer(inspect_app, name="inspect")
 app.add_typer(lineage_app, name="lineage")
+app.add_typer(overview_app, name="overview")
 app.add_typer(preview_app, name="preview")
 app.add_typer(profile_app, name="profile")
 app.add_typer(search_app, name="search")
