@@ -125,6 +125,9 @@ class ExploreApp(App):
         row_count = info["row_count"]
 
         if self._filter_sql:
+            # The filter expression is user-provided SQL typed into the TUI.
+            # This is intentional — the user already has direct database access
+            # and the TUI is a local-only tool, so this is not a security risk.
             sql = f"SELECT * FROM {self.table} WHERE {self._filter_sql} LIMIT {self.max_rows}"
             self._rows = self.connector.execute(sql)
         else:

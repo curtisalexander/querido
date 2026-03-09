@@ -74,6 +74,7 @@ SQLite support is always available (stdlib). Other backends are opt-in:
 pip install 'querido[duckdb]'      # DuckDB + Parquet support
 pip install 'querido[snowflake]'   # Snowflake support
 pip install 'querido[tui]'        # Interactive TUI (qdo explore)
+pip install 'querido[web]'        # Web UI (qdo serve)
 ```
 
 ## Usage
@@ -121,6 +122,9 @@ qdo cache clear
 
 # Interactive TUI for exploring data (requires querido[tui])
 qdo explore --connection my-db --table users
+
+# Local web UI for interactive exploration (requires querido[web])
+qdo serve --connection my-db --port 8888
 
 # Output as JSON, CSV, Markdown, or HTML instead of Rich tables
 qdo inspect --connection my-db --table users --format json

@@ -360,11 +360,10 @@ def print_snowflake_lineage(
 
     # GET_LINEAGE returns columns like SOURCE_OBJECT_NAME, TARGET_OBJECT_NAME, etc.
     # Show whatever columns the query returned.
-    if entries:
-        for key in entries[0]:
-            grid.add_column(key, style="cyan")
-        for row in entries:
-            grid.add_row(*(str(v) if v is not None else "" for v in row.values()))
+    for key in entries[0]:
+        grid.add_column(key, style="cyan")
+    for row in entries:
+        grid.add_row(*(str(v) if v is not None else "" for v in row.values()))
 
     console.print(grid)
     console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")

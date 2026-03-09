@@ -354,36 +354,6 @@ def format_dist(
 # -- template ------------------------------------------------------------------
 
 
-def _classify_column_kind(col: dict) -> str:
-    """Classify a column as 'dimension', 'time_dimension', or 'measure'."""
-    col_type = col["type"].upper()
-    col_name = col["name"].lower()
-
-    time_keywords = ("date", "time", "timestamp", "created", "updated", "modified")
-    if any(kw in col_type.lower() for kw in ("date", "time", "timestamp")):
-        return "time_dimension"
-    if any(kw in col_name for kw in time_keywords):
-        return "time_dimension"
-
-    numeric_prefixes = (
-        "INT",
-        "BIGINT",
-        "SMALLINT",
-        "TINYINT",
-        "FLOAT",
-        "DOUBLE",
-        "REAL",
-        "DECIMAL",
-        "NUMERIC",
-        "NUMBER",
-        "HUGEINT",
-    )
-    is_numeric = any(col_type.startswith(p) for p in numeric_prefixes)
-    id_keywords = ("_id", "_key", "_pk", "_fk", "_code", "_num")
-    if is_numeric and not any(kw in col_name for kw in id_keywords):
-        return "measure"
-
-    return "dimension"
 
 
 def _yaml_escape(value: str) -> str:
@@ -393,7 +363,7 @@ def _yaml_escape(value: str) -> str:
     # Quote strings that contain special YAML characters or look like non-strings
     yaml_special = ":{}\n[]#&*!|>',\"@`"
     yaml_keywords = ("true", "false", "null", "yes", "no")
-    needs_quoting = any(c in value for c in yaml_special) or value in yaml_keywords
+    needs_quoting = any(c in value for c in yaml_special) or value.lower() in yaml_keywords
     if needs_quoting:
         escaped = value.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
@@ -423,8 +393,10 @@ def _format_template_yaml(template_result: dict) -> str:
     dimensions: list[dict] = []
     time_dimensions: list[dict] = []
     measures: list[dict] = []
+    from querido.core.profile import classify_column_kind
+
     for col in columns:
-        kind = _classify_column_kind(col)
+        kind = classify_column_kind(col)
         if kind == "time_dimension":
             time_dimensions.append(col)
         elif kind == "measure":

@@ -20,9 +20,13 @@ def serve(
     try:
         import uvicorn  # noqa: F401
     except ImportError:
-        raise typer.Exit(
-            code=1,
-        ) from None
+        from rich.console import Console
+
+        Console(stderr=True).print(
+            "[red]fastapi/uvicorn[/red] is required for the web UI.\n"
+            "Install it with: [bold]pip install 'querido\\[web]'[/bold]"
+        )
+        raise typer.Exit(1) from None
 
     from querido.cli._util import friendly_errors
 

@@ -26,6 +26,29 @@ def is_numeric_type(type_str: str) -> bool:
     return type_str.lower().startswith(NUMERIC_TYPE_PREFIXES)
 
 
+_TIME_KEYWORDS = ("date", "time", "timestamp", "created", "updated", "modified")
+_ID_KEYWORDS = ("_id", "_key", "_pk", "_fk", "_code", "_num")
+
+
+def classify_column_kind(col: dict) -> str:
+    """Classify a column as 'dimension', 'time_dimension', or 'measure'.
+
+    Uses the column's ``type`` and ``name`` keys to infer the semantic role.
+    """
+    col_type = col["type"].upper()
+    col_name = col["name"].lower()
+
+    if any(kw in col_type.lower() for kw in ("date", "time", "timestamp")):
+        return "time_dimension"
+    if any(kw in col_name for kw in _TIME_KEYWORDS):
+        return "time_dimension"
+
+    if is_numeric_type(col_type) and not any(kw in col_name for kw in _ID_KEYWORDS):
+        return "measure"
+
+    return "dimension"
+
+
 def _build_col_info(columns: list[dict]) -> list[dict]:
     """Build the column info list used by profile SQL templates."""
     from querido.connectors.base import validate_column_name

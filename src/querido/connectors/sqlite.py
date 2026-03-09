@@ -14,7 +14,7 @@ class SQLiteConnector:
         self.conn.row_factory = sqlite3.Row
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
-        cursor = self.conn.execute(sql, params or {})
+        cursor = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
         rows = cursor.fetchall()
         if not rows:
             return []
