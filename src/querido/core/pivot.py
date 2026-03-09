@@ -32,8 +32,13 @@ def build_pivot_query(
     str
         SQL query string.
     """
-    group_cols = ", ".join(rows)
-    agg_exprs = ", ".join(f"{agg}({v}) AS {agg.lower()}_{v}" for v in values)
+
+    def _q(name: str) -> str:
+        """Quote an identifier with double quotes."""
+        return '"' + name.replace('"', '""') + '"'
+
+    group_cols = ", ".join(_q(r) for r in rows)
+    agg_exprs = ", ".join(f'{agg}({_q(v)}) AS "{agg.lower()}_{v}"' for v in values)
     return (
         f"SELECT {group_cols}, {agg_exprs} FROM {table}"
         f" GROUP BY {group_cols} ORDER BY {group_cols}"

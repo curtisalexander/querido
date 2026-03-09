@@ -39,5 +39,3 @@ def test_preview_duckdb_with_rows_flag(duckdb_path: str):
     )
     assert result.exit_code == 0
     assert "1 row(s)" in result.output
-
-

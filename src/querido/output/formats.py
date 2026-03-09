@@ -354,8 +354,6 @@ def format_dist(
 # -- template ------------------------------------------------------------------
 
 
-
-
 def _yaml_escape(value: str) -> str:
     """Escape a string for safe YAML output."""
     if not value:

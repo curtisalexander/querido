@@ -235,12 +235,12 @@ class TestPivotQueryBuilder:
         from querido.core.pivot import build_pivot_query
 
         sql = build_pivot_query("users", ["city"], ["age"], "COUNT")
-        assert "GROUP BY city" in sql
-        assert "COUNT(age)" in sql
+        assert 'GROUP BY "city"' in sql
+        assert 'COUNT("age")' in sql
 
     def test_build_pivot_query_multi_cols(self):
         from querido.core.pivot import build_pivot_query
 
         sql = build_pivot_query("orders", ["status", "user_id"], ["amount"], "SUM")
-        assert "GROUP BY status, user_id" in sql
-        assert "SUM(amount)" in sql
+        assert 'GROUP BY "status", "user_id"' in sql
+        assert 'SUM("amount")' in sql

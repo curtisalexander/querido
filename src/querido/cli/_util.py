@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from functools import wraps
 from typing import TYPE_CHECKING
 
@@ -141,13 +142,15 @@ def resolve_column(connector: Connector, table: str, column: str, *, label: str 
 
 # SQL that was most recently rendered — set by maybe_show_sql or directly by
 # commands so that the error handler can display it on failure.
+_last_sql_lock = threading.Lock()
 _last_sql: str | None = None
 
 
 def set_last_sql(sql: str) -> None:
     """Record the most recently executed SQL for error-reporting purposes."""
     global _last_sql
-    _last_sql = sql
+    with _last_sql_lock:
+        _last_sql = sql
 
 
 def _format_db_error(exc: Exception) -> str:
@@ -183,7 +186,8 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
     @wraps(fn)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         global _last_sql
-        _last_sql = None
+        with _last_sql_lock:
+            _last_sql = None
 
         import typer
 
@@ -198,9 +202,11 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
             msg = _classify_error(exc)
             console.print(f"\n[bold red]Error:[/bold red] {msg}")
 
-            if _last_sql is not None and _is_db_error(exc):
+            with _last_sql_lock:
+                last = _last_sql
+            if last is not None and _is_db_error(exc):
                 console.print("\n[dim]The SQL that was being executed:[/dim]")
-                _print_sql(_last_sql)
+                _print_sql(last)
 
             raise typer.Exit(code=1) from None
 

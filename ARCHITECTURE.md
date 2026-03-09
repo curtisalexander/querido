@@ -271,7 +271,7 @@ Progress spinners (Rich `Status`) display on stderr during query execution so th
 
 - `--version` / `-V`: Show version and exit
 - `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_util.py:maybe_show_sql()`.
-- `--format {rich,markdown,json,csv,html}` / `-f`: Output format. Default is `rich` (Rich terminal tables). `html` opens results in the default browser. Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_util.py:get_output_format()`.
+- `--format {rich,markdown,json,csv,html,yaml}` / `-f`: Output format. Default is `rich` (Rich terminal tables). `html` opens results in the default browser. `yaml` is used for Snowflake semantic model output. Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_util.py:get_output_format()`.
 
 Command-specific flags:
 - `inspect --verbose` / `-v`: Show extended metadata (table and column comments/descriptions).

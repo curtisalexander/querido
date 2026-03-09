@@ -39,11 +39,14 @@ def explore(
             raise typer.Exit(1) from None
 
         connector = create_connector(config)
-        check_table_exists(connector, table)
+        try:
+            check_table_exists(connector, table)
 
-        from querido.tui.app import ExploreApp
+            from querido.tui.app import ExploreApp
 
-        tui_app = ExploreApp(connector=connector, table=table, max_rows=rows)
-        tui_app.run()
+            tui_app = ExploreApp(connector=connector, table=table, max_rows=rows)
+            tui_app.run()
+        finally:
+            connector.close()
 
     _run()

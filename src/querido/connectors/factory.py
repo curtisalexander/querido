@@ -32,7 +32,11 @@ def create_connector(config: dict) -> Connector:
             ) from None
         connector = DuckDBConnector(config.get("path", ":memory:"))
         if "parquet_path" in config:
-            connector.register_parquet(config["parquet_path"])
+            try:
+                connector.register_parquet(config["parquet_path"])
+            except Exception:
+                connector.close()
+                raise
         return connector
     elif db_type == "snowflake":
         try:
