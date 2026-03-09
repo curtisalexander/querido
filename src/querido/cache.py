@@ -60,8 +60,6 @@ class MetadataCache:
         self,
         connection_name: str,
         connector: Connector,
-        *,
-        on_progress: object | None = None,
     ) -> dict:
         """Fetch all table/column metadata and store it in the cache.
 

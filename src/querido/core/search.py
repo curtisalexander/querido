@@ -77,6 +77,7 @@ def try_cached_search(
     connection_name: str,
     pattern: str,
     search_type: str,
+    schema: str | None = None,
 ) -> list[dict] | None:
     """Try to search from cache. Returns None if cache is stale or empty."""
     try:
@@ -86,7 +87,13 @@ def try_cached_search(
         try:
             if not cache.is_fresh(connection_name):
                 return None
-            return cache.search(connection_name, pattern, search_type)
+            results = cache.search(connection_name, pattern, search_type)
+            if schema:
+                schema_lower = schema.lower()
+                results = [
+                    r for r in results if r["table_name"].lower().startswith(schema_lower + ".")
+                ]
+            return results
         finally:
             cache.close()
     except (ImportError, OSError, ValueError, RuntimeError):
