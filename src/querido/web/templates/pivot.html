@@ -8,8 +8,7 @@
 <form class="pivot-form"
       hx-post="/fragments/pivot/{{ table_name }}"
       hx-target="#pivot-result"
-      hx-indicator="#global-indicator"
-      x-data="{ rows: [], values: [], agg: 'COUNT' }">
+      hx-indicator="#global-indicator">
 
   <fieldset>
     <legend>Group by (rows)</legend>

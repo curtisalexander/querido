@@ -46,13 +46,6 @@ async def _run_query(
         request.app.state.running_queries.pop(query_id, None)
 
 
-def _elapsed_html(elapsed: float) -> str:
-    """Return a small HTML snippet showing query time (only for >1s)."""
-    if elapsed < 1.0:
-        return ""
-    return f'<p class="query-timing">Completed in {elapsed:.1f}s</p>'
-
-
 @router.post("/cancel/{query_id}", response_class=HTMLResponse)
 async def cancel_query(request: Request, query_id: str) -> HTMLResponse:
     """Cancel a running query by its ID."""

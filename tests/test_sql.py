@@ -145,13 +145,11 @@ class TestSqlScratch:
         assert result.exit_code == 0
         assert result.output.count("INSERT INTO") == 1
 
-    def test_scratch_rows_0(self, sqlite_path: str) -> None:
+    def test_scratch_rows_0_rejected(self, sqlite_path: str) -> None:
         result = runner.invoke(
             app, ["sql", "scratch", "-t", "users", "-c", sqlite_path, "-r", "0"]
         )
-        assert result.exit_code == 0
-        assert "CREATE TEMP TABLE tmp_users" in result.output
-        assert "INSERT INTO" not in result.output
+        assert result.exit_code != 0
 
     def test_scratch_generates_executable_sql(self, tmp_path: Path) -> None:
         db_path = str(tmp_path / "scratch_exec.db")
