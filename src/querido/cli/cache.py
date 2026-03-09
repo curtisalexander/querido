@@ -28,7 +28,9 @@ def sync(
 
             console = Console(stderr=True)
 
-            with console.status(f"Syncing metadata for [bold]{connection}[/bold]…"):
+            from querido.cli._progress import query_status
+
+            with query_status(console, f"Syncing metadata for [bold]{connection}[/bold]", connector):
                 cache = MetadataCache()
                 try:
                     summary = cache.sync(connection, connector)

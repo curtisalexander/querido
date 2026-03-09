@@ -54,7 +54,9 @@ def search(
                 from querido.core.search import search_metadata
 
                 console = Console(stderr=True)
-                with console.status(f"Searching for [bold]{pattern}[/bold]…"):
+                from querido.cli._progress import query_status
+
+                with query_status(console, f"Searching for [bold]{pattern}[/bold]", connector):
                     results = search_metadata(connector, pattern, search_type, schema)
 
         from querido.cli._util import get_output_format

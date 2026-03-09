@@ -26,6 +26,7 @@ def create_app(connector: Connector, connection_name: str):
     app.state.connector = connector
     app.state.connection_name = connection_name
     app.state.templates = Jinja2Templates(directory=str(_HERE / "templates"))
+    app.state.running_queries: dict[str, object] = {}  # request_id → connector for cancel
 
     # Static files ---------------------------------------------------------
     app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")

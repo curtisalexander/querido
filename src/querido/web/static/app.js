@@ -162,3 +162,31 @@ function activateTab(el) {
   el.closest(".tab-bar").querySelectorAll("a").forEach(function(a) { a.classList.remove("active"); });
   el.classList.add("active");
 }
+
+// --- Query elapsed timer ---
+// Show elapsed seconds on the HTMX indicator while a request is in flight.
+(function() {
+  var _timer = null;
+  var _startTime = 0;
+
+  document.addEventListener("htmx:beforeRequest", function() {
+    _startTime = Date.now();
+    var el = document.getElementById("query-elapsed");
+    if (el) el.textContent = "";
+    _timer = setInterval(function() {
+      var elapsed = ((Date.now() - _startTime) / 1000).toFixed(0);
+      var el = document.getElementById("query-elapsed");
+      if (el) el.textContent = "(" + elapsed + "s)";
+    }, 1000);
+  });
+
+  function stopTimer() {
+    if (_timer) { clearInterval(_timer); _timer = null; }
+    var el = document.getElementById("query-elapsed");
+    if (el) el.textContent = "";
+  }
+
+  document.addEventListener("htmx:afterRequest", stopTimer);
+  document.addEventListener("htmx:requestError", stopTimer);
+  document.addEventListener("htmx:responseError", stopTimer);
+})();

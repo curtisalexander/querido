@@ -33,7 +33,9 @@ def preview(
 
             check_table_exists(connector, table)
 
-            with console.status(f"Loading preview of [bold]{table}[/bold]…"):
+            from querido.cli._progress import query_status
+
+            with query_status(console, f"Loading preview of [bold]{table}[/bold]", connector):
                 from querido.core.preview import get_preview
                 from querido.sql.renderer import render_template
 

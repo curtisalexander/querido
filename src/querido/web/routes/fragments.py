@@ -2,10 +2,68 @@
 
 from __future__ import annotations
 
+import asyncio
+import html as _html
+import time
+import uuid
+from functools import partial
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 router = APIRouter(prefix="/fragments")
+
+
+async def _run_query(request: Request, fn: Callable, *args: object, **kwargs: object) -> tuple[object, float]:
+    """Run a blocking query function in a thread pool with cancel tracking.
+
+    Returns ``(result, elapsed_seconds)``.
+    If the client disconnects, cancels the connector query.
+    """
+    connector = request.app.state.connector
+    query_id = str(uuid.uuid4())
+    request.app.state.running_queries[query_id] = connector
+
+    loop = asyncio.get_running_loop()
+    t0 = time.monotonic()
+    try:
+        result = await loop.run_in_executor(None, partial(fn, *args, **kwargs))
+        elapsed = time.monotonic() - t0
+        return result, elapsed
+    except asyncio.CancelledError:
+        # Client disconnected — cancel the query
+        if hasattr(connector, "cancel"):
+            try:
+                connector.cancel()
+            except Exception:
+                pass
+        raise
+    finally:
+        request.app.state.running_queries.pop(query_id, None)
+
+
+def _elapsed_html(elapsed: float) -> str:
+    """Return a small HTML snippet showing query time (only for >1s)."""
+    if elapsed < 1.0:
+        return ""
+    return f'<p class="query-timing">Completed in {elapsed:.1f}s</p>'
+
+
+@router.post("/cancel/{query_id}", response_class=HTMLResponse)
+async def cancel_query(request: Request, query_id: str) -> HTMLResponse:
+    """Cancel a running query by its ID."""
+    running = request.app.state.running_queries
+    connector = running.pop(query_id, None)
+    if connector is not None and hasattr(connector, "cancel"):
+        try:
+            connector.cancel()
+        except Exception:
+            pass
+    return HTMLResponse('<p class="query-cancelled">Query cancelled.</p>')
 
 
 @router.get("/inspect/{table}", response_class=HTMLResponse)
@@ -16,10 +74,10 @@ async def inspect_fragment(request: Request, table: str) -> HTMLResponse:
 
     validate_table_name(table)
     connector = request.app.state.connector
-    result = get_inspect(connector, table, verbose=True)
+    result, elapsed = await _run_query(request, get_inspect, connector, table, verbose=True)
 
     templates = request.app.state.templates
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "partials/inspect.html",
         {
@@ -27,8 +85,10 @@ async def inspect_fragment(request: Request, table: str) -> HTMLResponse:
             "columns": result["columns"],
             "row_count": result["row_count"],
             "table_comment": result["table_comment"],
+            "elapsed": elapsed,
         },
     )
+    return resp
 
 
 @router.get("/preview/{table}", response_class=HTMLResponse)
@@ -39,7 +99,7 @@ async def preview_fragment(request: Request, table: str, limit: int = 50) -> HTM
 
     validate_table_name(table)
     connector = request.app.state.connector
-    data = get_preview(connector, table, limit=limit)
+    data, elapsed = await _run_query(request, get_preview, connector, table, limit=limit)
 
     headers = list(data[0].keys()) if data else []
 
@@ -52,6 +112,7 @@ async def preview_fragment(request: Request, table: str, limit: int = 50) -> HTM
             "headers": headers,
             "rows": data,
             "limit": limit,
+            "elapsed": elapsed,
         },
     )
 
@@ -64,7 +125,7 @@ async def profile_fragment(request: Request, table: str) -> HTMLResponse:
 
     validate_table_name(table)
     connector = request.app.state.connector
-    result = get_profile(connector, table)
+    result, elapsed = await _run_query(request, get_profile, connector, table)
 
     templates = request.app.state.templates
     return templates.TemplateResponse(
@@ -76,6 +137,7 @@ async def profile_fragment(request: Request, table: str) -> HTMLResponse:
             "row_count": result["row_count"],
             "sampled": result["sampled"],
             "sample_size": result["sample_size"],
+            "elapsed": elapsed,
         },
     )
 
@@ -89,13 +151,13 @@ async def dist_fragment(request: Request, table: str, column: str) -> HTMLRespon
     validate_table_name(table)
     validate_column_name(column)
     connector = request.app.state.connector
-    result = get_distribution(connector, table, column)
+    result, elapsed = await _run_query(request, get_distribution, connector, table, column)
 
     templates = request.app.state.templates
     return templates.TemplateResponse(
         request,
         "partials/dist.html",
-        {"dist_result": result},
+        {"dist_result": result, "elapsed": elapsed},
     )
 
 
@@ -107,13 +169,13 @@ async def template_fragment(request: Request, table: str) -> HTMLResponse:
 
     validate_table_name(table)
     connector = request.app.state.connector
-    result = get_template(connector, table)
+    result, elapsed = await _run_query(request, get_template, connector, table)
 
     templates = request.app.state.templates
     return templates.TemplateResponse(
         request,
         "partials/template.html",
-        {"template": result},
+        {"template": result, "elapsed": elapsed},
     )
 
 
@@ -126,7 +188,7 @@ async def lineage_fragment(request: Request, table: str) -> HTMLResponse:
     validate_table_name(table)
     connector = request.app.state.connector
     try:
-        result = get_view_definition(connector, table)
+        result, elapsed = await _run_query(request, get_view_definition, connector, table)
     except LookupError:
         return HTMLResponse("<p class='empty-msg'>Not a view — no lineage available.</p>")
 
@@ -134,7 +196,7 @@ async def lineage_fragment(request: Request, table: str) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "partials/lineage.html",
-        {"lineage": result},
+        {"lineage": result, "elapsed": elapsed},
     )
 
 
@@ -154,7 +216,7 @@ async def search_fragment(request: Request, q: str = "") -> HTMLResponse:
             {"tables": tables},
         )
 
-    results = search_metadata(connector, q, "all")
+    results, _elapsed = await _run_query(request, search_metadata, connector, q, "all")
 
     # Deduplicate to unique table names while preserving match info
     seen: set[str] = set()

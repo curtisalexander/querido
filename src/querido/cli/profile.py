@@ -51,7 +51,9 @@ def profile(
 
             check_table_exists(connector, table)
 
-            with console.status(f"Profiling [bold]{table}[/bold]…"):
+            from querido.cli._progress import query_status
+
+            with query_status(console, f"Profiling [bold]{table}[/bold]", connector):
                 from querido.core.profile import get_profile
                 from querido.sql.renderer import render_template
 
@@ -104,7 +106,7 @@ def profile(
                 print(format_profile(table, data, row_count, sampled, sample_size, fmt))
 
             if top > 0:
-                with console.status(f"Computing top {top} values…"):
+                with query_status(console, f"Computing top {top} values", connector):
                     from querido.core.profile import get_frequencies
 
                     freq_data = get_frequencies(

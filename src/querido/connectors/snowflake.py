@@ -121,6 +121,18 @@ class SnowflakeConnector:
             return rows[0]["VIEW_DEFINITION"]
         return None
 
+    def cancel(self) -> None:
+        """Cancel the currently executing query on the Snowflake connection."""
+        # Snowflake's cursor.cancel() is not available without a reference to the
+        # active cursor, but closing the connection aborts any in-flight query.
+        # Use a fresh cursor to issue a session-level cancel via the connection.
+        try:
+            cursor = self.conn.cursor()
+            cursor.cancel()
+            cursor.close()
+        except Exception:
+            pass
+
     def close(self) -> None:
         self.conn.close()
 

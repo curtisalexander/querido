@@ -53,7 +53,9 @@ def semantic(
 
             _require_snowflake(connector.dialect, "semantic")
 
-            with console.status(f"Reading metadata for [bold]{table}[/bold]…"):
+            from querido.cli._progress import query_status
+
+            with query_status(console, f"Reading metadata for [bold]{table}[/bold]", connector):
                 check_table_exists(connector, table)
                 columns = connector.get_columns(table)
                 table_comment = connector.get_table_comment(table)
@@ -202,7 +204,9 @@ def lineage(
 
             _require_snowflake(connector.dialect, "lineage")
 
-            with console.status(f"Querying lineage for [bold]{object_name}[/bold] ({direction})…"):
+            from querido.cli._progress import query_status
+
+            with query_status(console, f"Querying lineage for [bold]{object_name}[/bold] ({direction})", connector):
                 rows = _query_lineage(connector, object_name, direction, domain, depth)
 
         result = {
