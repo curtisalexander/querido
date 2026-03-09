@@ -84,7 +84,7 @@ def status(
 
             print(json.dumps({"entries": entries}, indent=2, default=str))
         elif fmt in ("markdown", "csv"):
-            from querido.output.formats import _dicts_to_csv, _to_markdown_table
+            from querido.output.formats import dicts_to_csv, to_markdown_table
 
             if fmt == "csv":
                 flat = [
@@ -96,14 +96,14 @@ def status(
                     }
                     for e in entries
                 ]
-                print(_dicts_to_csv(flat))
+                print(dicts_to_csv(flat))
             else:
                 headers = ["Connection", "Tables", "Columns", "Age (hours)"]
                 rows = [
                     [e["connection"], str(e["tables"]), str(e["columns"]), str(e["age_hours"])]
                     for e in entries
                 ]
-                print(_to_markdown_table(headers, rows))
+                print(to_markdown_table(headers, rows))
         else:
             from rich.console import Console
             from rich.table import Table

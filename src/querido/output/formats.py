@@ -9,7 +9,7 @@ import json
 from querido.output import fmt_value
 
 
-def _to_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
+def to_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     """Render a list of rows as a markdown table."""
 
     def _esc(s: str) -> str:
@@ -23,7 +23,7 @@ def _to_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
-def _dicts_to_csv(data: list[dict]) -> str:
+def dicts_to_csv(data: list[dict]) -> str:
     """Render a list of dicts as CSV."""
     if not data:
         return ""
@@ -64,7 +64,7 @@ def format_inspect(
             if verbose:
                 row["comment"] = col.get("comment") or ""
             rows.append(row)
-        return _dicts_to_csv(rows)
+        return dicts_to_csv(rows)
 
     # markdown
     headers = ["Column", "Type", "Nullable", "Default", "Primary Key"]
@@ -86,7 +86,7 @@ def format_inspect(
     if table_comment:
         lines.append(f"> {table_comment}")
         lines.append("")
-    lines.append(_to_markdown_table(headers, rows))
+    lines.append(to_markdown_table(headers, rows))
     lines.append("")
     lines.append(f"Row count: {row_count:,}")
     return "\n".join(lines)
@@ -108,13 +108,13 @@ def format_preview(
         return json.dumps(data, indent=2, default=str)
 
     if fmt == "csv":
-        return _dicts_to_csv(data)
+        return dicts_to_csv(data)
 
     # markdown
     headers = list(data[0].keys())
     rows = [[str(v) if v is not None else "" for v in row.values()] for row in data]
     lines = [f"## Preview: {table_name} (limit {limit})", ""]
-    lines.append(_to_markdown_table(headers, rows))
+    lines.append(to_markdown_table(headers, rows))
     lines.append("")
     lines.append(f"Showing {len(data)} row(s)")
     return "\n".join(lines)
@@ -146,7 +146,7 @@ def format_profile(
         return json.dumps(payload, indent=2, default=str)
 
     if fmt == "csv":
-        return _dicts_to_csv(data)
+        return dicts_to_csv(data)
 
     # markdown
     numeric_rows = [r for r in data if r.get("min_val") is not None]
@@ -187,7 +187,7 @@ def format_profile(
                     fmt_value(r["distinct_count"]),
                 ]
             )
-        lines.append(_to_markdown_table(headers, rows))
+        lines.append(to_markdown_table(headers, rows))
         lines.append("")
 
     if string_rows:
@@ -207,7 +207,7 @@ def format_profile(
                     fmt_value(r["null_pct"]),
                 ]
             )
-        lines.append(_to_markdown_table(headers, rows))
+        lines.append(to_markdown_table(headers, rows))
         lines.append("")
 
     if other_rows:
@@ -225,7 +225,7 @@ def format_profile(
                     fmt_value(r["distinct_count"]),
                 ]
             )
-        lines.append(_to_markdown_table(headers, rows))
+        lines.append(to_markdown_table(headers, rows))
         lines.append("")
 
     sample_note = ""
@@ -264,7 +264,7 @@ def format_search(
             }
             for r in results
         ]
-        return _dicts_to_csv(flat)
+        return dicts_to_csv(flat)
 
     # markdown
     lines = [f"## Search: '{pattern}'", ""]
@@ -279,7 +279,7 @@ def format_search(
         ]
         for r in results
     ]
-    lines.append(_to_markdown_table(headers, rows))
+    lines.append(to_markdown_table(headers, rows))
     lines.append("")
     lines.append(f"{len(results)} match(es)")
     return "\n".join(lines)
@@ -312,7 +312,7 @@ def format_dist(
                 }
                 for b in buckets
             ]
-            return _dicts_to_csv(flat) if flat else ""
+            return dicts_to_csv(flat) if flat else ""
 
         # markdown
         lines = [f"## Distribution: {table_name}.{column}", ""]
@@ -321,7 +321,7 @@ def format_dist(
             [f"{fmt_value(b['bucket_min'])} - {fmt_value(b['bucket_max'])}", f"{b['count']:,}"]
             for b in buckets
         ]
-        lines.append(_to_markdown_table(headers, rows))
+        lines.append(to_markdown_table(headers, rows))
         lines.append("")
         null_note = f" (nulls: {null_count:,})" if null_count else ""
         lines.append(f"Total rows: {total_rows:,}{null_note}")
@@ -336,7 +336,7 @@ def format_dist(
                 }
                 for v in values
             ]
-            return _dicts_to_csv(flat) if flat else ""
+            return dicts_to_csv(flat) if flat else ""
 
         # markdown
         lines = [f"## Distribution: {table_name}.{column}", ""]
@@ -348,7 +348,7 @@ def format_dist(
             ]
             for v in values
         ]
-        lines.append(_to_markdown_table(headers, rows))
+        lines.append(to_markdown_table(headers, rows))
         lines.append("")
         null_note = f" (nulls: {null_count:,})" if null_count else ""
         lines.append(f"Total rows: {total_rows:,}{null_note}")
@@ -358,7 +358,7 @@ def format_dist(
 # -- template ------------------------------------------------------------------
 
 
-def _yaml_escape(value: str) -> str:
+def yaml_escape(value: str) -> str:
     """Escape a string for safe YAML output."""
     if not value:
         return '""'
@@ -385,12 +385,12 @@ def _format_template_yaml(template_result: dict) -> str:
 
     lines.append(f"name: {table_name.lower()}_semantic_model")
     desc = table_comment or f"Semantic model for {table_name}"
-    lines.append(f"description: {_yaml_escape(desc)}")
+    lines.append(f"description: {yaml_escape(desc)}")
     lines.append("")
     lines.append("tables:")
     lines.append(f"{ind}- name: {table_name}")
     lines.append(f"{ind}  base_table: {table_name}")
-    lines.append(f"{ind}  description: {_yaml_escape(desc)}")
+    lines.append(f"{ind}  description: {yaml_escape(desc)}")
     lines.append(f"{ind}  row_count: {row_count}")
 
     dimensions: list[dict] = []
@@ -413,13 +413,13 @@ def _format_template_yaml(template_result: dict) -> str:
         lines.append(f"{prefix}- name: {col['name']}")
         lines.append(f"{prefix}  expr: {col['name']}")
         lines.append(f"{prefix}  data_type: {col['type']}")
-        lines.append(f"{prefix}  description: {_yaml_escape(col_desc)}")
+        lines.append(f"{prefix}  description: {yaml_escape(col_desc)}")
         lines.append(f"{prefix}  synonyms:")
         lines.append(f"{prefix}    - <synonym>")
         if is_measure:
             lines.append(f"{prefix}  default_aggregation: sum")
         if col.get("sample_values"):
-            lines.append(f"{prefix}  sample_values: {_yaml_escape(col['sample_values'])}")
+            lines.append(f"{prefix}  sample_values: {yaml_escape(col['sample_values'])}")
 
     if dimensions:
         lines.append(f"\n{ind}  dimensions:")
@@ -474,7 +474,7 @@ def format_template(
                     "notes": "",
                 }
             )
-        return _dicts_to_csv(flat) if flat else ""
+        return dicts_to_csv(flat) if flat else ""
 
     # markdown
     lines: list[str] = [f"## {table_name}", ""]
@@ -516,7 +516,7 @@ def format_template(
                 "",
             ]
         )
-    lines.append(_to_markdown_table(headers, rows))
+    lines.append(to_markdown_table(headers, rows))
     return "\n".join(lines)
 
 
@@ -535,7 +535,7 @@ def format_lineage(
         return json.dumps(lineage_result, indent=2, default=str)
 
     if fmt == "csv":
-        return _dicts_to_csv([{"view": view_name, "dialect": dialect, "definition": definition}])
+        return dicts_to_csv([{"view": view_name, "dialect": dialect, "definition": definition}])
 
     # markdown
     lines = [
@@ -570,13 +570,13 @@ def format_snowflake_lineage(
         return f"No {direction} lineage found for '{object_name}'."
 
     if fmt == "csv":
-        return _dicts_to_csv(entries)
+        return dicts_to_csv(entries)
 
     # markdown
     lines = [f"## Lineage: {object_name} ({direction})", ""]
     headers = list(entries[0].keys())
     rows = [[str(v) if v is not None else "" for v in row.values()] for row in entries]
-    lines.append(_to_markdown_table(headers, rows))
+    lines.append(to_markdown_table(headers, rows))
     lines.append("")
     lines.append(f"{len(entries)} lineage entries")
     return "\n".join(lines)
@@ -606,7 +606,7 @@ def format_frequencies(
                 flat.append(
                     {"column": col_name, "value": r["value"], "count": r["count"], "pct": pct}
                 )
-        return _dicts_to_csv(flat) if flat else ""
+        return dicts_to_csv(flat) if flat else ""
 
     # markdown
     lines: list[str] = []
@@ -621,6 +621,6 @@ def format_frequencies(
             pct = round(100.0 * r["count"] / row_count, 2) if row_count else 0
             val = str(r["value"]) if r["value"] is not None else "(NULL)"
             md_rows.append([val, f"{r['count']:,}", str(pct)])
-        lines.append(_to_markdown_table(headers, md_rows))
+        lines.append(to_markdown_table(headers, md_rows))
         lines.append("")
     return "\n".join(lines)
