@@ -25,7 +25,12 @@ def get_distribution(
     from querido.sql.renderer import render_template
 
     col_meta = connector.get_columns(table)
-    col_type = next(c["type"] for c in col_meta if c["name"] == column)
+    col_type = next((c["type"] for c in col_meta if c["name"].lower() == column.lower()), None)
+    if col_type is None:
+        available = ", ".join(c["name"] for c in col_meta)
+        raise ValueError(
+            f"Column '{column}' not found in table '{table}'. Available columns: {available}"
+        )
     is_num = is_numeric_type(col_type)
 
     null_sql = render_template("null_count", connector.dialect, column=column, table=table)

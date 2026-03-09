@@ -28,11 +28,12 @@ jobs:
           python-version: "3.13"
       - name: Install dependencies
         run: uv sync
-      - name: Lint
+      - name: Lint and type check
         if: matrix.os == 'ubuntu-latest'
         run: |
           uv run ruff check src/ tests/
           uv run ruff format --check src/ tests/
+          uv run ty check
       - name: Test
         run: uv run pytest
 

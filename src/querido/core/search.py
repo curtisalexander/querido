@@ -52,9 +52,9 @@ def search_metadata(
         if search_columns:
             try:
                 columns = connector.get_columns(tbl_name)
-            except Exception:
+            except (OSError, ValueError, RuntimeError) as exc:
                 print(
-                    f"Warning: could not read columns for '{tbl_name}', skipping.",
+                    f"Warning: could not read columns for '{tbl_name}': {exc}",
                     file=sys.stderr,
                 )
                 continue
@@ -89,5 +89,5 @@ def try_cached_search(
             return cache.search(connection_name, pattern, search_type)
         finally:
             cache.close()
-    except Exception:
+    except (ImportError, OSError, ValueError, RuntimeError):
         return None

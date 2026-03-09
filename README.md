@@ -124,7 +124,7 @@ qdo cache clear
 qdo explore --connection my-db --table users
 
 # Local web UI for interactive exploration (requires querido[web])
-qdo serve --connection my-db --port 8888
+qdo serve --connection my-db --port 8888 --host 127.0.0.1
 
 # Output as JSON, CSV, Markdown, or HTML instead of Rich tables
 qdo inspect --connection my-db --table users --format json
@@ -185,6 +185,6 @@ You can also pass a file path directly: `qdo preview --connection ./my.db --tabl
 ```bash
 uv run ruff check src/ tests/    # lint
 uv run ruff format src/ tests/   # format
-uv run ty check src/              # type check
+uv run ty check                   # type check
 uv run pytest                     # test
 ```

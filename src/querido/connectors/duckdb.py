@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Self
 
+from querido.connectors.base import validate_table_name
+
 
 class DuckDBConnector:
     dialect = "duckdb"
@@ -20,10 +22,12 @@ class DuckDBConnector:
             raise FileNotFoundError(f"Parquet file not found: {parquet_path}")
         resolved = str(p.resolve())
         name = p.stem
+        validate_table_name(name)
         # Use forward slashes (works on all platforms in DuckDB) and escape quotes
         safe_path = resolved.replace("\\", "/").replace("'", "''")
+        safe_name = name.replace('"', '""')
         self.conn.execute(
-            f"CREATE OR REPLACE VIEW \"{name}\" AS SELECT * FROM read_parquet('{safe_path}')"
+            f"CREATE OR REPLACE VIEW \"{safe_name}\" AS SELECT * FROM read_parquet('{safe_path}')"
         )
         return name
 
@@ -49,8 +53,6 @@ class DuckDBConnector:
         ]
 
     def get_columns(self, table: str) -> list[dict]:
-        from querido.connectors.base import validate_table_name
-
         validate_table_name(table)
         rows = self.execute(
             "SELECT column_name, data_type, is_nullable, column_default, comment "
@@ -72,8 +74,6 @@ class DuckDBConnector:
 
     def get_table_comment(self, table: str) -> str | None:
         """Return the table comment, or None if not set."""
-        from querido.connectors.base import validate_table_name
-
         validate_table_name(table)
         rows = self.execute(
             "SELECT comment FROM duckdb_tables() WHERE lower(table_name) = lower($table_name)",
@@ -85,8 +85,6 @@ class DuckDBConnector:
 
     def get_view_definition(self, view: str) -> str | None:
         """Return the SQL definition of a view from duckdb_views()."""
-        from querido.connectors.base import validate_table_name
-
         validate_table_name(view)
         rows = self.execute(
             "SELECT sql FROM duckdb_views() WHERE lower(view_name) = lower($view_name)",

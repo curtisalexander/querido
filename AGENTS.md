@@ -150,7 +150,7 @@ qdo config list
 
 ### Global flags
 - `--show-sql` — print rendered SQL to stderr with syntax highlighting
-- `--format {rich,markdown,json,csv,html}` / `-f` — output format (default: rich)
+- `--format {rich,markdown,json,csv,html,yaml}` / `-f` — output format (default: rich)
 - `--version` / `-V` — show version
 
 ### Connection resolution

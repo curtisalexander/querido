@@ -136,7 +136,9 @@ class TestSemanticYamlGeneration:
 
 class TestSemanticCLI:
     def test_semantic_rejects_sqlite(self, snowflake_cmd_sqlite: str):
-        result = runner.invoke(app, ["snowflake", "semantic", "-t", "orders", "-c", snowflake_cmd_sqlite])
+        result = runner.invoke(
+            app, ["snowflake", "semantic", "-t", "orders", "-c", snowflake_cmd_sqlite]
+        )
         assert result.exit_code != 0
         assert "Snowflake" in result.output
 
