@@ -34,7 +34,7 @@ def explore(
             console = Console(stderr=True)
             console.print(
                 "[red]textual[/red] is required for the explore TUI.\n"
-                "Install it with: [bold]pip install 'querido\\[tui]'[/bold]"
+                "Install it with: [bold]uv pip install 'querido\\[tui]'[/bold]"
             )
             raise typer.Exit(1) from None
 

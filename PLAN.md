@@ -480,7 +480,7 @@ Embed table/column metadata and descriptions using an embedding model (local or 
 - Model options: OpenAI `text-embedding-3-small` (API), or local models via `sentence-transformers`
 - Cache: store embeddings as numpy arrays in local database (BLOB) or `.npy` files
 - Search: pure numpy cosine similarity — no vector DB dependency needed
-- Optional dependency group: `pip install 'querido[embeddings]'`
+- Optional dependency group: `uv pip install 'querido[embeddings]'`
 
 ### F14: Local LLM for SQL generation
 **Ease: Hardest** — Heavy dependencies, GPU/CPU considerations. Implement last.
@@ -490,7 +490,7 @@ Use an open-weight local LLM to generate SQL from natural language, informed by 
 - `qdo ai "<question>"` command
 - Feed context: table schemas, column descriptions, example queries (from F12), semantic model info
 - Model options: `llama-cpp-python` for CPU/GPU inference, or `mlx` on Apple Silicon
-- Very heavy optional dependency: `pip install 'querido[ai]'`
+- Very heavy optional dependency: `uv pip install 'querido[ai]'`
 - Prompt engineering: structured prompt with schema + examples → SQL
 - This should be the LAST feature implemented due to dependency weight and complexity
 - Consider making this a separate package (`qdo-ai`) that extends qdo via plugin

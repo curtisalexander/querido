@@ -288,7 +288,7 @@ def main() -> None:
     print("    qdo explore -c <db> -t <table>")
     print()
     print("  Features: sorting, filtering, column inspection.")
-    print("  Requires the TUI extra: pip install 'querido[tui]'")
+    print("  Requires the TUI extra: uv pip install 'querido[tui]'")
     print()
     print("  (Skipping live demo — try it yourself!)")
     wait()

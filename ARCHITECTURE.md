@@ -148,9 +148,9 @@ qdo follows a strict "pay for what you use" model at every level:
 **Install time** — Only SQLite (stdlib) is included by default. Database backends are opt-in:
 
 ```bash
-pip install querido              # SQLite only (no extra dependencies)
-pip install 'querido[duckdb]'    # + DuckDB + Parquet support
-pip install 'querido[snowflake]' # + Snowflake
+uv pip install querido              # SQLite only (no extra dependencies)
+uv pip install 'querido[duckdb]'    # + DuckDB + Parquet support
+uv pip install 'querido[snowflake]' # + Snowflake
 ```
 
 If a user tries a backend they haven't installed, the factory gives a clear error with install instructions.
@@ -299,11 +299,11 @@ CLI (Typer)
 | jinja2 | SQL template rendering | Default | In renderer.py only |
 | rich | Terminal output | Default | In output functions only |
 | tomli-w | TOML writing (config) | Default | In cli/config.py only |
-| duckdb | DuckDB + Parquet connector | `pip install 'querido[duckdb]'` | In connectors/duckdb.py only |
-| snowflake-connector-python | Snowflake connector | `pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
-| textual | Interactive TUI | `pip install 'querido[tui]'` | In tui/ only |
-| fastapi | Web UI backend | `pip install 'querido[web]'` | In web/ only |
-| uvicorn | ASGI server | `pip install 'querido[web]'` | In cli/serve.py only |
+| duckdb | DuckDB + Parquet connector | `uv pip install 'querido[duckdb]'` | In connectors/duckdb.py only |
+| snowflake-connector-python | Snowflake connector | `uv pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
+| textual | Interactive TUI | `uv pip install 'querido[tui]'` | In tui/ only |
+| fastapi | Web UI backend | `uv pip install 'querido[web]'` | In web/ only |
+| uvicorn | ASGI server | `uv pip install 'querido[web]'` | In cli/serve.py only |
 
 Note: `sqlite3` is stdlib — no extra dependency needed, always available.
 

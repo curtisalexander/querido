@@ -5,10 +5,11 @@
 ## Installation
 
 ```bash
-pip install querido              # core (SQLite)
-pip install 'querido[duckdb]'    # + DuckDB support
-pip install 'querido[snowflake]' # + Snowflake support
-pip install 'querido[all]'       # everything
+uv pip install querido              # core (SQLite)
+uv pip install 'querido[duckdb]'    # + DuckDB support
+uv pip install 'querido[snowflake]' # + Snowflake support
+uv pip install 'querido[tui]'       # Interactive TUI (qdo explore)
+uv pip install 'querido[web]'       # Web UI (qdo serve)
 ```
 
 ## Connection Setup

@@ -32,9 +32,9 @@ This is the project's core engineering principle. Users should never pay (in ins
 
 **Install time** — Database backends beyond SQLite are optional extras:
 ```bash
-pip install querido               # SQLite only
-pip install 'querido[duckdb]'     # + DuckDB
-pip install 'querido[snowflake]'  # + Snowflake
+uv pip install querido               # SQLite only
+uv pip install 'querido[duckdb]'     # + DuckDB
+uv pip install 'querido[snowflake]'  # + Snowflake
 ```
 
 The factory (`connectors/factory.py`) catches `ImportError` and tells users how to install missing backends. When adding a new backend, always make it opt-in via `[project.optional-dependencies]` in `pyproject.toml`.
@@ -109,13 +109,13 @@ Generates a documentation template with auto-populated metadata (column name, ty
 ```bash
 qdo explore -c <connection> -t <table> [-r <rows>]
 ```
-Interactive terminal UI for data exploration. Requires `pip install 'querido[tui]'`. Key bindings: `q` quit, `?` help, `i` inspect metadata, `m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
+Interactive terminal UI for data exploration. Requires `uv pip install 'querido[tui]'`. Key bindings: `q` quit, `?` help, `i` inspect metadata, `m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
 
 ### serve — local web UI
 ```bash
 qdo serve -c <connection> [--port 8888] [--host 127.0.0.1]
 ```
-Launches a local web server for interactive data exploration in the browser. Requires `pip install 'querido[web]'`. Features: table list with search, tabbed detail pages (inspect, preview, profile, template, lineage), distribution drill-down, pivot table builder. Uses HTMX for dynamic loading, keyboard shortcuts (`?` help, `/` search).
+Launches a local web server for interactive data exploration in the browser. Requires `uv pip install 'querido[web]'`. Features: table list with search, tabbed detail pages (inspect, preview, profile, template, lineage), distribution drill-down, pivot table builder. Uses HTMX for dynamic loading, keyboard shortcuts (`?` help, `/` search).
 
 ### search — find tables and columns
 ```bash
