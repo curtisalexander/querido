@@ -5,15 +5,12 @@ from __future__ import annotations
 import contextlib
 import threading
 import time
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from querido.connectors.base import Connector
-
-T = TypeVar("T")
 
 
 class QueryCancelled(KeyboardInterrupt):
@@ -22,14 +19,6 @@ class QueryCancelled(KeyboardInterrupt):
     def __init__(self, elapsed: float = 0.0) -> None:
         self.elapsed = elapsed
         super().__init__(f"Query cancelled after {elapsed:.1f}s")
-
-
-@dataclass
-class QueryResult(dict[str, object]):
-    """Thin wrapper carrying query result and elapsed time."""
-
-    # We don't actually subclass dict — we just store result + elapsed.
-    pass
 
 
 def run_cancellable[T](

@@ -75,13 +75,6 @@ def semantic(
     _run()
 
 
-def _classify_semantic_column(col: dict) -> str:
-    """Classify a column as 'dimension', 'time_dimension', or 'measure'."""
-    from querido.core.profile import classify_column_kind
-
-    return classify_column_kind(col)
-
-
 def _build_semantic_yaml(
     table: str,
     columns: list[dict],
@@ -101,11 +94,13 @@ def _build_semantic_yaml(
     buf.write(f"{indent}  description: {desc}\n")
 
     # Group columns
+    from querido.core.profile import classify_column_kind
+
     dimensions = []
     time_dimensions = []
     measures = []
     for col in columns:
-        kind = _classify_semantic_column(col)
+        kind = classify_column_kind(col)
         if kind == "time_dimension":
             time_dimensions.append(col)
         elif kind == "measure":
