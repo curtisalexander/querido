@@ -57,8 +57,8 @@ class DuckDBConnector:
         rows = self.execute(
             "SELECT column_name, data_type, is_nullable, column_default, comment "
             "FROM duckdb_columns() "
-            "WHERE schema_name = 'main' AND lower(table_name) = lower($table_name)",
-            {"table_name": table},
+            "WHERE schema_name = 'main' AND table_name = $table_name",
+            {"table_name": table.lower()},
         )
         return [
             {
@@ -77,8 +77,8 @@ class DuckDBConnector:
         validate_table_name(table)
         rows = self.execute(
             "SELECT comment FROM duckdb_tables() "
-            "WHERE schema_name = 'main' AND lower(table_name) = lower($table_name)",
-            {"table_name": table},
+            "WHERE schema_name = 'main' AND table_name = $table_name",
+            {"table_name": table.lower()},
         )
         if rows and rows[0]["comment"]:
             return rows[0]["comment"]
@@ -88,9 +88,8 @@ class DuckDBConnector:
         """Return the SQL definition of a view from duckdb_views()."""
         validate_table_name(view)
         rows = self.execute(
-            "SELECT sql FROM duckdb_views() "
-            "WHERE schema_name = 'main' AND lower(view_name) = lower($view_name)",
-            {"view_name": view},
+            "SELECT sql FROM duckdb_views() WHERE schema_name = 'main' AND view_name = $view_name",
+            {"view_name": view.lower()},
         )
         if rows and rows[0]["sql"]:
             return rows[0]["sql"]

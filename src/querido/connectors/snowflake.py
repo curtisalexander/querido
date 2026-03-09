@@ -26,7 +26,28 @@ class SnowflakeConnector:
         kwargs.setdefault("client_store_temporary_credential", True)
         kwargs.setdefault("client_request_mfa_token", True)
 
+        # Capture database/schema from config before connecting so we can
+        # qualify information_schema queries without extra roundtrips.
+        # Snowflake stores unquoted identifiers as uppercase.
+        cfg_database = str(kwargs.get("database", "")).upper()
+        cfg_schema = str(kwargs.get("schema", "")).upper()
+
         self.conn = snowflake.connector.connect(**kwargs)
+
+        # Use config values when available; fall back to querying the session
+        # (needed for connections.toml where db/schema are set externally).
+        if cfg_database and cfg_schema:
+            self._database: str = cfg_database
+            self._schema: str = cfg_schema
+        else:
+            cursor = self.conn.cursor()
+            try:
+                cursor.execute("SELECT CURRENT_DATABASE(), CURRENT_SCHEMA()")
+                row = cursor.fetchone()
+                self._database = row[0] if row and row[0] else ""
+                self._schema = row[1] if row and row[1] else ""
+            finally:
+                cursor.close()
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         cursor = self.conn.cursor()
@@ -59,8 +80,9 @@ class SnowflakeConnector:
 
     def get_tables(self) -> list[dict]:
         rows = self.execute(
-            "SELECT table_name, table_type FROM information_schema.tables "
-            "WHERE table_schema = CURRENT_SCHEMA() ORDER BY table_name"
+            f"SELECT table_name, table_type FROM {self._database}.information_schema.tables "
+            f"WHERE table_schema = %s ORDER BY table_name",
+            (self._schema,),
         )
         return [
             {
@@ -74,14 +96,14 @@ class SnowflakeConnector:
         from querido.connectors.base import validate_table_name
 
         validate_table_name(table)
-        # Snowflake uppercases unquoted identifiers, so metadata is stored
-        # uppercase.  Use UPPER() to match regardless of what case the user typed.
+        # Snowflake stores unquoted identifiers as uppercase, so we upper()
+        # the table name in Python to avoid calling UPPER() in SQL.
         rows = self.execute(
-            "SELECT column_name, data_type, is_nullable, column_default, comment "
-            "FROM information_schema.columns "
-            "WHERE table_schema = CURRENT_SCHEMA() AND table_name = UPPER(%s) "
-            "ORDER BY ordinal_position",
-            (table,),
+            f"SELECT column_name, data_type, is_nullable, column_default, comment "
+            f"FROM {self._database}.information_schema.columns "
+            f"WHERE table_schema = %s AND table_name = %s "
+            f"ORDER BY ordinal_position",
+            (self._schema, table.upper()),
         )
         return [
             {
@@ -101,9 +123,9 @@ class SnowflakeConnector:
 
         validate_table_name(table)
         rows = self.execute(
-            "SELECT comment FROM information_schema.tables "
-            "WHERE table_schema = CURRENT_SCHEMA() AND table_name = UPPER(%s)",
-            (table,),
+            f"SELECT comment FROM {self._database}.information_schema.tables "
+            f"WHERE table_schema = %s AND table_name = %s",
+            (self._schema, table.upper()),
         )
         if rows and rows[0].get("COMMENT"):
             return rows[0]["COMMENT"]
@@ -115,9 +137,9 @@ class SnowflakeConnector:
 
         validate_table_name(view)
         rows = self.execute(
-            "SELECT view_definition FROM information_schema.views "
-            "WHERE table_schema = CURRENT_SCHEMA() AND table_name = UPPER(%s)",
-            (view,),
+            f"SELECT view_definition FROM {self._database}.information_schema.views "
+            f"WHERE table_schema = %s AND table_name = %s",
+            (self._schema, view.upper()),
         )
         if rows and rows[0].get("VIEW_DEFINITION"):
             return rows[0]["VIEW_DEFINITION"]
