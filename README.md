@@ -4,7 +4,7 @@
 >
 > Also: **queri**-**do** — your data is dear to you, and you want to query it. `qdo` = query, do.
 
-A fast CLI toolkit for common data analysis tasks against SQLite, DuckDB, Snowflake, and Parquet files.
+A CLI toolkit for common data analysis tasks against SQLite, DuckDB, Snowflake, and Parquet files.
 
 ## Install
 
