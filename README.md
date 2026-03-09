@@ -2,7 +2,7 @@
 
 > **querido** (Spanish): *dear*, *beloved*
 >
-> Also: **qu**e**ri**-**do** — your data is dear to you, and you want to query it. `qdo` = query, do. Simple as that.
+> Also: **qu**e**ri**-**do** — your data is dear to you, and you want to query it. `qdo` = query, do.
 
 A fast CLI toolkit for common data analysis tasks against SQLite, DuckDB, Snowflake, and Parquet files.
 
