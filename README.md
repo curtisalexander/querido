@@ -71,10 +71,10 @@ qdo --help
 SQLite support is always available (stdlib). Other backends are opt-in:
 
 ```bash
-pip install 'querido[duckdb]'      # DuckDB + Parquet support
-pip install 'querido[snowflake]'   # Snowflake support
-pip install 'querido[tui]'        # Interactive TUI (qdo explore)
-pip install 'querido[web]'        # Web UI (qdo serve)
+uv pip install 'querido[duckdb]'      # DuckDB + Parquet support
+uv pip install 'querido[snowflake]'   # Snowflake support
+uv pip install 'querido[tui]'        # Interactive TUI (qdo explore)
+uv pip install 'querido[web]'        # Web UI (qdo serve)
 ```
 
 ## Usage

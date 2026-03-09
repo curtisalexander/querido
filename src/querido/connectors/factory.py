@@ -28,7 +28,7 @@ def create_connector(config: dict) -> Connector:
             from querido.connectors.duckdb import DuckDBConnector
         except ImportError:
             raise ImportError(
-                "DuckDB is not installed. Install it with: pip install 'querido[duckdb]'"
+                "DuckDB is not installed. Install it with: uv pip install 'querido[duckdb]'"
             ) from None
         connector = DuckDBConnector(config.get("path", ":memory:"))
         if "parquet_path" in config:
@@ -44,7 +44,7 @@ def create_connector(config: dict) -> Connector:
         except ImportError:
             raise ImportError(
                 "Snowflake connector is not installed. "
-                "Install it with: pip install 'querido[snowflake]'"
+                "Install it with: uv pip install 'querido[snowflake]'"
             ) from None
         return SnowflakeConnector(**config)
     else:

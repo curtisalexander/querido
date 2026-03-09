@@ -24,7 +24,7 @@ def serve(
 
         Console(stderr=True).print(
             "[red]fastapi/uvicorn[/red] is required for the web UI.\n"
-            "Install it with: [bold]pip install 'querido\\[web]'[/bold]"
+            "Install it with: [bold]uv pip install 'querido\\[web]'[/bold]"
         )
         raise typer.Exit(1) from None
 
