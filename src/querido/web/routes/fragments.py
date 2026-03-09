@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import html as _html
+import contextlib
 import time
 import uuid
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 router = APIRouter(prefix="/fragments")
 
 
-async def _run_query(request: Request, fn: Callable, *args: object, **kwargs: object) -> tuple[object, float]:
+async def _run_query(
+    request: Request, fn: Callable, *args: object, **kwargs: object
+) -> tuple[Any, float]:
     """Run a blocking query function in a thread pool with cancel tracking.
 
     Returns ``(result, elapsed_seconds)``.
@@ -37,10 +39,8 @@ async def _run_query(request: Request, fn: Callable, *args: object, **kwargs: ob
     except asyncio.CancelledError:
         # Client disconnected — cancel the query
         if hasattr(connector, "cancel"):
-            try:
+            with contextlib.suppress(Exception):
                 connector.cancel()
-            except Exception:
-                pass
         raise
     finally:
         request.app.state.running_queries.pop(query_id, None)
@@ -59,10 +59,8 @@ async def cancel_query(request: Request, query_id: str) -> HTMLResponse:
     running = request.app.state.running_queries
     connector = running.pop(query_id, None)
     if connector is not None and hasattr(connector, "cancel"):
-        try:
+        with contextlib.suppress(Exception):
             connector.cancel()
-        except Exception:
-            pass
     return HTMLResponse('<p class="query-cancelled">Query cancelled.</p>')
 
 

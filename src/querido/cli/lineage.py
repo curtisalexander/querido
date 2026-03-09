@@ -33,7 +33,8 @@ def lineage(
 
             from querido.cli._progress import query_status
 
-            with query_status(console, f"Retrieving definition for [bold]{view}[/bold]", connector):
+            msg = f"Retrieving definition for [bold]{view}[/bold]"
+            with query_status(console, msg, connector):
                 from querido.core.lineage import get_view_definition
 
                 try:

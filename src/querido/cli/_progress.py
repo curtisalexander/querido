@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import sys
-import time
 import threading
-from contextlib import contextmanager
+import time
+from contextlib import contextmanager, suppress
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -56,8 +55,8 @@ def query_status(
     stop_event = threading.Event()
 
     # Use Rich Live to update the spinner text with elapsed seconds
-    from rich.spinner import Spinner
     from rich.live import Live
+    from rich.spinner import Spinner
     from rich.text import Text
 
     spinner = Spinner("dots", text=Text.from_markup(f"{message}…"))
@@ -81,10 +80,8 @@ def query_status(
         live.stop()
         # Cancel the in-flight query
         if connector is not None and hasattr(connector, "cancel"):
-            try:
+            with suppress(Exception):
                 connector.cancel()
-            except Exception:
-                pass
         console.print(
             f"\n[yellow]Query cancelled[/yellow] after {status.elapsed:.1f}s",
             highlight=False,
