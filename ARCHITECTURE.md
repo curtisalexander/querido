@@ -228,7 +228,11 @@ Note: Column metadata queries (`get_columns`) are implemented directly in each c
 
 Table and column names are validated at the CLI boundary using `validate_table_name()` and `validate_column_name()` from `connectors/base.py`. Since these names are interpolated into SQL templates (Jinja2) and sampling subqueries (f-strings), they must be safe identifiers — letters, digits, underscores, and dots only.
 
-### 5. Configuration
+### 5. Identifier Case Normalization
+
+Each connector normalizes identifier case in **Python** (e.g. `.lower()` for DuckDB, `.upper()` for Snowflake) before passing values as bind parameters to catalog queries. This is intentional — pushing normalization into SQL with functions like `LOWER()` forces the database to evaluate a function call per row in the catalog, which is wasteful. Doing it once in Python before the query is cheaper and keeps the SQL simple with exact-match `WHERE` clauses.
+
+### 6. Configuration
 
 Connections are stored in TOML at the platform-appropriate config directory (via `platformdirs`):
 

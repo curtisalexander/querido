@@ -54,6 +54,8 @@ class DuckDBConnector:
 
     def get_columns(self, table: str) -> list[dict]:
         validate_table_name(table)
+        # Case normalization is done in Python (.lower()) rather than in SQL
+        # (LOWER()) to avoid per-row function calls on large catalogs.
         rows = self.execute(
             "SELECT column_name, data_type, is_nullable, column_default, comment "
             "FROM duckdb_columns() "
