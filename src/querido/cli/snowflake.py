@@ -88,16 +88,16 @@ def _build_semantic_yaml(
     buf = io.StringIO()
     indent = "  "
 
-    from querido.output.formats import _yaml_escape
+    from querido.output.formats import yaml_escape
 
     buf.write(f"name: {table.lower()}_semantic_model\n")
     desc = table_comment or f"Semantic model for {table}"
-    buf.write(f"description: {_yaml_escape(desc)}\n")
+    buf.write(f"description: {yaml_escape(desc)}\n")
     buf.write("\n")
     buf.write("tables:\n")
     buf.write(f"{indent}- name: {table}\n")
     buf.write(f"{indent}  base_table: {table}\n")
-    buf.write(f"{indent}  description: {_yaml_escape(desc)}\n")
+    buf.write(f"{indent}  description: {yaml_escape(desc)}\n")
 
     # Group columns
     from querido.core.profile import classify_column_kind
@@ -141,7 +141,7 @@ def _write_column_entry(
 ) -> None:
     """Write a single column entry in the semantic model YAML."""
 
-    from querido.output.formats import _yaml_escape
+    from querido.output.formats import yaml_escape
 
     name = col["name"]
     col_type = col["type"]
@@ -150,7 +150,7 @@ def _write_column_entry(
     buf.write(f"{prefix}- name: {name}\n")
     buf.write(f"{prefix}  expr: {name}\n")
     buf.write(f"{prefix}  data_type: {col_type}\n")
-    buf.write(f"{prefix}  description: {_yaml_escape(comment)}\n")
+    buf.write(f"{prefix}  description: {yaml_escape(comment)}\n")
     buf.write(f"{prefix}  synonyms:\n")
     buf.write(f"{prefix}    - <synonym>\n")
 

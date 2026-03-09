@@ -56,10 +56,11 @@ def _format_sql_literal(value: object) -> str:
         return "NULL"
     if isinstance(value, bool):
         return "TRUE" if value else "FALSE"
-    if isinstance(value, str):
-        escaped = value.replace("'", "''")
-        return f"'{escaped}'"
-    return str(value)
+    if isinstance(value, (int, float)):
+        return str(value)
+    # Strings, dates, datetimes, and other types — quote as string literal
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
 
 
 # ---------------------------------------------------------------------------
