@@ -195,6 +195,9 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
             return fn(*args, **kwargs)
         except (typer.Exit, typer.BadParameter, typer.Abort, SystemExit):
             raise
+        except KeyboardInterrupt:
+            # QueryCancelled is a subclass of KeyboardInterrupt
+            raise typer.Exit(code=130) from None
         except Exception as exc:
             from rich.console import Console
 

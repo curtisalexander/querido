@@ -43,7 +43,9 @@ def template(
 
             check_table_exists(connector, table)
 
-            with console.status(f"Generating template for [bold]{table}[/bold]…"):
+            from querido.cli._progress import query_status
+
+            with query_status(console, f"Generating template for [bold]{table}[/bold]", connector):
                 from querido.core.template import get_template
 
                 template_result = get_template(connector, table, sample_values=sample_values)

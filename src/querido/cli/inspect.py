@@ -40,7 +40,9 @@ def inspect(
 
             check_table_exists(connector, table)
 
-            with console.status(f"Inspecting [bold]{table}[/bold]…"):
+            from querido.cli._progress import query_status
+
+            with query_status(console, f"Inspecting [bold]{table}[/bold]", connector):
                 from querido.core.inspect import get_inspect
                 from querido.sql.renderer import render_template
 

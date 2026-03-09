@@ -94,6 +94,10 @@ class DuckDBConnector:
             return rows[0]["sql"]
         return None
 
+    def cancel(self) -> None:
+        """Interrupt a running query."""
+        self.conn.interrupt()
+
     def close(self) -> None:
         self.conn.close()
 

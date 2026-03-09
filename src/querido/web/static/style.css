@@ -207,6 +207,14 @@ tr:hover { background: var(--hover); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* --- Query timing & cancel --- */
+.query-timing {
+  font-size: 0.8rem; color: #6c757d; margin-top: 8px; font-style: italic;
+}
+.query-cancelled {
+  font-size: 0.9rem; color: var(--warning); font-weight: 600; padding: 12px;
+}
+
 /* --- Help overlay --- */
 .help-overlay {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);

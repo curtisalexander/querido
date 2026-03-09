@@ -57,3 +57,6 @@
 
 <div id="dist-panel"></div>
 {% endif %}
+{% if elapsed is defined and elapsed >= 1.0 %}
+<p class="query-timing">Completed in {{ "%.1f"|format(elapsed) }}s</p>
+{% endif %}
