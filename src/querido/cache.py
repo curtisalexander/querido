@@ -8,6 +8,7 @@ instant — especially for large Snowflake databases.
 from __future__ import annotations
 
 import sqlite3
+import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -89,7 +90,11 @@ class MetadataCache:
 
             try:
                 columns = connector.get_columns(tbl_name)
-            except Exception:
+            except Exception as exc:
+                print(
+                    f"Warning: could not read columns for '{tbl_name}': {exc}",
+                    file=sys.stderr,
+                )
                 continue
 
             for col in columns:

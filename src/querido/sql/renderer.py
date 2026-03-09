@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from jinja2 import Environment
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
-_env = None
+_env: Environment | None = None
 
 
-def _get_env():
+def _get_env() -> Environment:
     global _env
     if _env is None:
         from jinja2 import Environment, FileSystemLoader

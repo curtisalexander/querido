@@ -4,48 +4,34 @@ from typing import Protocol, Self, runtime_checkable
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
-def validate_table_name(name: str) -> str:
-    """Validate a table name to prevent SQL injection.
+def _validate_identifier(name: str, kind: str) -> str:
+    """Validate an identifier to prevent SQL injection.
 
-    Allows letters, digits, underscores, and dots (for schema.table).
+    Allows letters, digits, underscores, and dots (for schema-qualified names).
     Raises ValueError if the name contains unsafe characters.
     """
     if not _SAFE_IDENTIFIER.match(name):
         raise ValueError(
-            f"Invalid table name: {name!r}. "
+            f"Invalid {kind} name: {name!r}. "
             "Names must start with a letter or underscore and contain only "
             "letters, digits, underscores, and dots."
         )
     return name
+
+
+def validate_table_name(name: str) -> str:
+    """Validate a table name to prevent SQL injection."""
+    return _validate_identifier(name, "table")
 
 
 def validate_column_name(name: str) -> str:
-    """Validate a column name to prevent SQL injection.
-
-    Same rules as table names: letters, digits, underscores, and dots.
-    """
-    if not _SAFE_IDENTIFIER.match(name):
-        raise ValueError(
-            f"Invalid column name: {name!r}. "
-            "Names must start with a letter or underscore and contain only "
-            "letters, digits, underscores, and dots."
-        )
-    return name
+    """Validate a column name to prevent SQL injection."""
+    return _validate_identifier(name, "column")
 
 
 def validate_object_name(name: str) -> str:
-    """Validate a fully-qualified object name for Snowflake queries.
-
-    Allows letters, digits, underscores, and dots (for db.schema.table).
-    Raises ValueError if the name contains unsafe characters.
-    """
-    if not _SAFE_IDENTIFIER.match(name):
-        raise ValueError(
-            f"Invalid object name: {name!r}. "
-            "Names must start with a letter or underscore and contain only "
-            "letters, digits, underscores, and dots."
-        )
-    return name
+    """Validate a fully-qualified object name (e.g. db.schema.table)."""
+    return _validate_identifier(name, "object")
 
 
 @runtime_checkable

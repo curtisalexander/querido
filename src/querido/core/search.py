@@ -52,7 +52,7 @@ def search_metadata(
         if search_columns:
             try:
                 columns = connector.get_columns(tbl_name)
-            except (OSError, ValueError, RuntimeError) as exc:
+            except Exception as exc:
                 print(
                     f"Warning: could not read columns for '{tbl_name}': {exc}",
                     file=sys.stderr,

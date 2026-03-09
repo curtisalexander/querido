@@ -35,10 +35,10 @@ def classify_column_kind(col: dict) -> str:
 
     Uses the column's ``type`` and ``name`` keys to infer the semantic role.
     """
-    col_type = col["type"].upper()
+    col_type = col["type"].lower()
     col_name = col["name"].lower()
 
-    if any(kw in col_type.lower() for kw in ("date", "time", "timestamp")):
+    if any(kw in col_type for kw in ("date", "time", "timestamp")):
         return "time_dimension"
     if any(kw in col_name for kw in _TIME_KEYWORDS):
         return "time_dimension"
