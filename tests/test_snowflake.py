@@ -666,8 +666,6 @@ class TestCheckTableExistsQualified:
 
     def test_qualified_name_matches(self):
         """Fully-qualified name should match when table exists in target schema."""
-        import typer
-
         connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
 
         tbl_batch = pa.RecordBatch.from_pydict(

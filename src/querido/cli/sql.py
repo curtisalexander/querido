@@ -177,7 +177,10 @@ def procedure(
     def _run() -> None:
         columns, dialect = _get_columns_and_dialect(table, connection, db_type)
         _require_snowflake(dialect, "procedure")
-        _render("procedure", dialect, table=table, table_name=_table_short_name(table), columns=columns)
+        _render(
+            "procedure", dialect,
+            table=table, table_name=_table_short_name(table), columns=columns,
+        )
 
     _run()
 
