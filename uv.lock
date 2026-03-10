@@ -1334,6 +1334,7 @@ web = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cryptography" },
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1374,6 +1375,7 @@ provides-extras = ["duckdb", "snowflake", "tui", "web", "all"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cryptography", specifier = ">=43" },
     { name = "duckdb", specifier = ">=1" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },

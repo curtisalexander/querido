@@ -37,6 +37,16 @@ def _get_columns_and_dialect(
     return columns, dialect
 
 
+def _table_short_name(table: str) -> str:
+    """Extract the bare table name from a possibly-qualified reference.
+
+    ``"database.schema.table"`` → ``"table"``
+    ``"schema.table"``          → ``"table"``
+    ``"table"``                 → ``"table"``
+    """
+    return table.rsplit(".", 1)[-1]
+
+
 def _render(template_name: str, dialect: str, **kwargs: object) -> None:
     """Render a generate/* template and print to stdout."""
     from querido.sql.renderer import render_template
@@ -132,7 +142,7 @@ def task(
     def _run() -> None:
         columns, dialect = _get_columns_and_dialect(table, connection, db_type)
         _require_snowflake(dialect, "task")
-        _render("task", dialect, table=table, columns=columns)
+        _render("task", dialect, table=table, table_name=_table_short_name(table), columns=columns)
 
     _run()
 
@@ -167,7 +177,13 @@ def procedure(
     def _run() -> None:
         columns, dialect = _get_columns_and_dialect(table, connection, db_type)
         _require_snowflake(dialect, "procedure")
-        _render("procedure", dialect, table=table, columns=columns)
+        _render(
+            "procedure",
+            dialect,
+            table=table,
+            table_name=_table_short_name(table),
+            columns=columns,
+        )
 
     _run()
 
@@ -208,6 +224,13 @@ def scratch(
             ", ".join(_format_sql_literal(row.get(n)) for n in col_names) for row in sample_rows
         ]
 
-        _render("scratch", dialect, table=table, columns=columns, rows=formatted_rows)
+        _render(
+            "scratch",
+            dialect,
+            table=table,
+            table_name=_table_short_name(table),
+            columns=columns,
+            rows=formatted_rows,
+        )
 
     _run()

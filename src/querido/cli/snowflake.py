@@ -90,12 +90,13 @@ def _build_semantic_yaml(
 
     from querido.output.formats import yaml_escape
 
-    buf.write(f"name: {table.lower()}_semantic_model\n")
+    short_name = table.rsplit(".", 1)[-1]
+    buf.write(f"name: {short_name.lower()}_semantic_model\n")
     desc = table_comment or f"Semantic model for {table}"
     buf.write(f"description: {yaml_escape(desc)}\n")
     buf.write("\n")
     buf.write("tables:\n")
-    buf.write(f"{indent}- name: {table}\n")
+    buf.write(f"{indent}- name: {short_name}\n")
     buf.write(f"{indent}  base_table: {table}\n")
     buf.write(f"{indent}  description: {yaml_escape(desc)}\n")
 
