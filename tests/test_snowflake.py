@@ -525,8 +525,11 @@ class TestSnowflakeTemplates:
 
         cols = [{"name": "ID", "type": "NUMBER", "nullable": False}]
         sql = render_template(
-            "generate/scratch", "snowflake",
-            table_name="ORDERS", columns=cols, rows=["1"],
+            "generate/scratch",
+            "snowflake",
+            table_name="ORDERS",
+            columns=cols,
+            rows=["1"],
         )
         assert "tmp_ORDERS" in sql
         assert "tmp_MY_DB" not in sql
@@ -537,8 +540,11 @@ class TestSnowflakeTemplates:
 
         cols = [{"name": "ID", "type": "NUMBER"}]
         sql = render_template(
-            "generate/task", "snowflake",
-            table="MY_DB.STAGING.ORDERS", table_name="ORDERS", columns=cols,
+            "generate/task",
+            "snowflake",
+            table="MY_DB.STAGING.ORDERS",
+            table_name="ORDERS",
+            columns=cols,
         )
         assert "TASK ORDERS_task" in sql
         assert "FROM MY_DB.STAGING.ORDERS" in sql
@@ -549,8 +555,11 @@ class TestSnowflakeTemplates:
 
         cols = [{"name": "ID", "type": "NUMBER"}]
         sql = render_template(
-            "generate/procedure", "snowflake",
-            table="MY_DB.STAGING.ORDERS", table_name="ORDERS", columns=cols,
+            "generate/procedure",
+            "snowflake",
+            table="MY_DB.STAGING.ORDERS",
+            table_name="ORDERS",
+            columns=cols,
         )
         assert "process_orders()" in sql
         assert "FROM MY_DB.STAGING.ORDERS" in sql
@@ -617,8 +626,7 @@ class TestNoDefaultDatabaseSchema:
     def test_schema_qualified_works_with_only_database(self):
         """schema.table works if only database is set (no default schema)."""
         connector, _, _ = _make_connector(
-            type="snowflake", account="x",
-            database="MY_DB", _session_db="", _session_schema=""
+            type="snowflake", account="x", database="MY_DB", _session_db="", _session_schema=""
         )
         db, schema, tbl = connector._resolve_table("analytics.events")
         assert (db, schema, tbl) == ("MY_DB", "ANALYTICS", "EVENTS")

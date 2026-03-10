@@ -116,8 +116,13 @@ def check_table_exists(connector: Connector, table: str) -> None:
 
     # For Snowflake qualified names, resolve and check the right catalog.
     if "." in table and hasattr(connector, "_resolve_table"):
-        database, schema, tbl = connector._resolve_table(table)
-        tables = connector.get_tables(database=database, schema=schema)
+        from typing import cast
+
+        from querido.connectors.snowflake import SnowflakeConnector
+
+        sf = cast(SnowflakeConnector, connector)
+        database, schema, tbl = sf._resolve_table(table)
+        tables = sf.get_tables(database=database, schema=schema)
         table_names = [t["name"] for t in tables]
         if not any(t.lower() == tbl.lower() for t in table_names):
             raise typer.BadParameter(_format_not_found("Table", table, table_names))

@@ -178,8 +178,11 @@ def procedure(
         columns, dialect = _get_columns_and_dialect(table, connection, db_type)
         _require_snowflake(dialect, "procedure")
         _render(
-            "procedure", dialect,
-            table=table, table_name=_table_short_name(table), columns=columns,
+            "procedure",
+            dialect,
+            table=table,
+            table_name=_table_short_name(table),
+            columns=columns,
         )
 
     _run()
@@ -222,9 +225,12 @@ def scratch(
         ]
 
         _render(
-            "scratch", dialect,
-            table=table, table_name=_table_short_name(table),
-            columns=columns, rows=formatted_rows,
+            "scratch",
+            dialect,
+            table=table,
+            table_name=_table_short_name(table),
+            columns=columns,
+            rows=formatted_rows,
         )
 
     _run()
