@@ -1,40 +1,119 @@
-import typer
+from __future__ import annotations
 
-from querido.cli.cache import app as cache_app
-from querido.cli.config import app as config_app
-from querido.cli.dist import app as dist_app
-from querido.cli.explore import app as explore_app
-from querido.cli.inspect import app as inspect_app
-from querido.cli.lineage import app as lineage_app
-from querido.cli.overview import app as overview_app
-from querido.cli.preview import app as preview_app
-from querido.cli.profile import app as profile_app
-from querido.cli.search import app as search_app
-from querido.cli.serve import app as serve_app
-from querido.cli.snowflake import app as snowflake_app
-from querido.cli.sql import app as sql_app
-from querido.cli.template import app as template_app
+import importlib
+
+import click
+import typer
+from typer.core import TyperGroup
+
+# ---------------------------------------------------------------------------
+# Lazy subcommand loading
+# ---------------------------------------------------------------------------
+# Instead of importing all 14 subcommand modules at startup, we only import
+# the module for the subcommand actually being invoked.  This avoids paying
+# the import cost of every subcommand on every CLI call (including --help).
+
+_SUBCOMMANDS: dict[str, tuple[str, str]] = {
+    #  name  → (module_path, help_text)
+    "cache": ("querido.cli.cache", "Manage local metadata cache."),
+    "config": ("querido.cli.config", "Manage connections."),
+    "dist": ("querido.cli.dist", "Column distribution visualization."),
+    "explore": ("querido.cli.explore", "Interactive data exploration (TUI)."),
+    "inspect": ("querido.cli.inspect", "Inspect table structure."),
+    "lineage": ("querido.cli.lineage", "View definition and simple lineage."),
+    "overview": ("querido.cli.overview", "Print CLI overview (markdown)."),
+    "preview": ("querido.cli.preview", "Preview rows from a table."),
+    "profile": ("querido.cli.profile", "Profile table data."),
+    "search": ("querido.cli.search", "Search table and column metadata."),
+    "serve": ("querido.cli.serve", "Serve interactive web UI."),
+    "snowflake": ("querido.cli.snowflake", "Snowflake-specific commands."),
+    "sql": ("querido.cli.sql", "Generate SQL statements for a table."),
+    "template": ("querido.cli.template", "Generate documentation templates for tables."),
+}
+
+
+class LazyGroup(TyperGroup):
+    """A Click Group that defers subcommand imports until actually needed."""
+
+    def __init__(self, *args: object, lazy_subcommands: dict[str, tuple[str, str]] | None = None, **kwargs: object) -> None:  # noqa: E501
+        super().__init__(*args, **kwargs)
+        self._lazy_subcommands: dict[str, tuple[str, str]] = lazy_subcommands or {}
+
+    # -- Click Group interface -----------------------------------------------
+
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        """Return all command names (eager + lazy) sorted alphabetically."""
+        base = super().list_commands(ctx)
+        lazy = list(self._lazy_subcommands.keys())
+        return sorted(set(base + lazy))
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.BaseCommand | None:
+        # Try eagerly-registered commands first (the @app.callback, etc.)
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+
+        if cmd_name not in self._lazy_subcommands:
+            return None
+
+        # Import the module and extract the Typer app
+        module_path, _help = self._lazy_subcommands[cmd_name]
+        mod = importlib.import_module(module_path)
+        sub_app: typer.Typer = mod.app
+
+        # Convert the Typer sub-app to a Click group and register it
+        click_group = typer.main.get_group(sub_app)
+        click_group.name = cmd_name
+        self.add_command(click_group, cmd_name)
+        return click_group
+
+    def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """Override to show help text for lazy commands without importing them."""
+        commands = []
+        for subcommand in self.list_commands(ctx):
+            cmd = super().get_command(ctx, subcommand)
+            if cmd is not None:
+                # Already resolved (eager or previously loaded lazy command)
+                help_text = cmd.get_short_help_str(limit=formatter.width)
+                commands.append((subcommand, help_text))
+            elif subcommand in self._lazy_subcommands:
+                # Lazy command — use the cached help text without importing
+                _, help_text = self._lazy_subcommands[subcommand]
+                commands.append((subcommand, help_text))
+
+        if commands:
+            with formatter.section("Commands"):
+                formatter.write_dl(commands)
+
+
+# ---------------------------------------------------------------------------
+# Build the app
+# ---------------------------------------------------------------------------
 
 app = typer.Typer(
     name="qdo",
     help="CLI data analysis toolkit for SQLite, DuckDB, and Snowflake.",
     no_args_is_help=True,
+    cls=LazyGroup,
+    invoke_without_command=True,
+    rich_markup_mode=None,
+    pretty_exceptions_enable=False,
 )
 
-app.add_typer(cache_app, name="cache")
-app.add_typer(config_app, name="config")
-app.add_typer(dist_app, name="dist")
-app.add_typer(explore_app, name="explore")
-app.add_typer(inspect_app, name="inspect")
-app.add_typer(lineage_app, name="lineage")
-app.add_typer(overview_app, name="overview")
-app.add_typer(preview_app, name="preview")
-app.add_typer(profile_app, name="profile")
-app.add_typer(search_app, name="search")
-app.add_typer(serve_app, name="serve")
-app.add_typer(snowflake_app, name="snowflake")
-app.add_typer(sql_app, name="sql")
-app.add_typer(template_app, name="template")
+# Inject lazy subcommands into the underlying Click group.  Typer constructs
+# the Click group at call-time via get_group(), so we register them via a
+# callback that patches the group after Typer builds it.
+_original_get_group = typer.main.get_group
+
+
+def _patched_get_group(typer_app: typer.Typer, **kwargs: object) -> click.Group:
+    group = _original_get_group(typer_app, **kwargs)
+    if isinstance(group, LazyGroup) and typer_app is app:
+        group._lazy_subcommands = _SUBCOMMANDS
+    return group
+
+
+typer.main.get_group = _patched_get_group
 
 
 def version_callback(value: bool) -> None:
