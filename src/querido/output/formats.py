@@ -376,6 +376,7 @@ def yaml_escape(value: str) -> str:
 def _format_template_yaml(template_result: dict) -> str:
     """Render template metadata as a Cortex Analyst-compatible semantic model YAML."""
     table_name = template_result["table"]
+    short_name = table_name.rsplit(".", 1)[-1]
     table_comment = template_result["table_comment"]
     row_count = template_result["row_count"]
     columns = template_result["columns"]
@@ -383,12 +384,12 @@ def _format_template_yaml(template_result: dict) -> str:
     ind = "  "
     lines: list[str] = []
 
-    lines.append(f"name: {table_name.lower()}_semantic_model")
+    lines.append(f"name: {short_name.lower()}_semantic_model")
     desc = table_comment or f"Semantic model for {table_name}"
     lines.append(f"description: {yaml_escape(desc)}")
     lines.append("")
     lines.append("tables:")
-    lines.append(f"{ind}- name: {table_name}")
+    lines.append(f"{ind}- name: {short_name}")
     lines.append(f"{ind}  base_table: {table_name}")
     lines.append(f"{ind}  description: {yaml_escape(desc)}")
     lines.append(f"{ind}  row_count: {row_count}")

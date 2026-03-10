@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE process_{{ table | lower }}()
+CREATE OR REPLACE PROCEDURE process_{{ table_name | lower }}()
 RETURNS VARCHAR
 LANGUAGE SQL
 AS
@@ -7,7 +7,7 @@ BEGIN
     LET row_count := (SELECT COUNT(*) FROM {{ table }});
 
     -- Example: insert processed rows into a target table
-    -- INSERT INTO {{ table }}_processed
+    -- INSERT INTO {{ table_name }}_processed
     -- SELECT
 {% for col in columns %}
     --     {{ col.name }}{% if not loop.last %},
@@ -21,4 +21,4 @@ END;
 $$;
 
 -- Example usage:
--- CALL process_{{ table | lower }}();
+-- CALL process_{{ table_name | lower }}();

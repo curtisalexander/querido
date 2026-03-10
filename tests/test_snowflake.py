@@ -512,6 +512,49 @@ class TestSnowflakeTemplates:
         assert "ORDERS" in sql
         assert "10" in sql
 
+    def test_preview_qualified_table(self):
+        """Qualified table names work in FROM clauses."""
+        from querido.sql.renderer import render_template
+
+        sql = render_template("preview", "snowflake", table="MY_DB.STAGING.ORDERS", limit=10)
+        assert "MY_DB.STAGING.ORDERS" in sql
+
+    def test_scratch_uses_table_name_for_identifier(self):
+        """Scratch template uses short table_name for tmp_ prefix, not full qualified name."""
+        from querido.sql.renderer import render_template
+
+        cols = [{"name": "ID", "type": "NUMBER", "nullable": False}]
+        sql = render_template(
+            "generate/scratch", "snowflake",
+            table_name="ORDERS", columns=cols, rows=["1"],
+        )
+        assert "tmp_ORDERS" in sql
+        assert "tmp_MY_DB" not in sql
+
+    def test_task_uses_table_name_for_identifier(self):
+        """Task template uses short table_name for task name, full table for FROM."""
+        from querido.sql.renderer import render_template
+
+        cols = [{"name": "ID", "type": "NUMBER"}]
+        sql = render_template(
+            "generate/task", "snowflake",
+            table="MY_DB.STAGING.ORDERS", table_name="ORDERS", columns=cols,
+        )
+        assert "TASK ORDERS_task" in sql
+        assert "FROM MY_DB.STAGING.ORDERS" in sql
+
+    def test_procedure_uses_table_name_for_identifier(self):
+        """Procedure template uses short table_name for proc name, full table for FROM."""
+        from querido.sql.renderer import render_template
+
+        cols = [{"name": "ID", "type": "NUMBER"}]
+        sql = render_template(
+            "generate/procedure", "snowflake",
+            table="MY_DB.STAGING.ORDERS", table_name="ORDERS", columns=cols,
+        )
+        assert "process_orders()" in sql
+        assert "FROM MY_DB.STAGING.ORDERS" in sql
+
 
 # ---------------------------------------------------------------------------
 # Sampling syntax
@@ -685,3 +728,44 @@ class TestCheckTableExistsQualified:
 
         # Should not raise
         check_table_exists(connector, "analytics.events")
+
+
+# ---------------------------------------------------------------------------
+# _table_short_name helper
+# ---------------------------------------------------------------------------
+
+
+class TestTableShortName:
+    def test_bare_name(self):
+        from querido.cli.sql import _table_short_name
+
+        assert _table_short_name("orders") == "orders"
+
+    def test_schema_qualified(self):
+        from querido.cli.sql import _table_short_name
+
+        assert _table_short_name("analytics.events") == "events"
+
+    def test_fully_qualified(self):
+        from querido.cli.sql import _table_short_name
+
+        assert _table_short_name("my_db.staging.raw_data") == "raw_data"
+
+
+# ---------------------------------------------------------------------------
+# Semantic YAML with qualified names
+# ---------------------------------------------------------------------------
+
+
+class TestSemanticYamlQualified:
+    def test_semantic_yaml_uses_short_name(self):
+        """Semantic model name uses just the table part, base_table keeps full ref."""
+        from querido.cli.snowflake import _build_semantic_yaml
+
+        columns = [{"name": "ID", "type": "NUMBER", "comment": None}]
+        yaml_str = _build_semantic_yaml("MY_DB.STAGING.ORDERS", columns, None)
+        assert "name: orders_semantic_model" in yaml_str
+        assert "name: ORDERS" in yaml_str
+        assert "base_table: MY_DB.STAGING.ORDERS" in yaml_str
+        # Should NOT have dots in the model name
+        assert "my_db.staging.orders_semantic_model" not in yaml_str
