@@ -73,7 +73,7 @@ def test_config_list_shows_connections(tmp_path):
 
 def test_config_list_snowflake_columns(tmp_path):
     """When Snowflake connections exist, list shows dedicated columns for role/warehouse."""
-    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path), "COLUMNS": "200"}
     runner.invoke(
         app,
         [
