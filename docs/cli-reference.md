@@ -15,8 +15,8 @@ uv pip install 'querido[web]'       # Web UI (qdo serve)
 ## Connection Setup
 
 ```bash
-# Add a named connection (interactive)
-qdo config add
+# Add a named connection
+qdo config add --name mydb --type duckdb --path ./analytics.duckdb
 
 # Or point directly at a file
 qdo preview -c ./my.db -t users
@@ -45,6 +45,7 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo snowflake semantic -c CONN -t TABLE` | Cortex Analyst YAML |
 | `qdo snowflake lineage -c CONN --object NAME` | Snowflake lineage graph |
 | `qdo config add` | Add a named connection |
+| `qdo config clone -s SRC -n NAME` | Clone a connection with overrides |
 | `qdo config list` | List configured connections |
 
 ## Output Formats
@@ -90,6 +91,36 @@ Press **Ctrl-C** to cancel a running query. The CLI will:
 | 0 | Success |
 | 1 | Error (bad input, database error, etc.) |
 | 130 | Query cancelled (Ctrl-C) |
+
+## Working with Multiple Snowflake Databases
+
+In Snowflake, each database often requires a specific role and warehouse. qdo handles this with **one named connection per database context** — each connection captures the account, credentials, database, role, and warehouse together.
+
+Use `config clone` to quickly create per-database connections from a base:
+
+```bash
+# Set up a base Snowflake connection
+qdo config add --name sf-base --type snowflake \
+  --account xy123.us-east-1 --user analyst \
+  --warehouse COMPUTE_WH --database ANALYTICS --schema PUBLIC \
+  --role ANALYST --auth externalbrowser
+
+# Clone for other databases, changing only what differs
+qdo config clone --source sf-base --name sf-finance \
+  --database FINANCE_DB --role FINANCE_ROLE --warehouse FINANCE_WH
+
+qdo config clone --source sf-base --name sf-marketing \
+  --database MARKETING_DB --role MARKETING_ROLE
+
+# See all connections at a glance (shows database/role/warehouse columns)
+qdo config list
+
+# Switch databases by switching the -c flag
+qdo preview -c sf-finance -t transactions
+qdo profile -c sf-marketing -t campaigns
+```
+
+This design is intentional: each connection is self-contained and correct, so you never need to remember which role or warehouse goes with which database.
 
 ## Examples
 

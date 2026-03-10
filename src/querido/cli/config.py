@@ -93,24 +93,102 @@ def list_connections() -> None:
         console.print(f"[dim]No connections configured. Config dir: {config_dir}[/dim]")
         return
 
+    # Check if any connection uses Snowflake to decide column layout
+    has_snowflake = any(c.get("type") == "snowflake" for c in connections.values())
+
     grid = Table(title="Configured Connections", show_lines=True)
     grid.add_column("Name", style="cyan bold")
     grid.add_column("Type", style="green")
-    grid.add_column("Details", style="dim")
+    if has_snowflake:
+        grid.add_column("Account", style="dim")
+        grid.add_column("Database", style="yellow")
+        grid.add_column("Schema", style="dim")
+        grid.add_column("Role", style="magenta")
+        grid.add_column("Warehouse", style="blue")
+    else:
+        grid.add_column("Details", style="dim")
 
     for conn_name, conn_config in connections.items():
         db_type = conn_config.get("type", "?")
-        if db_type in ("sqlite", "duckdb"):
-            details = conn_config.get("path", "")
+        if has_snowflake:
+            if db_type in ("sqlite", "duckdb"):
+                grid.add_row(
+                    conn_name, db_type,
+                    "", conn_config.get("path", ""), "", "", "",
+                )
+            else:
+                grid.add_row(
+                    conn_name,
+                    db_type,
+                    conn_config.get("account", ""),
+                    conn_config.get("database", ""),
+                    conn_config.get("schema", ""),
+                    conn_config.get("role", ""),
+                    conn_config.get("warehouse", ""),
+                )
         else:
-            parts = []
-            for key in ("account", "database", "schema", "warehouse"):
-                if key in conn_config:
-                    parts.append(f"{key}={conn_config[key]}")
-            details = ", ".join(parts)
-        grid.add_row(conn_name, db_type, details)
+            details = conn_config.get("path", "")
+            grid.add_row(conn_name, db_type, details)
 
     console.print(grid)
+
+
+@app.command()
+def clone(
+    source: str = typer.Option(..., "--source", "-s", help="Name of the connection to clone."),
+    name: str = typer.Option(..., "--name", "-n", help="Name for the new connection."),
+    database: str | None = typer.Option(None, "--database", help="Override database."),
+    schema: str | None = typer.Option(None, "--schema", help="Override schema."),
+    role: str | None = typer.Option(None, "--role", help="Override role."),
+    warehouse: str | None = typer.Option(None, "--warehouse", help="Override warehouse."),
+    account: str | None = typer.Option(None, "--account", help="Override account."),
+    user: str | None = typer.Option(None, "--user", help="Override user."),
+    auth: str | None = typer.Option(None, "--auth", help="Override authenticator."),
+) -> None:
+    """Clone an existing connection with optional overrides.
+
+    Useful for creating per-database Snowflake connections that share the same
+    account and credentials but differ in database, role, or warehouse.
+    """
+    from querido.config import get_config_dir, load_connections
+
+    config_dir = get_config_dir()
+    config_file = config_dir / "connections.toml"
+    existing = load_connections(config_dir)
+
+    if source not in existing:
+        available = ", ".join(sorted(existing)) if existing else "(none)"
+        raise typer.BadParameter(
+            f"Source connection '{source}' not found. Available: {available}"
+        )
+
+    if name in existing:
+        raise typer.BadParameter(
+            f"Connection '{name}' already exists. Remove it first or choose another name."
+        )
+
+    # Clone and apply overrides
+    entry = dict(existing[source])
+    for key, val in [
+        ("database", database),
+        ("schema", schema),
+        ("role", role),
+        ("warehouse", warehouse),
+        ("account", account),
+        ("user", user),
+        ("auth", auth),
+    ]:
+        if val is not None:
+            entry[key] = val
+
+    existing[name] = entry
+    _write_connections(config_file, existing)
+
+    from rich.console import Console
+
+    Console(stderr=True).print(
+        f"[green]Cloned '[bold]{source}[/bold]' → '[bold]{name}[/bold]' in {config_file}[/green]"
+    )
 
 
 def _write_connections(config_file: Path | str, connections: dict) -> None:
