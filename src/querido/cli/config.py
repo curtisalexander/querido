@@ -23,6 +23,9 @@ def add(
     schema: str | None = typer.Option(None, "--schema", help="Snowflake schema."),
     role: str | None = typer.Option(None, "--role", help="Snowflake role."),
     auth: str | None = typer.Option(None, "--auth", help="Snowflake authenticator."),
+    private_key_path: str | None = typer.Option(
+        None, "--private-key-path", help="Path to private key file (.p8) for Snowflake key-pair auth."
+    ),
 ) -> None:
     """Add a named connection to connections.toml."""
     from querido.config import get_config_dir, load_connections
@@ -58,6 +61,7 @@ def add(
         ("schema", schema),
         ("role", role),
         ("auth", auth),
+        ("private_key_path", private_key_path),
     ]:
         if val:
             entry[key] = val
