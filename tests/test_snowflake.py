@@ -343,6 +343,109 @@ class TestSnowflakeGetColumns:
 
 
 # ---------------------------------------------------------------------------
+# _resolve_table tests
+# ---------------------------------------------------------------------------
+
+
+class TestResolveTable:
+    def test_bare_table_name(self):
+        """Plain table name uses connection defaults."""
+        connector, _, _ = _make_connector(type="snowflake", account="x")
+        db, schema, tbl = connector._resolve_table("orders")
+        assert (db, schema, tbl) == ("TEST_DB", "PUBLIC", "ORDERS")
+
+    def test_schema_qualified(self):
+        """schema.table overrides the default schema."""
+        connector, _, _ = _make_connector(type="snowflake", account="x")
+        db, schema, tbl = connector._resolve_table("analytics.events")
+        assert (db, schema, tbl) == ("TEST_DB", "ANALYTICS", "EVENTS")
+
+    def test_fully_qualified(self):
+        """database.schema.table overrides both defaults."""
+        connector, _, _ = _make_connector(type="snowflake", account="x")
+        db, schema, tbl = connector._resolve_table("other_db.staging.raw_data")
+        assert (db, schema, tbl) == ("OTHER_DB", "STAGING", "RAW_DATA")
+
+    def test_uppercases_all_parts(self):
+        """All components are uppercased."""
+        connector, _, _ = _make_connector(type="snowflake", account="x")
+        db, schema, tbl = connector._resolve_table("myDb.mySchema.myTable")
+        assert (db, schema, tbl) == ("MYDB", "MYSCHEMA", "MYTABLE")
+
+    def test_too_many_parts_raises(self):
+        """Four-part names are rejected."""
+        connector, _, _ = _make_connector(type="snowflake", account="x")
+        import pytest
+
+        with pytest.raises(ValueError, match="Invalid table reference"):
+            connector._resolve_table("a.b.c.d")
+
+    def test_invalid_identifier_raises(self):
+        """Components with unsafe characters are rejected."""
+        connector, _, _ = _make_connector(type="snowflake", account="x")
+        import pytest
+
+        with pytest.raises(ValueError):
+            connector._resolve_table("bad;drop")
+
+
+class TestGetColumnsQualified:
+    def test_get_columns_uses_qualified_parts(self):
+        """get_columns with schema.table queries the right database and schema."""
+        connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
+
+        col_batch = pa.RecordBatch.from_pydict(
+            {
+                "COLUMN_NAME": ["ID"],
+                "DATA_TYPE": ["NUMBER"],
+                "IS_NULLABLE": ["NO"],
+                "COLUMN_DEFAULT": [None],
+                "COMMENT": [None],
+            }
+        )
+        cursor = _make_mock_cursor(
+            arrow_batches=[pa.Table.from_batches([col_batch])],
+            columns=["COLUMN_NAME", "DATA_TYPE", "IS_NULLABLE", "COLUMN_DEFAULT", "COMMENT"],
+        )
+        mock_conn.cursor.return_value = cursor
+
+        connector.get_columns("analytics.events")
+
+        # Verify the SQL used the correct database and the params used the
+        # overridden schema.
+        sql_arg = cursor.execute.call_args[0][0]
+        assert "TEST_DB.information_schema.columns" in sql_arg
+        params = cursor.execute.call_args[0][1]
+        assert params == ("ANALYTICS", "EVENTS")
+
+    def test_get_columns_fully_qualified(self):
+        """get_columns with db.schema.table queries the specified database."""
+        connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
+
+        col_batch = pa.RecordBatch.from_pydict(
+            {
+                "COLUMN_NAME": ["VAL"],
+                "DATA_TYPE": ["FLOAT"],
+                "IS_NULLABLE": ["YES"],
+                "COLUMN_DEFAULT": [None],
+                "COMMENT": [None],
+            }
+        )
+        cursor = _make_mock_cursor(
+            arrow_batches=[pa.Table.from_batches([col_batch])],
+            columns=["COLUMN_NAME", "DATA_TYPE", "IS_NULLABLE", "COLUMN_DEFAULT", "COMMENT"],
+        )
+        mock_conn.cursor.return_value = cursor
+
+        connector.get_columns("other_db.staging.metrics")
+
+        sql_arg = cursor.execute.call_args[0][0]
+        assert "OTHER_DB.information_schema.columns" in sql_arg
+        params = cursor.execute.call_args[0][1]
+        assert params == ("STAGING", "METRICS")
+
+
+# ---------------------------------------------------------------------------
 # Factory integration
 # ---------------------------------------------------------------------------
 

@@ -138,6 +138,37 @@ class SnowflakeConnector:
             self._active_cursor = None
             cursor.close()
 
+    def _resolve_table(self, name: str) -> tuple[str, str, str]:
+        """Parse a possibly-qualified table name into (database, schema, table).
+
+        Supports:
+          - ``table``               → (self._database, self._schema, TABLE)
+          - ``schema.table``        → (self._database, SCHEMA, TABLE)
+          - ``database.schema.table`` → (DATABASE, SCHEMA, TABLE)
+
+        All components are uppercased (Snowflake convention) and validated.
+        """
+        from querido.connectors.base import validate_object_name
+
+        parts = name.split(".")
+        if len(parts) == 1:
+            database, schema, table = self._database, self._schema, parts[0]
+        elif len(parts) == 2:
+            database, schema, table = self._database, parts[0], parts[1]
+        elif len(parts) == 3:
+            database, schema, table = parts[0], parts[1], parts[2]
+        else:
+            raise ValueError(
+                f"Invalid table reference: {name!r}. "
+                "Expected 'table', 'schema.table', or 'database.schema.table'."
+            )
+
+        database, schema, table = database.upper(), schema.upper(), table.upper()
+        validate_object_name(database)
+        validate_object_name(schema)
+        validate_object_name(table)
+        return database, schema, table
+
     def get_tables(self) -> list[dict]:
         rows = self.execute(
             f"SELECT table_name, table_type FROM {self._database}.information_schema.tables "
@@ -153,17 +184,13 @@ class SnowflakeConnector:
         ]
 
     def get_columns(self, table: str) -> list[dict]:
-        from querido.connectors.base import validate_table_name
-
-        validate_table_name(table)
-        # Snowflake stores unquoted identifiers as uppercase, so we upper()
-        # the table name in Python to avoid calling UPPER() in SQL.
+        database, schema, tbl = self._resolve_table(table)
         rows = self.execute(
             f"SELECT column_name, data_type, is_nullable, column_default, comment "
-            f"FROM {self._database}.information_schema.columns "
+            f"FROM {database}.information_schema.columns "
             f"WHERE table_schema = %s AND table_name = %s "
             f"ORDER BY ordinal_position",
-            (self._schema, table.upper()),
+            (schema, tbl),
         )
         return [
             {
@@ -179,13 +206,11 @@ class SnowflakeConnector:
 
     def get_table_comment(self, table: str) -> str | None:
         """Return the table comment from Snowflake, or None if not set."""
-        from querido.connectors.base import validate_table_name
-
-        validate_table_name(table)
+        database, schema, tbl = self._resolve_table(table)
         rows = self.execute(
-            f"SELECT comment FROM {self._database}.information_schema.tables "
+            f"SELECT comment FROM {database}.information_schema.tables "
             f"WHERE table_schema = %s AND table_name = %s",
-            (self._schema, table.upper()),
+            (schema, tbl),
         )
         if rows and rows[0].get("COMMENT"):
             return rows[0]["COMMENT"]
@@ -193,13 +218,11 @@ class SnowflakeConnector:
 
     def get_view_definition(self, view: str) -> str | None:
         """Return the SQL definition of a view from information_schema.views."""
-        from querido.connectors.base import validate_table_name
-
-        validate_table_name(view)
+        database, schema, tbl = self._resolve_table(view)
         rows = self.execute(
-            f"SELECT view_definition FROM {self._database}.information_schema.views "
+            f"SELECT view_definition FROM {database}.information_schema.views "
             f"WHERE table_schema = %s AND table_name = %s",
-            (self._schema, view.upper()),
+            (schema, tbl),
         )
         if rows and rows[0].get("VIEW_DEFINITION"):
             return rows[0]["VIEW_DEFINITION"]
