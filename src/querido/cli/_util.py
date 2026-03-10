@@ -105,8 +105,23 @@ def _format_not_found(
 
 
 def check_table_exists(connector: Connector, table: str) -> None:
-    """Raise typer.BadParameter if *table* does not exist in the database."""
+    """Raise typer.BadParameter if *table* does not exist in the database.
+
+    For Snowflake connectors, qualified names (``schema.table`` or
+    ``database.schema.table``) are resolved so that the existence check
+    queries the correct database/schema rather than comparing the full
+    qualified string against bare table names.
+    """
     import typer
+
+    # For Snowflake qualified names, resolve and check the right catalog.
+    if "." in table and hasattr(connector, "_resolve_table"):
+        database, schema, tbl = connector._resolve_table(table)
+        tables = connector.get_tables(database=database, schema=schema)
+        table_names = [t["name"] for t in tables]
+        if not any(t.lower() == tbl.lower() for t in table_names):
+            raise typer.BadParameter(_format_not_found("Table", table, table_names))
+        return
 
     tables = connector.get_tables()
     table_names = [t["name"] for t in tables]

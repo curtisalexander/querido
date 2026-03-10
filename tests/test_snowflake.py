@@ -53,16 +53,22 @@ def _make_mock_cursor(arrow_batches: list[pa.RecordBatch] | None = None, rows=No
     return cursor
 
 
-def _make_connector(**connect_kwargs):
-    """Create a SnowflakeConnector with a mocked snowflake.connector.connect."""
+def _make_connector(*, _session_db="TEST_DB", _session_schema="PUBLIC", **connect_kwargs):
+    """Create a SnowflakeConnector with a mocked snowflake.connector.connect.
+
+    *_session_db* and *_session_schema* control what ``CURRENT_DATABASE()`` /
+    ``CURRENT_SCHEMA()`` return when the connector falls back to querying the
+    session (i.e. when database/schema are not in the config).  Pass empty
+    strings to simulate a session with no defaults.
+    """
     _mock_connect.reset_mock()
     mock_conn = MagicMock()
     _mock_connect.return_value = mock_conn
 
-    # The __init__ now runs SELECT CURRENT_DATABASE(), CURRENT_SCHEMA()
+    # The __init__ runs SELECT CURRENT_DATABASE(), CURRENT_SCHEMA()
     # via a cursor, so set up the init cursor to return test values.
     init_cursor = MagicMock()
-    init_cursor.fetchone.return_value = ("TEST_DB", "PUBLIC")
+    init_cursor.fetchone.return_value = (_session_db or None, _session_schema or None)
     mock_conn.cursor.return_value = init_cursor
 
     from querido.connectors.snowflake import SnowflakeConnector
@@ -519,3 +525,163 @@ class TestSnowflakeSampling:
         sample_size = 100_000
         source = f"(SELECT * FROM {table} SAMPLE ({sample_size} ROWS)) AS _sample"
         assert "SAMPLE (100000 ROWS)" in source
+
+
+# ---------------------------------------------------------------------------
+# No-default database/schema (fully-qualified names only)
+# ---------------------------------------------------------------------------
+
+
+class TestNoDefaultDatabaseSchema:
+    """Connectors without default database/schema should work with qualified names."""
+
+    def test_init_succeeds_without_db_schema(self):
+        """Connection should succeed even if session has no default db/schema."""
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", _session_db="", _session_schema=""
+        )
+        assert connector._database == ""
+        assert connector._schema == ""
+
+    def test_fully_qualified_resolves_without_defaults(self):
+        """Fully-qualified names work even without connection defaults."""
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", _session_db="", _session_schema=""
+        )
+        db, schema, tbl = connector._resolve_table("my_db.my_schema.my_table")
+        assert (db, schema, tbl) == ("MY_DB", "MY_SCHEMA", "MY_TABLE")
+
+    def test_bare_name_fails_without_defaults(self):
+        """Bare table name raises helpful error when defaults are missing."""
+        import pytest
+
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", _session_db="", _session_schema=""
+        )
+        with pytest.raises(ValueError, match="Cannot resolve unqualified table name"):
+            connector._resolve_table("orders")
+
+    def test_schema_qualified_fails_without_database(self):
+        """schema.table raises helpful error when database default is missing."""
+        import pytest
+
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", _session_db="", _session_schema=""
+        )
+        with pytest.raises(ValueError, match="'database' not set"):
+            connector._resolve_table("analytics.events")
+
+    def test_schema_qualified_works_with_only_database(self):
+        """schema.table works if only database is set (no default schema)."""
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x",
+            database="MY_DB", _session_db="", _session_schema=""
+        )
+        db, schema, tbl = connector._resolve_table("analytics.events")
+        assert (db, schema, tbl) == ("MY_DB", "ANALYTICS", "EVENTS")
+
+    def test_get_tables_fails_without_defaults(self):
+        """get_tables() raises helpful error when defaults are missing."""
+        import pytest
+
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", _session_db="", _session_schema=""
+        )
+        with pytest.raises(ValueError, match="Cannot list tables"):
+            connector.get_tables()
+
+    def test_get_tables_with_explicit_db_schema(self):
+        """get_tables(database=..., schema=...) works without defaults."""
+        connector, mock_conn, _ = _make_connector(
+            type="snowflake", account="x", _session_db="", _session_schema=""
+        )
+
+        tbl_batch = pa.RecordBatch.from_pydict(
+            {"TABLE_NAME": ["ORDERS"], "TABLE_TYPE": ["BASE TABLE"]}
+        )
+        cursor = _make_mock_cursor(
+            arrow_batches=[pa.Table.from_batches([tbl_batch])],
+            columns=["TABLE_NAME", "TABLE_TYPE"],
+        )
+        mock_conn.cursor.return_value = cursor
+
+        tables = connector.get_tables(database="MY_DB", schema="PUBLIC")
+        assert len(tables) == 1
+        assert tables[0]["name"] == "ORDERS"
+
+        sql_arg = cursor.execute.call_args[0][0]
+        assert "MY_DB.information_schema.tables" in sql_arg
+
+
+# ---------------------------------------------------------------------------
+# check_table_exists with qualified Snowflake names
+# ---------------------------------------------------------------------------
+
+
+class TestCheckTableExistsQualified:
+    """check_table_exists should resolve qualified names for Snowflake."""
+
+    def test_qualified_name_matches(self):
+        """Fully-qualified name should match when table exists in target schema."""
+        import typer
+
+        connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
+
+        tbl_batch = pa.RecordBatch.from_pydict(
+            {"TABLE_NAME": ["RAW_DATA", "METRICS"], "TABLE_TYPE": ["BASE TABLE", "BASE TABLE"]}
+        )
+        cursor = _make_mock_cursor(
+            arrow_batches=[pa.Table.from_batches([tbl_batch])],
+            columns=["TABLE_NAME", "TABLE_TYPE"],
+        )
+        mock_conn.cursor.return_value = cursor
+
+        from querido.cli._util import check_table_exists
+
+        # Should not raise
+        check_table_exists(connector, "other_db.staging.raw_data")
+
+        # Verify get_tables was called against the right database/schema
+        sql_arg = cursor.execute.call_args[0][0]
+        assert "OTHER_DB.information_schema.tables" in sql_arg
+        params = cursor.execute.call_args[0][1]
+        assert params == ("STAGING",)
+
+    def test_qualified_name_not_found(self):
+        """Fully-qualified name should raise when table does not exist."""
+        import pytest
+        import typer
+
+        connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
+
+        tbl_batch = pa.RecordBatch.from_pydict(
+            {"TABLE_NAME": ["OTHER_TABLE"], "TABLE_TYPE": ["BASE TABLE"]}
+        )
+        cursor = _make_mock_cursor(
+            arrow_batches=[pa.Table.from_batches([tbl_batch])],
+            columns=["TABLE_NAME", "TABLE_TYPE"],
+        )
+        mock_conn.cursor.return_value = cursor
+
+        from querido.cli._util import check_table_exists
+
+        with pytest.raises(typer.BadParameter, match="not found"):
+            check_table_exists(connector, "other_db.staging.missing_table")
+
+    def test_schema_qualified_name_matches(self):
+        """Schema-qualified name should match when table exists."""
+        connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
+
+        tbl_batch = pa.RecordBatch.from_pydict(
+            {"TABLE_NAME": ["EVENTS"], "TABLE_TYPE": ["BASE TABLE"]}
+        )
+        cursor = _make_mock_cursor(
+            arrow_batches=[pa.Table.from_batches([tbl_batch])],
+            columns=["TABLE_NAME", "TABLE_TYPE"],
+        )
+        mock_conn.cursor.return_value = cursor
+
+        from querido.cli._util import check_table_exists
+
+        # Should not raise
+        check_table_exists(connector, "analytics.events")

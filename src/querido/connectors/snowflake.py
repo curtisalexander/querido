@@ -73,34 +73,33 @@ class SnowflakeConnector:
         self._active_cursor: object | None = None
 
         # Use config values when available; fall back to querying the session
-        # (needed for connections.toml where db/schema are set externally).
-        if cfg_database and cfg_schema:
-            self._database: str = cfg_database
-            self._schema: str = cfg_schema
-        else:
+        # for any that are missing (needed for connections.toml where db/schema
+        # are set externally, or partial configs with only one of the two).
+        self._database: str = cfg_database
+        self._schema: str = cfg_schema
+        if not self._database or not self._schema:
             cursor = self.conn.cursor()
             try:
                 cursor.execute("SELECT CURRENT_DATABASE(), CURRENT_SCHEMA()")
                 row = cursor.fetchone()
-                self._database = row[0] if row and row[0] else ""
-                self._schema = row[1] if row and row[1] else ""
+                if not self._database:
+                    self._database = row[0] if row and row[0] else ""
+                if not self._schema:
+                    self._schema = row[1] if row and row[1] else ""
             finally:
                 cursor.close()
 
-        # Validate that database/schema are set and safe for SQL interpolation.
-        # These values are used in f-string SQL (e.g. {self._database}.information_schema)
-        # so they must be non-empty and match the safe identifier pattern.
-        if not self._database or not self._schema:
-            self.conn.close()
-            raise ValueError(
-                "Could not determine Snowflake database/schema. "
-                "Set 'database' and 'schema' in your connection config."
-            )
+        # Validate that database/schema are safe for SQL interpolation when set.
+        # These values are used in f-string SQL (e.g. {db}.information_schema)
+        # so they must match the safe identifier pattern.  They may be empty if
+        # the user intends to always supply fully-qualified table names.
         from querido.connectors.base import validate_object_name
 
         try:
-            validate_object_name(self._database)
-            validate_object_name(self._schema)
+            if self._database:
+                validate_object_name(self._database)
+            if self._schema:
+                validate_object_name(self._schema)
         except ValueError:
             self.conn.close()
             raise
@@ -147,13 +146,34 @@ class SnowflakeConnector:
           - ``database.schema.table`` → (DATABASE, SCHEMA, TABLE)
 
         All components are uppercased (Snowflake convention) and validated.
+        Raises ValueError with a helpful message when defaults are needed but
+        not configured.
         """
         from querido.connectors.base import validate_object_name
 
         parts = name.split(".")
         if len(parts) == 1:
+            if not self._database or not self._schema:
+                missing = []
+                if not self._database:
+                    missing.append("'database'")
+                if not self._schema:
+                    missing.append("'schema'")
+                raise ValueError(
+                    f"Cannot resolve unqualified table name {name!r} — "
+                    f"{' and '.join(missing)} not set. "
+                    "Use a fully-qualified name (database.schema.table) or set "
+                    f"{' and '.join(missing)} in your connection config."
+                )
             database, schema, table = self._database, self._schema, parts[0]
         elif len(parts) == 2:
+            if not self._database:
+                raise ValueError(
+                    f"Cannot resolve schema-qualified table name {name!r} — "
+                    "'database' not set. "
+                    "Use a fully-qualified name (database.schema.table) or set "
+                    "'database' in your connection config."
+                )
             database, schema, table = self._database, parts[0], parts[1]
         elif len(parts) == 3:
             database, schema, table = parts[0], parts[1], parts[2]
@@ -169,11 +189,34 @@ class SnowflakeConnector:
         validate_object_name(table)
         return database, schema, table
 
-    def get_tables(self) -> list[dict]:
+    def get_tables(self, *, database: str | None = None, schema: str | None = None) -> list[dict]:
+        """Return tables in the given (or default) database and schema.
+
+        When *database* or *schema* are ``None`` the connector's defaults are
+        used.  Raises ``ValueError`` if the required context is still missing.
+        """
+        from querido.connectors.base import validate_object_name
+
+        db = database or self._database
+        sch = schema or self._schema
+        if not db or not sch:
+            missing = []
+            if not db:
+                missing.append("'database'")
+            if not sch:
+                missing.append("'schema'")
+            raise ValueError(
+                f"Cannot list tables — {' and '.join(missing)} not set. "
+                "Set them in your connection config or use a fully-qualified "
+                "table name (database.schema.table)."
+            )
+        validate_object_name(db)
+        validate_object_name(sch)
+
         rows = self.execute(
-            f"SELECT table_name, table_type FROM {self._database}.information_schema.tables "
+            f"SELECT table_name, table_type FROM {db}.information_schema.tables "
             f"WHERE table_schema = %s ORDER BY table_name",
-            (self._schema,),
+            (sch,),
         )
         return [
             {
