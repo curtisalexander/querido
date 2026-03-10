@@ -20,6 +20,43 @@ class SnowflakeConnector:
         if "snowflake_connection" in kwargs:
             kwargs["connection_name"] = kwargs.pop("snowflake_connection")
 
+        # Load private key from file when private_key_path is provided.
+        # Snowflake's connector expects a `private_key` bytes object, not a
+        # file path, so we read and deserialize the PEM/DER key here.
+        if "private_key_path" in kwargs:
+            from pathlib import Path
+
+            from cryptography.exceptions import UnsupportedAlgorithm
+            from cryptography.hazmat.backends import default_backend
+            from cryptography.hazmat.primitives.serialization import (
+                Encoding,
+                NoEncryption,
+                PrivateFormat,
+                load_der_private_key,
+                load_pem_private_key,
+            )
+
+            key_path = Path(str(kwargs.pop("private_key_path"))).expanduser()
+            passphrase = kwargs.pop("private_key_passphrase", None)
+            if passphrase is not None:
+                passphrase = str(passphrase).encode()
+
+            key_bytes = key_path.read_bytes()
+            try:
+                private_key = load_pem_private_key(
+                    key_bytes, password=passphrase, backend=default_backend()
+                )
+            except (ValueError, UnsupportedAlgorithm):
+                private_key = load_der_private_key(
+                    key_bytes, password=passphrase, backend=default_backend()
+                )
+
+            kwargs["private_key"] = private_key.private_bytes(
+                encoding=Encoding.DER,
+                format=PrivateFormat.PKCS8,
+                encryption_algorithm=NoEncryption(),
+            )
+
         # Enable credential caching by default so SSO/MFA users aren't
         # re-prompted on every CLI invocation.  Users can disable with
         # client_store_temporary_credential = false in their connection config.

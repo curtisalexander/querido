@@ -175,6 +175,16 @@ warehouse = "ANALYTICS_WH"
 database = "PROD"
 schema = "PUBLIC"
 auth = "externalbrowser"
+
+[connections.prod-keypair]
+type = "snowflake"
+account = "xy12345.us-east-1"
+user = "SVC_USER"
+warehouse = "ANALYTICS_WH"
+database = "PROD"
+schema = "PUBLIC"
+private_key_path = "~/.snowflake/rsa_key.p8"
+# private_key_passphrase = "optional-passphrase"
 ```
 
 ### Managing connections via CLI
@@ -182,6 +192,8 @@ auth = "externalbrowser"
 ```bash
 qdo config add --name mydb --type sqlite --path ./data.db
 qdo config add --name prod --type snowflake --account xy123 --database PROD
+qdo config add --name svc --type snowflake --account xy123 --database PROD \
+  --private-key-path ~/.snowflake/rsa_key.p8
 qdo config list
 ```
 
