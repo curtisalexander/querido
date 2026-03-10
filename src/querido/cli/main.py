@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from typing import Any
 
 import click
 import typer
@@ -35,7 +36,12 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
 class LazyGroup(TyperGroup):
     """A Click Group that defers subcommand imports until actually needed."""
 
-    def __init__(self, *args: object, lazy_subcommands: dict[str, tuple[str, str]] | None = None, **kwargs: object) -> None:  # noqa: E501
+    def __init__(
+        self,
+        *args: Any,
+        lazy_subcommands: dict[str, tuple[str, str]] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._lazy_subcommands: dict[str, tuple[str, str]] = lazy_subcommands or {}
 
@@ -47,7 +53,7 @@ class LazyGroup(TyperGroup):
         lazy = list(self._lazy_subcommands.keys())
         return sorted(set(base + lazy))
 
-    def get_command(self, ctx: click.Context, cmd_name: str) -> click.BaseCommand | None:
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
         # Try eagerly-registered commands first (the @app.callback, etc.)
         cmd = super().get_command(ctx, cmd_name)
         if cmd is not None:
@@ -106,14 +112,14 @@ app = typer.Typer(
 _original_get_group = typer.main.get_group
 
 
-def _patched_get_group(typer_app: typer.Typer, **kwargs: object) -> click.Group:
+def _patched_get_group(typer_app: typer.Typer, **kwargs: Any) -> click.Group:
     group = _original_get_group(typer_app, **kwargs)
     if isinstance(group, LazyGroup) and typer_app is app:
         group._lazy_subcommands = _SUBCOMMANDS
     return group
 
 
-typer.main.get_group = _patched_get_group
+typer.main.get_group = _patched_get_group  # type: ignore[assignment]
 
 
 def version_callback(value: bool) -> None:
