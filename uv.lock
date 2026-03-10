@@ -1307,6 +1307,15 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "duckdb" },
+    { name = "fastapi" },
+    { name = "pyarrow" },
+    { name = "python-multipart" },
+    { name = "snowflake-connector-python" },
+    { name = "textual" },
+    { name = "uvicorn", extra = ["standard"] },
+]
 duckdb = [
     { name = "duckdb" },
 ]
@@ -1341,20 +1350,27 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb", marker = "extra == 'all'", specifier = ">=1" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=1" },
+    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115" },
     { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.115" },
     { name = "jinja2", specifier = ">=3" },
     { name = "platformdirs", specifier = ">=4" },
+    { name = "pyarrow", marker = "extra == 'all'", specifier = ">=14" },
     { name = "pyarrow", marker = "extra == 'snowflake'", specifier = ">=14" },
+    { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.18" },
     { name = "python-multipart", marker = "extra == 'web'", specifier = ">=0.0.18" },
     { name = "rich", specifier = ">=13" },
+    { name = "snowflake-connector-python", marker = "extra == 'all'", specifier = ">=3.6" },
     { name = "snowflake-connector-python", marker = "extra == 'snowflake'", specifier = ">=3.6" },
+    { name = "textual", marker = "extra == 'all'", specifier = ">=0.50" },
     { name = "textual", marker = "extra == 'tui'", specifier = ">=0.50" },
     { name = "tomli-w", specifier = ">=1.2" },
     { name = "typer", specifier = ">=0.15" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.34" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'web'", specifier = ">=0.34" },
 ]
-provides-extras = ["duckdb", "snowflake", "tui", "web"]
+provides-extras = ["duckdb", "snowflake", "tui", "web", "all"]
 
 [package.metadata.requires-dev]
 dev = [
