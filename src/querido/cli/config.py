@@ -24,7 +24,9 @@ def add(
     role: str | None = typer.Option(None, "--role", help="Snowflake role."),
     auth: str | None = typer.Option(None, "--auth", help="Snowflake authenticator."),
     private_key_path: str | None = typer.Option(
-        None, "--private-key-path", help="Path to private key file (.p8) for Snowflake key-pair auth."
+        None,
+        "--private-key-path",
+        help="Path to private key file (.p8) for Snowflake key-pair auth.",
     ),
 ) -> None:
     """Add a named connection to connections.toml."""
@@ -113,8 +115,13 @@ def list_connections() -> None:
         if has_snowflake:
             if db_type in ("sqlite", "duckdb"):
                 grid.add_row(
-                    conn_name, db_type,
-                    "", conn_config.get("path", ""), "", "", "",
+                    conn_name,
+                    db_type,
+                    "",
+                    conn_config.get("path", ""),
+                    "",
+                    "",
+                    "",
                 )
             else:
                 grid.add_row(
@@ -158,9 +165,7 @@ def clone(
 
     if source not in existing:
         available = ", ".join(sorted(existing)) if existing else "(none)"
-        raise typer.BadParameter(
-            f"Source connection '{source}' not found. Available: {available}"
-        )
+        raise typer.BadParameter(f"Source connection '{source}' not found. Available: {available}")
 
     if name in existing:
         raise typer.BadParameter(
