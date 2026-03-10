@@ -69,3 +69,105 @@ def test_config_list_shows_connections(tmp_path):
     assert result.exit_code == 0
     assert "testdb" in result.output
     assert "duckdb" in result.output
+
+
+def test_config_list_snowflake_columns(tmp_path):
+    """When Snowflake connections exist, list shows dedicated columns for role/warehouse."""
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        [
+            "config", "add", "--name", "sf-analytics", "--type", "snowflake",
+            "--account", "xy123", "--database", "ANALYTICS",
+            "--schema", "PUBLIC", "--role", "ANALYST", "--warehouse", "COMPUTE_WH",
+        ],
+        env=env,
+    )
+    result = runner.invoke(app, ["config", "list"], env=env)
+    assert result.exit_code == 0
+    assert "ANALYST" in result.output
+    assert "COMPUTE_WH" in result.output
+    assert "ANALYTICS" in result.output
+
+
+# ── config clone ──────────────────────────────────────────────────────
+
+
+def test_config_clone_basic(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        [
+            "config", "add", "--name", "prod", "--type", "snowflake",
+            "--account", "xy123", "--database", "PROD", "--schema", "PUBLIC",
+            "--role", "PROD_ROLE", "--warehouse", "PROD_WH",
+        ],
+        env=env,
+    )
+    result = runner.invoke(
+        app,
+        [
+            "config", "clone", "--source", "prod", "--name", "finance",
+            "--database", "FINANCE_DB", "--role", "FINANCE_ROLE",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0
+    assert "Cloned" in result.output
+
+    # Verify the cloned connection in the file
+    content = (tmp_path / "connections.toml").read_text()
+    assert "[connections.finance]" in content
+    assert 'database = "FINANCE_DB"' in content
+    assert 'role = "FINANCE_ROLE"' in content
+    # Non-overridden fields should carry over
+    assert content.count('account = "xy123"') == 2  # both prod and finance
+
+
+def test_config_clone_missing_source(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(
+        app,
+        ["config", "clone", "--source", "nonexistent", "--name", "new"],
+        env=env,
+    )
+    assert result.exit_code != 0
+
+
+def test_config_clone_duplicate_name(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        [
+            "config", "add", "--name", "prod", "--type", "snowflake",
+            "--account", "xy123", "--database", "PROD",
+        ],
+        env=env,
+    )
+    result = runner.invoke(
+        app,
+        ["config", "clone", "--source", "prod", "--name", "prod"],
+        env=env,
+    )
+    assert result.exit_code != 0
+
+
+def test_config_clone_no_overrides(tmp_path):
+    """Cloning without overrides creates an exact copy."""
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        [
+            "config", "add", "--name", "orig", "--type", "snowflake",
+            "--account", "xy123", "--database", "DB1", "--role", "R1",
+        ],
+        env=env,
+    )
+    result = runner.invoke(
+        app,
+        ["config", "clone", "--source", "orig", "--name", "copy"],
+        env=env,
+    )
+    assert result.exit_code == 0
+    content = (tmp_path / "connections.toml").read_text()
+    assert "[connections.copy]" in content

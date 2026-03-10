@@ -56,6 +56,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
+| `config clone` | Clone connection with overrides |
 | `config list` | List connections |
 | `explore -c CONN -t TABLE` | Interactive TUI |
 | `serve -c CONN` | Web UI |

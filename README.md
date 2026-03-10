@@ -199,6 +199,43 @@ qdo config list
 
 You can also pass a file path directly: `qdo preview --connection ./my.db --table users`
 
+### Working with multiple Snowflake databases
+
+In Snowflake, accessing a different database often requires a different role and warehouse. Rather than passing `--database`, `--role`, and `--warehouse` flags on every command, qdo uses **one named connection per database context**. Each connection captures the full set of credentials and session parameters needed for that database.
+
+**Quick setup with `config clone`** — create per-database connections from a base connection, overriding only what changes:
+
+```bash
+# Start with a base connection
+qdo config add --name sf-base --type snowflake \
+  --account xy123.us-east-1 --user analyst \
+  --warehouse COMPUTE_WH --database ANALYTICS --schema PUBLIC \
+  --role ANALYST --auth externalbrowser
+
+# Clone for other databases, overriding database/role/warehouse as needed
+qdo config clone --source sf-base --name sf-finance \
+  --database FINANCE_DB --role FINANCE_ROLE --warehouse FINANCE_WH
+
+qdo config clone --source sf-base --name sf-marketing \
+  --database MARKETING_DB --role MARKETING_ROLE
+```
+
+**Use `config list` to see all connections at a glance** — when Snowflake connections are present, the table shows dedicated columns for database, role, and warehouse:
+
+```bash
+qdo config list
+```
+
+**Then just switch with `-c`:**
+
+```bash
+qdo preview -c sf-finance -t transactions
+qdo profile -c sf-marketing -t campaigns
+qdo inspect -c sf-base -t events
+```
+
+This approach is intentional: each connection is self-contained and correct, so you never have to remember which role goes with which database. The `config clone` command makes setup fast — you only specify the fields that differ.
+
 ## Development
 
 ```bash
