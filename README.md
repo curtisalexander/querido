@@ -24,6 +24,16 @@ With optional backends:
 ```bash
 uv tool install 'querido[duckdb]' \
   --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+
+uv tool install 'querido[snowflake]' \
+  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+```
+
+With all optional backends:
+
+```bash
+uv tool install 'querido[all]' \
+  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
 ```
 
 To upgrade later (update the version in the URL):
@@ -71,6 +81,7 @@ uv pip install 'querido[duckdb]'      # DuckDB + Parquet support
 uv pip install 'querido[snowflake]'   # Snowflake support
 uv pip install 'querido[tui]'        # Interactive TUI (qdo explore)
 uv pip install 'querido[web]'        # Web UI (qdo serve)
+uv pip install 'querido[all]'        # Everything
 ```
 
 ## Usage
