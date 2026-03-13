@@ -199,8 +199,8 @@ class TestSnowflakeArrow:
         result = connector.execute("SELECT * FROM scores")
 
         assert len(result) == 3
-        assert result[0] == {"ID": 1, "NAME": "Alice", "SCORE": 95.5}
-        assert result[2]["NAME"] == "Carol"
+        assert result[0] == {"id": 1, "name": "Alice", "score": 95.5}
+        assert result[2]["name"] == "Carol"
         cursor.fetch_arrow_batches.assert_called_once()
 
     def test_execute_arrow_returns_pyarrow_table(self):
@@ -286,9 +286,9 @@ class TestSnowflakeArrow:
 
         result = connector.execute("SELECT * FROM typed")
 
-        assert isinstance(result[0]["INT_COL"], int)
-        assert isinstance(result[0]["FLOAT_COL"], float)
-        assert isinstance(result[0]["STR_COL"], str)
+        assert isinstance(result[0]["int_col"], int)
+        assert isinstance(result[0]["float_col"], float)
+        assert isinstance(result[0]["str_col"], str)
 
     def test_execute_falls_back_to_standard_fetch(self):
         """If Arrow fetch fails, execute() falls back to standard cursor."""
@@ -304,7 +304,7 @@ class TestSnowflakeArrow:
         result = connector.execute("SELECT * FROM users")
 
         assert len(result) == 2
-        assert result[0] == {"ID": 1, "NAME": "Alice"}
+        assert result[0] == {"id": 1, "name": "Alice"}
         cursor.fetchall.assert_called_once()
 
 
