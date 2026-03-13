@@ -35,9 +35,7 @@ def get_columns_and_count(
     return columns, table_comment, row_count, col_info
 
 
-def get_profile_stats(
-    connector: Connector, table: str, col_info: list[dict]
-) -> list[dict]:
+def get_profile_stats(connector: Connector, table: str, col_info: list[dict]) -> list[dict]:
     """Run the profile query and return per-column statistics."""
     from querido.sql.renderer import render_template
 
@@ -55,17 +53,13 @@ def get_profile_stats(
     return profile_data
 
 
-def get_sample_rows(
-    connector: Connector, table: str, sample_values: int
-) -> list[dict]:
+def get_sample_rows(connector: Connector, table: str, sample_values: int) -> list[dict]:
     """Fetch sample rows for *table*."""
     from querido.sql.renderer import render_template
 
     if sample_values <= 0:
         return []
-    preview_sql = render_template(
-        "preview", connector.dialect, table=table, limit=sample_values
-    )
+    preview_sql = render_template("preview", connector.dialect, table=table, limit=sample_values)
     return connector.execute(preview_sql)
 
 
@@ -135,11 +129,7 @@ def get_template(connector: Connector, table: str, *, sample_values: int = 3) ->
             "columns": [{"name": ..., "type": ..., ...}, ...],
         }
     """
-    columns, table_comment, row_count, col_info = get_columns_and_count(
-        connector, table
-    )
+    columns, table_comment, row_count, col_info = get_columns_and_count(connector, table)
     profile_data = get_profile_stats(connector, table, col_info)
     sample_rows = get_sample_rows(connector, table, sample_values)
-    return assemble_template(
-        columns, table, table_comment, row_count, profile_data, sample_rows
-    )
+    return assemble_template(columns, table, table_comment, row_count, profile_data, sample_rows)
