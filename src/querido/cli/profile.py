@@ -29,7 +29,9 @@ def profile(
         help="Use exact COUNT(DISTINCT) instead of approximate counts (Snowflake only).",
     ),
     db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb/snowflake). Inferred from path if omitted."
+        None,
+        "--db-type",
+        help="Database type (sqlite/duckdb/snowflake). Inferred from path if omitted.",
     ),
 ) -> None:
     """Statistical profile of table columns."""

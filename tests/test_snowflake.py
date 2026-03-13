@@ -507,7 +507,9 @@ class TestSnowflakeTemplates:
         from querido.sql.renderer import render_template
 
         cols = [{"name": "PRICE", "type": "FLOAT", "numeric": True}]
-        sql = render_template("profile", "snowflake", columns=cols, source="products", approx=False)
+        sql = render_template(
+            "profile", "snowflake", columns=cols, source="products", approx=False
+        )
         assert "COUNT(DISTINCT" in sql
         assert "APPROX_COUNT_DISTINCT" not in sql
         assert "UNION" not in sql
