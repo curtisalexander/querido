@@ -39,8 +39,16 @@ def get_template(connector: Connector, table: str, *, sample_values: int = 3) ->
         }
         for c in columns
     ]
-    profile_sql = render_template("profile", connector.dialect, columns=col_info, source=table)
+    profile_sql = render_template(
+        "profile", connector.dialect, columns=col_info, source=table, approx=True
+    )
     profile_data = connector.execute(profile_sql)
+
+    # Snowflake single-scan template returns one wide row; reshape it.
+    if profile_data and len(profile_data) == 1 and "total_rows" in profile_data[0]:
+        from querido.core.profile import _unpack_single_row
+
+        profile_data = _unpack_single_row(profile_data[0], col_info)
 
     profile_by_col: dict[str, dict] = {}
     for row in profile_data:

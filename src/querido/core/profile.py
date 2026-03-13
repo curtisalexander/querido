@@ -100,6 +100,47 @@ def _build_sample_source(
     return source, sampled, sample_size
 
 
+def _unpack_single_row(row: dict, col_info: list[dict]) -> list[dict]:
+    """Reshape a single wide row into per-column stat dicts.
+
+    The Snowflake single-scan profile template produces one row with
+    prefixed column names like ``COL__null_count``.  This function
+    unpacks that into the standard list-of-dicts format expected by all
+    downstream consumers.
+    """
+    total_rows = row.get("total_rows", 0)
+    stats: list[dict] = []
+    for col in col_info:
+        name = col["name"]
+        prefix = f"{name}__".lower()
+        entry: dict = {
+            "column_name": name,
+            "column_type": col["type"],
+            "total_rows": total_rows,
+            "null_count": row.get(f"{prefix}null_count"),
+            "null_pct": row.get(f"{prefix}null_pct"),
+            "distinct_count": row.get(f"{prefix}distinct_count"),
+        }
+        if col["numeric"]:
+            entry["min_val"] = row.get(f"{prefix}min_val")
+            entry["max_val"] = row.get(f"{prefix}max_val")
+            entry["mean_val"] = row.get(f"{prefix}mean_val")
+            entry["median_val"] = row.get(f"{prefix}median_val")
+            entry["stddev_val"] = row.get(f"{prefix}stddev_val")
+            entry["min_length"] = None
+            entry["max_length"] = None
+        else:
+            entry["min_val"] = None
+            entry["max_val"] = None
+            entry["mean_val"] = None
+            entry["median_val"] = None
+            entry["stddev_val"] = None
+            entry["min_length"] = row.get(f"{prefix}min_length")
+            entry["max_length"] = row.get(f"{prefix}max_length")
+        stats.append(entry)
+    return stats
+
+
 def get_profile(
     connector: Connector,
     table: str,
@@ -107,8 +148,13 @@ def get_profile(
     columns: str | None = None,
     sample: int | None = None,
     no_sample: bool = False,
+    exact: bool = False,
 ) -> dict:
     """Profile table columns and return statistics.
+
+    When *exact* is ``False`` (the default) and the connector dialect is
+    Snowflake, ``APPROX_COUNT_DISTINCT`` is used for faster cardinality
+    estimation.  Pass ``exact=True`` to use exact ``COUNT(DISTINCT)``.
 
     Returns::
 
@@ -142,8 +188,17 @@ def get_profile(
         connector, table, row_count, sample=sample, no_sample=no_sample
     )
 
-    sql = render_template("profile", connector.dialect, columns=col_info, source=source)
-    stats = connector.execute(sql)
+    approx = not exact
+    sql = render_template(
+        "profile", connector.dialect, columns=col_info, source=source, approx=approx
+    )
+    raw = connector.execute(sql)
+
+    # The Snowflake template produces a single wide row; reshape it.
+    if raw and len(raw) == 1 and "total_rows" in raw[0]:
+        stats = _unpack_single_row(raw[0], col_info)
+    else:
+        stats = raw
 
     return {
         "stats": stats,

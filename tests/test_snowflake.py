@@ -487,23 +487,57 @@ class TestSnowflakeFactory:
 
 
 class TestSnowflakeTemplates:
-    def test_profile_template_numeric(self):
+    def test_profile_template_numeric_approx(self):
+        """Default (approx) profile uses APPROX_COUNT_DISTINCT in a single SELECT."""
         from querido.sql.renderer import render_template
 
         cols = [{"name": "PRICE", "type": "FLOAT", "numeric": True}]
-        sql = render_template("profile", "snowflake", columns=cols, source="products")
+        sql = render_template("profile", "snowflake", columns=cols, source="products", approx=True)
         assert "AVG" in sql
         assert "MEDIAN" in sql
         assert "STDDEV" in sql
         assert "products" in sql
+        assert "APPROX_COUNT_DISTINCT" in sql
+        assert "COUNT(DISTINCT" not in sql
+        # Single SELECT, no UNION ALL
+        assert "UNION" not in sql
+
+    def test_profile_template_numeric_exact(self):
+        """Exact profile uses COUNT(DISTINCT) in a single SELECT."""
+        from querido.sql.renderer import render_template
+
+        cols = [{"name": "PRICE", "type": "FLOAT", "numeric": True}]
+        sql = render_template("profile", "snowflake", columns=cols, source="products", approx=False)
+        assert "COUNT(DISTINCT" in sql
+        assert "APPROX_COUNT_DISTINCT" not in sql
+        assert "UNION" not in sql
 
     def test_profile_template_string(self):
         from querido.sql.renderer import render_template
 
         cols = [{"name": "EMAIL", "type": "VARCHAR", "numeric": False}]
-        sql = render_template("profile", "snowflake", columns=cols, source="users")
+        sql = render_template("profile", "snowflake", columns=cols, source="users", approx=True)
         assert "LENGTH" in sql
         assert "min_length" in sql
+        assert "UNION" not in sql
+
+    def test_profile_template_single_scan_multiple_cols(self):
+        """Multiple columns produce a single SELECT with all stats."""
+        from querido.sql.renderer import render_template
+
+        cols = [
+            {"name": "ID", "type": "NUMBER", "numeric": True},
+            {"name": "NAME", "type": "VARCHAR", "numeric": False},
+            {"name": "SCORE", "type": "FLOAT", "numeric": True},
+        ]
+        sql = render_template("profile", "snowflake", columns=cols, source="scores", approx=True)
+        # Single SELECT — no UNION ALL
+        assert "UNION" not in sql
+        assert sql.strip().startswith("SELECT")
+        # All columns present
+        assert '"ID__null_count"' in sql
+        assert '"NAME__min_length"' in sql
+        assert '"SCORE__distinct_count"' in sql
 
     def test_preview_uses_common_template(self):
         from querido.sql.renderer import render_template
