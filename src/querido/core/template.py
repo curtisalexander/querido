@@ -42,9 +42,7 @@ def get_profile_stats(
     from querido.core.profile import _build_sample_source
     from querido.sql.renderer import render_template
 
-    source, _sampled, _sample_size = _build_sample_source(
-        connector, table, row_count
-    )
+    source, _sampled, _sample_size = _build_sample_source(connector, table, row_count)
 
     profile_sql = render_template(
         "profile", connector.dialect, columns=col_info, source=source, approx=True
