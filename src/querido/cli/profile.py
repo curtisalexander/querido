@@ -23,8 +23,15 @@ def profile(
         False, "--no-sample", help="Force full table scan, no sampling."
     ),
     top: int = typer.Option(0, "--top", min=0, help="Show top N most frequent values per column."),
+    exact: bool = typer.Option(
+        False,
+        "--exact",
+        help="Use exact COUNT(DISTINCT) instead of approximate counts (Snowflake only).",
+    ),
     db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
+        None,
+        "--db-type",
+        help="Database type (sqlite/duckdb/snowflake). Inferred from path if omitted.",
     ),
 ) -> None:
     """Statistical profile of table columns."""
@@ -69,6 +76,7 @@ def profile(
                         columns=columns,
                         sample=sample,
                         no_sample=no_sample,
+                        exact=exact,
                     )
                 except ValueError as exc:
                     raise typer.BadParameter(str(exc)) from exc
@@ -79,6 +87,7 @@ def profile(
                     connector.dialect,
                     columns=result["col_info"],
                     source=result["source"],
+                    approx=not exact,
                 )
                 maybe_show_sql(profile_sql)
                 set_last_sql(profile_sql)

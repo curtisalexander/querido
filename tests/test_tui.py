@@ -5,6 +5,11 @@ from pathlib import Path
 
 import pytest
 
+# pytest-asyncio is required for async test functions but lives in the dev
+# dependency group.  Skip the entire module gracefully when it's absent so
+# that `pip install -e ".[all]" && pytest` doesn't fail unexpectedly.
+pytest.importorskip("pytest_asyncio")
+
 
 @pytest.fixture
 def sqlite_connector(tmp_path: Path):

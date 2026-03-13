@@ -1,30 +1,22 @@
-{% for col in columns %}
 SELECT
-    '{{ col.name }}' AS column_name,
-    '{{ col.type }}' AS column_type,
-    COUNT(*) AS total_rows,
-    SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) AS null_count,
-    ROUND(100.0 * SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS null_pct,
-    COUNT(DISTINCT "{{ col.name }}") AS distinct_count,
-{% if col.numeric %}
-    MIN("{{ col.name }}") AS min_val,
-    MAX("{{ col.name }}") AS max_val,
-    ROUND(AVG("{{ col.name }}"), 4) AS mean_val,
-    MEDIAN("{{ col.name }}") AS median_val,
-    ROUND(STDDEV("{{ col.name }}"), 4) AS stddev_val,
-    NULL AS min_length,
-    NULL AS max_length
+    COUNT(*) AS total_rows
+{% for col in columns %}
+    , SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) AS "{{ col.name }}__null_count"
+    , ROUND(100.0 * SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS "{{ col.name }}__null_pct"
+{% if approx %}
+    , APPROX_COUNT_DISTINCT("{{ col.name }}") AS "{{ col.name }}__distinct_count"
 {% else %}
-    NULL AS min_val,
-    NULL AS max_val,
-    NULL AS mean_val,
-    NULL AS median_val,
-    NULL AS stddev_val,
-    MIN(LENGTH("{{ col.name }}")) AS min_length,
-    MAX(LENGTH("{{ col.name }}")) AS max_length
+    , COUNT(DISTINCT "{{ col.name }}") AS "{{ col.name }}__distinct_count"
 {% endif %}
-FROM {{ source }}
-{% if not loop.last %}
-UNION ALL
+{% if col.numeric %}
+    , MIN("{{ col.name }}") AS "{{ col.name }}__min_val"
+    , MAX("{{ col.name }}") AS "{{ col.name }}__max_val"
+    , ROUND(AVG("{{ col.name }}"), 4) AS "{{ col.name }}__mean_val"
+    , MEDIAN("{{ col.name }}") AS "{{ col.name }}__median_val"
+    , ROUND(STDDEV("{{ col.name }}"), 4) AS "{{ col.name }}__stddev_val"
+{% else %}
+    , MIN(LENGTH("{{ col.name }}")) AS "{{ col.name }}__min_length"
+    , MAX(LENGTH("{{ col.name }}")) AS "{{ col.name }}__max_length"
 {% endif %}
 {% endfor %}
+FROM {{ source }}

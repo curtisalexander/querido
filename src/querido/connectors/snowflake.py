@@ -220,8 +220,8 @@ class SnowflakeConnector:
         )
         return [
             {
-                "name": r["TABLE_NAME"],
-                "type": "view" if "VIEW" in r["TABLE_TYPE"] else "table",
+                "name": r["table_name"],
+                "type": "view" if "VIEW" in r["table_type"] else "table",
             }
             for r in rows
         ]
@@ -237,12 +237,12 @@ class SnowflakeConnector:
         )
         return [
             {
-                "name": r["COLUMN_NAME"],
-                "type": r["DATA_TYPE"],
-                "nullable": r["IS_NULLABLE"] == "YES",
-                "default": r["COLUMN_DEFAULT"],
+                "name": r["column_name"],
+                "type": r["data_type"],
+                "nullable": r["is_nullable"] == "YES",
+                "default": r["column_default"],
                 "primary_key": False,
-                "comment": r.get("COMMENT") or None,
+                "comment": r.get("comment") or None,
             }
             for r in rows
         ]
@@ -255,8 +255,8 @@ class SnowflakeConnector:
             f"WHERE table_schema = %s AND table_name = %s",
             (schema, tbl),
         )
-        if rows and rows[0].get("COMMENT"):
-            return rows[0]["COMMENT"]
+        if rows and rows[0].get("comment"):
+            return rows[0]["comment"]
         return None
 
     def get_view_definition(self, view: str) -> str | None:
@@ -267,8 +267,8 @@ class SnowflakeConnector:
             f"WHERE table_schema = %s AND table_name = %s",
             (schema, tbl),
         )
-        if rows and rows[0].get("VIEW_DEFINITION"):
-            return rows[0]["VIEW_DEFINITION"]
+        if rows and rows[0].get("view_definition"):
+            return rows[0]["view_definition"]
         return None
 
     def cancel(self) -> None:
@@ -289,6 +289,17 @@ class SnowflakeConnector:
     def __exit__(self, *args: object) -> None:
         self.close()
 
+    @staticmethod
+    def _lower_keys(rows: list[dict]) -> list[dict]:
+        """Normalize dict keys to lowercase for consistency with other connectors.
+
+        Snowflake returns uppercase column names for unquoted identifiers
+        (e.g. ``SELECT COUNT(*) AS cnt`` → ``{"CNT": 42}``).  Lowercasing
+        here lets all downstream code use the same lowercase keys that
+        DuckDB and SQLite produce.
+        """
+        return [{k.lower(): v for k, v in row.items()} for row in rows]
+
     def _fetch_arrow(self, cursor: object) -> list[dict]:
         import pyarrow as pa
 
@@ -296,12 +307,12 @@ class SnowflakeConnector:
         if not batches:
             return []
         table = pa.concat_tables(batches)
-        return table.to_pylist()
+        return self._lower_keys(table.to_pylist())
 
     def _fetch_standard(self, cursor: object) -> list[dict]:
         desc = cursor.description  # type: ignore[union-attr]
         if desc is None:
             return []
-        columns = [d[0] for d in desc]
+        columns = [d[0].lower() for d in desc]
         rows = cursor.fetchall()  # type: ignore[attr-defined]
         return [dict(zip(columns, row, strict=True)) for row in rows]

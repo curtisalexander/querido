@@ -199,8 +199,8 @@ class TestSnowflakeArrow:
         result = connector.execute("SELECT * FROM scores")
 
         assert len(result) == 3
-        assert result[0] == {"ID": 1, "NAME": "Alice", "SCORE": 95.5}
-        assert result[2]["NAME"] == "Carol"
+        assert result[0] == {"id": 1, "name": "Alice", "score": 95.5}
+        assert result[2]["name"] == "Carol"
         cursor.fetch_arrow_batches.assert_called_once()
 
     def test_execute_arrow_returns_pyarrow_table(self):
@@ -286,9 +286,9 @@ class TestSnowflakeArrow:
 
         result = connector.execute("SELECT * FROM typed")
 
-        assert isinstance(result[0]["INT_COL"], int)
-        assert isinstance(result[0]["FLOAT_COL"], float)
-        assert isinstance(result[0]["STR_COL"], str)
+        assert isinstance(result[0]["int_col"], int)
+        assert isinstance(result[0]["float_col"], float)
+        assert isinstance(result[0]["str_col"], str)
 
     def test_execute_falls_back_to_standard_fetch(self):
         """If Arrow fetch fails, execute() falls back to standard cursor."""
@@ -304,7 +304,7 @@ class TestSnowflakeArrow:
         result = connector.execute("SELECT * FROM users")
 
         assert len(result) == 2
-        assert result[0] == {"ID": 1, "NAME": "Alice"}
+        assert result[0] == {"id": 1, "name": "Alice"}
         cursor.fetchall.assert_called_once()
 
 
@@ -487,23 +487,59 @@ class TestSnowflakeFactory:
 
 
 class TestSnowflakeTemplates:
-    def test_profile_template_numeric(self):
+    def test_profile_template_numeric_approx(self):
+        """Default (approx) profile uses APPROX_COUNT_DISTINCT in a single SELECT."""
         from querido.sql.renderer import render_template
 
         cols = [{"name": "PRICE", "type": "FLOAT", "numeric": True}]
-        sql = render_template("profile", "snowflake", columns=cols, source="products")
+        sql = render_template("profile", "snowflake", columns=cols, source="products", approx=True)
         assert "AVG" in sql
         assert "MEDIAN" in sql
         assert "STDDEV" in sql
         assert "products" in sql
+        assert "APPROX_COUNT_DISTINCT" in sql
+        assert "COUNT(DISTINCT" not in sql
+        # Single SELECT, no UNION ALL
+        assert "UNION" not in sql
+
+    def test_profile_template_numeric_exact(self):
+        """Exact profile uses COUNT(DISTINCT) in a single SELECT."""
+        from querido.sql.renderer import render_template
+
+        cols = [{"name": "PRICE", "type": "FLOAT", "numeric": True}]
+        sql = render_template(
+            "profile", "snowflake", columns=cols, source="products", approx=False
+        )
+        assert "COUNT(DISTINCT" in sql
+        assert "APPROX_COUNT_DISTINCT" not in sql
+        assert "UNION" not in sql
 
     def test_profile_template_string(self):
         from querido.sql.renderer import render_template
 
         cols = [{"name": "EMAIL", "type": "VARCHAR", "numeric": False}]
-        sql = render_template("profile", "snowflake", columns=cols, source="users")
+        sql = render_template("profile", "snowflake", columns=cols, source="users", approx=True)
         assert "LENGTH" in sql
         assert "min_length" in sql
+        assert "UNION" not in sql
+
+    def test_profile_template_single_scan_multiple_cols(self):
+        """Multiple columns produce a single SELECT with all stats."""
+        from querido.sql.renderer import render_template
+
+        cols = [
+            {"name": "ID", "type": "NUMBER", "numeric": True},
+            {"name": "NAME", "type": "VARCHAR", "numeric": False},
+            {"name": "SCORE", "type": "FLOAT", "numeric": True},
+        ]
+        sql = render_template("profile", "snowflake", columns=cols, source="scores", approx=True)
+        # Single SELECT — no UNION ALL
+        assert "UNION" not in sql
+        assert sql.strip().startswith("SELECT")
+        # All columns present
+        assert '"ID__null_count"' in sql
+        assert '"NAME__min_length"' in sql
+        assert '"SCORE__distinct_count"' in sql
 
     def test_preview_uses_common_template(self):
         from querido.sql.renderer import render_template

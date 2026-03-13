@@ -13,7 +13,9 @@ def template(
         3, "--sample-values", min=0, max=10, help="Number of sample values per column (0 to skip)."
     ),
     db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
+        None,
+        "--db-type",
+        help="Database type (sqlite/duckdb/snowflake). Inferred from path if omitted.",
     ),
 ) -> None:
     """Generate a documentation template for a table.
