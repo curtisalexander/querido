@@ -41,16 +41,54 @@ def template(
         with create_connector(config) as connector:
             from rich.console import Console
 
+            from querido.cli._progress import query_status
+            from querido.core.template import (
+                assemble_template,
+                get_columns_and_count,
+                get_profile_stats,
+                get_sample_rows,
+            )
+
             console = Console(stderr=True)
 
             check_table_exists(connector, table)
 
-            from querido.cli._progress import query_status
+            with query_status(
+                console,
+                f"Fetching column metadata for [bold]{table}[/bold]",
+                connector,
+            ):
+                columns, table_comment, row_count, col_info = get_columns_and_count(
+                    connector, table
+                )
 
-            with query_status(console, f"Generating template for [bold]{table}[/bold]", connector):
-                from querido.core.template import get_template
+            if console.is_terminal:
+                console.print(
+                    f"  Found [bold]{len(columns)}[/bold] columns, "
+                    f"[bold]{row_count:,}[/bold] rows",
+                    highlight=False,
+                )
 
-                template_result = get_template(connector, table, sample_values=sample_values)
+            with query_status(
+                console,
+                f"Profiling [bold]{len(col_info)}[/bold] columns",
+                connector,
+            ):
+                profile_data = get_profile_stats(connector, table, col_info)
+
+            if sample_values > 0:
+                with query_status(
+                    console,
+                    f"Fetching [bold]{sample_values}[/bold] sample values",
+                    connector,
+                ):
+                    sample_rows = get_sample_rows(connector, table, sample_values)
+            else:
+                sample_rows = []
+
+            template_result = assemble_template(
+                columns, table, table_comment, row_count, profile_data, sample_rows
+            )
 
             from querido.cli._util import get_output_format
 

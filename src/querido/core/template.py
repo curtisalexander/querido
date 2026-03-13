@@ -6,20 +6,12 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
-def get_template(connector: Connector, table: str, *, sample_values: int = 3) -> dict:
-    """Generate a documentation template for *table*.
+def get_columns_and_count(
+    connector: Connector, table: str
+) -> tuple[list[dict], str | None, int, list[dict]]:
+    """Fetch column metadata and row count for *table*.
 
-    Orchestrates inspect + profile + preview queries to build a template
-    with auto-populated metadata and placeholder fields.
-
-    Returns::
-
-        {
-            "table": str,
-            "table_comment": str,
-            "row_count": int,
-            "columns": [{"name": ..., "type": ..., ...}, ...],
-        }
+    Returns ``(columns, table_comment, row_count, col_info)``.
     """
     from querido.connectors.base import validate_column_name
     from querido.core.profile import is_numeric_type
@@ -39,6 +31,16 @@ def get_template(connector: Connector, table: str, *, sample_values: int = 3) ->
         }
         for c in columns
     ]
+
+    return columns, table_comment, row_count, col_info
+
+
+def get_profile_stats(
+    connector: Connector, table: str, col_info: list[dict]
+) -> list[dict]:
+    """Run the profile query and return per-column statistics."""
+    from querido.sql.renderer import render_template
+
     profile_sql = render_template(
         "profile", connector.dialect, columns=col_info, source=table, approx=True
     )
@@ -50,16 +52,35 @@ def get_template(connector: Connector, table: str, *, sample_values: int = 3) ->
 
         profile_data = _unpack_single_row(profile_data[0], col_info)
 
+    return profile_data
+
+
+def get_sample_rows(
+    connector: Connector, table: str, sample_values: int
+) -> list[dict]:
+    """Fetch sample rows for *table*."""
+    from querido.sql.renderer import render_template
+
+    if sample_values <= 0:
+        return []
+    preview_sql = render_template(
+        "preview", connector.dialect, table=table, limit=sample_values
+    )
+    return connector.execute(preview_sql)
+
+
+def assemble_template(
+    columns: list[dict],
+    table: str,
+    table_comment: str | None,
+    row_count: int,
+    profile_data: list[dict],
+    sample_rows: list[dict],
+) -> dict:
+    """Assemble the final template dict from pre-fetched data."""
     profile_by_col: dict[str, dict] = {}
     for row in profile_data:
         profile_by_col[row["column_name"]] = row
-
-    sample_rows: list[dict] = []
-    if sample_values > 0:
-        preview_sql = render_template(
-            "preview", connector.dialect, table=table, limit=sample_values
-        )
-        sample_rows = connector.execute(preview_sql)
 
     template_rows: list[dict] = []
     for col in columns:
@@ -97,3 +118,28 @@ def get_template(connector: Connector, table: str, *, sample_values: int = 3) ->
         "row_count": row_count,
         "columns": template_rows,
     }
+
+
+def get_template(connector: Connector, table: str, *, sample_values: int = 3) -> dict:
+    """Generate a documentation template for *table*.
+
+    Orchestrates inspect + profile + preview queries to build a template
+    with auto-populated metadata and placeholder fields.
+
+    Returns::
+
+        {
+            "table": str,
+            "table_comment": str,
+            "row_count": int,
+            "columns": [{"name": ..., "type": ..., ...}, ...],
+        }
+    """
+    columns, table_comment, row_count, col_info = get_columns_and_count(
+        connector, table
+    )
+    profile_data = get_profile_stats(connector, table, col_info)
+    sample_rows = get_sample_rows(connector, table, sample_values)
+    return assemble_template(
+        columns, table, table_comment, row_count, profile_data, sample_rows
+    )
