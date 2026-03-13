@@ -1,8 +1,8 @@
 SELECT
     COUNT(*) AS total_rows
 {% for col in columns %}
-    , SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) AS "{{ col.name }}__null_count"
-    , ROUND(100.0 * SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS "{{ col.name }}__null_pct"
+    , COUNT_IF("{{ col.name }}" IS NULL) AS "{{ col.name }}__null_count"
+    , ROUND(100.0 * COUNT_IF("{{ col.name }}" IS NULL) / NULLIF(COUNT(*), 0), 2) AS "{{ col.name }}__null_pct"
 {% if approx %}
     , APPROX_COUNT_DISTINCT("{{ col.name }}") AS "{{ col.name }}__distinct_count"
 {% else %}

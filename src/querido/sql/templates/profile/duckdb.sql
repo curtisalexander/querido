@@ -3,8 +3,8 @@ SELECT
     '{{ col.name }}' AS column_name,
     '{{ col.type }}' AS column_type,
     COUNT(*) AS total_rows,
-    SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END)::BIGINT AS null_count,
-    ROUND(100.0 * SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS null_pct,
+    COUNT_IF("{{ col.name }}" IS NULL)::BIGINT AS null_count,
+    ROUND(100.0 * COUNT_IF("{{ col.name }}" IS NULL) / NULLIF(COUNT(*), 0), 2) AS null_pct,
     COUNT(DISTINCT "{{ col.name }}")::BIGINT AS distinct_count,
 {% if col.numeric %}
     MIN("{{ col.name }}") AS min_val,
