@@ -74,7 +74,7 @@ def template(
                 f"Profiling [bold]{len(col_info)}[/bold] columns",
                 connector,
             ):
-                profile_data = get_profile_stats(connector, table, col_info)
+                profile_data = get_profile_stats(connector, table, col_info, row_count)
 
             if sample_values > 0:
                 with query_status(

@@ -35,12 +35,17 @@ def get_columns_and_count(
     return columns, table_comment, row_count, col_info
 
 
-def get_profile_stats(connector: Connector, table: str, col_info: list[dict]) -> list[dict]:
+def get_profile_stats(
+    connector: Connector, table: str, col_info: list[dict], row_count: int
+) -> list[dict]:
     """Run the profile query and return per-column statistics."""
+    from querido.core.profile import _build_sample_source
     from querido.sql.renderer import render_template
 
+    source, _sampled, _sample_size = _build_sample_source(connector, table, row_count)
+
     profile_sql = render_template(
-        "profile", connector.dialect, columns=col_info, source=table, approx=True
+        "profile", connector.dialect, columns=col_info, source=source, approx=True
     )
     profile_data = connector.execute(profile_sql)
 
@@ -130,6 +135,6 @@ def get_template(connector: Connector, table: str, *, sample_values: int = 3) ->
         }
     """
     columns, table_comment, row_count, col_info = get_columns_and_count(connector, table)
-    profile_data = get_profile_stats(connector, table, col_info)
+    profile_data = get_profile_stats(connector, table, col_info, row_count)
     sample_rows = get_sample_rows(connector, table, sample_values)
     return assemble_template(columns, table, table_comment, row_count, profile_data, sample_rows)
