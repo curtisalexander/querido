@@ -5,6 +5,7 @@ from typing import Self
 
 class SnowflakeConnector:
     dialect = "snowflake"
+    supports_concurrent_queries = True
 
     def __init__(self, **kwargs: object) -> None:
         import snowflake.connector  # type: ignore[import-not-found]
@@ -132,7 +133,8 @@ class SnowflakeConnector:
             batches = list(cursor.fetch_arrow_batches())
             if not batches:
                 return pa.table({})
-            return pa.concat_tables(batches)
+            table = pa.concat_tables(batches)
+            return table.rename_columns([c.lower() for c in table.column_names])
         finally:
             self._active_cursor = None
             cursor.close()
@@ -307,7 +309,8 @@ class SnowflakeConnector:
         if not batches:
             return []
         table = pa.concat_tables(batches)
-        return self._lower_keys(table.to_pylist())
+        table = table.rename_columns([c.lower() for c in table.column_names])
+        return table.to_pylist()
 
     def _fetch_standard(self, cursor: object) -> list[dict]:
         desc = cursor.description  # type: ignore[union-attr]

@@ -223,8 +223,8 @@ class TestSnowflakeArrow:
 
         assert isinstance(table, pa.Table)
         assert table.num_rows == 2
-        assert table.column_names == ["ID", "VALUE"]
-        assert table.column("ID").to_pylist() == [10, 20]
+        assert table.column_names == ["id", "value"]
+        assert table.column("id").to_pylist() == [10, 20]
 
     def test_execute_arrow_multiple_batches(self):
         """execute_arrow() concatenates multiple Arrow batches."""
@@ -241,7 +241,7 @@ class TestSnowflakeArrow:
         table = connector.execute_arrow("SELECT x FROM big_table")
 
         assert table.num_rows == 4
-        assert table.column("X").to_pylist() == [1, 2, 3, 4]
+        assert table.column("x").to_pylist() == [1, 2, 3, 4]
 
     def test_execute_arrow_empty_result(self):
         """execute_arrow() returns empty table when no rows."""

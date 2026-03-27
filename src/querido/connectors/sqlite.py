@@ -8,6 +8,7 @@ from querido.connectors.base import validate_table_name
 
 class SQLiteConnector:
     dialect = "sqlite"
+    supports_concurrent_queries = False
 
     def __init__(self, path: str, *, check_same_thread: bool = True) -> None:
         self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)

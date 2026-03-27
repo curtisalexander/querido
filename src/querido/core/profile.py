@@ -220,11 +220,13 @@ def get_frequencies(
 
     *source* is a table name or sampled subquery expression.
     *col_info* is the list from ``get_profile()["col_info"]``.
+
+    When the connector supports concurrent queries (e.g. Snowflake),
+    frequency queries are executed in parallel using a thread pool.
     """
     from querido.sql.renderer import render_template
 
-    freq_data: dict[str, list[dict]] = {}
-    for col in col_info:
+    def _fetch_one(col: dict) -> tuple[str, list[dict]]:
         col_name = str(col["name"])
         freq_sql = render_template(
             "frequency",
@@ -233,5 +235,20 @@ def get_frequencies(
             source=source,
             top=top,
         )
-        freq_data[col_name] = connector.execute(freq_sql)
-    return freq_data
+        return col_name, connector.execute(freq_sql)
+
+    concurrent = getattr(connector, "supports_concurrent_queries", False)
+
+    if concurrent and len(col_info) > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        freq_data: dict[str, list[dict]] = {}
+        max_workers = min(len(col_info), 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {pool.submit(_fetch_one, col): col for col in col_info}
+            for future in as_completed(futures):
+                col_name, rows = future.result()
+                freq_data[col_name] = rows
+        return freq_data
+
+    return {name: rows for name, rows in (_fetch_one(col) for col in col_info)}

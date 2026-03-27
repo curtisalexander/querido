@@ -59,6 +59,8 @@ All database queries must use `.sql` template files in `src/querido/sql/template
 ### Connector Protocol
 All database connectors implement the `Connector` protocol in `connectors/base.py`. Connectors are context managers — always use `with create_connector(config) as conn:` in CLI commands. When adding a new database backend, implement the full protocol including `__enter__`/`__exit__`.
 
+Snowflake and DuckDB connectors also provide `execute_arrow()` which returns a PyArrow Table for zero-copy data handling. Use `connectors/arrow_util.py:execute_arrow_or_dicts()` to opportunistically take the Arrow path with automatic fallback. Connectors also expose `supports_concurrent_queries` (True for Snowflake) to enable parallel query execution in operations like frequency profiling.
+
 ### Input Validation
 Table names are validated at the CLI boundary using `validate_table_name()` from `connectors/base.py`. This prevents SQL injection in templates and f-string interpolations. Always call this before passing a table name to any query.
 

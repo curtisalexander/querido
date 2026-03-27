@@ -42,6 +42,7 @@ querido/
 │       ├── connectors/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── base.py             # Connector Protocol, table name validation
+│       │   ├── arrow_util.py       # Arrow-aware execution helpers (execute_arrow_or_dicts)
 │       │   ├── factory.py          # Creates connector from config/args
 │       │   ├── sqlite.py           # SQLite connector (stdlib, always available)
 │       │   ├── duckdb.py           # DuckDB connector (optional install, also handles Parquet)
@@ -198,6 +199,10 @@ A factory function creates the right connector based on the connection config's 
 
 **Parquet support**: The DuckDB connector has a `register_parquet()` method that creates an in-memory view from a Parquet file. The factory calls this automatically when `parquet_path` is present in the config.
 
+**Arrow fast path**: The Snowflake and DuckDB connectors provide an `execute_arrow()` method that returns a PyArrow Table instead of `list[dict]`. This avoids materializing Python dicts for every row. The helper `connectors/arrow_util.py:execute_arrow_or_dicts()` tries the Arrow path and falls back to `execute()` for connectors that don't support it (SQLite). Column names from Snowflake are normalized to lowercase via zero-copy `rename_columns()` on the Arrow table.
+
+**Concurrent queries**: Connectors expose a `supports_concurrent_queries` class attribute (`True` for Snowflake, `False` for DuckDB/SQLite). When enabled, `core/profile.py:get_frequencies()` runs per-column frequency queries in parallel using a thread pool, reducing wall-clock time for Snowflake profiling.
+
 ### 3. SQL Templates
 
 SQL queries live in `.sql` files using Jinja2 syntax. Templates are organized by command and dialect:
@@ -304,6 +309,7 @@ CLI (Typer)
 | rich | Terminal output | Default | In output functions only |
 | tomli-w | TOML writing (config) | Default | In cli/config.py only |
 | duckdb | DuckDB + Parquet connector | `uv pip install 'querido[duckdb]'` | In connectors/duckdb.py only |
+| pyarrow | Arrow columnar format | `uv pip install 'querido[snowflake]'` | In connectors/snowflake.py, arrow_util.py |
 | snowflake-connector-python | Snowflake connector | `uv pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
 | textual | Interactive TUI | `uv pip install 'querido[tui]'` | In tui/ only |
 | fastapi | Web UI backend | `uv pip install 'querido[web]'` | In web/ only |
