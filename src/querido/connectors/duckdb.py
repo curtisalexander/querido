@@ -7,6 +7,7 @@ from querido.connectors.base import validate_table_name
 
 class DuckDBConnector:
     dialect = "duckdb"
+    supports_concurrent_queries = False
 
     def __init__(self, path: str = ":memory:") -> None:
         import duckdb
@@ -35,9 +36,21 @@ class DuckDBConnector:
         result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
         if result.description is None:
             return []
-        columns = [desc[0] for desc in result.description]
-        rows = result.fetchall()
-        return [dict(zip(columns, row, strict=True)) for row in rows]
+        try:
+            return result.fetch_arrow_table().to_pylist()
+        except Exception:
+            columns = [desc[0] for desc in result.description]
+            rows = result.fetchall()
+            return [dict(zip(columns, row, strict=True)) for row in rows]
+
+    def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> object:
+        """Execute SQL and return results as a PyArrow Table."""
+        import pyarrow as pa
+
+        result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
+        if result.description is None:
+            return pa.table({})
+        return result.fetch_arrow_table()
 
     def get_tables(self) -> list[dict]:
         rows = self.execute(
