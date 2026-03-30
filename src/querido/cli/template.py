@@ -24,24 +24,13 @@ def template(
     min/max, sample values) and leaves placeholders for business definitions,
     data owner, and notes.
     """
-    from querido.cli._util import (
-        check_table_exists,
-        friendly_errors,
-    )
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
-        from querido.config import resolve_connection
-        from querido.connectors.base import validate_table_name
-        from querido.connectors.factory import create_connector
+        from querido.cli._pipeline import dispatch_output, table_command
 
-        validate_table_name(table)
-        config = resolve_connection(connection, db_type)
-
-        with create_connector(config) as connector:
-            from rich.console import Console
-
-            from querido.cli._progress import query_status
+        with table_command(table=table, connection=connection, db_type=db_type) as ctx:
             from querido.core.template import (
                 assemble_template,
                 get_columns_and_count,
@@ -49,40 +38,24 @@ def template(
                 get_sample_rows,
             )
 
-            console = Console(stderr=True)
-
-            check_table_exists(connector, table)
-
-            with query_status(
-                console,
-                f"Fetching column metadata for [bold]{table}[/bold]",
-                connector,
-            ):
+            with ctx.spin(f"Fetching column metadata for [bold]{table}[/bold]"):
                 columns, table_comment, row_count, col_info = get_columns_and_count(
-                    connector, table
+                    ctx.connector, table
                 )
 
-            if console.is_terminal:
-                console.print(
+            if ctx.console.is_terminal:
+                ctx.console.print(
                     f"  Found [bold]{len(columns)}[/bold] columns, "
                     f"[bold]{row_count:,}[/bold] rows",
                     highlight=False,
                 )
 
-            with query_status(
-                console,
-                f"Profiling [bold]{len(col_info)}[/bold] columns",
-                connector,
-            ):
-                profile_data = get_profile_stats(connector, table, col_info, row_count)
+            with ctx.spin(f"Profiling [bold]{len(col_info)}[/bold] columns"):
+                profile_data = get_profile_stats(ctx.connector, table, col_info, row_count)
 
             if sample_values > 0:
-                with query_status(
-                    console,
-                    f"Fetching [bold]{sample_values}[/bold] sample values",
-                    connector,
-                ):
-                    sample_rows = get_sample_rows(connector, table, sample_values)
+                with ctx.spin(f"Fetching [bold]{sample_values}[/bold] sample values"):
+                    sample_rows = get_sample_rows(ctx.connector, table, sample_values)
             else:
                 sample_rows = []
 
@@ -90,21 +63,6 @@ def template(
                 columns, table, table_comment, row_count, profile_data, sample_rows
             )
 
-            from querido.cli._util import get_output_format
-
-            fmt = get_output_format()
-            if fmt == "rich":
-                from querido.output.console import print_template
-
-                print_template(template_result)
-            elif fmt == "html":
-                from querido.cli._util import emit_html
-                from querido.output.html import format_template_html
-
-                emit_html(format_template_html(template_result))
-            else:
-                from querido.output.formats import format_template
-
-                print(format_template(template_result, fmt))
+            dispatch_output("template", template_result)
 
     _run()

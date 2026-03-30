@@ -15,7 +15,8 @@ def explore(
     ),
 ) -> None:
     """Launch an interactive TUI for exploring table data."""
-    from querido.cli._util import check_table_exists, friendly_errors
+    from querido.cli._errors import friendly_errors
+    from querido.cli._validation import check_table_exists
 
     @friendly_errors
     def _run() -> None:

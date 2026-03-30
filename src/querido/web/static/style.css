@@ -163,6 +163,9 @@ tr:hover { background: var(--hover); }
   margin-top: 12px; padding: 16px; border: 1px solid var(--border);
   border-radius: 8px; background: var(--card-bg);
 }
+.dist-chart-wrapper {
+  position: relative; height: 300px; margin-bottom: 20px;
+}
 .dist-bar {
   display: inline-block; height: 16px; background: var(--accent);
   border-radius: 2px; vertical-align: middle; opacity: 0.7;

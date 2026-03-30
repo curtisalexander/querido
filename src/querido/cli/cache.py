@@ -13,7 +13,7 @@ def sync(
     ),
 ) -> None:
     """Fetch all table/column metadata and cache locally."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
@@ -53,12 +53,12 @@ def status(
     ),
 ) -> None:
     """Show cache status (age, table count, staleness)."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
         from querido.cache import MetadataCache
-        from querido.cli._util import get_output_format
+        from querido.cli._context import get_output_format
 
         cache = MetadataCache()
         try:
@@ -135,7 +135,7 @@ def clear(
     ),
 ) -> None:
     """Remove cached metadata."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:

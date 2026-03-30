@@ -17,75 +17,31 @@ def inspect(
     ),
 ) -> None:
     """Show column metadata and row count for a table."""
-    from querido.cli._util import (
-        check_table_exists,
-        friendly_errors,
-        maybe_show_sql,
-        set_last_sql,
-    )
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
-        from querido.config import resolve_connection
-        from querido.connectors.base import validate_table_name
-        from querido.connectors.factory import create_connector
+        from querido.cli._context import maybe_show_sql
+        from querido.cli._errors import set_last_sql
+        from querido.cli._pipeline import dispatch_output, table_command
 
-        validate_table_name(table)
-        config = resolve_connection(connection, db_type)
-
-        with create_connector(config) as connector:
-            from rich.console import Console
-
-            console = Console(stderr=True)
-
-            check_table_exists(connector, table)
-
-            from querido.cli._progress import query_status
-
-            with query_status(console, f"Inspecting [bold]{table}[/bold]", connector):
+        with table_command(table=table, connection=connection, db_type=db_type) as ctx:
+            with ctx.spin(f"Inspecting [bold]{table}[/bold]"):
                 from querido.core.inspect import get_inspect
                 from querido.sql.renderer import render_template
 
-                count_sql = render_template("count", connector.dialect, table=table)
+                count_sql = render_template("count", ctx.connector.dialect, table=table)
                 maybe_show_sql(count_sql)
                 set_last_sql(count_sql)
+                result = get_inspect(ctx.connector, table, verbose=verbose)
 
-                result = get_inspect(connector, table, verbose=verbose)
-
-            from querido.cli._util import get_output_format
-
-            fmt = get_output_format()
-            columns = result["columns"]
-            row_count = result["row_count"]
-            table_comment = result["table_comment"]
-
-            if fmt == "rich":
-                from querido.output.console import print_inspect
-
-                print_inspect(
-                    table, columns, row_count, verbose=verbose, table_comment=table_comment
-                )
-            elif fmt == "html":
-                from querido.cli._util import emit_html
-                from querido.output.html import format_inspect_html
-
-                emit_html(
-                    format_inspect_html(
-                        table, columns, row_count, verbose=verbose, table_comment=table_comment
-                    )
-                )
-            else:
-                from querido.output.formats import format_inspect
-
-                print(
-                    format_inspect(
-                        table,
-                        columns,
-                        row_count,
-                        fmt,
-                        verbose=verbose,
-                        table_comment=table_comment,
-                    )
-                )
+            dispatch_output(
+                "inspect",
+                table,
+                result["columns"],
+                result["row_count"],
+                verbose=verbose,
+                table_comment=result["table_comment"],
+            )
 
     _run()

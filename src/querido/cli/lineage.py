@@ -14,49 +14,25 @@ def lineage(
     ),
 ) -> None:
     """Retrieve the SQL definition of a view."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
-        from querido.cli._util import get_output_format, maybe_show_sql
-        from querido.config import resolve_connection
-        from querido.connectors.base import validate_table_name
-        from querido.connectors.factory import create_connector
+        from querido.cli._context import maybe_show_sql
+        from querido.cli._pipeline import dispatch_output, table_command
 
-        validate_table_name(view)
-        config = resolve_connection(connection, db_type)
-
-        with create_connector(config) as connector:
-            from rich.console import Console
-
-            console = Console(stderr=True)
-
-            from querido.cli._progress import query_status
-
-            msg = f"Retrieving definition for [bold]{view}[/bold]"
-            with query_status(console, msg, connector):
+        with table_command(
+            table=view, connection=connection, db_type=db_type, check_exists=False
+        ) as ctx:
+            with ctx.spin(f"Retrieving definition for [bold]{view}[/bold]"):
                 from querido.core.lineage import get_view_definition
 
                 try:
-                    result = get_view_definition(connector, view)
+                    result = get_view_definition(ctx.connector, view)
                 except LookupError as exc:
                     raise typer.BadParameter(str(exc)) from exc
 
             maybe_show_sql(result["definition"])
-
-            fmt = get_output_format()
-            if fmt == "rich":
-                from querido.output.console import print_lineage
-
-                print_lineage(result)
-            elif fmt == "html":
-                from querido.cli._util import emit_html
-                from querido.output.html import format_lineage_html
-
-                emit_html(format_lineage_html(result))
-            else:
-                from querido.output.formats import format_lineage
-
-                print(format_lineage(result, fmt))
+            dispatch_output("lineage", result)
 
     _run()
