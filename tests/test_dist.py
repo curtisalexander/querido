@@ -255,3 +255,13 @@ def test_dist_categorical_top_1(dist_sqlite: str):
     assert data["mode"] == "categorical"
     assert len(data["values"]) == 1
     assert data["values"][0]["value"] == "electronics"
+
+
+def test_dist_empty_table(tmp_path: Path):
+    db_path = str(tmp_path / "empty.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE empty_t (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score REAL)")
+    conn.commit()
+    conn.close()
+    result = runner.invoke(app, ["dist", "-c", db_path, "-t", "empty_t", "-col", "score"])
+    assert result.exit_code == 0

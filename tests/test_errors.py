@@ -50,29 +50,19 @@ def duckdb_path(tmp_path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_inspect_table_not_found(sqlite_path: str):
-    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "nonexistent"])
-    assert result.exit_code != 0
-    assert "not found" in result.output.lower() or "not found" in (result.stderr or "").lower()
-
-
-def test_preview_table_not_found(sqlite_path: str):
-    result = runner.invoke(app, ["preview", "-c", sqlite_path, "-t", "nonexistent"])
-    assert result.exit_code != 0
-
-
-def test_profile_table_not_found(sqlite_path: str):
-    result = runner.invoke(app, ["profile", "-c", sqlite_path, "-t", "nonexistent"])
-    assert result.exit_code != 0
-
-
-def test_dist_table_not_found(sqlite_path: str):
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "nonexistent", "-col", "id"])
-    assert result.exit_code != 0
-
-
-def test_sql_select_table_not_found(sqlite_path: str):
-    result = runner.invoke(app, ["sql", "select", "-c", sqlite_path, "-t", "nonexistent"])
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["inspect", "-t", "nonexistent"],
+        ["preview", "-t", "nonexistent"],
+        ["profile", "-t", "nonexistent"],
+        ["dist", "-t", "nonexistent", "-col", "id"],
+        ["sql", "select", "-t", "nonexistent"],
+    ],
+    ids=["inspect", "preview", "profile", "dist", "sql-select"],
+)
+def test_table_not_found(sqlite_path: str, args: list[str]):
+    result = runner.invoke(app, [*args, "-c", sqlite_path])
     assert result.exit_code != 0
 
 

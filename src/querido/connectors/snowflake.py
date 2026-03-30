@@ -273,6 +273,9 @@ class SnowflakeConnector:
             return rows[0]["view_definition"]
         return None
 
+    def sample_source(self, table: str, sample_size: int) -> str:
+        return f"(SELECT * FROM {table} SAMPLE ({sample_size} ROWS)) AS _sample"
+
     def cancel(self) -> None:
         """Cancel the currently executing query on the Snowflake connection."""
         import contextlib

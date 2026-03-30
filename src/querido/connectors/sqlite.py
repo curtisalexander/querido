@@ -60,6 +60,9 @@ class SQLiteConnector:
             return rows[0]["sql"]
         return None
 
+    def sample_source(self, table: str, sample_size: int) -> str:
+        return f"(SELECT * FROM {table} ORDER BY RANDOM() LIMIT {sample_size}) AS _sample"
+
     def cancel(self) -> None:
         """Interrupt a running query."""
         self.conn.interrupt()
