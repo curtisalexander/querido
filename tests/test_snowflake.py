@@ -494,7 +494,7 @@ class TestSnowflakeTemplates:
         cols = [{"name": "PRICE", "type": "FLOAT", "numeric": True}]
         sql = render_template("profile", "snowflake", columns=cols, source="products", approx=True)
         assert "AVG" in sql
-        assert "MEDIAN" in sql
+        assert "APPROX_PERCENTILE" in sql
         assert "STDDEV" in sql
         assert "products" in sql
         assert "APPROX_COUNT_DISTINCT" in sql

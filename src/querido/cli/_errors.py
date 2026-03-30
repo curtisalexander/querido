@@ -23,6 +23,10 @@ def set_last_sql(sql: str) -> None:
         _last_sql = sql
 
 
+def set_last_connector(connector: object) -> None:
+    """Record the active connector (currently unused, reserved for future use)."""
+
+
 def _format_db_error(exc: Exception) -> str:
     """Turn a database driver exception into a user-friendly message."""
     msg = str(exc).strip()

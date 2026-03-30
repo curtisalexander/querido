@@ -93,6 +93,44 @@ class TestUnpackSingleRow:
         assert result[1]["min_length"] == 2
 
 
+def test_profile_batched_produces_all_columns():
+    """Column batching should produce stats for every column in order.
+
+    Uses DuckDB single-threaded (DuckDB is not thread-safe), so we test
+    the batching/merge logic by calling the internal helpers directly.
+    """
+    from querido.connectors.duckdb import DuckDBConnector
+    from querido.core.profile import _build_col_info, _unpack_single_row
+    from querido.sql.renderer import render_template
+
+    with DuckDBConnector() as connector:
+        # Create a wide table with 30 columns
+        cols = ", ".join(f"c{i} INTEGER" for i in range(30))
+        connector.conn.execute(f"CREATE TABLE wide ({cols})")
+        vals = ", ".join("1" for _ in range(30))
+        connector.conn.execute(f"INSERT INTO wide VALUES ({vals})")
+
+        col_meta = connector.get_columns("wide")
+        col_info = _build_col_info(col_meta)
+
+        # Simulate batched profiling: split into batches, run each, merge
+        batch_size = 10
+        batches = [col_info[i : i + batch_size] for i in range(0, len(col_info), batch_size)]
+        all_stats: list[dict] = []
+        for batch in batches:
+            sql = render_template(
+                "profile", connector.dialect, columns=batch, source="wide", approx=True
+            )
+            raw = connector.execute(sql)
+            assert len(raw) == 1
+            assert "total_rows" in raw[0]
+            all_stats.extend(_unpack_single_row(raw[0], batch))
+
+        assert len(all_stats) == 30
+        for i, s in enumerate(all_stats):
+            assert s["column_name"] == f"c{i}"
+
+
 def test_profile_sqlite(sqlite_path: str):
     result = runner.invoke(app, ["profile", "--connection", sqlite_path, "--table", "users"])
     assert result.exit_code == 0

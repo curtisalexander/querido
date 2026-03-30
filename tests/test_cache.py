@@ -152,6 +152,55 @@ def test_cache_re_sync_overwrites(tmp_path: Path, cache_sqlite: str):
         assert second[0]["tables"] == 3
 
 
+def test_sync_tables_only(tmp_path: Path, cache_sqlite: str):
+    from querido.cache import MetadataCache
+    from querido.connectors.sqlite import SQLiteConnector
+
+    cache_path = tmp_path / "test_cache.db"
+
+    with MetadataCache(cache_path) as cache, SQLiteConnector(cache_sqlite) as conn:
+        count = cache.sync_tables_only("test-conn", conn)
+        assert count == 3  # users, orders, user_summary
+
+        # Cache should be fresh
+        assert cache.is_fresh("test-conn")
+
+        # Table lookup should work
+        assert cache.has_table("test-conn", "users") is True
+        assert cache.has_table("test-conn", "nonexistent") is False
+
+        # Columns should NOT be cached (tables-only sync)
+        assert cache.get_cached_columns("test-conn", "users") is None
+
+
+def test_has_table_and_get_cached(tmp_path: Path, cache_sqlite: str):
+    from querido.cache import MetadataCache
+    from querido.connectors.sqlite import SQLiteConnector
+
+    cache_path = tmp_path / "test_cache.db"
+
+    with MetadataCache(cache_path) as cache, SQLiteConnector(cache_sqlite) as conn:
+        # Empty cache returns None (not False)
+        assert cache.has_table("test-conn", "users") is None
+
+        cache.sync("test-conn", conn)
+
+        # Full sync populates both tables and columns
+        assert cache.has_table("test-conn", "users") is True
+        assert cache.has_table("test-conn", "orders") is True
+        assert cache.has_table("test-conn", "nope") is False
+
+        cols = cache.get_cached_columns("test-conn", "users")
+        assert cols is not None
+        col_names = [c["name"] for c in cols]
+        assert "id" in col_names
+        assert "name" in col_names
+
+        tables = cache.get_cached_tables("test-conn")
+        assert tables is not None
+        assert len(tables) == 3
+
+
 # -- CLI command tests --------------------------------------------------------
 
 

@@ -78,47 +78,98 @@ class MetadataCache:
         column_count = 0
 
         for tbl in tables:
-            tbl_name = tbl["name"]
-            tbl_type = tbl["type"]
-
             self._conn.execute(
                 "INSERT INTO cached_tables (connection, table_name, table_type, cached_at) "
                 "VALUES (?, ?, ?, ?)",
-                (connection_name, tbl_name, tbl_type, now),
+                (connection_name, tbl["name"], tbl["type"], now),
             )
             table_count += 1
 
+        # Fetch column metadata — use parallel fetching for concurrent connectors
+        concurrent = getattr(connector, "supports_concurrent_queries", False)
+        table_names = [t["name"] for t in tables]
+
+        def _fetch_cols(tbl_name: str) -> tuple[str, list[dict]]:
             try:
-                columns = connector.get_columns(tbl_name)
+                return tbl_name, connector.get_columns(tbl_name)
             except Exception as exc:
                 print(
                     f"Warning: could not read columns for '{tbl_name}': {exc}",
                     file=sys.stderr,
                 )
-                continue
+                return tbl_name, []
 
-            for col in columns:
-                self._conn.execute(
-                    "INSERT INTO cached_columns "
-                    "(connection, table_name, column_name, column_type, "
-                    "nullable, comment, cached_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        connection_name,
-                        tbl_name,
-                        col["name"],
-                        col["type"],
-                        1 if col.get("nullable") else 0,
-                        col.get("comment"),
-                        now,
-                    ),
-                )
-                column_count += 1
+        if concurrent and len(table_names) > 1:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            max_workers = min(len(table_names), 4)
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {pool.submit(_fetch_cols, n): n for n in table_names}
+                for future in as_completed(futures):
+                    tbl_name, columns = future.result()
+                    column_count += self._insert_columns(connection_name, tbl_name, columns, now)
+        else:
+            for tbl_name in table_names:
+                _, columns = _fetch_cols(tbl_name)
+                column_count += self._insert_columns(connection_name, tbl_name, columns, now)
 
         self._conn.commit()
         elapsed = time.monotonic() - start
 
         return {"tables": table_count, "columns": column_count, "elapsed": round(elapsed, 2)}
+
+    def sync_tables_only(
+        self,
+        connection_name: str,
+        connector: Connector,
+    ) -> int:
+        """Fetch table names and cache them (no column metadata).
+
+        This is a lightweight alternative to :meth:`sync` designed for
+        auto-warming the cache in the background.  Only the table list is
+        fetched — column metadata is skipped because fetching columns for
+        every table is the expensive part of a full sync.
+
+        Returns the number of tables cached.
+        """
+        now = time.time()
+
+        self._conn.execute("DELETE FROM cached_tables WHERE connection = ?", (connection_name,))
+
+        tables = connector.get_tables()
+        for tbl in tables:
+            self._conn.execute(
+                "INSERT INTO cached_tables (connection, table_name, table_type, cached_at) "
+                "VALUES (?, ?, ?, ?)",
+                (connection_name, tbl["name"], tbl["type"], now),
+            )
+
+        self._conn.commit()
+        return len(tables)
+
+    def _insert_columns(
+        self, connection_name: str, tbl_name: str, columns: list[dict], now: float
+    ) -> int:
+        """Insert column rows into the cache and return the count."""
+        count = 0
+        for col in columns:
+            self._conn.execute(
+                "INSERT INTO cached_columns "
+                "(connection, table_name, column_name, column_type, "
+                "nullable, comment, cached_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    connection_name,
+                    tbl_name,
+                    col["name"],
+                    col["type"],
+                    1 if col.get("nullable") else 0,
+                    col.get("comment"),
+                    now,
+                ),
+            )
+            count += 1
+        return count
 
     def status(self, connection_name: str | None = None) -> list[dict]:
         """Return cache status for one or all connections.
@@ -243,6 +294,57 @@ class MetadataCache:
                 )
 
         return results
+
+    def has_table(self, connection_name: str, table: str) -> bool | None:
+        """Check if a table exists in the cache.
+
+        Returns ``True``/``False`` if the cache is fresh, or ``None`` if the
+        cache is stale or empty (caller should fall back to a live query).
+        """
+        if not self.is_fresh(connection_name):
+            return None
+        row = self._conn.execute(
+            "SELECT 1 FROM cached_tables WHERE connection = ? AND lower(table_name) = lower(?)",
+            (connection_name, table),
+        ).fetchone()
+        return row is not None
+
+    def get_cached_columns(self, connection_name: str, table: str) -> list[dict] | None:
+        """Return cached column metadata for a table, or None if stale/missing."""
+        if not self.is_fresh(connection_name):
+            return None
+        rows = self._conn.execute(
+            "SELECT column_name, column_type, nullable, comment "
+            "FROM cached_columns "
+            "WHERE connection = ? AND lower(table_name) = lower(?)",
+            (connection_name, table),
+        ).fetchall()
+        if not rows:
+            return None
+        return [
+            {
+                "name": r["column_name"],
+                "type": r["column_type"],
+                "nullable": bool(r["nullable"]),
+                "default": None,
+                "primary_key": False,
+                "comment": r["comment"],
+            }
+            for r in rows
+        ]
+
+    def get_cached_tables(self, connection_name: str) -> list[dict] | None:
+        """Return cached table list, or None if stale/missing."""
+        if not self.is_fresh(connection_name):
+            return None
+        rows = self._conn.execute(
+            "SELECT table_name, table_type FROM cached_tables "
+            "WHERE connection = ? ORDER BY table_name",
+            (connection_name,),
+        ).fetchall()
+        if not rows:
+            return None
+        return [{"name": r["table_name"], "type": r["table_type"]} for r in rows]
 
     def is_fresh(self, connection_name: str, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> bool:
         """Check if the cache for a connection is fresh (within TTL)."""
