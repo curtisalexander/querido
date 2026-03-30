@@ -13,6 +13,7 @@ class DuckDBConnector:
         import duckdb
 
         self.conn = duckdb.connect(path)
+        self._columns_cache: dict[str, list[dict]] = {}
 
     def register_parquet(self, parquet_path: str) -> str:
         """Register a parquet file as a view and return the view name."""
@@ -67,15 +68,18 @@ class DuckDBConnector:
 
     def get_columns(self, table: str) -> list[dict]:
         validate_table_name(table)
+        cache_key = table.lower()
+        if cache_key in self._columns_cache:
+            return self._columns_cache[cache_key]
         # Case normalization is done in Python (.lower()) rather than in SQL
         # (LOWER()) to avoid per-row function calls on large catalogs.
         rows = self.execute(
             "SELECT column_name, data_type, is_nullable, column_default, comment "
             "FROM duckdb_columns() "
             "WHERE schema_name = 'main' AND table_name = $table_name",
-            {"table_name": table.lower()},
+            {"table_name": cache_key},
         )
-        return [
+        result = [
             {
                 "name": r["column_name"],
                 "type": r["data_type"],
@@ -86,6 +90,8 @@ class DuckDBConnector:
             }
             for r in rows
         ]
+        self._columns_cache[cache_key] = result
+        return result
 
     def get_table_comment(self, table: str) -> str | None:
         """Return the table comment, or None if not set."""
@@ -110,7 +116,13 @@ class DuckDBConnector:
             return rows[0]["sql"]
         return None
 
-    def sample_source(self, table: str, sample_size: int) -> str:
+    def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
+        # Use system (block-level) sampling for large tables (>10M rows).
+        # System sampling skips entire row groups and is significantly faster
+        # than reservoir sampling, which must scan every row.
+        if row_count > 10_000_000:
+            pct = max(sample_size / row_count * 100, 0.01)
+            return f"(SELECT * FROM {table} USING SAMPLE {pct:.4f} PERCENT (SYSTEM)) AS _sample"
         return f"(SELECT * FROM {table} USING SAMPLE {sample_size}) AS _sample"
 
     def cancel(self) -> None:

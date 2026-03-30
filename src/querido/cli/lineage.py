@@ -21,9 +21,7 @@ def lineage(
         from querido.cli._context import maybe_show_sql
         from querido.cli._pipeline import dispatch_output, table_command
 
-        with table_command(
-            table=view, connection=connection, db_type=db_type, check_exists=False
-        ) as ctx:
+        with table_command(table=view, connection=connection, db_type=db_type) as ctx:
             with ctx.spin(f"Retrieving definition for [bold]{view}[/bold]"):
                 from querido.core.lineage import get_view_definition
 

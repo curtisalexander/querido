@@ -89,7 +89,7 @@ def _build_sample_source(
         sample_size = 100_000
 
     if sample_size is not None and sample_size < row_count:
-        source = connector.sample_source(table, sample_size)
+        source = connector.sample_source(table, sample_size, row_count=row_count)
         sampled = True
 
     return source, sampled, sample_size
@@ -184,16 +184,25 @@ def get_profile(
     )
 
     approx = not exact
-    sql = render_template(
-        "profile", connector.dialect, columns=col_info, source=source, approx=approx
-    )
-    raw = connector.execute(sql)
+    concurrent = getattr(connector, "supports_concurrent_queries", False)
 
-    # The Snowflake template produces a single wide row; reshape it.
-    if raw and len(raw) == 1 and "total_rows" in raw[0]:
-        stats = _unpack_single_row(raw[0], col_info)
+    # For wide tables on concurrent connectors, batch columns into groups
+    # and run profile queries in parallel.  Each batch produces a single
+    # wide row that we unpack and merge.
+    batch_size = 25
+    if concurrent and len(col_info) > batch_size:
+        stats = _profile_batched(connector, col_info, source, approx, batch_size=batch_size)
     else:
-        stats = raw
+        sql = render_template(
+            "profile", connector.dialect, columns=col_info, source=source, approx=approx
+        )
+        raw = connector.execute(sql)
+
+        # The single-scan templates produce a single wide row; reshape it.
+        if raw and len(raw) == 1 and "total_rows" in raw[0]:
+            stats = _unpack_single_row(raw[0], col_info)
+        else:
+            stats = raw
 
     return {
         "stats": stats,
@@ -203,6 +212,50 @@ def get_profile(
         "source": source,
         "col_info": col_info,
     }
+
+
+def _profile_batched(
+    connector: Connector,
+    col_info: list[dict],
+    source: str,
+    approx: bool,
+    *,
+    batch_size: int = 25,
+) -> list[dict]:
+    """Run profile queries in parallel batches for wide tables.
+
+    Splits *col_info* into groups of *batch_size* columns, renders a
+    profile query for each batch, executes them concurrently, and merges
+    the per-column stats into a single list.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from querido.sql.renderer import render_template
+
+    batches = [col_info[i : i + batch_size] for i in range(0, len(col_info), batch_size)]
+
+    def _run_batch(batch: list[dict]) -> list[dict]:
+        sql = render_template(
+            "profile", connector.dialect, columns=batch, source=source, approx=approx
+        )
+        raw = connector.execute(sql)
+        if raw and len(raw) == 1 and "total_rows" in raw[0]:
+            return _unpack_single_row(raw[0], batch)
+        return raw
+
+    all_stats: list[dict] = []
+    max_workers = min(len(batches), 4)
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_run_batch, batch): i for i, batch in enumerate(batches)}
+        results: dict[int, list[dict]] = {}
+        for future in as_completed(futures):
+            idx = futures[future]
+            results[idx] = future.result()
+
+    # Reassemble in original column order
+    for i in sorted(results):
+        all_stats.extend(results[i])
+    return all_stats
 
 
 def get_frequencies(

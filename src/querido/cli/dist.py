@@ -25,8 +25,6 @@ def dist(
 
     @friendly_errors
     def _run() -> None:
-        from querido.cli._context import maybe_show_sql
-        from querido.cli._errors import set_last_sql
         from querido.cli._pipeline import dispatch_output, table_command
         from querido.cli._validation import resolve_column
         from querido.connectors.base import validate_column_name
@@ -38,13 +36,7 @@ def dist(
 
             with ctx.spin(f"Computing distribution for [bold]{canonical_col}[/bold]"):
                 from querido.core.dist import get_distribution
-                from querido.sql.renderer import render_template
 
-                null_sql = render_template(
-                    "null_count", ctx.connector.dialect, column=canonical_col, table=table
-                )
-                maybe_show_sql(null_sql)
-                set_last_sql(null_sql)
                 dist_result = get_distribution(
                     ctx.connector, table, canonical_col, buckets=buckets, top=top
                 )

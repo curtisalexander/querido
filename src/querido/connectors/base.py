@@ -59,13 +59,11 @@ class Connector(Protocol):
         """Return the SQL definition of a view, or None if not a view."""
         ...
 
-    def sample_source(self, table: str, sample_size: int) -> str:
+    def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
         """Return a SQL source expression for sampling *sample_size* rows.
 
-        The default implementation uses ``ORDER BY RANDOM() LIMIT N``, which
-        works on most databases.  Connectors should override this when the
-        database supports more efficient sampling syntax (e.g. DuckDB's
-        ``USING SAMPLE`` or Snowflake's ``SAMPLE (N ROWS)``).
+        When *row_count* is provided and the table is very large, connectors
+        may use block-level sampling (percentage-based) for better performance.
         """
         ...
 

@@ -13,6 +13,11 @@ class SQLiteConnector:
     def __init__(self, path: str, *, check_same_thread: bool = True) -> None:
         self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
         self.conn.row_factory = sqlite3.Row
+        self._columns_cache: dict[str, list[dict]] = {}
+        # Optimize for read-heavy profiling workloads.
+        self.conn.execute("PRAGMA journal_mode = WAL")
+        self.conn.execute("PRAGMA cache_size = -65536")  # 64 MB page cache
+        self.conn.execute("PRAGMA mmap_size = 268435456")  # 256 MB mmap
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         cursor = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
@@ -30,10 +35,13 @@ class SQLiteConnector:
 
     def get_columns(self, table: str) -> list[dict]:
         validate_table_name(table)
+        cache_key = table.lower()
+        if cache_key in self._columns_cache:
+            return self._columns_cache[cache_key]
         # PRAGMA doesn't support bind parameters, so we use an f-string here.
         # validate_table_name above ensures the name is a safe identifier.
         rows = self.execute(f"PRAGMA table_info({table})")
-        return [
+        result = [
             {
                 "name": r["name"],
                 "type": r["type"],
@@ -44,6 +52,8 @@ class SQLiteConnector:
             }
             for r in rows
         ]
+        self._columns_cache[cache_key] = result
+        return result
 
     def get_table_comment(self, table: str) -> str | None:
         """SQLite does not support table comments."""
@@ -60,8 +70,15 @@ class SQLiteConnector:
             return rows[0]["sql"]
         return None
 
-    def sample_source(self, table: str, sample_size: int) -> str:
-        return f"(SELECT * FROM {table} ORDER BY RANDOM() LIMIT {sample_size}) AS _sample"
+    def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
+        # Bernoulli-style sampling: probabilistically include rows without
+        # sorting.  Much faster than ORDER BY RANDOM() on large tables because
+        # it avoids the full sort and can stop early via LIMIT.
+        return (
+            f"(SELECT * FROM {table} WHERE ABS(RANDOM()) % "
+            f"MAX((SELECT COUNT(*) FROM {table}) / {sample_size}, 1) = 0 "
+            f"LIMIT {sample_size}) AS _sample"
+        )
 
     def cancel(self) -> None:
         """Interrupt a running query."""

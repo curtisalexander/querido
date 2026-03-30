@@ -72,6 +72,7 @@ class SnowflakeConnector:
 
         self.conn = snowflake.connector.connect(**kwargs)
         self._active_cursor: object | None = None
+        self._columns_cache: dict[str, list[dict]] = {}
 
         # Use config values when available; fall back to querying the session
         # for any that are missing (needed for connections.toml where db/schema
@@ -230,6 +231,9 @@ class SnowflakeConnector:
 
     def get_columns(self, table: str) -> list[dict]:
         database, schema, tbl = self._resolve_table(table)
+        cache_key = f"{database}.{schema}.{tbl}".upper()
+        if cache_key in self._columns_cache:
+            return self._columns_cache[cache_key]
         rows = self.execute(
             f"SELECT column_name, data_type, is_nullable, column_default, comment "
             f"FROM {database}.information_schema.columns "
@@ -237,7 +241,7 @@ class SnowflakeConnector:
             f"ORDER BY ordinal_position",
             (schema, tbl),
         )
-        return [
+        result = [
             {
                 "name": r["column_name"],
                 "type": r["data_type"],
@@ -248,6 +252,8 @@ class SnowflakeConnector:
             }
             for r in rows
         ]
+        self._columns_cache[cache_key] = result
+        return result
 
     def get_table_comment(self, table: str) -> str | None:
         """Return the table comment from Snowflake, or None if not set."""
@@ -273,7 +279,13 @@ class SnowflakeConnector:
             return rows[0]["view_definition"]
         return None
 
-    def sample_source(self, table: str, sample_size: int) -> str:
+    def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
+        # Use block sampling for large tables (>10M rows). Block sampling
+        # operates on whole micropartitions and is 5-10x faster because it
+        # skips entire storage blocks rather than evaluating each row.
+        if row_count > 10_000_000:
+            pct = max(sample_size / row_count * 100, 0.01)
+            return f"(SELECT * FROM {table} SAMPLE SYSTEM ({pct:.4f})) AS _sample"
         return f"(SELECT * FROM {table} SAMPLE ({sample_size} ROWS)) AS _sample"
 
     def cancel(self) -> None:

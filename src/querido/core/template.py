@@ -123,7 +123,9 @@ def get_template(connector: Connector, table: str, *, sample_values: int = 3) ->
     """Generate a documentation template for *table*.
 
     Orchestrates inspect + profile + preview queries to build a template
-    with auto-populated metadata and placeholder fields.
+    with auto-populated metadata and placeholder fields.  When the
+    connector supports concurrent queries, the profile and sample queries
+    run in parallel.
 
     Returns::
 
@@ -135,6 +137,18 @@ def get_template(connector: Connector, table: str, *, sample_values: int = 3) ->
         }
     """
     columns, table_comment, row_count, col_info = get_columns_and_count(connector, table)
-    profile_data = get_profile_stats(connector, table, col_info, row_count)
-    sample_rows = get_sample_rows(connector, table, sample_values)
+
+    concurrent = getattr(connector, "supports_concurrent_queries", False)
+    if concurrent:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            profile_future = pool.submit(get_profile_stats, connector, table, col_info, row_count)
+            sample_future = pool.submit(get_sample_rows, connector, table, sample_values)
+            profile_data = profile_future.result()
+            sample_rows = sample_future.result()
+    else:
+        profile_data = get_profile_stats(connector, table, col_info, row_count)
+        sample_rows = get_sample_rows(connector, table, sample_values)
+
     return assemble_template(columns, table, table_comment, row_count, profile_data, sample_rows)

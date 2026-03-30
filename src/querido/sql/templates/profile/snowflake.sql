@@ -12,7 +12,11 @@ SELECT
     , MIN("{{ col.name }}") AS "{{ col.name }}__min_val"
     , MAX("{{ col.name }}") AS "{{ col.name }}__max_val"
     , ROUND(AVG("{{ col.name }}"::DOUBLE), 4) AS "{{ col.name }}__mean_val"
+{% if approx %}
+    , APPROX_PERCENTILE("{{ col.name }}"::DOUBLE, 0.5) AS "{{ col.name }}__median_val"
+{% else %}
     , MEDIAN("{{ col.name }}"::DOUBLE) AS "{{ col.name }}__median_val"
+{% endif %}
     , ROUND(STDDEV("{{ col.name }}"::DOUBLE), 4) AS "{{ col.name }}__stddev_val"
 {% else %}
     , MIN(LENGTH("{{ col.name }}")) AS "{{ col.name }}__min_length"
