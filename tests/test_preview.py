@@ -1,3 +1,6 @@
+import sqlite3
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -39,3 +42,14 @@ def test_preview_duckdb_with_rows_flag(duckdb_path: str):
     )
     assert result.exit_code == 0
     assert "1 row(s)" in result.output
+
+
+def test_preview_empty_table(tmp_path: Path):
+    db_path = str(tmp_path / "empty.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE empty_t (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score REAL)")
+    conn.commit()
+    conn.close()
+    result = runner.invoke(app, ["preview", "-c", db_path, "-t", "empty_t"])
+    assert result.exit_code == 0
+    assert "No rows found" in result.output

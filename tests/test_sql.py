@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -187,6 +188,35 @@ class TestSqlScratch:
         rows = verify_conn.execute("SELECT * FROM tmp_items").fetchall()
         assert len(rows) == 2
         verify_conn.close()
+
+
+class TestSqlEmptyTable:
+    @pytest.fixture
+    def empty_sqlite(self, tmp_path: Path) -> str:
+        db_path = str(tmp_path / "empty.db")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "CREATE TABLE empty_t (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score REAL)"
+        )
+        conn.commit()
+        conn.close()
+        return db_path
+
+    def test_select_empty_table(self, empty_sqlite: str) -> None:
+        result = runner.invoke(app, ["sql", "select", "-c", empty_sqlite, "-t", "empty_t"])
+        assert result.exit_code == 0
+        assert "SELECT" in result.output
+        assert "FROM empty_t;" in result.output
+
+    def test_ddl_empty_table(self, empty_sqlite: str) -> None:
+        result = runner.invoke(app, ["sql", "ddl", "-c", empty_sqlite, "-t", "empty_t"])
+        assert result.exit_code == 0
+        assert "CREATE TABLE empty_t" in result.output
+
+    def test_insert_empty_table(self, empty_sqlite: str) -> None:
+        result = runner.invoke(app, ["sql", "insert", "-c", empty_sqlite, "-t", "empty_t"])
+        assert result.exit_code == 0
+        assert "INSERT INTO empty_t" in result.output
 
 
 class TestSqlHelp:

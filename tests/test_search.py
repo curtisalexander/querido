@@ -171,3 +171,14 @@ def test_search_invalid_type(multi_table_sqlite: str):
         app, ["search", "-p", "user", "-c", multi_table_sqlite, "--type", "invalid"]
     )
     assert result.exit_code != 0
+
+
+def test_search_finds_empty_table(tmp_path: Path):
+    db_path = str(tmp_path / "empty.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE empty_t (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score REAL)")
+    conn.commit()
+    conn.close()
+    result = runner.invoke(app, ["search", "-p", "empty_t", "-c", db_path])
+    assert result.exit_code == 0
+    assert "empty_t" in result.output

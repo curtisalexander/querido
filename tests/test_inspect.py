@@ -1,3 +1,6 @@
+import sqlite3
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -79,3 +82,17 @@ def test_inspect_verbose_markdown_includes_comments(duckdb_with_comments_path: s
     assert "Comment" in result.output
     assert "Application user accounts" in result.output
     assert "Full legal name" in result.output
+
+
+def test_inspect_empty_table(tmp_path: Path):
+    db_path = str(tmp_path / "empty.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE empty_t (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score REAL)")
+    conn.commit()
+    conn.close()
+    result = runner.invoke(app, ["inspect", "-c", db_path, "-t", "empty_t"])
+    assert result.exit_code == 0
+    assert "id" in result.output
+    assert "name" in result.output
+    assert "score" in result.output
+    assert "0" in result.output

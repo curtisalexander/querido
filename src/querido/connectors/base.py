@@ -37,6 +37,7 @@ def validate_object_name(name: str) -> str:
 @runtime_checkable
 class Connector(Protocol):
     dialect: str
+    supports_concurrent_queries: bool
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         """Execute SQL and return results as list of dicts."""
@@ -58,6 +59,16 @@ class Connector(Protocol):
         """Return the SQL definition of a view, or None if not a view."""
         ...
 
+    def sample_source(self, table: str, sample_size: int) -> str:
+        """Return a SQL source expression for sampling *sample_size* rows.
+
+        The default implementation uses ``ORDER BY RANDOM() LIMIT N``, which
+        works on most databases.  Connectors should override this when the
+        database supports more efficient sampling syntax (e.g. DuckDB's
+        ``USING SAMPLE`` or Snowflake's ``SAMPLE (N ROWS)``).
+        """
+        ...
+
     def cancel(self) -> None:
         """Cancel a running query.  Default is a no-op."""
         ...
@@ -67,3 +78,19 @@ class Connector(Protocol):
     def __enter__(self) -> Self: ...
 
     def __exit__(self, *args: object) -> None: ...
+
+
+@runtime_checkable
+class ArrowConnector(Connector, Protocol):
+    """Extended connector that supports returning results as PyArrow Tables.
+
+    Connectors that implement ``execute_arrow()`` enable zero-copy data
+    handling in operations like profiling.  Use
+    ``connectors/arrow_util.py:execute_arrow_or_dicts()`` to
+    opportunistically take the Arrow path with automatic fallback for
+    connectors that only implement the base ``Connector`` protocol.
+    """
+
+    def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> object:
+        """Execute SQL and return results as a PyArrow Table."""
+        ...
