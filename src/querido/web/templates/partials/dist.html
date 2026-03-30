@@ -9,6 +9,62 @@
   {% if dist_result.mode == "numeric" %}
   {% set buckets = dist_result["buckets"] %}
   {% set max_count = buckets|map(attribute='count')|max if buckets else 1 %}
+
+  <!-- Chart -->
+  <div class="dist-chart-wrapper">
+    <canvas id="dist-chart"></canvas>
+  </div>
+  <script>
+  (function() {
+    var ctx = document.getElementById('dist-chart');
+    if (typeof Chart !== 'undefined') {
+      var existing = Chart.getChart(ctx);
+      if (existing) existing.destroy();
+
+      var mins = {{ buckets | map(attribute='bucket_min') | list | tojson }};
+      var maxes = {{ buckets | map(attribute='bucket_max') | list | tojson }};
+      var data = {{ buckets | map(attribute='count') | list | tojson }};
+      var labels = mins.map(function(m, i) { return m + ' – ' + maxes[i]; });
+
+      var style = getComputedStyle(document.documentElement);
+      var accent = style.getPropertyValue('--accent').trim();
+      var fg = style.getPropertyValue('--fg').trim();
+      var border = style.getPropertyValue('--border').trim();
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Count',
+            data: data,
+            backgroundColor: accent + 'b3',
+            borderColor: accent,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { color: fg, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
+              grid: { color: border }
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Count', color: fg },
+              ticks: { color: fg },
+              grid: { color: border }
+            }
+          }
+        }
+      });
+    }
+  })();
+  </script>
+
   <div class="table-wrapper">
     <table id="dist-table" data-sortable>
       <thead>
@@ -35,6 +91,62 @@
   {% else %}
   {% set cat_values = dist_result["values"] %}
   {% set max_count = cat_values|map(attribute='count')|max if cat_values else 1 %}
+
+  <!-- Chart -->
+  <div class="dist-chart-wrapper" style="height:{{ [300, cat_values|length * 28]|max }}px">
+    <canvas id="dist-chart"></canvas>
+  </div>
+  <script>
+  (function() {
+    var ctx = document.getElementById('dist-chart');
+    if (typeof Chart !== 'undefined') {
+      var existing = Chart.getChart(ctx);
+      if (existing) existing.destroy();
+
+      var labels = {{ cat_values | map(attribute='value') | list | tojson }};
+      var data = {{ cat_values | map(attribute='count') | list | tojson }};
+      labels = labels.map(function(v) { return v === null ? '(NULL)' : String(v); });
+
+      var style = getComputedStyle(document.documentElement);
+      var accent = style.getPropertyValue('--accent').trim();
+      var fg = style.getPropertyValue('--fg').trim();
+      var border = style.getPropertyValue('--border').trim();
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Count',
+            data: data,
+            backgroundColor: accent + 'b3',
+            borderColor: accent,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              beginAtZero: true,
+              title: { display: true, text: 'Count', color: fg },
+              ticks: { color: fg },
+              grid: { color: border }
+            },
+            y: {
+              ticks: { color: fg, autoSkip: false },
+              grid: { color: border }
+            }
+          }
+        }
+      });
+    }
+  })();
+  </script>
+
   <div class="table-wrapper">
     <table id="dist-table" data-sortable>
       <thead>

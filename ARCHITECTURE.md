@@ -25,7 +25,12 @@ querido/
 │       ├── config.py               # TOML config loading, connection resolution
 │       ├── cli/
 │       │   ├── __init__.py         # Package marker
-│       │   ├── _util.py            # CLI utilities (maybe_show_sql, is_numeric_type)
+│       │   ├── _context.py         # Output format, SQL display, HTML emission
+│       │   ├── _errors.py          # friendly_errors decorator, error classification
+│       │   ├── _pipeline.py        # table_command context manager, dispatch_output helper
+│       │   ├── _progress.py        # Elapsed-time query spinner with cancellation
+│       │   ├── _util.py            # Backward-compatible re-exports from split modules
+│       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions
 │       │   ├── main.py             # Entry point, Typer app, registers subcommands
 │       │   ├── cache.py            # `qdo cache sync/status/clear` — metadata cache management
 │       │   ├── config.py           # `qdo config add/list` — connection management

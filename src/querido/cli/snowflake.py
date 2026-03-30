@@ -38,31 +38,18 @@ def semantic(
     ),
 ) -> None:
     """Generate a Cortex Analyst semantic model YAML from table metadata."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
-        from querido.cli._util import check_table_exists
-        from querido.config import resolve_connection
-        from querido.connectors.base import validate_table_name
-        from querido.connectors.factory import create_connector
+        from querido.cli._pipeline import table_command
 
-        validate_table_name(table)
-        config = resolve_connection(connection, db_type)
+        with table_command(table=table, connection=connection, db_type=db_type) as ctx:
+            _require_snowflake(ctx.connector.dialect, "semantic")
 
-        with create_connector(config) as connector:
-            from rich.console import Console
-
-            console = Console(stderr=True)
-
-            _require_snowflake(connector.dialect, "semantic")
-
-            from querido.cli._progress import query_status
-
-            with query_status(console, f"Reading metadata for [bold]{table}[/bold]", connector):
-                check_table_exists(connector, table)
-                columns = connector.get_columns(table)
-                table_comment = connector.get_table_comment(table)
+            with ctx.spin(f"Reading metadata for [bold]{table}[/bold]"):
+                columns = ctx.connector.get_columns(table)
+                table_comment = ctx.connector.get_table_comment(table)
 
         yaml_str = _build_semantic_yaml(table, columns, table_comment)
 
@@ -179,11 +166,11 @@ def lineage(
     depth: int = typer.Option(5, "--depth", help="Maximum traversal depth."),
 ) -> None:
     """Trace upstream/downstream lineage via Snowflake GET_LINEAGE."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
-        from querido.cli._util import get_output_format
+        from querido.cli._pipeline import dispatch_output
         from querido.config import resolve_connection
         from querido.connectors.factory import create_connector
 
@@ -222,20 +209,7 @@ def lineage(
             "entries": rows,
         }
 
-        fmt = get_output_format()
-        if fmt == "rich":
-            from querido.output.console import print_snowflake_lineage
-
-            print_snowflake_lineage(result)
-        elif fmt == "html":
-            from querido.cli._util import emit_html
-            from querido.output.html import format_snowflake_lineage_html
-
-            emit_html(format_snowflake_lineage_html(result))
-        else:
-            from querido.output.formats import format_snowflake_lineage
-
-            print(format_snowflake_lineage(result, fmt))
+        dispatch_output("snowflake_lineage", result)
 
     _run()
 
@@ -265,7 +239,8 @@ def _query_lineage(
         f")"
     )
 
-    from querido.cli._util import maybe_show_sql, set_last_sql
+    from querido.cli._context import maybe_show_sql
+    from querido.cli._errors import set_last_sql
 
     maybe_show_sql(sql)
     set_last_sql(sql)

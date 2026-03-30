@@ -21,7 +21,7 @@ def _get_columns_and_dialect(
     table: str, connection: str, db_type: str | None
 ) -> tuple[list[dict], str]:
     """Validate, connect, and return (columns, dialect)."""
-    from querido.cli._util import check_table_exists
+    from querido.cli._validation import check_table_exists
     from querido.config import resolve_connection
     from querido.connectors.base import validate_table_name
     from querido.connectors.factory import create_connector
@@ -85,7 +85,7 @@ def select(
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a SELECT statement with all columns."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
@@ -102,7 +102,7 @@ def insert(
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate an INSERT statement with named placeholders."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
@@ -119,7 +119,7 @@ def ddl(
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a CREATE TABLE DDL statement."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
@@ -136,7 +136,7 @@ def task(
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a Snowflake task template. (Snowflake only)"""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
@@ -154,7 +154,7 @@ def udf(
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a UDF template using table columns as parameters."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
@@ -171,7 +171,7 @@ def procedure(
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a stored procedure template. (Snowflake only)"""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
@@ -196,11 +196,11 @@ def scratch(
     rows: int = typer.Option(5, "--rows", "-r", min=1, help="Number of sample rows to include."),
 ) -> None:
     """Generate a temp table with sample data for experimentation."""
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
-        from querido.cli._util import check_table_exists
+        from querido.cli._validation import check_table_exists
         from querido.config import resolve_connection
         from querido.connectors.base import validate_table_name
         from querido.connectors.factory import create_connector

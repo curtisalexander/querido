@@ -28,7 +28,7 @@ def serve(
         )
         raise typer.Exit(1) from None
 
-    from querido.cli._util import friendly_errors
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:

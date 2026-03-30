@@ -21,65 +21,34 @@ def dist(
     ),
 ) -> None:
     """Visualize distribution of a column's values."""
-    from querido.cli._util import (
-        check_table_exists,
-        friendly_errors,
-    )
+    from querido.cli._errors import friendly_errors
 
     @friendly_errors
     def _run() -> None:
-        from querido.cli._util import (
-            get_output_format,
-            maybe_show_sql,
-            resolve_column,
-            set_last_sql,
-        )
-        from querido.config import resolve_connection
-        from querido.connectors.base import validate_column_name, validate_table_name
-        from querido.connectors.factory import create_connector
+        from querido.cli._context import maybe_show_sql
+        from querido.cli._errors import set_last_sql
+        from querido.cli._pipeline import dispatch_output, table_command
+        from querido.cli._validation import resolve_column
+        from querido.connectors.base import validate_column_name
 
-        validate_table_name(table)
         validate_column_name(column)
-        config = resolve_connection(connection, db_type)
 
-        with create_connector(config) as connector:
-            from rich.console import Console
+        with table_command(table=table, connection=connection, db_type=db_type) as ctx:
+            canonical_col = resolve_column(ctx.connector, table, column)
 
-            console = Console(stderr=True)
-
-            check_table_exists(connector, table)
-            canonical_col = resolve_column(connector, table, column)
-
-            from querido.cli._progress import query_status
-
-            msg = f"Computing distribution for [bold]{canonical_col}[/bold]"
-            with query_status(console, msg, connector):
+            with ctx.spin(f"Computing distribution for [bold]{canonical_col}[/bold]"):
                 from querido.core.dist import get_distribution
                 from querido.sql.renderer import render_template
 
                 null_sql = render_template(
-                    "null_count", connector.dialect, column=canonical_col, table=table
+                    "null_count", ctx.connector.dialect, column=canonical_col, table=table
                 )
                 maybe_show_sql(null_sql)
                 set_last_sql(null_sql)
-
                 dist_result = get_distribution(
-                    connector, table, canonical_col, buckets=buckets, top=top
+                    ctx.connector, table, canonical_col, buckets=buckets, top=top
                 )
 
-            fmt = get_output_format()
-            if fmt == "rich":
-                from querido.output.console import print_dist
-
-                print_dist(dist_result)
-            elif fmt == "html":
-                from querido.cli._util import emit_html
-                from querido.output.html import format_dist_html
-
-                emit_html(format_dist_html(dist_result))
-            else:
-                from querido.output.formats import format_dist
-
-                print(format_dist(dist_result, fmt))
+            dispatch_output("dist", dist_result)
 
     _run()
