@@ -82,7 +82,7 @@ class SnowflakeConnector:
         if not self._database or not self._schema:
             cursor = self.conn.cursor()
             try:
-                cursor.execute("SELECT CURRENT_DATABASE(), CURRENT_SCHEMA()")
+                cursor.execute("select current_database(), current_schema()")
                 row = cursor.fetchone()
                 if not self._database:
                     self._database = row[0] if row and row[0] else ""
@@ -217,8 +217,8 @@ class SnowflakeConnector:
         validate_object_name(sch)
 
         rows = self.execute(
-            f"SELECT table_name, table_type FROM {db}.information_schema.tables "
-            f"WHERE table_schema = %s ORDER BY table_name",
+            f"select table_name, table_type from {db}.information_schema.tables "
+            f"where table_schema = %s order by table_name",
             (sch,),
         )
         return [
@@ -235,10 +235,10 @@ class SnowflakeConnector:
         if cache_key in self._columns_cache:
             return self._columns_cache[cache_key]
         rows = self.execute(
-            f"SELECT column_name, data_type, is_nullable, column_default, comment "
-            f"FROM {database}.information_schema.columns "
-            f"WHERE table_schema = %s AND table_name = %s "
-            f"ORDER BY ordinal_position",
+            f"select column_name, data_type, is_nullable, column_default, comment "
+            f"from {database}.information_schema.columns "
+            f"where table_schema = %s and table_name = %s "
+            f"order by ordinal_position",
             (schema, tbl),
         )
         result = [
@@ -259,8 +259,8 @@ class SnowflakeConnector:
         """Return the table comment from Snowflake, or None if not set."""
         database, schema, tbl = self._resolve_table(table)
         rows = self.execute(
-            f"SELECT comment FROM {database}.information_schema.tables "
-            f"WHERE table_schema = %s AND table_name = %s",
+            f"select comment from {database}.information_schema.tables "
+            f"where table_schema = %s and table_name = %s",
             (schema, tbl),
         )
         if rows and rows[0].get("comment"):
@@ -271,8 +271,8 @@ class SnowflakeConnector:
         """Return the SQL definition of a view from information_schema.views."""
         database, schema, tbl = self._resolve_table(view)
         rows = self.execute(
-            f"SELECT view_definition FROM {database}.information_schema.views "
-            f"WHERE table_schema = %s AND table_name = %s",
+            f"select view_definition from {database}.information_schema.views "
+            f"where table_schema = %s and table_name = %s",
             (schema, tbl),
         )
         if rows and rows[0].get("view_definition"):
@@ -285,8 +285,8 @@ class SnowflakeConnector:
         # skips entire storage blocks rather than evaluating each row.
         if row_count > 10_000_000:
             pct = max(sample_size / row_count * 100, 0.01)
-            return f"(SELECT * FROM {table} SAMPLE SYSTEM ({pct:.4f})) AS _sample"
-        return f"(SELECT * FROM {table} SAMPLE ({sample_size} ROWS)) AS _sample"
+            return f"(select * from {table} sample system ({pct:.4f})) as _sample"
+        return f"(select * from {table} sample ({sample_size} rows)) as _sample"
 
     def cancel(self) -> None:
         """Cancel the currently executing query on the Snowflake connection."""

@@ -176,8 +176,20 @@ def get_profile(
 
     col_info = _build_col_info(col_meta)
 
-    count_sql = render_template("count", connector.dialect, table=table)
-    row_count = connector.execute(count_sql)[0]["cnt"]
+    # Only run a separate count query when we need it for auto-sampling.
+    # When sample is explicit or no_sample is set, skip the extra table scan;
+    # the real row count will be extracted from the profile query result.
+    needs_auto_sample = sample is None and not no_sample
+    if needs_auto_sample:
+        count_sql = render_template("count", connector.dialect, table=table)
+        row_count = connector.execute(count_sql)[0]["cnt"]
+    elif sample is not None:
+        # Explicit sample requested — use a large sentinel so
+        # _build_sample_source always enables sampling.
+        row_count = sample + 1
+    else:
+        # no_sample is True — row_count is unused for sampling decisions.
+        row_count = 0
 
     source, sampled, sample_size = _build_sample_source(
         connector, table, row_count, sample=sample, no_sample=no_sample
@@ -203,6 +215,10 @@ def get_profile(
             stats = _unpack_single_row(raw[0], col_info)
         else:
             stats = raw
+
+    # Extract row_count from the profile result when we skipped the count query.
+    if not needs_auto_sample:
+        row_count = stats[0].get("total_rows", 0) if stats else 0
 
     return {
         "stats": stats,

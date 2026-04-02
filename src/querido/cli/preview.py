@@ -24,15 +24,17 @@ def preview(
         from querido.cli._pipeline import dispatch_output, table_command
 
         with table_command(table=table, connection=connection, db_type=db_type) as ctx:
-            with ctx.spin(f"Loading preview of [bold]{table}[/bold]"):
+            with ctx.spin(f"Loading preview of [bold]{ctx.table}[/bold]"):
                 from querido.core.preview import get_preview
                 from querido.sql.renderer import render_template
 
-                sql = render_template("preview", ctx.connector.dialect, table=table, limit=rows)
+                sql = render_template(
+                    "preview", ctx.connector.dialect, table=ctx.table, limit=rows
+                )
                 maybe_show_sql(sql)
                 set_last_sql(sql)
-                data = get_preview(ctx.connector, table, limit=rows)
+                data = get_preview(ctx.connector, ctx.table, limit=rows)
 
-            dispatch_output("preview", table, data, rows)
+            dispatch_output("preview", ctx.table, data, rows)
 
     _run()

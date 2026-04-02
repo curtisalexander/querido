@@ -16,10 +16,10 @@ def explore(
 ) -> None:
     """Launch an interactive TUI for exploring table data."""
     from querido.cli._errors import friendly_errors
-    from querido.cli._validation import check_table_exists
 
     @friendly_errors
     def _run() -> None:
+        from querido.cli._validation import resolve_table
         from querido.config import resolve_connection
         from querido.connectors.base import validate_table_name
         from querido.connectors.factory import create_connector
@@ -41,11 +41,11 @@ def explore(
 
         connector = create_connector(config)
         try:
-            check_table_exists(connector, table)
+            resolved = resolve_table(connector, table)
 
             from querido.tui.app import ExploreApp
 
-            tui_app = ExploreApp(connector=connector, table=table, max_rows=rows)
+            tui_app = ExploreApp(connector=connector, table=resolved, max_rows=rows)
             tui_app.run()
         finally:
             connector.close()

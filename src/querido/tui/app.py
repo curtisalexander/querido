@@ -128,7 +128,7 @@ class ExploreApp(App):
             # The filter expression is user-provided SQL typed into the TUI.
             # This is intentional — the user already has direct database access
             # and the TUI is a local-only tool, so this is not a security risk.
-            sql = f"SELECT * FROM {self.table} WHERE {self._filter_sql} LIMIT {self.max_rows}"
+            sql = f"select * from {self.table} where {self._filter_sql} limit {self.max_rows}"
             try:
                 self._rows = self.connector.execute(sql)
             except Exception as exc:

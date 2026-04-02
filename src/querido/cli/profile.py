@@ -44,18 +44,18 @@ def profile(
         from querido.cli._pipeline import dispatch_output, table_command
 
         with table_command(table=table, connection=connection, db_type=db_type) as ctx:
-            with ctx.spin(f"Profiling [bold]{table}[/bold]"):
+            with ctx.spin(f"Profiling [bold]{ctx.table}[/bold]"):
                 from querido.core.profile import get_profile
                 from querido.sql.renderer import render_template
 
-                count_sql = render_template("count", ctx.connector.dialect, table=table)
+                count_sql = render_template("count", ctx.connector.dialect, table=ctx.table)
                 maybe_show_sql(count_sql)
                 set_last_sql(count_sql)
 
                 try:
                     result = get_profile(
                         ctx.connector,
-                        table,
+                        ctx.table,
                         columns=columns,
                         sample=sample,
                         no_sample=no_sample,
@@ -76,7 +76,7 @@ def profile(
 
             dispatch_output(
                 "profile",
-                table,
+                ctx.table,
                 result["stats"],
                 result["row_count"],
                 result["sampled"],
@@ -94,6 +94,6 @@ def profile(
                         top,
                     )
 
-                dispatch_output("frequencies", table, freq_data, result["row_count"])
+                dispatch_output("frequencies", ctx.table, freq_data, result["row_count"])
 
     _run()

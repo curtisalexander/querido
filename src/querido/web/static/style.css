@@ -6,6 +6,7 @@
   --toolbar-bg: #f1f3f5; --badge-bg: #e9ecef;
   --sidebar-bg: #f8f9fa; --nav-bg: #1a1a2e; --nav-fg: #e0e0e0;
   --card-bg: #ffffff; --card-shadow: rgba(0,0,0,0.06);
+  --bg-alt: #f1f5f9; --fg-muted: #6b7280;
   --success: #2ecc71; --warning: #f39c12; --error: #e74c3c;
 }
 @media (prefers-color-scheme: dark) {
@@ -15,6 +16,7 @@
     --toolbar-bg: #22223a; --badge-bg: #2a2a4e;
     --sidebar-bg: #16162a; --nav-bg: #0e0e1a; --nav-fg: #c0c0d0;
     --card-bg: #22223a; --card-shadow: rgba(0,0,0,0.2);
+    --bg-alt: #2a2a4e; --fg-muted: #9ca3af;
   }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -156,6 +158,33 @@ tr:hover { background: var(--hover); }
   overflow-x: auto; font-size: 0.85rem; border: 1px solid var(--border);
   font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
   white-space: pre-wrap; line-height: 1.5;
+}
+
+/* --- Profile overview chart --- */
+.profile-overview {
+  margin-bottom: 16px; padding: 16px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--card-bg);
+}
+.profile-overview h4 {
+  margin: 0 0 8px; font-size: 0.85rem; font-weight: 600;
+  color: var(--fg-muted);
+}
+.profile-chart-wrapper {
+  position: relative; margin-bottom: 8px;
+}
+
+/* --- Inline percentage bars (null %, distinct) --- */
+.pct-bar-wrapper {
+  position: relative; width: 90px; height: 18px;
+  background: var(--bg-alt); border-radius: 3px;
+  overflow: hidden; display: inline-flex; align-items: center;
+}
+.pct-bar {
+  height: 100%; border-radius: 3px; min-width: 1px;
+}
+.pct-bar-label {
+  position: absolute; right: 4px; font-size: 0.72rem;
+  font-weight: 500; color: var(--fg); white-space: nowrap;
 }
 
 /* --- Distribution panel --- */

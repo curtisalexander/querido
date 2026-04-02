@@ -20,6 +20,7 @@ class CommandContext:
 
     connector: Connector
     console: Console
+    table: str = ""
 
     def spin(self, message: str) -> contextlib.AbstractContextManager:
         """Return a query_status spinner context manager."""
@@ -34,22 +35,21 @@ def table_command(
     table: str,
     connection: str,
     db_type: str | None = None,
-    check_exists: bool = False,
 ) -> Generator[CommandContext]:
     """Context manager that handles the common CLI command setup.
 
     Validates the table name, resolves the connection, creates a connector,
-    optionally checks that the table exists, and yields a ``CommandContext``
-    with the connector, console, and a ``spin()`` helper for query spinners.
+    resolves the table to its canonical name, and yields a ``CommandContext``
+    with the connector, console, resolved table name, and a ``spin()`` helper.
 
     Usage::
 
         with table_command(table=t, connection=c, db_type=d) as ctx:
             with ctx.spin("Loading preview"):
-                data = get_preview(ctx.connector, t, limit=20)
-            dispatch_output("preview", t, data, 20)
+                data = get_preview(ctx.connector, ctx.table, limit=20)
+            dispatch_output("preview", ctx.table, data, 20)
     """
-    from querido.cli._validation import check_table_exists as _check
+    from querido.cli._validation import resolve_table
     from querido.config import resolve_connection
     from querido.connectors.base import validate_table_name
     from querido.connectors.factory import create_connector
@@ -65,15 +65,14 @@ def table_command(
         console = Console(stderr=True)
         set_last_connector(connector)
 
-        if check_exists:
-            _check(connector, table)
+        resolved_table = resolve_table(connector, table)
 
         _maybe_warm_cache(connection, config, connector)
 
         try:
-            yield CommandContext(connector=connector, console=console)
+            yield CommandContext(connector=connector, console=console, table=resolved_table)
         except Exception as exc:
-            _maybe_reraise_as_table_not_found(exc, connector, table)
+            _maybe_reraise_as_table_not_found(exc, connector, resolved_table)
             raise
 
 

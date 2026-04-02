@@ -43,7 +43,7 @@ def snowflake_cmd_sqlite(tmp_path: Path) -> str:
 
 class TestSemanticYamlGeneration:
     def test_build_semantic_yaml_basic(self):
-        from querido.cli.snowflake import _build_semantic_yaml
+        from querido.core.semantic import build_semantic_yaml
 
         columns = [
             {"name": "ORDER_ID", "type": "NUMBER", "comment": "Primary key"},
@@ -52,7 +52,7 @@ class TestSemanticYamlGeneration:
             {"name": "ORDER_DATE", "type": "DATE", "comment": "When placed"},
             {"name": "STATUS", "type": "VARCHAR", "comment": "Current status"},
         ]
-        yaml_str = _build_semantic_yaml("ORDERS", columns, "Orders table")
+        yaml_str = build_semantic_yaml("ORDERS", columns, "Orders table")
 
         assert "name: orders_semantic_model" in yaml_str
         assert "description: Orders table" in yaml_str
@@ -92,39 +92,39 @@ class TestSemanticYamlGeneration:
         assert classify_column_kind(col) == "dimension"
 
     def test_yaml_includes_comments_as_descriptions(self):
-        from querido.cli.snowflake import _build_semantic_yaml
+        from querido.core.semantic import build_semantic_yaml
 
         columns = [
             {"name": "REVENUE", "type": "FLOAT", "comment": "Total revenue"},
         ]
-        yaml_str = _build_semantic_yaml("SALES", columns, None)
+        yaml_str = build_semantic_yaml("SALES", columns, None)
         assert "description: Total revenue" in yaml_str
 
     def test_yaml_placeholder_when_no_comment(self):
-        from querido.cli.snowflake import _build_semantic_yaml
+        from querido.core.semantic import build_semantic_yaml
 
         columns = [
             {"name": "STATUS", "type": "VARCHAR", "comment": None},
         ]
-        yaml_str = _build_semantic_yaml("ORDERS", columns, None)
+        yaml_str = build_semantic_yaml("ORDERS", columns, None)
         assert "<description>" in yaml_str
 
     def test_yaml_measures_have_default_aggregation(self):
-        from querido.cli.snowflake import _build_semantic_yaml
+        from querido.core.semantic import build_semantic_yaml
 
         columns = [
             {"name": "AMOUNT", "type": "FLOAT", "comment": None},
         ]
-        yaml_str = _build_semantic_yaml("SALES", columns, None)
+        yaml_str = build_semantic_yaml("SALES", columns, None)
         assert "default_aggregation: sum" in yaml_str
 
     def test_yaml_dimensions_have_synonyms_placeholder(self):
-        from querido.cli.snowflake import _build_semantic_yaml
+        from querido.core.semantic import build_semantic_yaml
 
         columns = [
             {"name": "STATUS", "type": "VARCHAR", "comment": None},
         ]
-        yaml_str = _build_semantic_yaml("ORDERS", columns, None)
+        yaml_str = build_semantic_yaml("ORDERS", columns, None)
         assert "synonyms:" in yaml_str
         assert "<synonym>" in yaml_str
 

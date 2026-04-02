@@ -13,17 +13,17 @@ class TestSqlSelect:
     def test_select_sqlite(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "select", "-t", "users", "-c", sqlite_path])
         assert result.exit_code == 0
-        assert "SELECT" in result.output
+        assert "select" in result.output
         assert "id," in result.output
         assert "name," in result.output
         assert "age" in result.output
-        assert "FROM users;" in result.output
+        assert "from users;" in result.output
 
     def test_select_duckdb(self, duckdb_path: str) -> None:
         result = runner.invoke(app, ["sql", "select", "-t", "users", "-c", duckdb_path])
         assert result.exit_code == 0
-        assert "SELECT" in result.output
-        assert "FROM users;" in result.output
+        assert "select" in result.output
+        assert "from users;" in result.output
 
     def test_select_has_all_columns_with_commas(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "select", "-t", "users", "-c", sqlite_path])
@@ -34,7 +34,7 @@ class TestSqlSelect:
         assert "age" in output
         # Last column should not have trailing comma before FROM
         lines = output.strip().splitlines()
-        from_idx = next(i for i, line in enumerate(lines) if "FROM" in line)
+        from_idx = next(i for i, line in enumerate(lines) if "from" in line)
         col_line = lines[from_idx - 1].strip()
         assert not col_line.endswith(",")
 
@@ -43,11 +43,11 @@ class TestSqlInsert:
     def test_insert_sqlite(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "insert", "-t", "users", "-c", sqlite_path])
         assert result.exit_code == 0
-        assert "INSERT INTO users" in result.output
+        assert "insert into users" in result.output
         assert ":id," in result.output
         assert ":name," in result.output
         assert ":age" in result.output
-        assert "VALUES" in result.output
+        assert "values" in result.output
 
     def test_insert_correct_placeholder_count(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "insert", "-t", "users", "-c", sqlite_path])
@@ -63,26 +63,26 @@ class TestSqlDdl:
     def test_ddl_sqlite(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "ddl", "-t", "users", "-c", sqlite_path])
         assert result.exit_code == 0
-        assert "CREATE TABLE users" in result.output
+        assert "create table users" in result.output
         assert "id INTEGER" in result.output
-        assert "PRIMARY KEY" in result.output
-        assert "name TEXT NOT NULL" in result.output
+        assert "primary key" in result.output
+        assert "name TEXT not null" in result.output
 
     def test_ddl_duckdb(self, duckdb_path: str) -> None:
         result = runner.invoke(app, ["sql", "ddl", "-t", "users", "-c", duckdb_path])
         assert result.exit_code == 0
-        assert "CREATE TABLE users" in result.output
+        assert "create table users" in result.output
         assert "id INTEGER" in result.output
-        assert "name VARCHAR NOT NULL" in result.output
+        assert "name VARCHAR not null" in result.output
 
     def test_ddl_not_null_constraints(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "ddl", "-t", "users", "-c", sqlite_path])
         assert result.exit_code == 0
-        assert "NOT NULL" in result.output
+        assert "not null" in result.output
         # 'age' is nullable, so it should not have NOT NULL
         for line in result.output.splitlines():
             if "age" in line and "INTEGER" in line:
-                assert "NOT NULL" not in line
+                assert "not null" not in line
 
 
 class TestSqlUdf:
@@ -96,9 +96,9 @@ class TestSqlUdf:
     def test_udf_duckdb(self, duckdb_path: str) -> None:
         result = runner.invoke(app, ["sql", "udf", "-t", "users", "-c", duckdb_path])
         assert result.exit_code == 0
-        assert "CREATE OR REPLACE FUNCTION my_udf" in result.output
-        assert "RETURNS VARCHAR" in result.output
-        assert "LANGUAGE SQL" in result.output
+        assert "create or replace function my_udf" in result.output
+        assert "returns varchar" in result.output
+        assert "language sql" in result.output
 
 
 class TestSqlSnowflakeOnly:
@@ -119,20 +119,20 @@ class TestSqlScratch:
             app, ["sql", "scratch", "-t", "users", "-c", sqlite_path, "-r", "2"]
         )
         assert result.exit_code == 0
-        assert "CREATE TEMP TABLE tmp_users" in result.output
-        assert "INSERT INTO tmp_users" in result.output
+        assert "create temp table tmp_users" in result.output
+        assert "insert into tmp_users" in result.output
         assert "'Alice'" in result.output
         assert "'Bob'" in result.output
-        assert "SELECT * FROM tmp_users" in result.output
+        assert "select * from tmp_users" in result.output
 
     def test_scratch_duckdb(self, duckdb_path: str) -> None:
         result = runner.invoke(
             app, ["sql", "scratch", "-t", "users", "-c", duckdb_path, "-r", "1"]
         )
         assert result.exit_code == 0
-        assert "CREATE TEMP TABLE tmp_users" in result.output
-        assert "INSERT INTO tmp_users" in result.output
-        assert result.output.count("INSERT INTO") == 1
+        assert "create temp table tmp_users" in result.output
+        assert "insert into tmp_users" in result.output
+        assert result.output.count("insert into") == 1
 
     def test_scratch_null_handling(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "scratch", "-t", "users", "-c", sqlite_path])
@@ -144,7 +144,7 @@ class TestSqlScratch:
             app, ["sql", "scratch", "-t", "users", "-c", sqlite_path, "-r", "1"]
         )
         assert result.exit_code == 0
-        assert result.output.count("INSERT INTO") == 1
+        assert result.output.count("insert into") == 1
 
     def test_scratch_rows_0_rejected(self, sqlite_path: str) -> None:
         result = runner.invoke(
@@ -205,18 +205,18 @@ class TestSqlEmptyTable:
     def test_select_empty_table(self, empty_sqlite: str) -> None:
         result = runner.invoke(app, ["sql", "select", "-c", empty_sqlite, "-t", "empty_t"])
         assert result.exit_code == 0
-        assert "SELECT" in result.output
-        assert "FROM empty_t;" in result.output
+        assert "select" in result.output
+        assert "from empty_t;" in result.output
 
     def test_ddl_empty_table(self, empty_sqlite: str) -> None:
         result = runner.invoke(app, ["sql", "ddl", "-c", empty_sqlite, "-t", "empty_t"])
         assert result.exit_code == 0
-        assert "CREATE TABLE empty_t" in result.output
+        assert "create table empty_t" in result.output
 
     def test_insert_empty_table(self, empty_sqlite: str) -> None:
         result = runner.invoke(app, ["sql", "insert", "-c", empty_sqlite, "-t", "empty_t"])
         assert result.exit_code == 0
-        assert "INSERT INTO empty_t" in result.output
+        assert "insert into empty_t" in result.output
 
 
 class TestSqlHelp:

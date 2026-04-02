@@ -56,15 +56,16 @@ def get_distribution(
             "buckets": data,
         }
     else:
-        null_sql = render_template("null_count", connector.dialect, column=column, table=table)
-        null_result = connector.execute(null_sql)
-        total_rows = null_result[0]["total"]
-        null_count = null_result[0]["null_count"]
-
         freq_sql = render_template(
             "frequency", connector.dialect, column=column, source=table, top=top
         )
         data = connector.execute(freq_sql)
+        # Frequency templates include total_rows and null_count via a stats CTE.
+        total_rows = data[0]["total_rows"] if data else 0
+        null_count = data[0]["null_count"] if data else 0
+        # Strip the stats columns from the value rows returned to callers.
+        _strip = {"total_rows", "null_count"}
+        values = [{k: v for k, v in row.items() if k not in _strip} for row in data]
         return {
             "table": table,
             "column": column,
@@ -72,5 +73,5 @@ def get_distribution(
             "mode": "categorical",
             "total_rows": total_rows,
             "null_count": null_count,
-            "values": data,
+            "values": values,
         }

@@ -10,7 +10,16 @@ def template(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
     sample_values: int = typer.Option(
-        3, "--sample-values", min=0, max=10, help="Number of sample values per column (0 to skip)."
+        25,
+        "--sample-values",
+        min=0,
+        max=100,
+        help="Distinct sample values per column (0 to skip). Snowflake recommends 25+.",
+    ),
+    style: str = typer.Option(
+        "table",
+        "--style",
+        help="Markdown style: 'table' (flat table) or 'detailed' (per-column sections).",
     ),
     db_type: str | None = typer.Option(
         None,
@@ -38,9 +47,9 @@ def template(
                 get_sample_rows,
             )
 
-            with ctx.spin(f"Fetching column metadata for [bold]{table}[/bold]"):
+            with ctx.spin(f"Fetching column metadata for [bold]{ctx.table}[/bold]"):
                 columns, table_comment, row_count, col_info = get_columns_and_count(
-                    ctx.connector, table
+                    ctx.connector, ctx.table
                 )
 
             if ctx.console.is_terminal:
@@ -51,18 +60,20 @@ def template(
                 )
 
             with ctx.spin(f"Profiling [bold]{len(col_info)}[/bold] columns"):
-                profile_data = get_profile_stats(ctx.connector, table, col_info, row_count)
+                profile_data = get_profile_stats(
+                    ctx.connector, ctx.table, col_info, row_count
+                )
 
             if sample_values > 0:
                 with ctx.spin(f"Fetching [bold]{sample_values}[/bold] sample values"):
-                    sample_rows = get_sample_rows(ctx.connector, table, sample_values)
+                    sample_rows = get_sample_rows(ctx.connector, ctx.table, sample_values)
             else:
                 sample_rows = []
 
             template_result = assemble_template(
-                columns, table, table_comment, row_count, profile_data, sample_rows
+                columns, ctx.table, table_comment, row_count, profile_data, sample_rows
             )
 
-            dispatch_output("template", template_result)
+            dispatch_output("template", template_result, style=style)
 
     _run()

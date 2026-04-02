@@ -146,6 +146,18 @@ class TestProfileFragment:
         # Should have column names in the profile output
         assert "name" in body or "age" in body
 
+    def test_profile_has_overview_chart(self, web_client):
+        resp = web_client.get("/fragments/profile/users")
+        body = resp.text
+        assert "profile-null-chart" in body
+        assert "Data Completeness Overview" in body
+
+    def test_profile_has_null_pct_bars(self, web_client):
+        resp = web_client.get("/fragments/profile/users")
+        body = resp.text
+        assert "pct-bar-wrapper" in body
+        assert "pct-bar" in body
+
 
 class TestDistFragment:
     def test_dist_returns_200(self, web_client):
@@ -235,12 +247,12 @@ class TestPivotQueryBuilder:
         from querido.core.pivot import build_pivot_query
 
         sql = build_pivot_query("users", ["city"], ["age"], "COUNT")
-        assert 'GROUP BY "city"' in sql
+        assert 'group by "city"' in sql
         assert 'COUNT("age")' in sql
 
     def test_build_pivot_query_multi_cols(self):
         from querido.core.pivot import build_pivot_query
 
         sql = build_pivot_query("orders", ["status", "user_id"], ["amount"], "SUM")
-        assert 'GROUP BY "status", "user_id"' in sql
+        assert 'group by "status", "user_id"' in sql
         assert 'SUM("amount")' in sql

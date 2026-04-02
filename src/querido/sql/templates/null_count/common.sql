@@ -1,4 +1,4 @@
-SELECT
-    COUNT(*) AS total,
-    SUM(CASE WHEN "{{ column }}" IS NULL THEN 1 ELSE 0 END) AS null_count
-FROM {{ table }}
+select
+    count(*) as total,
+    sum(case when "{{ column }}" is null then 1 else 0 end) as null_count
+from {{ table }}

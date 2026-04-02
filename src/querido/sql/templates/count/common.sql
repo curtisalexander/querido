@@ -1,1 +1,1 @@
-SELECT COUNT(*) AS cnt FROM {{ table }}
+select count(*) as cnt from {{ table }}
