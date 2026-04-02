@@ -9,6 +9,7 @@ Usage:
     uv run python scripts/check_deps.py              # default 7-day quarantine
     uv run python scripts/check_deps.py --days 3     # 3-day quarantine
     uv run python scripts/check_deps.py --audit      # also run uv audit
+    uv run python scripts/check_deps.py --update     # update safe packages
 """
 
 from __future__ import annotations
@@ -57,6 +58,30 @@ def red(t: str) -> str:
 
 def cyan(t: str) -> str:
     return _c("36", t)
+
+
+# ---------------------------------------------------------------------------
+# Classification
+# ---------------------------------------------------------------------------
+
+STATUS_SAFE = "safe"
+STATUS_QUARANTINE = "quarantine"
+STATUS_YANKED = "yanked"
+STATUS_VULN = "vuln"
+
+
+def classify_package(pkg: dict, quarantine_days: int) -> str:
+    """Return the safety status of an outdated package."""
+    if pkg.get("_yanked"):
+        return STATUS_YANKED
+    if pkg.get("_vulns"):
+        return STATUS_VULN
+    release_date = pkg.get("_release_date")
+    if release_date:
+        cutoff = datetime.now(UTC) - timedelta(days=quarantine_days)
+        if release_date > cutoff:
+            return STATUS_QUARANTINE
+    return STATUS_SAFE
 
 
 # ---------------------------------------------------------------------------
@@ -135,21 +160,71 @@ def run_audit() -> str:
     return result.stdout + result.stderr
 
 
+def update_packages(packages: list[dict]) -> bool:
+    """Run uv lock --upgrade-package for each safe package, then uv sync."""
+    if not packages:
+        return True
+
+    upgrade_args: list[str] = []
+    for pkg in packages:
+        upgrade_args.extend(["--upgrade-package", pkg["name"]])
+
+    print(f"  {dim('Running uv lock')} {dim(' '.join(upgrade_args)[:60])}...")
+    result = subprocess.run(
+        ["uv", "lock", *upgrade_args],
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+    if result.returncode != 0:
+        print(red(f"  uv lock failed:\n{result.stderr}"))
+        return False
+
+    print(f"  {dim('Running uv sync...')}")
+    result = subprocess.run(
+        ["uv", "sync"],
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+    if result.returncode != 0:
+        print(red(f"  uv sync failed:\n{result.stderr}"))
+        return False
+
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
 
 
+def format_age(release_date: datetime | None) -> tuple[str, int]:
+    """Return (human-readable age, age in days)."""
+    if not release_date:
+        return "?", 9999
+
+    now = datetime.now(UTC)
+    age_days = (now - release_date).days
+
+    if age_days == 0:
+        return "today", 0
+    if age_days == 1:
+        return "1 day", 1
+    if age_days < 30:
+        return f"{age_days} days", age_days
+    if age_days < 365:
+        return f"{age_days // 30} months", age_days
+    return f"{age_days // 365}y {(age_days % 365) // 30}m", age_days
+
+
 def print_table(rows: list[dict], quarantine_days: int) -> None:
     """Print a formatted table of outdated dependencies."""
-    now = datetime.now(UTC)
-    cutoff = now - timedelta(days=quarantine_days)
-
     # Column widths
     w_name = max(len("Package"), max((len(r["name"]) for r in rows), default=7))
     w_cur = max(len("Current"), max((len(r["version"]) for r in rows), default=7))
     w_lat = max(len("Latest"), max((len(r["latest_version"]) for r in rows), default=6))
-    w_date = 12  # "YYYY-MM-DD" + padding
+    w_date = 12
     w_age = 10
     w_status = 12
 
@@ -181,38 +256,24 @@ def print_table(rows: list[dict], quarantine_days: int) -> None:
 
         release_date = r.get("_release_date")
         vulns = r.get("_vulns", [])
-        yanked = r.get("_yanked", False)
+        status_code = r.get("_status", STATUS_SAFE)
 
         if release_date:
             date_str = release_date.strftime("%Y-%m-%d").ljust(w_date)
-            age_delta = now - release_date
-            age_days = age_delta.days
-
-            if age_days == 0:
-                age_str = "today"
-            elif age_days == 1:
-                age_str = "1 day"
-            elif age_days < 30:
-                age_str = f"{age_days} days"
-            elif age_days < 365:
-                age_str = f"{age_days // 30} months"
-            else:
-                age_str = f"{age_days // 365}y {(age_days % 365) // 30}m"
-            age_str = age_str.ljust(w_age)
         else:
             date_str = dim("unknown").ljust(w_date)
-            age_str = dim("?").ljust(w_age)
-            age_days = 999  # treat unknown as safe
 
-        # Determine status
-        if yanked:
+        age_str, _ = format_age(release_date)
+        age_str = age_str.ljust(w_age)
+
+        if status_code == STATUS_YANKED:
             status = red("YANKED")
             warning_count += 1
-        elif vulns:
+        elif status_code == STATUS_VULN:
             vuln_ids = ", ".join(v.get("id", "?") for v in vulns[:2])
             status = red(f"VULN: {vuln_ids}")
             warning_count += 1
-        elif release_date and release_date > cutoff:
+        elif status_code == STATUS_QUARANTINE:
             status = yellow(f"< {quarantine_days}d")
             quarantine_count += 1
         else:
@@ -237,6 +298,40 @@ def print_table(rows: list[dict], quarantine_days: int) -> None:
     print()
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def enrich_outdated(outdated: list[dict]) -> None:
+    """Fetch PyPI metadata and attach to each package dict in-place."""
+    for pkg in outdated:
+        pypi_data = fetch_pypi_info(pkg["name"])
+        if pypi_data:
+            pkg["_release_date"] = get_release_date(pypi_data, pkg["latest_version"])
+            pkg["_vulns"] = get_vulnerabilities(pypi_data)
+            pkg["_yanked"] = is_yanked(pypi_data, pkg["latest_version"])
+        else:
+            pkg["_release_date"] = None
+            pkg["_vulns"] = []
+            pkg["_yanked"] = False
+
+
+def sort_outdated(outdated: list[dict], quarantine_days: int) -> None:
+    """Classify and sort: warnings first, then quarantined, then safe."""
+    priority_map = {STATUS_YANKED: 0, STATUS_VULN: 0, STATUS_QUARANTINE: 1, STATUS_SAFE: 2}
+
+    for pkg in outdated:
+        pkg["_status"] = classify_package(pkg, quarantine_days)
+
+    def sort_key(r: dict) -> tuple[int, int]:
+        priority = priority_map.get(r["_status"], 2)
+        _, age_days = format_age(r.get("_release_date"))
+        return (priority, age_days)
+
+    outdated.sort(key=sort_key)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Check for outdated dependencies with supply-chain quarantine.",
@@ -251,6 +346,11 @@ def main() -> None:
         "--audit",
         action="store_true",
         help="Also run uv audit to check for known vulnerabilities.",
+    )
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="Update packages that are past the quarantine window.",
     )
     args = parser.parse_args()
 
@@ -269,35 +369,40 @@ def main() -> None:
     else:
         # Step 2: Enrich with PyPI metadata
         print(f"  {dim(f'Found {len(outdated)} outdated. Fetching PyPI metadata...')}")
-
-        for pkg in outdated:
-            pypi_data = fetch_pypi_info(pkg["name"])
-            if pypi_data:
-                pkg["_release_date"] = get_release_date(pypi_data, pkg["latest_version"])
-                pkg["_vulns"] = get_vulnerabilities(pypi_data)
-                pkg["_yanked"] = is_yanked(pypi_data, pkg["latest_version"])
-            else:
-                pkg["_release_date"] = None
-                pkg["_vulns"] = []
-                pkg["_yanked"] = False
-
-        # Sort: warnings first, then quarantined, then safe (by age ascending)
-        def sort_key(r: dict) -> tuple[int, int]:
-            if r.get("_yanked") or r.get("_vulns"):
-                priority = 0
-            elif r.get("_release_date") and r["_release_date"] > datetime.now(UTC) - timedelta(
-                days=args.days
-            ):
-                priority = 1
-            else:
-                priority = 2
-            age = (datetime.now(UTC) - r["_release_date"]).days if r.get("_release_date") else 9999
-            return (priority, age)
-
-        outdated.sort(key=sort_key)
+        enrich_outdated(outdated)
+        sort_outdated(outdated, args.days)
         print_table(outdated, args.days)
 
-    # Step 3: Audit
+        # Step 3: Update safe packages
+        if args.update:
+            safe = [p for p in outdated if p["_status"] == STATUS_SAFE]
+            skipped = [p for p in outdated if p["_status"] != STATUS_SAFE]
+
+            if not safe:
+                print(f"  {yellow('No packages past the quarantine window. Nothing to update.')}")
+                print()
+            else:
+                names = ", ".join(p["name"] for p in safe)
+                print(f"  {bold('Updating:')} {names}")
+                if skipped:
+                    skip_names = ", ".join(p["name"] for p in skipped)
+                    print(f"  {dim(f'Skipping (quarantine/warning): {skip_names}')}")
+                print()
+
+                ok = update_packages(safe)
+                if ok:
+                    print(f"\n  {green(f'Updated {len(safe)} package(s).')}")
+                    updated_names = [p["name"] for p in safe]
+                    print(f"  {dim('Updated: ' + ', '.join(updated_names))}")
+                    print(
+                        f"\n  {dim('Run')} {bold('uv run pytest tests/ -q')} "
+                        f"{dim('to verify nothing broke.')}"
+                    )
+                else:
+                    print(f"\n  {red('Update failed. See errors above.')}")
+                print()
+
+    # Step 4: Audit
     if args.audit:
         print(f"  {dim('Running uv audit...')}")
         print()
