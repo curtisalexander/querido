@@ -8,7 +8,7 @@ runner = CliRunner()
 
 
 def test_serve_help() -> None:
-    result = runner.invoke(app, ["serve", "--help"])
+    result = runner.invoke(app, ["serve", "--help"], color=False)
     assert result.exit_code == 0
     assert "--connection" in result.output
     assert "--port" in result.output
