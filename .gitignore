@@ -36,5 +36,8 @@ data/
 .idea/
 .vscode/
 
+# macOS
+.DS_Store
+
 # Claude
 .claude/
