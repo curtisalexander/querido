@@ -267,6 +267,8 @@ def print_dist(
 
 def print_template(
     template_result: dict,
+    *,
+    style: str = "table",
     console: Console | None = None,
 ) -> None:
     """Print a documentation template as a Rich table."""

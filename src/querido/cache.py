@@ -20,23 +20,23 @@ if TYPE_CHECKING:
 DEFAULT_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 
 _SCHEMA_SQL = """\
-CREATE TABLE IF NOT EXISTS cached_tables (
-    connection TEXT NOT NULL,
-    table_name TEXT NOT NULL,
-    table_type TEXT NOT NULL,
-    cached_at REAL NOT NULL,
-    PRIMARY KEY (connection, table_name)
+create table if not exists cached_tables (
+    connection text not null,
+    table_name text not null,
+    table_type text not null,
+    cached_at real not null,
+    primary key (connection, table_name)
 );
 
-CREATE TABLE IF NOT EXISTS cached_columns (
-    connection TEXT NOT NULL,
-    table_name TEXT NOT NULL,
-    column_name TEXT NOT NULL,
-    column_type TEXT NOT NULL,
-    nullable INTEGER NOT NULL,
-    comment TEXT,
-    cached_at REAL NOT NULL,
-    PRIMARY KEY (connection, table_name, column_name)
+create table if not exists cached_columns (
+    connection text not null,
+    table_name text not null,
+    column_name text not null,
+    column_type text not null,
+    nullable integer not null,
+    comment text,
+    cached_at real not null,
+    primary key (connection, table_name, column_name)
 );
 """
 
@@ -70,8 +70,8 @@ class MetadataCache:
         now = time.time()
 
         # Clear old data for this connection
-        self._conn.execute("DELETE FROM cached_tables WHERE connection = ?", (connection_name,))
-        self._conn.execute("DELETE FROM cached_columns WHERE connection = ?", (connection_name,))
+        self._conn.execute("delete from cached_tables where connection = ?", (connection_name,))
+        self._conn.execute("delete from cached_columns where connection = ?", (connection_name,))
 
         tables = connector.get_tables()
         table_count = 0
@@ -79,8 +79,8 @@ class MetadataCache:
 
         for tbl in tables:
             self._conn.execute(
-                "INSERT INTO cached_tables (connection, table_name, table_type, cached_at) "
-                "VALUES (?, ?, ?, ?)",
+                "insert into cached_tables (connection, table_name, table_type, cached_at) "
+                "values (?, ?, ?, ?)",
                 (connection_name, tbl["name"], tbl["type"], now),
             )
             table_count += 1
@@ -134,13 +134,13 @@ class MetadataCache:
         """
         now = time.time()
 
-        self._conn.execute("DELETE FROM cached_tables WHERE connection = ?", (connection_name,))
+        self._conn.execute("delete from cached_tables where connection = ?", (connection_name,))
 
         tables = connector.get_tables()
         for tbl in tables:
             self._conn.execute(
-                "INSERT INTO cached_tables (connection, table_name, table_type, cached_at) "
-                "VALUES (?, ?, ?, ?)",
+                "insert into cached_tables (connection, table_name, table_type, cached_at) "
+                "values (?, ?, ?, ?)",
                 (connection_name, tbl["name"], tbl["type"], now),
             )
 
@@ -154,10 +154,10 @@ class MetadataCache:
         count = 0
         for col in columns:
             self._conn.execute(
-                "INSERT INTO cached_columns "
+                "insert into cached_columns "
                 "(connection, table_name, column_name, column_type, "
                 "nullable, comment, cached_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "values (?, ?, ?, ?, ?, ?, ?)",
                 (
                     connection_name,
                     tbl_name,
@@ -186,8 +186,8 @@ class MetadataCache:
             params = ()
 
         rows = self._conn.execute(
-            f"SELECT connection, COUNT(*) as table_count, MAX(cached_at) as last_cached "
-            f"FROM cached_tables {where} GROUP BY connection ORDER BY connection",
+            f"select connection, count(*) as table_count, max(cached_at) as last_cached "
+            f"from cached_tables {where} group by connection order by connection",
             params,
         ).fetchall()
 
@@ -195,7 +195,7 @@ class MetadataCache:
         for row in rows:
             conn_name = row["connection"]
             col_count = self._conn.execute(
-                "SELECT COUNT(*) as cnt FROM cached_columns WHERE connection = ?",
+                "select count(*) as cnt from cached_columns where connection = ?",
                 (conn_name,),
             ).fetchone()["cnt"]
 
@@ -218,21 +218,21 @@ class MetadataCache:
         """Clear cached metadata. Returns number of tables removed."""
         if connection_name:
             cursor = self._conn.execute(
-                "SELECT COUNT(*) as cnt FROM cached_tables WHERE connection = ?",
+                "select count(*) as cnt from cached_tables where connection = ?",
                 (connection_name,),
             )
             count = cursor.fetchone()["cnt"]
             self._conn.execute(
-                "DELETE FROM cached_tables WHERE connection = ?", (connection_name,)
+                "delete from cached_tables where connection = ?", (connection_name,)
             )
             self._conn.execute(
-                "DELETE FROM cached_columns WHERE connection = ?", (connection_name,)
+                "delete from cached_columns where connection = ?", (connection_name,)
             )
         else:
-            cursor = self._conn.execute("SELECT COUNT(*) as cnt FROM cached_tables")
+            cursor = self._conn.execute("select count(*) as cnt from cached_tables")
             count = cursor.fetchone()["cnt"]
-            self._conn.execute("DELETE FROM cached_tables")
-            self._conn.execute("DELETE FROM cached_columns")
+            self._conn.execute("delete from cached_tables")
+            self._conn.execute("delete from cached_columns")
 
         self._conn.commit()
         return count
@@ -256,8 +256,8 @@ class MetadataCache:
 
         if search_tables:
             rows = self._conn.execute(
-                "SELECT table_name, table_type FROM cached_tables "
-                "WHERE connection = ? AND lower(table_name) LIKE ? ESCAPE '\\'",
+                "select table_name, table_type from cached_tables "
+                "where connection = ? and lower(table_name) like ? escape '\\'",
                 (connection_name, pat),
             ).fetchall()
             for r in rows:
@@ -273,13 +273,13 @@ class MetadataCache:
 
         if search_columns:
             rows = self._conn.execute(
-                "SELECT t.table_name, t.table_type, "
+                "select t.table_name, t.table_type, "
                 "c.column_name, c.column_type "
-                "FROM cached_columns c "
-                "JOIN cached_tables t "
-                "ON c.connection = t.connection "
-                "AND c.table_name = t.table_name "
-                "WHERE c.connection = ? AND lower(c.column_name) LIKE ? ESCAPE '\\'",
+                "from cached_columns c "
+                "join cached_tables t "
+                "on c.connection = t.connection "
+                "and c.table_name = t.table_name "
+                "where c.connection = ? and lower(c.column_name) like ? escape '\\'",
                 (connection_name, pat),
             ).fetchall()
             for r in rows:
@@ -304,7 +304,7 @@ class MetadataCache:
         if not self.is_fresh(connection_name):
             return None
         row = self._conn.execute(
-            "SELECT 1 FROM cached_tables WHERE connection = ? AND lower(table_name) = lower(?)",
+            "select 1 from cached_tables where connection = ? and lower(table_name) = lower(?)",
             (connection_name, table),
         ).fetchone()
         return row is not None
@@ -314,9 +314,9 @@ class MetadataCache:
         if not self.is_fresh(connection_name):
             return None
         rows = self._conn.execute(
-            "SELECT column_name, column_type, nullable, comment "
-            "FROM cached_columns "
-            "WHERE connection = ? AND lower(table_name) = lower(?)",
+            "select column_name, column_type, nullable, comment "
+            "from cached_columns "
+            "where connection = ? and lower(table_name) = lower(?)",
             (connection_name, table),
         ).fetchall()
         if not rows:
@@ -338,8 +338,8 @@ class MetadataCache:
         if not self.is_fresh(connection_name):
             return None
         rows = self._conn.execute(
-            "SELECT table_name, table_type FROM cached_tables "
-            "WHERE connection = ? ORDER BY table_name",
+            "select table_name, table_type from cached_tables "
+            "where connection = ? order by table_name",
             (connection_name,),
         ).fetchall()
         if not rows:
@@ -349,7 +349,7 @@ class MetadataCache:
     def is_fresh(self, connection_name: str, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> bool:
         """Check if the cache for a connection is fresh (within TTL)."""
         row = self._conn.execute(
-            "SELECT MAX(cached_at) as last FROM cached_tables WHERE connection = ?",
+            "select max(cached_at) as last from cached_tables where connection = ?",
             (connection_name,),
         ).fetchone()
 

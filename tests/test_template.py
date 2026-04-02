@@ -103,6 +103,106 @@ def test_template_duckdb_with_comments(duckdb_with_comments_path: str):
     assert name_col["comment"] == "Full legal name"
 
 
+def test_template_yaml_has_semantic_model(sqlite_path: str):
+    result = runner.invoke(app, ["--format", "yaml", "template", "-c", sqlite_path, "-t", "users"])
+    assert result.exit_code == 0
+    assert "name: users_semantic_model" in result.output
+    assert "tables:" in result.output
+    assert "dimensions:" in result.output
+    assert "measures:" in result.output
+
+
+def test_template_yaml_has_sample_values(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        ["--format", "yaml", "template", "-c", sqlite_path, "-t", "users", "--sample-values", "3"],
+    )
+    assert result.exit_code == 0
+    assert "sample_values:" in result.output
+    assert "Alice" in result.output
+
+
+def test_template_yaml_structured_base_table():
+    """Qualified table names should produce structured base_table."""
+    from querido.core.semantic import build_semantic_yaml
+
+    columns = [{"name": "id", "type": "INTEGER", "comment": None}]
+    yaml_str = build_semantic_yaml("MY_DB.MY_SCHEMA.MY_TABLE", columns, None)
+    assert "database: MY_DB" in yaml_str
+    assert "schema: MY_SCHEMA" in yaml_str
+    assert "table: MY_TABLE" in yaml_str
+
+
+def test_template_yaml_bare_table_name():
+    """Bare table names should use flat base_table."""
+    from querido.core.semantic import build_semantic_yaml
+
+    columns = [{"name": "id", "type": "INTEGER", "comment": None}]
+    yaml_str = build_semantic_yaml("users", columns, None)
+    assert "base_table: users" in yaml_str
+    assert "database:" not in yaml_str
+
+
+def test_template_yaml_smart_aggregation():
+    """Measure columns with rate/pct keywords should get avg aggregation."""
+    from querido.core.semantic import build_semantic_yaml
+
+    columns = [
+        {"name": "click_rate", "type": "FLOAT", "comment": None},
+        {"name": "revenue", "type": "FLOAT", "comment": None},
+    ]
+    yaml_str = build_semantic_yaml("metrics", columns, None)
+    assert "default_aggregation: avg" in yaml_str
+    assert "default_aggregation: sum" in yaml_str
+
+
+def test_template_markdown_detailed_style(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "--format",
+            "markdown",
+            "template",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--style",
+            "detailed",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "### `id`" in result.output
+    assert "### `name`" in result.output
+    assert "### `age`" in result.output
+    assert "**Business definition**: _fill in_" in result.output
+    assert "**Data owner**: _fill in_" in result.output
+    assert "**Row count**:" in result.output
+
+
+def test_template_markdown_table_style(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "--format",
+            "markdown",
+            "template",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--style",
+            "table",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "## users" in result.output
+    assert "Business Definition" in result.output
+    assert "Row count: 2" in result.output
+    # Should NOT have per-column headings
+    assert "### `id`" not in result.output
+
+
 def test_template_nonexistent_table(sqlite_path: str):
     result = runner.invoke(
         app, ["template", "--connection", sqlite_path, "--table", "nonexistent"]

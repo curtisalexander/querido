@@ -375,75 +375,30 @@ def yaml_escape(value: str) -> str:
 
 def _format_template_yaml(template_result: dict) -> str:
     """Render template metadata as a Cortex Analyst-compatible semantic model YAML."""
-    table_name = template_result["table"]
-    short_name = table_name.rsplit(".", 1)[-1]
-    table_comment = template_result["table_comment"]
-    row_count = template_result["row_count"]
+    from querido.core.semantic import build_semantic_yaml
+
     columns = template_result["columns"]
 
-    ind = "  "
-    lines: list[str] = []
-
-    lines.append(f"name: {short_name.lower()}_semantic_model")
-    desc = table_comment or f"Semantic model for {table_name}"
-    lines.append(f"description: {yaml_escape(desc)}")
-    lines.append("")
-    lines.append("tables:")
-    lines.append(f"{ind}- name: {short_name}")
-    lines.append(f"{ind}  base_table: {table_name}")
-    lines.append(f"{ind}  description: {yaml_escape(desc)}")
-    lines.append(f"{ind}  row_count: {row_count}")
-
-    dimensions: list[dict] = []
-    time_dimensions: list[dict] = []
-    measures: list[dict] = []
-    from querido.core.profile import classify_column_kind
-
+    # Build per-column sample values dict from the comma-separated strings.
+    sample_values_per_col: dict[str, list[str]] = {}
     for col in columns:
-        kind = classify_column_kind(col)
-        if kind == "time_dimension":
-            time_dimensions.append(col)
-        elif kind == "measure":
-            measures.append(col)
-        else:
-            dimensions.append(col)
+        sv = col.get("sample_values", "")
+        if sv:
+            sample_values_per_col[col["name"]] = [v.strip() for v in sv.split(",") if v.strip()]
 
-    def _write_col(col: dict, *, is_measure: bool = False) -> None:
-        prefix = ind * 2
-        col_desc = col.get("comment") or "<description>"
-        lines.append(f"{prefix}- name: {col['name']}")
-        lines.append(f"{prefix}  expr: {col['name']}")
-        lines.append(f"{prefix}  data_type: {col['type']}")
-        lines.append(f"{prefix}  description: {yaml_escape(col_desc)}")
-        lines.append(f"{prefix}  synonyms:")
-        lines.append(f"{prefix}    - <synonym>")
-        if is_measure:
-            lines.append(f"{prefix}  default_aggregation: sum")
-        if col.get("sample_values"):
-            lines.append(f"{prefix}  sample_values: {yaml_escape(col['sample_values'])}")
-
-    if dimensions:
-        lines.append(f"\n{ind}  dimensions:")
-        for col in dimensions:
-            _write_col(col)
-
-    if time_dimensions:
-        lines.append(f"\n{ind}  time_dimensions:")
-        for col in time_dimensions:
-            _write_col(col)
-
-    if measures:
-        lines.append(f"\n{ind}  measures:")
-        for col in measures:
-            _write_col(col, is_measure=True)
-
-    lines.append("")
-    return "\n".join(lines)
+    return build_semantic_yaml(
+        template_result["table"],
+        columns,
+        template_result["table_comment"] or None,
+        sample_values_per_col=sample_values_per_col,
+    )
 
 
 def format_template(
     template_result: dict,
     fmt: str,
+    *,
+    style: str = "table",
 ) -> str:
     table_name = template_result["table"]
     table_comment = template_result["table_comment"]
@@ -478,6 +433,15 @@ def format_template(
         return dicts_to_csv(flat) if flat else ""
 
     # markdown
+    if style == "detailed":
+        return _format_template_markdown_detailed(table_name, table_comment, row_count, columns)
+    return _format_template_markdown_table(table_name, table_comment, row_count, columns)
+
+
+def _format_template_markdown_table(
+    table_name: str, table_comment: str, row_count: int, columns: list[dict]
+) -> str:
+    """Flat markdown table (default style)."""
     lines: list[str] = [f"## {table_name}", ""]
     if table_comment:
         lines.append(f"> {table_comment}")
@@ -518,6 +482,83 @@ def format_template(
             ]
         )
     lines.append(to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
+def _format_template_markdown_detailed(
+    table_name: str, table_comment: str, row_count: int, columns: list[dict]
+) -> str:
+    """Per-column section markdown (detailed style)."""
+    pk_cols = [c["name"] for c in columns if c.get("primary_key")]
+    lines: list[str] = [f"## {table_name}", ""]
+
+    summary_parts = [f"**Row count**: {row_count:,}", f"**Columns**: {len(columns)}"]
+    if pk_cols:
+        summary_parts.append(f"**Primary keys**: {', '.join(pk_cols)}")
+    lines.append(" | ".join(summary_parts))
+    lines.append("")
+
+    if table_comment:
+        lines.append(f"> {table_comment}")
+        lines.append("")
+
+    lines.append("---")
+
+    for col in columns:
+        name = col["name"]
+        col_type = col["type"]
+        nullable = col["nullable"]
+        is_pk = col.get("primary_key", False)
+
+        # Header line: ### `name` — TYPE (flags)
+        flags = []
+        if not nullable:
+            flags.append("non-nullable")
+        if is_pk:
+            flags.append("primary key")
+        flag_str = f" ({', '.join(flags)})" if flags else ""
+        lines.append("")
+        lines.append(f"### `{name}` — {col_type}{flag_str}")
+
+        # Stats
+        distinct = col.get("distinct_count")
+        null_count = col.get("null_count")
+        null_pct = col.get("null_pct")
+
+        stat_parts = []
+        if distinct is not None:
+            stat_parts.append(f"**Distinct values**: {fmt_value(distinct)}")
+        if null_count is not None and null_count > 0:
+            pct_str = f" ({null_pct}%)" if null_pct else ""
+            stat_parts.append(f"**Nulls**: {fmt_value(null_count)}{pct_str}")
+        if stat_parts:
+            lines.append(f"- {' | '.join(stat_parts)}")
+
+        # Range or length
+        min_val = col.get("min_val")
+        max_val = col.get("max_val")
+        min_len = col.get("min_length")
+        max_len = col.get("max_length")
+        if min_val is not None and max_val is not None:
+            lines.append(f"- **Range**: {fmt_value(min_val)} - {fmt_value(max_val)}")
+        elif min_len is not None and max_len is not None:
+            lines.append(f"- **Length range**: {fmt_value(min_len)} - {fmt_value(max_len)}")
+
+        # Samples
+        samples = col.get("sample_values", "")
+        if samples:
+            lines.append(f"- **Samples**: {samples}")
+
+        # Comment from database
+        comment = col.get("comment", "")
+        if comment:
+            lines.append(f"- **Comment**: {comment}")
+
+        # Placeholder fields
+        lines.append("- **Business definition**: _fill in_")
+        lines.append("- **Data owner**: _fill in_")
+        lines.append("- **Notes**: _fill in_")
+
     return "\n".join(lines)
 
 

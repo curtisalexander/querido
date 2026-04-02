@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 from typing import TYPE_CHECKING
 
 import typer
@@ -36,6 +35,13 @@ def semantic(
     output_file: str | None = typer.Option(
         None, "--output", "-o", help="Write YAML to file instead of stdout."
     ),
+    sample_values: int = typer.Option(
+        25,
+        "--sample-values",
+        min=0,
+        max=100,
+        help="Distinct sample values per column (0 to skip). Snowflake recommends 25+.",
+    ),
 ) -> None:
     """Generate a Cortex Analyst semantic model YAML from table metadata."""
     from querido.cli._errors import friendly_errors
@@ -47,11 +53,27 @@ def semantic(
         with table_command(table=table, connection=connection, db_type=db_type) as ctx:
             _require_snowflake(ctx.connector.dialect, "semantic")
 
-            with ctx.spin(f"Reading metadata for [bold]{table}[/bold]"):
-                columns = ctx.connector.get_columns(table)
-                table_comment = ctx.connector.get_table_comment(table)
+            with ctx.spin(f"Reading metadata for [bold]{ctx.table}[/bold]"):
+                columns = ctx.connector.get_columns(ctx.table)
+                table_comment = ctx.connector.get_table_comment(ctx.table)
 
-        yaml_str = _build_semantic_yaml(table, columns, table_comment)
+            if sample_values > 0:
+                with ctx.spin(
+                    f"Fetching [bold]{sample_values}[/bold] sample values per column"
+                ):
+                    from querido.core.semantic import get_sample_values
+
+                    sv = get_sample_values(
+                        ctx.connector, ctx.table, columns, limit=sample_values
+                    )
+            else:
+                sv = None
+
+        from querido.core.semantic import build_semantic_yaml
+
+        yaml_str = build_semantic_yaml(
+            ctx.table, columns, table_comment, sample_values_per_col=sv
+        )
 
         if output_file:
             from pathlib import Path
@@ -66,84 +88,6 @@ def semantic(
     _run()
 
 
-def _build_semantic_yaml(
-    table: str,
-    columns: list[dict],
-    table_comment: str | None,
-) -> str:
-    """Build a Cortex Analyst semantic model YAML string."""
-    buf = io.StringIO()
-    indent = "  "
-
-    from querido.output.formats import yaml_escape
-
-    short_name = table.rsplit(".", 1)[-1]
-    buf.write(f"name: {short_name.lower()}_semantic_model\n")
-    desc = table_comment or f"Semantic model for {table}"
-    buf.write(f"description: {yaml_escape(desc)}\n")
-    buf.write("\n")
-    buf.write("tables:\n")
-    buf.write(f"{indent}- name: {short_name}\n")
-    buf.write(f"{indent}  base_table: {table}\n")
-    buf.write(f"{indent}  description: {yaml_escape(desc)}\n")
-
-    # Group columns
-    from querido.core.profile import classify_column_kind
-
-    dimensions = []
-    time_dimensions = []
-    measures = []
-    for col in columns:
-        kind = classify_column_kind(col)
-        if kind == "time_dimension":
-            time_dimensions.append(col)
-        elif kind == "measure":
-            measures.append(col)
-        else:
-            dimensions.append(col)
-
-    if dimensions:
-        buf.write(f"\n{indent}  dimensions:\n")
-        for col in dimensions:
-            _write_column_entry(buf, col, indent * 2)
-
-    if time_dimensions:
-        buf.write(f"\n{indent}  time_dimensions:\n")
-        for col in time_dimensions:
-            _write_column_entry(buf, col, indent * 2)
-
-    if measures:
-        buf.write(f"\n{indent}  measures:\n")
-        for col in measures:
-            _write_column_entry(buf, col, indent * 2, is_measure=True)
-
-    return buf.getvalue()
-
-
-def _write_column_entry(
-    buf: io.StringIO,
-    col: dict,
-    prefix: str,
-    *,
-    is_measure: bool = False,
-) -> None:
-    """Write a single column entry in the semantic model YAML."""
-
-    from querido.output.formats import yaml_escape
-
-    name = col["name"]
-    col_type = col["type"]
-    comment = col.get("comment") or "<description>"
-
-    buf.write(f"{prefix}- name: {name}\n")
-    buf.write(f"{prefix}  expr: {name}\n")
-    buf.write(f"{prefix}  data_type: {col_type}\n")
-    buf.write(f"{prefix}  description: {yaml_escape(comment)}\n")
-    buf.write(f"{prefix}  synonyms:\n")
-    buf.write(f"{prefix}    - <synonym>\n")
-
-    if is_measure:
-        buf.write(f"{prefix}  default_aggregation: sum\n")
 
 
 # ---------------------------------------------------------------------------
@@ -234,8 +178,8 @@ def _query_lineage(
         raise ValueError(f"Invalid domain: {domain!r}")
 
     sql = (
-        f"SELECT * FROM TABLE("
-        f"SNOWFLAKE.CORE.GET_LINEAGE('{object_name}', '{domain}', '{direction}', {depth})"
+        f"select * from table("
+        f"snowflake.core.get_lineage('{object_name}', '{domain}', '{direction}', {depth})"
         f")"
     )
 

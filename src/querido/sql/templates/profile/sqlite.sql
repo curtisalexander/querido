@@ -1,16 +1,16 @@
-SELECT
-    COUNT(*) AS total_rows
+select
+    count(*) as total_rows
 {% for col in columns %}
-    , SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) AS "{{ col.name }}__null_count"
-    , ROUND(100.0 * SUM(CASE WHEN "{{ col.name }}" IS NULL THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS "{{ col.name }}__null_pct"
-    , COUNT(DISTINCT "{{ col.name }}") AS "{{ col.name }}__distinct_count"
+    , sum(case when "{{ col.name }}" is null then 1 else 0 end) as "{{ col.name }}__null_count"
+    , round(100.0 * sum(case when "{{ col.name }}" is null then 1 else 0 end) / nullif(count(*), 0), 2) as "{{ col.name }}__null_pct"
+    , count(distinct "{{ col.name }}") as "{{ col.name }}__distinct_count"
 {% if col.numeric %}
-    , MIN("{{ col.name }}") AS "{{ col.name }}__min_val"
-    , MAX("{{ col.name }}") AS "{{ col.name }}__max_val"
-    , ROUND(AVG("{{ col.name }}"), 4) AS "{{ col.name }}__mean_val"
+    , min("{{ col.name }}") as "{{ col.name }}__min_val"
+    , max("{{ col.name }}") as "{{ col.name }}__max_val"
+    , round(avg("{{ col.name }}"), 4) as "{{ col.name }}__mean_val"
 {% else %}
-    , MIN(LENGTH("{{ col.name }}")) AS "{{ col.name }}__min_length"
-    , MAX(LENGTH("{{ col.name }}")) AS "{{ col.name }}__max_length"
+    , min(length("{{ col.name }}")) as "{{ col.name }}__min_length"
+    , max(length("{{ col.name }}")) as "{{ col.name }}__max_length"
 {% endif %}
 {% endfor %}
-FROM {{ source }}
+from {{ source }}

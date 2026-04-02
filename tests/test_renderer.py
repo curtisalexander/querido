@@ -5,12 +5,12 @@ from querido.sql.renderer import render_template
 
 def test_render_common_template():
     sql = render_template("test", "sqlite", table="users", limit=10)
-    assert "SELECT * FROM users LIMIT 10" in sql
+    assert "select * from users limit 10" in sql
 
 
 def test_render_falls_back_to_common():
     sql = render_template("test", "duckdb", table="orders", limit=5)
-    assert "SELECT * FROM orders LIMIT 5" in sql
+    assert "select * from orders limit 5" in sql
 
 
 def test_dialect_specific_overrides_common():
@@ -24,7 +24,7 @@ def test_dialect_specific_overrides_common():
     udf_sqlite = render_template("generate/udf", "sqlite", table="t", columns=cols)
     udf_duckdb = render_template("generate/udf", "duckdb", table="t", columns=cols)
     assert "create_function" in udf_sqlite
-    assert "CREATE OR REPLACE FUNCTION" in udf_duckdb
+    assert "create or replace function" in udf_duckdb
 
 
 def test_missing_template_raises_file_not_found():
@@ -48,7 +48,7 @@ def test_template_rendering_with_columns_list():
     assert "id," in sql
     assert "name," in sql
     assert "age" in sql
-    assert "FROM users;" in sql
+    assert "from users;" in sql
 
 
 def test_template_rendering_with_conditionals():

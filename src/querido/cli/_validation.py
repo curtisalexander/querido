@@ -48,13 +48,11 @@ def _format_not_found(
     return msg
 
 
-def check_table_exists(connector: Connector, table: str) -> None:
-    """Raise typer.BadParameter if *table* does not exist in the database.
+def resolve_table(connector: Connector, table: str) -> str:
+    """Return the canonical table name (as stored in the database).
 
-    For Snowflake connectors, qualified names (``schema.table`` or
-    ``database.schema.table``) are resolved so that the existence check
-    queries the correct database/schema rather than comparing the full
-    qualified string against bare table names.
+    Uses case-insensitive matching so users don't need to worry about casing.
+    Raises typer.BadParameter with fuzzy suggestions on mismatch.
     """
     import typer
 
@@ -68,15 +66,28 @@ def check_table_exists(connector: Connector, table: str) -> None:
         database, schema, tbl = sf._resolve_table(table)
         tables = sf.get_tables(database=database, schema=schema)
         table_names = [t["name"] for t in tables]
-        if not any(t.lower() == tbl.lower() for t in table_names):
-            raise typer.BadParameter(_format_not_found("Table", table, table_names))
-        return
+        for name in table_names:
+            if name.lower() == tbl.lower():
+                return f"{database}.{schema}.{name}"
+        raise typer.BadParameter(_format_not_found("Table", table, table_names))
 
     tables = connector.get_tables()
     table_names = [t["name"] for t in tables]
 
-    if not any(t.lower() == table.lower() for t in table_names):
-        raise typer.BadParameter(_format_not_found("Table", table, table_names))
+    for name in table_names:
+        if name.lower() == table.lower():
+            return name
+
+    raise typer.BadParameter(_format_not_found("Table", table, table_names))
+
+
+def check_table_exists(connector: Connector, table: str) -> None:
+    """Raise typer.BadParameter if *table* does not exist in the database.
+
+    Thin wrapper around :func:`resolve_table` for callers that only need
+    an existence check without the canonical name.
+    """
+    resolve_table(connector, table)
 
 
 def resolve_column(connector: Connector, table: str, column: str, *, label: str = "column") -> str:

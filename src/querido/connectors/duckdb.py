@@ -29,7 +29,7 @@ class DuckDBConnector:
         safe_path = resolved.replace("\\", "/").replace("'", "''")
         safe_name = name.replace('"', '""')
         self.conn.execute(
-            f"CREATE OR REPLACE VIEW \"{safe_name}\" AS SELECT * FROM read_parquet('{safe_path}')"
+            f'create or replace view "{safe_name}" as select * from read_parquet(\'{safe_path}\')'
         )
         return name
 
@@ -55,8 +55,8 @@ class DuckDBConnector:
 
     def get_tables(self) -> list[dict]:
         rows = self.execute(
-            "SELECT table_name, table_type FROM information_schema.tables "
-            "WHERE table_schema = 'main' ORDER BY table_name"
+            "select table_name, table_type from information_schema.tables "
+            "where table_schema = 'main' order by table_name"
         )
         return [
             {
@@ -72,11 +72,11 @@ class DuckDBConnector:
         if cache_key in self._columns_cache:
             return self._columns_cache[cache_key]
         # Case normalization is done in Python (.lower()) rather than in SQL
-        # (LOWER()) to avoid per-row function calls on large catalogs.
+        # (lower()) to avoid per-row function calls on large catalogs.
         rows = self.execute(
-            "SELECT column_name, data_type, is_nullable, column_default, comment "
-            "FROM duckdb_columns() "
-            "WHERE schema_name = 'main' AND table_name = $table_name",
+            "select column_name, data_type, is_nullable, column_default, comment "
+            "from duckdb_columns() "
+            "where schema_name = 'main' and table_name = $table_name",
             {"table_name": cache_key},
         )
         result = [
@@ -97,8 +97,8 @@ class DuckDBConnector:
         """Return the table comment, or None if not set."""
         validate_table_name(table)
         rows = self.execute(
-            "SELECT comment FROM duckdb_tables() "
-            "WHERE schema_name = 'main' AND table_name = $table_name",
+            "select comment from duckdb_tables() "
+            "where schema_name = 'main' and table_name = $table_name",
             {"table_name": table.lower()},
         )
         if rows and rows[0]["comment"]:
@@ -109,7 +109,7 @@ class DuckDBConnector:
         """Return the SQL definition of a view from duckdb_views()."""
         validate_table_name(view)
         rows = self.execute(
-            "SELECT sql FROM duckdb_views() WHERE schema_name = 'main' AND view_name = $view_name",
+            "select sql from duckdb_views() where schema_name = 'main' and view_name = $view_name",
             {"view_name": view.lower()},
         )
         if rows and rows[0]["sql"]:
@@ -122,8 +122,8 @@ class DuckDBConnector:
         # than reservoir sampling, which must scan every row.
         if row_count > 10_000_000:
             pct = max(sample_size / row_count * 100, 0.01)
-            return f"(SELECT * FROM {table} USING SAMPLE {pct:.4f} PERCENT (SYSTEM)) AS _sample"
-        return f"(SELECT * FROM {table} USING SAMPLE {sample_size}) AS _sample"
+            return f"(select * from {table} using sample {pct:.4f} percent (system)) as _sample"
+        return f"(select * from {table} using sample {sample_size}) as _sample"
 
     def cancel(self) -> None:
         """Interrupt a running query."""

@@ -1,14 +1,14 @@
-CREATE OR REPLACE FUNCTION my_udf(
+create or replace function my_udf(
 {% for col in columns %}
     {{ col.name | lower }} {{ col.type }}{% if not loop.last %},
 {% endif %}
 {% endfor %}
 
-) RETURNS VARCHAR
-LANGUAGE SQL
-AS $$
-    SELECT CONCAT({{ columns | map(attribute='name') | map('lower') | join("::VARCHAR, ' ', ") }}::VARCHAR)
+) returns varchar
+language sql
+as $$
+    select concat({{ columns | map(attribute='name') | map('lower') | join("::varchar, ' ', ") }}::varchar)
 $$;
 
 -- Example usage:
--- SELECT my_udf({{ columns | map(attribute='name') | join(', ') }}) FROM {{ table }};
+-- select my_udf({{ columns | map(attribute='name') | join(', ') }}) from {{ table }};

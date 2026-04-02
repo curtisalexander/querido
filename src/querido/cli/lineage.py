@@ -22,11 +22,11 @@ def lineage(
         from querido.cli._pipeline import dispatch_output, table_command
 
         with table_command(table=view, connection=connection, db_type=db_type) as ctx:
-            with ctx.spin(f"Retrieving definition for [bold]{view}[/bold]"):
+            with ctx.spin(f"Retrieving definition for [bold]{ctx.table}[/bold]"):
                 from querido.core.lineage import get_view_definition
 
                 try:
-                    result = get_view_definition(ctx.connector, view)
+                    result = get_view_definition(ctx.connector, ctx.table)
                 except LookupError as exc:
                     raise typer.BadParameter(str(exc)) from exc
 

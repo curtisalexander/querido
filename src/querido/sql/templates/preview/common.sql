@@ -1,1 +1,1 @@
-SELECT * FROM {{ table }} LIMIT {{ limit }}
+select * from {{ table }} limit {{ limit }}

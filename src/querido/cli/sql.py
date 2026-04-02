@@ -19,9 +19,9 @@ _dbtype_opt = typer.Option(
 
 def _get_columns_and_dialect(
     table: str, connection: str, db_type: str | None
-) -> tuple[list[dict], str]:
-    """Validate, connect, and return (columns, dialect)."""
-    from querido.cli._validation import check_table_exists
+) -> tuple[list[dict], str, str]:
+    """Validate, connect, and return (columns, dialect, resolved_table)."""
+    from querido.cli._validation import resolve_table
     from querido.config import resolve_connection
     from querido.connectors.base import validate_table_name
     from querido.connectors.factory import create_connector
@@ -30,11 +30,11 @@ def _get_columns_and_dialect(
     config = resolve_connection(connection, db_type)
 
     with create_connector(config) as connector:
-        check_table_exists(connector, table)
-        columns = connector.get_columns(table)
+        resolved = resolve_table(connector, table)
+        columns = connector.get_columns(resolved)
         dialect = connector.dialect
 
-    return columns, dialect
+    return columns, dialect, resolved
 
 
 def _table_short_name(table: str) -> str:
@@ -63,9 +63,9 @@ def _require_snowflake(dialect: str, command: str) -> None:
 def _format_sql_literal(value: object) -> str:
     """Format a Python value as a SQL literal string."""
     if value is None:
-        return "NULL"
+        return "null"
     if isinstance(value, bool):
-        return "TRUE" if value else "FALSE"
+        return "true" if value else "false"
     if isinstance(value, (int, float)):
         return str(value)
     # Strings, dates, datetimes, and other types — quote as string literal
@@ -89,8 +89,8 @@ def select(
 
     @friendly_errors
     def _run() -> None:
-        columns, dialect = _get_columns_and_dialect(table, connection, db_type)
-        _render("select", dialect, table=table, columns=columns)
+        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+        _render("select", dialect, table=resolved, columns=columns)
 
     _run()
 
@@ -106,8 +106,8 @@ def insert(
 
     @friendly_errors
     def _run() -> None:
-        columns, dialect = _get_columns_and_dialect(table, connection, db_type)
-        _render("insert", dialect, table=table, columns=columns)
+        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+        _render("insert", dialect, table=resolved, columns=columns)
 
     _run()
 
@@ -123,8 +123,8 @@ def ddl(
 
     @friendly_errors
     def _run() -> None:
-        columns, dialect = _get_columns_and_dialect(table, connection, db_type)
-        _render("ddl", dialect, table=table, columns=columns)
+        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+        _render("ddl", dialect, table=resolved, columns=columns)
 
     _run()
 
@@ -140,9 +140,15 @@ def task(
 
     @friendly_errors
     def _run() -> None:
-        columns, dialect = _get_columns_and_dialect(table, connection, db_type)
+        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
         _require_snowflake(dialect, "task")
-        _render("task", dialect, table=table, table_name=_table_short_name(table), columns=columns)
+        _render(
+            "task",
+            dialect,
+            table=resolved,
+            table_name=_table_short_name(resolved),
+            columns=columns,
+        )
 
     _run()
 
@@ -158,8 +164,8 @@ def udf(
 
     @friendly_errors
     def _run() -> None:
-        columns, dialect = _get_columns_and_dialect(table, connection, db_type)
-        _render("udf", dialect, table=table, columns=columns)
+        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+        _render("udf", dialect, table=resolved, columns=columns)
 
     _run()
 
@@ -175,13 +181,13 @@ def procedure(
 
     @friendly_errors
     def _run() -> None:
-        columns, dialect = _get_columns_and_dialect(table, connection, db_type)
+        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
         _require_snowflake(dialect, "procedure")
         _render(
             "procedure",
             dialect,
-            table=table,
-            table_name=_table_short_name(table),
+            table=resolved,
+            table_name=_table_short_name(resolved),
             columns=columns,
         )
 
@@ -200,7 +206,7 @@ def scratch(
 
     @friendly_errors
     def _run() -> None:
-        from querido.cli._validation import check_table_exists
+        from querido.cli._validation import resolve_table
         from querido.config import resolve_connection
         from querido.connectors.base import validate_table_name
         from querido.connectors.factory import create_connector
@@ -210,9 +216,11 @@ def scratch(
         config = resolve_connection(connection, db_type)
 
         with create_connector(config) as connector:
-            check_table_exists(connector, table)
-            columns = connector.get_columns(table)
-            preview_sql = render_template("preview", connector.dialect, table=table, limit=rows)
+            resolved = resolve_table(connector, table)
+            columns = connector.get_columns(resolved)
+            preview_sql = render_template(
+                "preview", connector.dialect, table=resolved, limit=rows
+            )
             sample_rows = connector.execute(preview_sql)
             dialect = connector.dialect
 
@@ -227,8 +235,8 @@ def scratch(
         _render(
             "scratch",
             dialect,
-            table=table,
-            table_name=_table_short_name(table),
+            table=resolved,
+            table_name=_table_short_name(resolved),
             columns=columns,
             rows=formatted_rows,
         )

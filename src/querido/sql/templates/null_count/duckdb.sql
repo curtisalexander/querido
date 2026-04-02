@@ -1,4 +1,4 @@
-SELECT
-    COUNT(*) AS total,
-    COUNT_IF("{{ column }}" IS NULL) AS null_count
-FROM {{ table }}
+select
+    count(*) as total,
+    count_if("{{ column }}" is null) as null_count
+from {{ table }}

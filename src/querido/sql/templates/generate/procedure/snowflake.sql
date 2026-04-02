@@ -1,24 +1,24 @@
-CREATE OR REPLACE PROCEDURE process_{{ table_name | lower }}()
-RETURNS VARCHAR
-LANGUAGE SQL
-AS
+create or replace procedure process_{{ table_name | lower }}()
+returns varchar
+language sql
+as
 $$
-BEGIN
-    LET row_count := (SELECT COUNT(*) FROM {{ table }});
+begin
+    let row_count := (select count(*) from {{ table }});
 
     -- Example: insert processed rows into a target table
-    -- INSERT INTO {{ table_name }}_processed
-    -- SELECT
+    -- insert into {{ table_name }}_processed
+    -- select
 {% for col in columns %}
     --     {{ col.name }}{% if not loop.last %},
 {% endif %}
 {% endfor %}
 
-    -- FROM {{ table }};
+    -- from {{ table }};
 
-    RETURN 'Processed ' || :row_count || ' rows from {{ table }}';
-END;
+    return 'Processed ' || :row_count || ' rows from {{ table }}';
+end;
 $$;
 
 -- Example usage:
--- CALL process_{{ table_name | lower }}();
+-- call process_{{ table_name | lower }}();

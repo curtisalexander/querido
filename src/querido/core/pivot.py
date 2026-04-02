@@ -44,8 +44,8 @@ def build_pivot_query(
     group_cols = ", ".join(_q(r) for r in rows)
     agg_exprs = ", ".join(f'{agg}({_q(v)}) AS "{agg.lower()}_{v}"' for v in values)
     return (
-        f"SELECT {group_cols}, {agg_exprs} FROM {_q(table)}"
-        f" GROUP BY {group_cols} ORDER BY {group_cols}"
+        f"select {group_cols}, {agg_exprs} from {_q(table)}"
+        f" group by {group_cols} order by {group_cols}"
     )
 
 

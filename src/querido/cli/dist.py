@@ -32,13 +32,13 @@ def dist(
         validate_column_name(column)
 
         with table_command(table=table, connection=connection, db_type=db_type) as ctx:
-            canonical_col = resolve_column(ctx.connector, table, column)
+            canonical_col = resolve_column(ctx.connector, ctx.table, column)
 
             with ctx.spin(f"Computing distribution for [bold]{canonical_col}[/bold]"):
                 from querido.core.dist import get_distribution
 
                 dist_result = get_distribution(
-                    ctx.connector, table, canonical_col, buckets=buckets, top=top
+                    ctx.connector, ctx.table, canonical_col, buckets=buckets, top=top
                 )
 
             dispatch_output("dist", dist_result)

@@ -481,7 +481,7 @@ def format_dist_html(dist_result: dict) -> str:
     )
 
 
-def format_template_html(template_result: dict) -> str:
+def format_template_html(template_result: dict, *, style: str = "table") -> str:
     """Render template results as a standalone HTML page."""
     table_name = template_result["table"]
     table_comment = template_result["table_comment"]

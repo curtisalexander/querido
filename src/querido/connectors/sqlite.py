@@ -15,9 +15,9 @@ class SQLiteConnector:
         self.conn.row_factory = sqlite3.Row
         self._columns_cache: dict[str, list[dict]] = {}
         # Optimize for read-heavy profiling workloads.
-        self.conn.execute("PRAGMA journal_mode = WAL")
-        self.conn.execute("PRAGMA cache_size = -65536")  # 64 MB page cache
-        self.conn.execute("PRAGMA mmap_size = 268435456")  # 256 MB mmap
+        self.conn.execute("pragma journal_mode = WAL")
+        self.conn.execute("pragma cache_size = -65536")  # 64 MB page cache
+        self.conn.execute("pragma mmap_size = 268435456")  # 256 MB mmap
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         cursor = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
@@ -28,8 +28,8 @@ class SQLiteConnector:
 
     def get_tables(self) -> list[dict]:
         rows = self.execute(
-            "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') "
-            "AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            "select name, type from sqlite_master where type in ('table', 'view') "
+            "and name not like 'sqlite_%' order by name"
         )
         return [{"name": r["name"], "type": r["type"]} for r in rows]
 
@@ -40,7 +40,7 @@ class SQLiteConnector:
             return self._columns_cache[cache_key]
         # PRAGMA doesn't support bind parameters, so we use an f-string here.
         # validate_table_name above ensures the name is a safe identifier.
-        rows = self.execute(f"PRAGMA table_info({table})")
+        rows = self.execute(f"pragma table_info({table})")
         result = [
             {
                 "name": r["name"],
@@ -63,7 +63,7 @@ class SQLiteConnector:
         """Return the SQL definition of a view from sqlite_master."""
         validate_table_name(view)
         rows = self.execute(
-            "SELECT sql FROM sqlite_master WHERE type = 'view' AND name = ?",
+            "select sql from sqlite_master where type = 'view' and name = ?",
             (view,),
         )
         if rows and rows[0]["sql"]:
@@ -75,9 +75,9 @@ class SQLiteConnector:
         # sorting.  Much faster than ORDER BY RANDOM() on large tables because
         # it avoids the full sort and can stop early via LIMIT.
         return (
-            f"(SELECT * FROM {table} WHERE ABS(RANDOM()) % "
-            f"MAX((SELECT COUNT(*) FROM {table}) / {sample_size}, 1) = 0 "
-            f"LIMIT {sample_size}) AS _sample"
+            f"(select * from {table} where abs(random()) % "
+            f"max((select count(*) from {table}) / {sample_size}, 1) = 0 "
+            f"limit {sample_size}) as _sample"
         )
 
     def cancel(self) -> None:

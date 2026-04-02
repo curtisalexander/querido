@@ -493,14 +493,14 @@ class TestSnowflakeTemplates:
 
         cols = [{"name": "PRICE", "type": "FLOAT", "numeric": True}]
         sql = render_template("profile", "snowflake", columns=cols, source="products", approx=True)
-        assert "AVG" in sql
-        assert "APPROX_PERCENTILE" in sql
-        assert "STDDEV" in sql
+        assert "avg" in sql
+        assert "approx_percentile" in sql
+        assert "stddev" in sql
         assert "products" in sql
-        assert "APPROX_COUNT_DISTINCT" in sql
-        assert "COUNT(DISTINCT" not in sql
-        # Single SELECT, no UNION ALL
-        assert "UNION" not in sql
+        assert "approx_count_distinct" in sql
+        assert "count(distinct" not in sql
+        # Single select, no union all
+        assert "union" not in sql.lower()
 
     def test_profile_template_numeric_exact(self):
         """Exact profile uses COUNT(DISTINCT) in a single SELECT."""
@@ -510,18 +510,18 @@ class TestSnowflakeTemplates:
         sql = render_template(
             "profile", "snowflake", columns=cols, source="products", approx=False
         )
-        assert "COUNT(DISTINCT" in sql
-        assert "APPROX_COUNT_DISTINCT" not in sql
-        assert "UNION" not in sql
+        assert "count(distinct" in sql
+        assert "approx_count_distinct" not in sql
+        assert "union" not in sql.lower()
 
     def test_profile_template_string(self):
         from querido.sql.renderer import render_template
 
         cols = [{"name": "EMAIL", "type": "VARCHAR", "numeric": False}]
         sql = render_template("profile", "snowflake", columns=cols, source="users", approx=True)
-        assert "LENGTH" in sql
+        assert "length" in sql
         assert "min_length" in sql
-        assert "UNION" not in sql
+        assert "union" not in sql.lower()
 
     def test_profile_template_single_scan_multiple_cols(self):
         """Multiple columns produce a single SELECT with all stats."""
@@ -533,9 +533,9 @@ class TestSnowflakeTemplates:
             {"name": "SCORE", "type": "FLOAT", "numeric": True},
         ]
         sql = render_template("profile", "snowflake", columns=cols, source="scores", approx=True)
-        # Single SELECT — no UNION ALL
-        assert "UNION" not in sql
-        assert sql.strip().startswith("SELECT")
+        # Single select — no union all
+        assert "union" not in sql.lower()
+        assert sql.strip().startswith("select")
         # All columns present
         assert '"ID__null_count"' in sql
         assert '"NAME__min_length"' in sql
@@ -582,8 +582,8 @@ class TestSnowflakeTemplates:
             table_name="ORDERS",
             columns=cols,
         )
-        assert "TASK ORDERS_task" in sql
-        assert "FROM MY_DB.STAGING.ORDERS" in sql
+        assert "task ORDERS_task" in sql
+        assert "from MY_DB.STAGING.ORDERS" in sql
 
     def test_procedure_uses_table_name_for_identifier(self):
         """Procedure template uses short table_name for proc name, full table for FROM."""
@@ -598,7 +598,7 @@ class TestSnowflakeTemplates:
             columns=cols,
         )
         assert "process_orders()" in sql
-        assert "FROM MY_DB.STAGING.ORDERS" in sql
+        assert "from MY_DB.STAGING.ORDERS" in sql
 
 
 # ---------------------------------------------------------------------------
@@ -802,12 +802,15 @@ class TestTableShortName:
 class TestSemanticYamlQualified:
     def test_semantic_yaml_uses_short_name(self):
         """Semantic model name uses just the table part, base_table keeps full ref."""
-        from querido.cli.snowflake import _build_semantic_yaml
+        from querido.core.semantic import build_semantic_yaml
 
         columns = [{"name": "ID", "type": "NUMBER", "comment": None}]
-        yaml_str = _build_semantic_yaml("MY_DB.STAGING.ORDERS", columns, None)
+        yaml_str = build_semantic_yaml("MY_DB.STAGING.ORDERS", columns, None)
         assert "name: orders_semantic_model" in yaml_str
         assert "name: ORDERS" in yaml_str
-        assert "base_table: MY_DB.STAGING.ORDERS" in yaml_str
+        # Qualified names produce structured base_table
+        assert "database: MY_DB" in yaml_str
+        assert "schema: STAGING" in yaml_str
+        assert "table: ORDERS" in yaml_str
         # Should NOT have dots in the model name
         assert "my_db.staging.orders_semantic_model" not in yaml_str

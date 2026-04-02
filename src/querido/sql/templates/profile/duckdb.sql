@@ -1,26 +1,26 @@
-SELECT
-    COUNT(*) AS total_rows
+select
+    count(*) as total_rows
 {% for col in columns %}
-    , COUNT_IF("{{ col.name }}" IS NULL)::BIGINT AS "{{ col.name }}__null_count"
-    , ROUND(100.0 * COUNT_IF("{{ col.name }}" IS NULL) / NULLIF(COUNT(*), 0), 2) AS "{{ col.name }}__null_pct"
+    , count_if("{{ col.name }}" is null)::bigint as "{{ col.name }}__null_count"
+    , round(100.0 * count_if("{{ col.name }}" is null) / nullif(count(*), 0), 2) as "{{ col.name }}__null_pct"
 {% if approx %}
-    , APPROX_COUNT_DISTINCT("{{ col.name }}")::BIGINT AS "{{ col.name }}__distinct_count"
+    , approx_count_distinct("{{ col.name }}")::bigint as "{{ col.name }}__distinct_count"
 {% else %}
-    , COUNT(DISTINCT "{{ col.name }}")::BIGINT AS "{{ col.name }}__distinct_count"
+    , count(distinct "{{ col.name }}")::bigint as "{{ col.name }}__distinct_count"
 {% endif %}
 {% if col.numeric %}
-    , MIN("{{ col.name }}") AS "{{ col.name }}__min_val"
-    , MAX("{{ col.name }}") AS "{{ col.name }}__max_val"
-    , ROUND(AVG("{{ col.name }}")::DOUBLE, 4) AS "{{ col.name }}__mean_val"
+    , min("{{ col.name }}") as "{{ col.name }}__min_val"
+    , max("{{ col.name }}") as "{{ col.name }}__max_val"
+    , round(avg("{{ col.name }}")::double, 4) as "{{ col.name }}__mean_val"
 {% if approx %}
-    , APPROX_QUANTILE("{{ col.name }}", 0.5) AS "{{ col.name }}__median_val"
+    , approx_quantile("{{ col.name }}", 0.5) as "{{ col.name }}__median_val"
 {% else %}
-    , MEDIAN("{{ col.name }}") AS "{{ col.name }}__median_val"
+    , median("{{ col.name }}") as "{{ col.name }}__median_val"
 {% endif %}
-    , ROUND(STDDEV("{{ col.name }}")::DOUBLE, 4) AS "{{ col.name }}__stddev_val"
+    , round(stddev("{{ col.name }}")::double, 4) as "{{ col.name }}__stddev_val"
 {% else %}
-    , MIN(LENGTH("{{ col.name }}"::VARCHAR))::BIGINT AS "{{ col.name }}__min_length"
-    , MAX(LENGTH("{{ col.name }}"::VARCHAR))::BIGINT AS "{{ col.name }}__max_length"
+    , min(length("{{ col.name }}"::varchar))::bigint as "{{ col.name }}__min_length"
+    , max(length("{{ col.name }}"::varchar))::bigint as "{{ col.name }}__max_length"
 {% endif %}
 {% endfor %}
-FROM {{ source }}
+from {{ source }}

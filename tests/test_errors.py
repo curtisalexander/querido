@@ -312,3 +312,90 @@ def test_fuzzy_suggestions_returns_matches():
 
     matches = _fuzzy_suggestions("usrs", ["users", "orders", "products"])
     assert "users" in matches
+
+
+# ---------------------------------------------------------------------------
+# resolve_table — case-insensitive table name resolution
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_table_exact_match(sqlite_path: str):
+    from querido.cli._validation import resolve_table
+    from querido.connectors.sqlite import SQLiteConnector
+
+    with SQLiteConnector(sqlite_path) as conn:
+        assert resolve_table(conn, "users") == "users"
+
+
+def test_resolve_table_case_insensitive_sqlite(sqlite_path: str):
+    """User types USERS, table is users — should resolve to canonical name."""
+    from querido.cli._validation import resolve_table
+    from querido.connectors.sqlite import SQLiteConnector
+
+    with SQLiteConnector(sqlite_path) as conn:
+        assert resolve_table(conn, "USERS") == "users"
+        assert resolve_table(conn, "Users") == "users"
+        assert resolve_table(conn, "ORDERS") == "orders"
+
+
+def test_resolve_table_case_insensitive_duckdb(duckdb_path: str):
+    from querido.cli._validation import resolve_table
+    from querido.connectors.duckdb import DuckDBConnector
+
+    with DuckDBConnector(duckdb_path) as conn:
+        assert resolve_table(conn, "USERS") == "users"
+        assert resolve_table(conn, "Users") == "users"
+
+
+def test_resolve_table_not_found_raises(sqlite_path: str):
+    import typer
+
+    from querido.cli._validation import resolve_table
+    from querido.connectors.sqlite import SQLiteConnector
+
+    with (
+        SQLiteConnector(sqlite_path) as conn,
+        pytest.raises(typer.BadParameter, match="not found"),
+    ):
+        resolve_table(conn, "nonexistent")
+
+
+def test_resolve_table_not_found_has_suggestions(sqlite_path: str):
+    """resolve_table error should include fuzzy suggestions."""
+    import typer
+
+    from querido.cli._validation import resolve_table
+    from querido.connectors.sqlite import SQLiteConnector
+
+    with (
+        SQLiteConnector(sqlite_path) as conn,
+        pytest.raises(typer.BadParameter, match="Did you mean"),
+    ):
+        resolve_table(conn, "usrs")
+
+
+# ---------------------------------------------------------------------------
+# CLI commands accept case-insensitive table names
+# ---------------------------------------------------------------------------
+
+
+def test_preview_case_insensitive_table(sqlite_path: str):
+    result = runner.invoke(app, ["preview", "-c", sqlite_path, "-t", "USERS", "-r", "1"])
+    assert result.exit_code == 0
+
+
+def test_inspect_case_insensitive_table(sqlite_path: str):
+    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "USERS"])
+    assert result.exit_code == 0
+
+
+def test_sql_select_case_insensitive_table(sqlite_path: str):
+    result = runner.invoke(app, ["sql", "select", "-c", sqlite_path, "-t", "USERS"])
+    assert result.exit_code == 0
+    # Should use the canonical table name (lowercase) in output
+    assert "from users;" in result.output
+
+
+def test_profile_case_insensitive_table(sqlite_path: str):
+    result = runner.invoke(app, ["profile", "-c", sqlite_path, "-t", "USERS"])
+    assert result.exit_code == 0
