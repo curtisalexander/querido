@@ -55,18 +55,22 @@ def add(
     entry: dict[str, str] = {"type": db_type}
     if path:
         entry["path"] = path
-    for key, val in [
-        ("account", account),
-        ("user", user),
-        ("warehouse", warehouse),
-        ("database", database),
-        ("schema", schema),
-        ("role", role),
-        ("auth", auth),
-        ("private_key_path", private_key_path),
-    ]:
-        if val:
-            entry[key] = val
+    entry.update(
+        {
+            key: val
+            for key, val in [
+                ("account", account),
+                ("user", user),
+                ("warehouse", warehouse),
+                ("database", database),
+                ("schema", schema),
+                ("role", role),
+                ("auth", auth),
+                ("private_key_path", private_key_path),
+            ]
+            if val
+        }
+    )
 
     # Write back as TOML
     existing[name] = entry
@@ -174,17 +178,21 @@ def clone(
 
     # Clone and apply overrides
     entry = dict(existing[source])
-    for key, val in [
-        ("database", database),
-        ("schema", schema),
-        ("role", role),
-        ("warehouse", warehouse),
-        ("account", account),
-        ("user", user),
-        ("auth", auth),
-    ]:
-        if val is not None:
-            entry[key] = val
+    entry.update(
+        {
+            key: val
+            for key, val in [
+                ("database", database),
+                ("schema", schema),
+                ("role", role),
+                ("warehouse", warehouse),
+                ("account", account),
+                ("user", user),
+                ("auth", auth),
+            ]
+            if val is not None
+        }
+    )
 
     existing[name] = entry
     _write_connections(config_file, existing)

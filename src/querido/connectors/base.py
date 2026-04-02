@@ -43,8 +43,12 @@ class Connector(Protocol):
         """Execute SQL and return results as list of dicts."""
         ...
 
-    def get_tables(self) -> list[dict]:
-        """Return list of tables/views with keys: name, type."""
+    def get_tables(self, *, database: str | None = None, schema: str | None = None) -> list[dict]:
+        """Return list of tables/views with keys: name, type.
+
+        *database* and *schema* are optional overrides for connectors
+        that support them (Snowflake).  Other connectors ignore them.
+        """
         ...
 
     def get_columns(self, table: str) -> list[dict]:

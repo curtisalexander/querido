@@ -57,17 +57,17 @@ def search_metadata(
                     "Could not read columns for '%s'", tbl_name, exc_info=True
                 )
                 continue
-            for col in columns:
-                if pat in col["name"].lower():
-                    results.append(
-                        {
-                            "table_name": tbl_name,
-                            "table_type": tbl_type,
-                            "match_type": "column",
-                            "column_name": col["name"],
-                            "column_type": col["type"],
-                        }
-                    )
+            results.extend(
+                {
+                    "table_name": tbl_name,
+                    "table_type": tbl_type,
+                    "match_type": "column",
+                    "column_name": col["name"],
+                    "column_type": col["type"],
+                }
+                for col in columns
+                if pat in col["name"].lower()
+            )
 
     return results
 

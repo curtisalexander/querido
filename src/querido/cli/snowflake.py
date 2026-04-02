@@ -7,14 +7,12 @@ from typing import TYPE_CHECKING
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 app = typer.Typer(help="Snowflake-specific commands.")
-
-_conn_opt = typer.Option(..., "--connection", "-c", help="Named connection or file path.")
-_dbtype_opt = typer.Option(None, "--db-type", help="Database type. Inferred from path if omitted.")
 
 
 def _require_snowflake(dialect: str, command: str) -> None:
@@ -33,8 +31,8 @@ def _require_snowflake(dialect: str, command: str) -> None:
 @friendly_errors
 def semantic(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     output_file: str | None = typer.Option(
         None, "--output", "-o", help="Write YAML to file instead of stdout."
     ),
@@ -88,8 +86,8 @@ def semantic(
 @friendly_errors
 def lineage(
     object_name: str = typer.Option(..., "--object", help="Fully qualified object name."),
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     direction: str = typer.Option(
         "downstream",
         "--direction",

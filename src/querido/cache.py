@@ -260,16 +260,16 @@ class MetadataCache:
                 "where connection = ? and lower(table_name) like ? escape '\\'",
                 (connection_name, pat),
             ).fetchall()
-            for r in rows:
-                results.append(
-                    {
-                        "table_name": r["table_name"],
-                        "table_type": r["table_type"],
-                        "match_type": "table",
-                        "column_name": None,
-                        "column_type": None,
-                    }
-                )
+            results.extend(
+                {
+                    "table_name": r["table_name"],
+                    "table_type": r["table_type"],
+                    "match_type": "table",
+                    "column_name": None,
+                    "column_type": None,
+                }
+                for r in rows
+            )
 
         if search_columns:
             rows = self._conn.execute(
@@ -282,16 +282,16 @@ class MetadataCache:
                 "where c.connection = ? and lower(c.column_name) like ? escape '\\'",
                 (connection_name, pat),
             ).fetchall()
-            for r in rows:
-                results.append(
-                    {
-                        "table_name": r["table_name"],
-                        "table_type": r["table_type"],
-                        "match_type": "column",
-                        "column_name": r["column_name"],
-                        "column_type": r["column_type"],
-                    }
-                )
+            results.extend(
+                {
+                    "table_name": r["table_name"],
+                    "table_type": r["table_type"],
+                    "match_type": "column",
+                    "column_name": r["column_name"],
+                    "column_type": r["column_type"],
+                }
+                for r in rows
+            )
 
         return results
 

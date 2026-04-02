@@ -5,18 +5,9 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt, table_opt
 
 app = typer.Typer(help="Generate SQL statements for a table.")
-
-# ---------------------------------------------------------------------------
-# Shared options
-# ---------------------------------------------------------------------------
-
-_table_opt = typer.Option(..., "--table", "-t", help="Table name.")
-_conn_opt = typer.Option(..., "--connection", "-c", help="Named connection or file path.")
-_dbtype_opt = typer.Option(
-    None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-)
 
 
 def _get_columns_and_dialect(
@@ -83,9 +74,9 @@ def _format_sql_literal(value: object) -> str:
 @app.command()
 @friendly_errors
 def select(
-    table: str = _table_opt,
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Generate a SELECT statement with all columns."""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
@@ -95,9 +86,9 @@ def select(
 @app.command()
 @friendly_errors
 def insert(
-    table: str = _table_opt,
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Generate an INSERT statement with named placeholders."""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
@@ -107,9 +98,9 @@ def insert(
 @app.command()
 @friendly_errors
 def ddl(
-    table: str = _table_opt,
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Generate a CREATE TABLE DDL statement."""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
@@ -119,9 +110,9 @@ def ddl(
 @app.command()
 @friendly_errors
 def task(
-    table: str = _table_opt,
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Generate a Snowflake task template. (Snowflake only)"""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
@@ -138,9 +129,9 @@ def task(
 @app.command()
 @friendly_errors
 def udf(
-    table: str = _table_opt,
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Generate a UDF template using table columns as parameters."""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
@@ -150,9 +141,9 @@ def udf(
 @app.command()
 @friendly_errors
 def procedure(
-    table: str = _table_opt,
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Generate a stored procedure template. (Snowflake only)"""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
@@ -169,9 +160,9 @@ def procedure(
 @app.command()
 @friendly_errors
 def scratch(
-    table: str = _table_opt,
-    connection: str = _conn_opt,
-    db_type: str | None = _dbtype_opt,
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     rows: int = typer.Option(5, "--rows", "-r", min=1, help="Number of sample rows to include."),
 ) -> None:
     """Generate a temp table with sample data for experimentation."""

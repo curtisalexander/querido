@@ -244,10 +244,10 @@ def _html_page(title: str, subtitle: str, table_html: str, footer_text: str = ""
 
 def _build_table(headers: list[str], rows: list[list[Any]]) -> str:
     """Build an HTML ``<table>`` with ``<thead>``/``<tbody>``."""
-    parts: list[str] = ["<table>"]
-    parts.append("<thead><tr>")
-    for h in headers:
-        parts.append(f'<th>{html.escape(str(h))}<span class="sort-arrow"></span></th>')
+    parts: list[str] = ["<table>", "<thead><tr>"]
+    parts.extend(
+        f'<th>{html.escape(str(h))}<span class="sort-arrow"></span></th>' for h in headers
+    )
     parts.append("</tr></thead>")
     parts.append("<tbody>")
     for idx, row in enumerate(rows):
@@ -382,24 +382,23 @@ def format_profile_html(
         "Null %",
         "Distinct",
     ]
-    rows: list[list[Any]] = []
-    for r in data:
-        rows.append(
-            [
-                r["column_name"],
-                r["column_type"],
-                fmt_value(r.get("min_val")),
-                fmt_value(r.get("max_val")),
-                fmt_value(r.get("mean_val")),
-                fmt_value(r.get("median_val")),
-                fmt_value(r.get("stddev_val")),
-                fmt_value(r.get("min_length")),
-                fmt_value(r.get("max_length")),
-                fmt_value(r.get("null_count")),
-                fmt_value(r.get("null_pct")),
-                fmt_value(r.get("distinct_count")),
-            ]
-        )
+    rows: list[list[Any]] = [
+        [
+            r["column_name"],
+            r["column_type"],
+            fmt_value(r.get("min_val")),
+            fmt_value(r.get("max_val")),
+            fmt_value(r.get("mean_val")),
+            fmt_value(r.get("median_val")),
+            fmt_value(r.get("stddev_val")),
+            fmt_value(r.get("min_length")),
+            fmt_value(r.get("max_length")),
+            fmt_value(r.get("null_count")),
+            fmt_value(r.get("null_pct")),
+            fmt_value(r.get("distinct_count")),
+        ]
+        for r in data
+    ]
 
     sample_note = ""
     if sampled and sample_size:

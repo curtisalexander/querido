@@ -244,8 +244,6 @@ def _profile_batched(
     profile query for each batch, executes them concurrently, and merges
     the per-column stats into a single list.
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
     from querido.sql.renderer import render_template
 
     batches = [col_info[i : i + batch_size] for i in range(0, len(col_info), batch_size)]
@@ -259,18 +257,13 @@ def _profile_batched(
             return _unpack_single_row(raw[0], batch)
         return raw
 
-    all_stats: list[dict] = []
-    max_workers = min(len(batches), 4)
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(_run_batch, batch): i for i, batch in enumerate(batches)}
-        results: dict[int, list[dict]] = {}
-        for future in as_completed(futures):
-            idx = futures[future]
-            results[idx] = future.result()
+    from querido.core._concurrent import run_parallel_ordered
 
-    # Reassemble in original column order
-    for i in sorted(results):
-        all_stats.extend(results[i])
+    batch_results = run_parallel_ordered(batches, _run_batch)
+
+    all_stats: list[dict] = []
+    for batch_stats in batch_results:
+        all_stats.extend(batch_stats)
     return all_stats
 
 
@@ -304,15 +297,8 @@ def get_frequencies(
     concurrent = getattr(connector, "supports_concurrent_queries", False)
 
     if concurrent and len(col_info) > 1:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from querido.core._concurrent import run_parallel
 
-        freq_data: dict[str, list[dict]] = {}
-        max_workers = min(len(col_info), 4)
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = {pool.submit(_fetch_one, col): col for col in col_info}
-            for future in as_completed(futures):
-                col_name, rows = future.result()
-                freq_data[col_name] = rows
-        return freq_data
+        return run_parallel(col_info, _fetch_one)
 
-    return {name: rows for name, rows in (_fetch_one(col) for col in col_info)}
+    return dict(_fetch_one(col) for col in col_info)

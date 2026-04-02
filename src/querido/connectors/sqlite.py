@@ -26,7 +26,7 @@ class SQLiteConnector:
             return []
         return [dict(row) for row in rows]
 
-    def get_tables(self) -> list[dict]:
+    def get_tables(self, *, database: str | None = None, schema: str | None = None) -> list[dict]:
         rows = self.execute(
             "select name, type from sqlite_master where type in ('table', 'view') "
             "and name not like 'sqlite_%' order by name"

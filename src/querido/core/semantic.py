@@ -71,15 +71,9 @@ def get_sample_values(
     concurrent = getattr(connector, "supports_concurrent_queries", False)
 
     if concurrent and len(col_names) > 1:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from querido.core._concurrent import run_parallel
 
-        result: dict[str, list[str]] = {}
-        with ThreadPoolExecutor(max_workers=min(len(col_names), 4)) as pool:
-            futures = {pool.submit(_fetch_one, n): n for n in col_names}
-            for future in as_completed(futures):
-                name, vals = future.result()
-                result[name] = vals
-        return result
+        return run_parallel(col_names, _fetch_one)
 
     return dict(_fetch_one(n) for n in col_names)
 

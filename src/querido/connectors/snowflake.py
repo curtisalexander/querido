@@ -231,7 +231,7 @@ class SnowflakeConnector:
 
     def get_columns(self, table: str) -> list[dict]:
         database, schema, tbl = self._resolve_table(table)
-        cache_key = f"{database}.{schema}.{tbl}".upper()
+        cache_key = f"{database}.{schema}.{tbl}"
         if cache_key in self._columns_cache:
             return self._columns_cache[cache_key]
         rows = self.execute(

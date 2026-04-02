@@ -15,11 +15,11 @@ def to_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     def _esc(s: str) -> str:
         return s.replace("|", "\\|")
 
-    lines = []
-    lines.append("| " + " | ".join(_esc(h) for h in headers) + " |")
-    lines.append("| " + " | ".join("---" for _ in headers) + " |")
-    for row in rows:
-        lines.append("| " + " | ".join(_esc(cell) for cell in row) + " |")
+    lines = [
+        "| " + " | ".join(_esc(h) for h in headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    lines.extend("| " + " | ".join(_esc(cell) for cell in row) + " |" for row in rows)
     return "\n".join(lines)
 
 
@@ -171,22 +171,21 @@ def format_profile(
             "Null %",
             "Distinct",
         ]
-        rows = []
-        for r in numeric_rows:
-            rows.append(
-                [
-                    str(r["column_name"]),
-                    str(r["column_type"]),
-                    fmt_value(r["min_val"]),
-                    fmt_value(r["max_val"]),
-                    fmt_value(r["mean_val"]),
-                    fmt_value(r["median_val"]),
-                    fmt_value(r["stddev_val"]),
-                    fmt_value(r["null_count"]),
-                    fmt_value(r["null_pct"]),
-                    fmt_value(r["distinct_count"]),
-                ]
-            )
+        rows = [
+            [
+                str(r["column_name"]),
+                str(r["column_type"]),
+                fmt_value(r["min_val"]),
+                fmt_value(r["max_val"]),
+                fmt_value(r["mean_val"]),
+                fmt_value(r["median_val"]),
+                fmt_value(r["stddev_val"]),
+                fmt_value(r["null_count"]),
+                fmt_value(r["null_pct"]),
+                fmt_value(r["distinct_count"]),
+            ]
+            for r in numeric_rows
+        ]
         lines.append(to_markdown_table(headers, rows))
         lines.append("")
 
@@ -412,24 +411,23 @@ def format_template(
         return _format_template_yaml(template_result)
 
     if fmt == "csv":
-        flat = []
-        for col in columns:
-            flat.append(
-                {
-                    "column": col["name"],
-                    "type": col["type"],
-                    "nullable": "YES" if col["nullable"] else "NO",
-                    "distinct_count": fmt_value(col["distinct_count"]),
-                    "null_count": fmt_value(col["null_count"]),
-                    "null_pct": fmt_value(col["null_pct"]),
-                    "min": fmt_value(col["min_val"]) or fmt_value(col["min_length"]),
-                    "max": fmt_value(col["max_val"]) or fmt_value(col["max_length"]),
-                    "sample_values": col.get("sample_values") or "",
-                    "business_definition": "",
-                    "data_owner": "",
-                    "notes": "",
-                }
-            )
+        flat = [
+            {
+                "column": col["name"],
+                "type": col["type"],
+                "nullable": "YES" if col["nullable"] else "NO",
+                "distinct_count": fmt_value(col["distinct_count"]),
+                "null_count": fmt_value(col["null_count"]),
+                "null_pct": fmt_value(col["null_pct"]),
+                "min": fmt_value(col["min_val"]) or fmt_value(col["min_length"]),
+                "max": fmt_value(col["max_val"]) or fmt_value(col["max_length"]),
+                "sample_values": col.get("sample_values") or "",
+                "business_definition": "",
+                "data_owner": "",
+                "notes": "",
+            }
+            for col in columns
+        ]
         return dicts_to_csv(flat) if flat else ""
 
     # markdown

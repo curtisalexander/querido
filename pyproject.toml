@@ -7,15 +7,15 @@ license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.15",
-    "rich>=13",
-    "platformdirs>=4",
-    "jinja2>=3",
+    "rich>=13.7",
+    "platformdirs>=4.2",
+    "jinja2>=3.1",
     "tomli-w>=1.2",
 ]
 
 [project.optional-dependencies]
 duckdb = [
-    "duckdb>=1",
+    "duckdb>=1.0",
 ]
 snowflake = [
     "snowflake-connector-python>=3.6",
@@ -27,16 +27,16 @@ tui = [
 web = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
-    "python-multipart>=0.0.18",
+    "python-multipart>=0.0.20",
 ]
 all = [
-    "duckdb>=1",
+    "duckdb>=1.0",
     "snowflake-connector-python>=3.6",
     "pyarrow>=14",
     "textual>=0.50",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
-    "python-multipart>=0.0.18",
+    "python-multipart>=0.0.20",
 ]
 
 [project.scripts]
@@ -52,9 +52,10 @@ packages = ["src/querido"]
 [tool.ruff]
 src = ["src", "tests"]
 line-length = 99
+target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "W", "C4", "PERF"]
 
 [tool.ty.environment]
 root = ["src", "tests"]
@@ -65,9 +66,9 @@ asyncio_mode = "auto"
 
 [dependency-groups]
 dev = [
-    "pytest>=8",
+    "pytest>=8.1",
     "pytest-asyncio>=0.23",
-    "duckdb>=1",
+    "duckdb>=1.0",
     "pyarrow>=14",
     "ruff>=0.9",
     "ty>=0.0.1a7",
@@ -75,7 +76,7 @@ dev = [
     "textual-dev>=1",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
-    "python-multipart>=0.0.18",
+    "python-multipart>=0.0.20",
     "httpx>=0.27",
     "cryptography>=43",
 ]

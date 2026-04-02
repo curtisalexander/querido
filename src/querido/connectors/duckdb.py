@@ -53,7 +53,7 @@ class DuckDBConnector:
             return pa.table({})
         return result.fetch_arrow_table()
 
-    def get_tables(self) -> list[dict]:
+    def get_tables(self, *, database: str | None = None, schema: str | None = None) -> list[dict]:
         rows = self.execute(
             "select table_name, table_type from information_schema.tables "
             "where table_schema = 'main' order by table_name"
