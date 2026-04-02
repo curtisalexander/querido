@@ -38,9 +38,7 @@ def test_debug_flag(sqlite_path: str):
 
 
 def test_no_debug_by_default(sqlite_path: str):
-    result = runner.invoke(
-        app, ["preview", "-c", sqlite_path, "-t", "users", "--rows", "1"]
-    )
+    result = runner.invoke(app, ["preview", "-c", sqlite_path, "-t", "users", "--rows", "1"])
     assert result.exit_code == 0
     assert "[qdo]" not in result.output
 

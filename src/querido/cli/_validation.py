@@ -13,9 +13,7 @@ def require_snowflake(dialect: str, command: str) -> None:
     if dialect != "snowflake":
         import typer
 
-        raise typer.BadParameter(
-            f"'{command}' requires a Snowflake connection (got {dialect})."
-        )
+        raise typer.BadParameter(f"'{command}' requires a Snowflake connection (got {dialect}).")
 
 
 def _fuzzy_suggestions(name: str, candidates: list[str], *, n: int = 3) -> list[str]:

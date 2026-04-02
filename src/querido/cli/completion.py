@@ -16,8 +16,7 @@ _INSTALL_HINTS: dict[str, str] = {
         "qdo completion show fish > ~/.config/fish/completions/qdo.fish"
     ),
     "powershell": (
-        "# Add to $PROFILE:\n"
-        "qdo completion show powershell | Out-String | Invoke-Expression"
+        "# Add to $PROFILE:\nqdo completion show powershell | Out-String | Invoke-Expression"
     ),
 }
 
@@ -40,9 +39,7 @@ def show(
     """
     shell_lower = shell.lower()
     if shell_lower not in _SHELLS:
-        raise typer.BadParameter(
-            f"Unknown shell: {shell!r}. Must be one of: {', '.join(_SHELLS)}"
-        )
+        raise typer.BadParameter(f"Unknown shell: {shell!r}. Must be one of: {', '.join(_SHELLS)}")
 
     if hint:
         print(_INSTALL_HINTS[shell_lower])

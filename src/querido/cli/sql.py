@@ -112,6 +112,7 @@ def task(
     """Generate a Snowflake task template. (Snowflake only)"""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
     from querido.cli._validation import require_snowflake
+
     require_snowflake(dialect, "task")
     _render(
         "task",
@@ -144,6 +145,7 @@ def procedure(
     """Generate a stored procedure template. (Snowflake only)"""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
     from querido.cli._validation import require_snowflake
+
     require_snowflake(dialect, "procedure")
     _render(
         "procedure",
