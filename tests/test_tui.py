@@ -220,6 +220,52 @@ async def test_columns_loaded(sqlite_connector):
         assert "price" in col_names
 
 
+async def test_profile_via_action(sqlite_connector):
+    """action_profile opens the ProfileScreen."""
+    from querido.tui.app import ExploreApp
+
+    app = ExploreApp(connector=sqlite_connector, table="products")
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_profile()
+        await pilot.pause()
+        from querido.tui.screens.profile import ProfileScreen
+
+        assert isinstance(app.screen, ProfileScreen)
+
+        await app.screen.action_dismiss()
+        await pilot.pause()
+        assert not isinstance(app.screen, ProfileScreen)
+
+
+async def test_profile_populates_data(sqlite_connector):
+    """ProfileScreen populates DataTable with column statistics."""
+    from textual.widgets import DataTable
+
+    from querido.tui.app import ExploreApp
+
+    app = ExploreApp(connector=sqlite_connector, table="products")
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_profile()
+        await pilot.pause()
+
+        dt = app.screen.query_one("#profile-table", DataTable)
+        assert dt.row_count == 4  # 4 columns in products table
+        assert len(dt.columns) == 10
+
+
+async def test_dist_column_picker(sqlite_connector):
+    """action_distribution opens the column picker."""
+    from querido.tui.app import ExploreApp
+
+    app = ExploreApp(connector=sqlite_connector, table="products")
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_distribution()
+        await pilot.pause()
+        from querido.tui.screens.column_picker import ColumnPickerScreen
+
+        assert isinstance(app.screen, ColumnPickerScreen)
+
+
 def test_status_bar_widget():
     """StatusBar.update_status builds correct text."""
     from querido.tui.widgets.status_bar import StatusBar

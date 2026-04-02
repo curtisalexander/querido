@@ -33,7 +33,7 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo inspect -c CONN -t TABLE` | Column metadata and row count |
 | `qdo preview -c CONN -t TABLE [-r ROWS]` | Preview rows (default 20) |
 | `qdo profile -c CONN -t TABLE [--top N]` | Statistical profile (min/max/mean/nulls/distinct) |
-| `qdo dist -c CONN -t TABLE -col COLUMN` | Column value distribution / histogram |
+| `qdo dist -c CONN -t TABLE -C COLUMN` | Column value distribution / histogram |
 | `qdo search -c CONN -p PATTERN` | Search tables/columns by name |
 | `qdo lineage -c CONN -v VIEW` | View SQL definition |
 | `qdo template -c CONN -t TABLE` | Generate documentation template |

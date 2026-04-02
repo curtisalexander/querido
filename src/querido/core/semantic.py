@@ -35,11 +35,7 @@ def _parse_base_table(table: str) -> str:
     if len(parts) == 3:
         db, schema, tbl = parts
         ind = "    "
-        return (
-            f"\n{ind}  database: {db}"
-            f"\n{ind}  schema: {schema}"
-            f"\n{ind}  table: {tbl}"
-        )
+        return f"\n{ind}  database: {db}\n{ind}  schema: {schema}\n{ind}  table: {tbl}"
     return f" {table}"
 
 
@@ -68,7 +64,7 @@ def get_sample_values(
         try:
             rows = connector.execute(sql)
             return col_name, [str(r["val"]) for r in rows if r.get("val") is not None]
-        except Exception:
+        except (ValueError, LookupError, OSError, RuntimeError):
             return col_name, []
 
     col_names = [c["name"] for c in columns]
@@ -177,7 +173,7 @@ def build_semantic_yaml(
     buf.write("# verified_queries:\n")
     buf.write("#   - name: example_query\n")
     buf.write("#     question: What is the total revenue by region?\n")
-    buf.write('#     sql: select region, sum(revenue) from ... group by region\n')
+    buf.write("#     sql: select region, sum(revenue) from ... group by region\n")
     buf.write("#     verified_by: <your_name>\n")
     buf.write("\n")
     buf.write("# filters:\n")

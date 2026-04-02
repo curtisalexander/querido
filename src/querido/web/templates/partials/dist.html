@@ -12,7 +12,7 @@
 
   <!-- Chart -->
   <div class="dist-chart-wrapper">
-    <canvas id="dist-chart"></canvas>
+    <canvas id="dist-chart" role="img" aria-label="Distribution chart for {{ dist_result.column }}"></canvas>
   </div>
   <script>
   (function() {
@@ -66,13 +66,13 @@
   </script>
 
   <div class="table-wrapper">
-    <table id="dist-table" data-sortable>
+    <table id="dist-table" data-sortable aria-label="Distribution data for {{ dist_result.column }}">
       <thead>
         <tr>
-          <th>Bucket Min<span class="sort-arrow"></span></th>
-          <th>Bucket Max<span class="sort-arrow"></span></th>
-          <th>Count<span class="sort-arrow"></span></th>
-          <th>Bar</th>
+          <th scope="col">Bucket Min<span class="sort-arrow" aria-hidden="true"></span></th>
+          <th scope="col">Bucket Max<span class="sort-arrow" aria-hidden="true"></span></th>
+          <th scope="col">Count<span class="sort-arrow" aria-hidden="true"></span></th>
+          <th scope="col">Bar</th>
         </tr>
       </thead>
       <tbody>
@@ -94,7 +94,7 @@
 
   <!-- Chart -->
   <div class="dist-chart-wrapper" style="height:{{ [300, cat_values|length * 28]|max }}px">
-    <canvas id="dist-chart"></canvas>
+    <canvas id="dist-chart" role="img" aria-label="Distribution chart for {{ dist_result.column }}"></canvas>
   </div>
   <script>
   (function() {
@@ -148,12 +148,12 @@
   </script>
 
   <div class="table-wrapper">
-    <table id="dist-table" data-sortable>
+    <table id="dist-table" data-sortable aria-label="Distribution data for {{ dist_result.column }}">
       <thead>
         <tr>
-          <th>Value<span class="sort-arrow"></span></th>
-          <th>Count<span class="sort-arrow"></span></th>
-          <th>Bar</th>
+          <th scope="col">Value<span class="sort-arrow" aria-hidden="true"></span></th>
+          <th scope="col">Count<span class="sort-arrow" aria-hidden="true"></span></th>
+          <th scope="col">Bar</th>
         </tr>
       </thead>
       <tbody>

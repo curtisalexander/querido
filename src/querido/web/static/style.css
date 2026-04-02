@@ -218,6 +218,13 @@ tr:hover { background: var(--hover); }
 }
 .pivot-form .submit-btn:hover { opacity: 0.9; }
 
+/* --- Accessibility: screen-reader-only --- */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 /* --- Misc --- */
 .empty-msg { color: #6c757d; font-style: italic; padding: 24px; }
 .error-msg { color: var(--error); font-weight: 600; padding: 12px; }

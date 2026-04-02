@@ -11,7 +11,7 @@
 <div class="profile-overview">
   <h4>Data Completeness Overview</h4>
   <div class="profile-chart-wrapper" style="height:{{ [180, stats|length * 24]|max }}px">
-    <canvas id="profile-null-chart"></canvas>
+    <canvas id="profile-null-chart" role="img" aria-label="Bar chart showing null percentage per column"></canvas>
   </div>
 </div>
 <script>
@@ -72,28 +72,29 @@
 </script>
 
 <div class="toolbar">
-  <input type="text" placeholder="Filter columns..." data-filter-table="profile-table">
-  <span class="badge" data-count-for="profile-table"></span>
-  <button onclick="copyTable('profile-table')">Copy</button>
-  <button onclick="exportCSV('profile-table')">Export CSV</button>
+  <label for="profile-filter" class="sr-only">Filter columns</label>
+  <input type="text" id="profile-filter" placeholder="Filter columns..." data-filter-table="profile-table">
+  <span class="badge" data-count-for="profile-table" aria-live="polite"></span>
+  <button type="button" onclick="copyTable('profile-table')" aria-label="Copy table to clipboard">Copy</button>
+  <button type="button" onclick="exportCSV('profile-table')" aria-label="Export table as CSV">Export CSV</button>
 </div>
 
 <div class="table-wrapper">
-  <table id="profile-table" data-sortable>
+  <table id="profile-table" data-sortable aria-label="Column profile statistics">
     <thead>
       <tr>
-        <th>Column<span class="sort-arrow"></span></th>
-        <th>Type<span class="sort-arrow"></span></th>
-        <th>Min<span class="sort-arrow"></span></th>
-        <th>Max<span class="sort-arrow"></span></th>
-        <th>Mean<span class="sort-arrow"></span></th>
-        <th>Median<span class="sort-arrow"></span></th>
-        <th>Stddev<span class="sort-arrow"></span></th>
-        <th>Min Len<span class="sort-arrow"></span></th>
-        <th>Max Len<span class="sort-arrow"></span></th>
-        <th>Nulls<span class="sort-arrow"></span></th>
-        <th>Null %<span class="sort-arrow"></span></th>
-        <th>Distinct<span class="sort-arrow"></span></th>
+        <th scope="col">Column<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Type<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Min<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Max<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Mean<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Median<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Stddev<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Min Len<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Max Len<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Nulls<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Null %<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Distinct<span class="sort-arrow" aria-hidden="true"></span></th>
       </tr>
     </thead>
     <tbody>
@@ -115,19 +116,19 @@
         <td>{{ row.max_length if row.max_length is not none else "" }}</td>
         <td>{{ row.null_count if row.null_count is not none else "" }}</td>
         <td>
-          <div class="pct-bar-wrapper" data-sort-value="{{ npct }}">
+          <div class="pct-bar-wrapper" data-sort-value="{{ npct }}" title="{{ npct }}% null">
             {% if npct <= 5 %}{% set bar_color = "#10b981" %}
             {% elif npct <= 25 %}{% set bar_color = "#f59e0b" %}
             {% elif npct <= 50 %}{% set bar_color = "#f97316" %}
             {% else %}{% set bar_color = "#ef4444" %}{% endif %}
-            <div class="pct-bar" style="width:{{ npct }}%;background:{{ bar_color }}"></div>
+            <div class="pct-bar" style="width:{{ npct }}%;background:{{ bar_color }}" aria-hidden="true"></div>
             <span class="pct-bar-label">{{ npct }}%</span>
           </div>
         </td>
         <td>
           {% if row.distinct_count is not none %}
-          <div class="pct-bar-wrapper" data-sort-value="{{ row.distinct_count }}">
-            <div class="pct-bar" style="width:{{ [dpct, 100] | min }}%;background:var(--accent);opacity:0.6"></div>
+          <div class="pct-bar-wrapper" data-sort-value="{{ row.distinct_count }}" title="{{ "{:,}".format(row.distinct_count) }} distinct values">
+            <div class="pct-bar" style="width:{{ [dpct, 100] | min }}%;background:var(--accent);opacity:0.6" aria-hidden="true"></div>
             <span class="pct-bar-label">{{ "{:,}".format(row.distinct_count) }}</span>
           </div>
           {% endif %}

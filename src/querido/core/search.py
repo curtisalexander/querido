@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import sys
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -52,10 +52,9 @@ def search_metadata(
         if search_columns:
             try:
                 columns = connector.get_columns(tbl_name)
-            except Exception as exc:
-                print(
-                    f"Warning: could not read columns for '{tbl_name}': {exc}",
-                    file=sys.stderr,
+            except (ValueError, LookupError, OSError, RuntimeError):
+                logging.getLogger(__name__).debug(
+                    "Could not read columns for '%s'", tbl_name, exc_info=True
                 )
                 continue
             for col in columns:

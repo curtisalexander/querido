@@ -60,10 +60,7 @@ def table_command(
     with create_connector(config) as connector:
         from rich.console import Console
 
-        from querido.cli._errors import set_last_connector
-
         console = Console(stderr=True)
-        set_last_connector(connector)
 
         resolved_table = resolve_table(connector, table)
 

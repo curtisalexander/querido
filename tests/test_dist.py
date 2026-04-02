@@ -76,7 +76,7 @@ def single_value_sqlite(tmp_path: Path) -> str:
 
 def test_dist_numeric_sqlite(dist_sqlite: str):
     result = runner.invoke(
-        app, ["dist", "-t", "sales", "-col", "amount", "-c", dist_sqlite, "-b", "5"]
+        app, ["dist", "-t", "sales", "-C", "amount", "-c", dist_sqlite, "-b", "5"]
     )
     assert result.exit_code == 0
     assert "Distribution" in result.output
@@ -93,7 +93,7 @@ def test_dist_numeric_buckets_count(dist_sqlite: str):
             "dist",
             "-t",
             "sales",
-            "-col",
+            "-C",
             "amount",
             "-c",
             dist_sqlite,
@@ -112,7 +112,7 @@ def test_dist_numeric_buckets_count(dist_sqlite: str):
 
 
 def test_dist_categorical_sqlite(dist_sqlite: str):
-    result = runner.invoke(app, ["dist", "-t", "sales", "-col", "category", "-c", dist_sqlite])
+    result = runner.invoke(app, ["dist", "-t", "sales", "-C", "category", "-c", dist_sqlite])
     assert result.exit_code == 0
     assert "Distribution" in result.output
     assert "electronics" in result.output
@@ -122,7 +122,7 @@ def test_dist_categorical_sqlite(dist_sqlite: str):
 def test_dist_categorical_json(dist_sqlite: str):
     result = runner.invoke(
         app,
-        ["--format", "json", "dist", "-t", "sales", "-col", "category", "-c", dist_sqlite],
+        ["--format", "json", "dist", "-t", "sales", "-C", "category", "-c", dist_sqlite],
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -139,7 +139,7 @@ def test_dist_categorical_json(dist_sqlite: str):
 
 def test_dist_numeric_duckdb(dist_duckdb: str):
     result = runner.invoke(
-        app, ["dist", "-t", "sales", "-col", "amount", "-c", dist_duckdb, "-b", "5"]
+        app, ["dist", "-t", "sales", "-C", "amount", "-c", dist_duckdb, "-b", "5"]
     )
     assert result.exit_code == 0
     assert "Distribution" in result.output
@@ -147,7 +147,7 @@ def test_dist_numeric_duckdb(dist_duckdb: str):
 
 
 def test_dist_categorical_duckdb(dist_duckdb: str):
-    result = runner.invoke(app, ["dist", "-t", "sales", "-col", "category", "-c", dist_duckdb])
+    result = runner.invoke(app, ["dist", "-t", "sales", "-C", "category", "-c", dist_duckdb])
     assert result.exit_code == 0
     assert "electronics" in result.output
     assert "clothing" in result.output
@@ -165,7 +165,7 @@ def test_dist_markdown_format(dist_sqlite: str):
             "dist",
             "-t",
             "sales",
-            "-col",
+            "-C",
             "amount",
             "-c",
             dist_sqlite,
@@ -181,7 +181,7 @@ def test_dist_markdown_format(dist_sqlite: str):
 def test_dist_csv_format(dist_sqlite: str):
     result = runner.invoke(
         app,
-        ["--format", "csv", "dist", "-t", "sales", "-col", "amount", "-c", dist_sqlite, "-b", "5"],
+        ["--format", "csv", "dist", "-t", "sales", "-C", "amount", "-c", dist_sqlite, "-b", "5"],
     )
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
@@ -193,13 +193,13 @@ def test_dist_csv_format(dist_sqlite: str):
 
 
 def test_dist_invalid_column(dist_sqlite: str):
-    result = runner.invoke(app, ["dist", "-t", "sales", "-col", "nonexistent", "-c", dist_sqlite])
+    result = runner.invoke(app, ["dist", "-t", "sales", "-C", "nonexistent", "-c", dist_sqlite])
     assert result.exit_code != 0
 
 
 def test_dist_bar_chart_has_blocks(dist_sqlite: str):
     result = runner.invoke(
-        app, ["dist", "-t", "sales", "-col", "amount", "-c", dist_sqlite, "-b", "5"]
+        app, ["dist", "-t", "sales", "-C", "amount", "-c", dist_sqlite, "-b", "5"]
     )
     assert result.exit_code == 0
     assert "\u2588" in result.output
@@ -211,7 +211,7 @@ def test_dist_bar_chart_has_blocks(dist_sqlite: str):
 def test_dist_single_value_numeric(single_value_sqlite: str):
     result = runner.invoke(
         app,
-        ["--format", "json", "dist", "-t", "mono", "-col", "val", "-c", single_value_sqlite],
+        ["--format", "json", "dist", "-t", "mono", "-C", "val", "-c", single_value_sqlite],
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -221,7 +221,7 @@ def test_dist_single_value_numeric(single_value_sqlite: str):
 def test_dist_single_value_categorical(single_value_sqlite: str):
     result = runner.invoke(
         app,
-        ["--format", "json", "dist", "-t", "mono", "-col", "label", "-c", single_value_sqlite],
+        ["--format", "json", "dist", "-t", "mono", "-C", "label", "-c", single_value_sqlite],
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -242,7 +242,7 @@ def test_dist_categorical_top_1(dist_sqlite: str):
             "dist",
             "-t",
             "sales",
-            "-col",
+            "-C",
             "category",
             "-c",
             dist_sqlite,
@@ -263,5 +263,5 @@ def test_dist_empty_table(tmp_path: Path):
     conn.execute("CREATE TABLE empty_t (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score REAL)")
     conn.commit()
     conn.close()
-    result = runner.invoke(app, ["dist", "-c", db_path, "-t", "empty_t", "-col", "score"])
+    result = runner.invoke(app, ["dist", "-c", db_path, "-t", "empty_t", "-C", "score"])
     assert result.exit_code == 0

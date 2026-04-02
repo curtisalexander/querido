@@ -1,8 +1,8 @@
-<ul class="table-list">
+<ul class="table-list" role="list">
   {% for tbl in tables %}
   <li>
     <a href="/table/{{ tbl.name }}">
-      <span class="table-type-badge">{{ tbl.type[:1] }}</span>
+      <span class="table-type-badge" aria-label="{{ tbl.type }}">{{ tbl.type[:1] }}</span>
       {{ tbl.name }}
     </a>
   </li>

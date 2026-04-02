@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Generate SQL statements for a table.")
 
 # ---------------------------------------------------------------------------
@@ -79,122 +81,93 @@ def _format_sql_literal(value: object) -> str:
 
 
 @app.command()
+@friendly_errors
 def select(
     table: str = _table_opt,
     connection: str = _conn_opt,
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a SELECT statement with all columns."""
-    from querido.cli._errors import friendly_errors
-
-    @friendly_errors
-    def _run() -> None:
-        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-        _render("select", dialect, table=resolved, columns=columns)
-
-    _run()
+    columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+    _render("select", dialect, table=resolved, columns=columns)
 
 
 @app.command()
+@friendly_errors
 def insert(
     table: str = _table_opt,
     connection: str = _conn_opt,
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate an INSERT statement with named placeholders."""
-    from querido.cli._errors import friendly_errors
-
-    @friendly_errors
-    def _run() -> None:
-        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-        _render("insert", dialect, table=resolved, columns=columns)
-
-    _run()
+    columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+    _render("insert", dialect, table=resolved, columns=columns)
 
 
 @app.command()
+@friendly_errors
 def ddl(
     table: str = _table_opt,
     connection: str = _conn_opt,
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a CREATE TABLE DDL statement."""
-    from querido.cli._errors import friendly_errors
-
-    @friendly_errors
-    def _run() -> None:
-        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-        _render("ddl", dialect, table=resolved, columns=columns)
-
-    _run()
+    columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+    _render("ddl", dialect, table=resolved, columns=columns)
 
 
 @app.command()
+@friendly_errors
 def task(
     table: str = _table_opt,
     connection: str = _conn_opt,
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a Snowflake task template. (Snowflake only)"""
-    from querido.cli._errors import friendly_errors
-
-    @friendly_errors
-    def _run() -> None:
-        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-        _require_snowflake(dialect, "task")
-        _render(
-            "task",
-            dialect,
-            table=resolved,
-            table_name=_table_short_name(resolved),
-            columns=columns,
-        )
-
-    _run()
+    columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+    _require_snowflake(dialect, "task")
+    _render(
+        "task",
+        dialect,
+        table=resolved,
+        table_name=_table_short_name(resolved),
+        columns=columns,
+    )
 
 
 @app.command()
+@friendly_errors
 def udf(
     table: str = _table_opt,
     connection: str = _conn_opt,
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a UDF template using table columns as parameters."""
-    from querido.cli._errors import friendly_errors
-
-    @friendly_errors
-    def _run() -> None:
-        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-        _render("udf", dialect, table=resolved, columns=columns)
-
-    _run()
+    columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+    _render("udf", dialect, table=resolved, columns=columns)
 
 
 @app.command()
+@friendly_errors
 def procedure(
     table: str = _table_opt,
     connection: str = _conn_opt,
     db_type: str | None = _dbtype_opt,
 ) -> None:
     """Generate a stored procedure template. (Snowflake only)"""
-    from querido.cli._errors import friendly_errors
-
-    @friendly_errors
-    def _run() -> None:
-        columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-        _require_snowflake(dialect, "procedure")
-        _render(
-            "procedure",
-            dialect,
-            table=resolved,
-            table_name=_table_short_name(resolved),
-            columns=columns,
-        )
-
-    _run()
+    columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
+    _require_snowflake(dialect, "procedure")
+    _render(
+        "procedure",
+        dialect,
+        table=resolved,
+        table_name=_table_short_name(resolved),
+        columns=columns,
+    )
 
 
 @app.command()
+@friendly_errors
 def scratch(
     table: str = _table_opt,
     connection: str = _conn_opt,
@@ -202,43 +175,35 @@ def scratch(
     rows: int = typer.Option(5, "--rows", "-r", min=1, help="Number of sample rows to include."),
 ) -> None:
     """Generate a temp table with sample data for experimentation."""
-    from querido.cli._errors import friendly_errors
+    from querido.cli._validation import resolve_table
+    from querido.config import resolve_connection
+    from querido.connectors.base import validate_table_name
+    from querido.connectors.factory import create_connector
+    from querido.sql.renderer import render_template
 
-    @friendly_errors
-    def _run() -> None:
-        from querido.cli._validation import resolve_table
-        from querido.config import resolve_connection
-        from querido.connectors.base import validate_table_name
-        from querido.connectors.factory import create_connector
-        from querido.sql.renderer import render_template
+    validate_table_name(table)
+    config = resolve_connection(connection, db_type)
 
-        validate_table_name(table)
-        config = resolve_connection(connection, db_type)
+    with create_connector(config) as connector:
+        resolved = resolve_table(connector, table)
+        columns = connector.get_columns(resolved)
+        preview_sql = render_template("preview", connector.dialect, table=resolved, limit=rows)
+        sample_rows = connector.execute(preview_sql)
+        dialect = connector.dialect
 
-        with create_connector(config) as connector:
-            resolved = resolve_table(connector, table)
-            columns = connector.get_columns(resolved)
-            preview_sql = render_template(
-                "preview", connector.dialect, table=resolved, limit=rows
-            )
-            sample_rows = connector.execute(preview_sql)
-            dialect = connector.dialect
+    # Format each row's values as a comma-separated SQL literal string.
+    # Value formatting stays in Python (not Jinja2) because it involves
+    # type inspection and SQL escaping that templates aren't suited for.
+    col_names = [c["name"] for c in columns]
+    formatted_rows = [
+        ", ".join(_format_sql_literal(row.get(n)) for n in col_names) for row in sample_rows
+    ]
 
-        # Format each row's values as a comma-separated SQL literal string.
-        # Value formatting stays in Python (not Jinja2) because it involves
-        # type inspection and SQL escaping that templates aren't suited for.
-        col_names = [c["name"] for c in columns]
-        formatted_rows = [
-            ", ".join(_format_sql_literal(row.get(n)) for n in col_names) for row in sample_rows
-        ]
-
-        _render(
-            "scratch",
-            dialect,
-            table=resolved,
-            table_name=_table_short_name(resolved),
-            columns=columns,
-            rows=formatted_rows,
-        )
-
-    _run()
+    _render(
+        "scratch",
+        dialect,
+        table=resolved,
+        table_name=_table_short_name(resolved),
+        columns=columns,
+        rows=formatted_rows,
+    )

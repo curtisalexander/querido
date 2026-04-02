@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Search table and column metadata.")
 
 
 @app.callback(invoke_without_command=True)
+@friendly_errors
 def search(
     pattern: str = typer.Option(
         ..., "--pattern", "-p", help="Search pattern (case-insensitive substring match)."
@@ -27,38 +30,32 @@ def search(
     ),
 ) -> None:
     """Search for tables and columns matching a pattern."""
-    from querido.cli._errors import friendly_errors
+    from querido.cli._pipeline import dispatch_output
+    from querido.config import resolve_connection
+    from querido.connectors.factory import create_connector
 
-    @friendly_errors
-    def _run() -> None:
-        from querido.cli._pipeline import dispatch_output
-        from querido.config import resolve_connection
-        from querido.connectors.factory import create_connector
+    valid_types = {"table", "column", "all"}
+    if search_type not in valid_types:
+        raise typer.BadParameter(f"--type must be one of: {', '.join(sorted(valid_types))}")
 
-        valid_types = {"table", "column", "all"}
-        if search_type not in valid_types:
-            raise typer.BadParameter(f"--type must be one of: {', '.join(sorted(valid_types))}")
+    config = resolve_connection(connection, db_type)
 
-        config = resolve_connection(connection, db_type)
+    # Try cache first (unless --no-cache)
+    results = None
+    if not no_cache:
+        from querido.core.search import try_cached_search
 
-        # Try cache first (unless --no-cache)
-        results = None
-        if not no_cache:
-            from querido.core.search import try_cached_search
+        results = try_cached_search(connection, pattern, search_type, schema)
 
-            results = try_cached_search(connection, pattern, search_type, schema)
+    if results is None:
+        with create_connector(config) as connector:
+            from rich.console import Console
 
-        if results is None:
-            with create_connector(config) as connector:
-                from rich.console import Console
+            from querido.cli._progress import query_status
+            from querido.core.search import search_metadata
 
-                from querido.cli._progress import query_status
-                from querido.core.search import search_metadata
+            console = Console(stderr=True)
+            with query_status(console, f"Searching for [bold]{pattern}[/bold]", connector):
+                results = search_metadata(connector, pattern, search_type, schema)
 
-                console = Console(stderr=True)
-                with query_status(console, f"Searching for [bold]{pattern}[/bold]", connector):
-                    results = search_metadata(connector, pattern, search_type, schema)
-
-        dispatch_output("search", pattern, results)
-
-    _run()
+    dispatch_output("search", pattern, results)

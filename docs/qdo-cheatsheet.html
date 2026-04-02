@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>qdo Cheatsheet</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #f4f5f7;
+    color: #1e293b;
+    line-height: 1.4;
+    font-size: 13px;
+  }
+
+  .page {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 3px solid #6366f1;
+  }
+  .header-left h1 {
+    font-size: 1.9rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: #6366f1;
+    line-height: 1;
+  }
+  .header-left h1 span { color: #1e293b; }
+  .header-left .subtitle {
+    font-size: 0.82rem;
+    color: #64748b;
+    margin-top: 3px;
+  }
+  .header-right {
+    text-align: right;
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.5;
+  }
+  .prefix-badge {
+    display: inline-block;
+    background: #6366f1;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    border-radius: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Grid ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  /* ── Section ── */
+  .section {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    position: relative;
+  }
+  .section h2 {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 7px;
+    display: inline-block;
+  }
+
+  /* Color themes for sections */
+  .theme-indigo h2  { background: #eef2ff; color: #4338ca; }
+  .theme-violet h2  { background: #f5f3ff; color: #6d28d9; }
+  .theme-teal h2    { background: #f0fdfa; color: #0f766e; }
+  .theme-amber h2   { background: #fffbeb; color: #b45309; }
+  .theme-rose h2    { background: #fff1f2; color: #be123c; }
+  .theme-sky h2     { background: #f0f9ff; color: #0369a1; }
+  .theme-emerald h2 { background: #ecfdf5; color: #047857; }
+
+  .theme-indigo  { border-top: 3px solid #6366f1; }
+  .theme-violet  { border-top: 3px solid #8b5cf6; }
+  .theme-teal    { border-top: 3px solid #14b8a6; }
+  .theme-amber   { border-top: 3px solid #f59e0b; }
+  .theme-rose    { border-top: 3px solid #f43f5e; }
+  .theme-sky     { border-top: 3px solid #0ea5e9; }
+  .theme-emerald { border-top: 3px solid #10b981; }
+
+  /* ── Rows ── */
+  .row {
+    display: flex;
+    align-items: baseline;
+    padding: 2.5px 0;
+    gap: 6px;
+  }
+  .row + .row { border-top: 1px solid #f1f5f9; }
+
+  .row .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #4338ca;
+    white-space: nowrap;
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row .d {
+    font-size: 0.76rem;
+    color: #64748b;
+    margin-left: auto;
+    text-align: right;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: #334155;
+  }
+
+  .tip {
+    font-size: 0.72rem;
+    color: #64748b;
+    background: #f8fafc;
+    border-radius: 4px;
+    padding: 5px 8px;
+    margin-top: 6px;
+    line-height: 1.4;
+    border-left: 3px solid #e2e8f0;
+  }
+  .tip strong { color: #334155; }
+
+  .wide  { grid-column: span 2; }
+  .full  { grid-column: span 3; }
+
+  /* ── Install Steps ── */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .step {
+    text-align: center;
+  }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #6366f1;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    margin-bottom: 3px;
+  }
+  .step h3 { font-size: 0.76rem; font-weight: 700; color: #1e293b; }
+  .step p  { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
+
+  /* ── Sub-heading inside sections ── */
+  .sub-heading {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #334155;
+    margin-top: 6px;
+    margin-bottom: 3px;
+    padding-left: 2px;
+  }
+
+  /* ── Scenario Section ── */
+  .scenario { margin-bottom: 8px; }
+  .scenario:last-child { margin-bottom: 0; }
+  .scenario-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #be123c;
+    margin-bottom: 3px;
+    padding-left: 2px;
+  }
+  .scenario .row .k { color: #be123c; }
+
+  /* ── Print ── */
+  @media print {
+    body { background: #fff; font-size: 12px; }
+    .page { padding: 8px 0; max-width: 100%; }
+    .section { box-shadow: none; border: 1px solid #d1d5db; }
+    .grid { gap: 8px; }
+    .header { margin-bottom: 10px; padding-bottom: 8px; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .section { break-inside: avoid; }
+  }
+
+  @page {
+    size: landscape;
+    margin: 0.4in;
+  }
+
+  @media (max-width: 800px) {
+    .grid { grid-template-columns: 1fr; }
+    .wide, .full { grid-column: span 1; }
+    .steps { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1><span>qdo</span> <span style="color:#6366f1">Cheatsheet</span></h1>
+      <div class="subtitle">CLI data analysis toolkit &mdash; inspect, profile, search, and explore database tables</div>
+    </div>
+    <div class="header-right">
+      Supports <strong>SQLite</strong>, <strong>DuckDB</strong>, <strong>Snowflake</strong>, <strong>Parquet</strong><br>
+      <span class="prefix-badge">uv pip install querido</span>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ── Getting Started ── -->
+    <section class="section full theme-indigo">
+      <h2>Getting Started</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Install</h3>
+          <p><span class="cmd">uv pip install querido</span></p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>Add Connection</h3>
+          <p><span class="cmd">qdo config add mydb</span></p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Explore</h3>
+          <p><span class="cmd">qdo inspect -t users -c mydb</span></p>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <h3>Optional Extras</h3>
+          <p><span class="cmd">querido[duckdb]</span> <span class="cmd">querido[snowflake]</span><br><span class="cmd">querido[tui]</span> <span class="cmd">querido[web]</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Global Flags ── -->
+    <section class="section theme-violet">
+      <h2>Global Flags</h2>
+      <div class="row"><span class="k">--version / -V</span><span class="d">Show version and exit</span></div>
+      <div class="row"><span class="k">--show-sql</span><span class="d">Print rendered SQL to stderr</span></div>
+      <div class="row"><span class="k">--format / -f</span><span class="d">rich, markdown, json, csv, html, yaml</span></div>
+      <div class="row"><span class="k">--connection / -c</span><span class="d">Named connection or file path</span></div>
+      <div class="row"><span class="k">--table / -t</span><span class="d">Table name</span></div>
+      <div class="row"><span class="k">--db-type</span><span class="d">Override type inference</span></div>
+      <div class="tip"><strong>Tip:</strong> <span class="cmd">--format html</span> opens results in your default browser with sorting, filtering, copy, and CSV export.</div>
+    </section>
+
+    <!-- ── Inspect & Preview ── -->
+    <section class="section theme-teal">
+      <h2>Inspect &amp; Preview</h2>
+      <div class="row"><span class="k">qdo inspect -t TABLE -c CONN</span><span class="d">Column metadata + row count</span></div>
+      <div class="row"><span class="k">qdo inspect ... -v</span><span class="d">Include table/column comments</span></div>
+      <div class="row"><span class="k">qdo preview -t TABLE -c CONN</span><span class="d">First 20 rows</span></div>
+      <div class="row"><span class="k">qdo preview ... -r 50</span><span class="d">Custom row count</span></div>
+      <div class="tip"><strong>Output:</strong> Column name, data type, nullable, default, primary key. Add <span class="cmd">-v</span> for comments (DuckDB/Snowflake).</div>
+    </section>
+
+    <!-- ── Profile & Distribution ── -->
+    <section class="section theme-amber">
+      <h2>Profile &amp; Distribution</h2>
+      <div class="row"><span class="k">qdo profile -t TABLE -c CONN</span><span class="d">Stats for all columns</span></div>
+      <div class="row"><span class="k">qdo profile ... --columns name,age</span><span class="d">Specific columns only</span></div>
+      <div class="row"><span class="k">qdo profile ... --top 10</span><span class="d">Top 10 frequent values</span></div>
+      <div class="row"><span class="k">qdo profile ... --sample 100000</span><span class="d">Sample N rows</span></div>
+      <div class="row"><span class="k">qdo profile ... --no-sample</span><span class="d">Full scan (no sampling)</span></div>
+      <div class="row"><span class="k">qdo dist -t TABLE -col COL -c CONN</span><span class="d">Distribution analysis</span></div>
+      <div class="row"><span class="k">qdo dist ... --buckets 10</span><span class="d">Histogram bucket count</span></div>
+      <div class="row"><span class="k">qdo dist ... --top 20</span><span class="d">Categorical top N</span></div>
+      <div class="tip"><strong>Auto-sampling:</strong> Tables over 1M rows are automatically sampled (100k). Use <span class="cmd">--no-sample</span> to force a full scan.</div>
+    </section>
+
+    <!-- ── Search & Lineage ── -->
+    <section class="section theme-sky">
+      <h2>Search &amp; Lineage</h2>
+      <div class="row"><span class="k">qdo search -p PATTERN -c CONN</span><span class="d">Search tables &amp; columns</span></div>
+      <div class="row"><span class="k">qdo search ... --type table</span><span class="d">Tables only</span></div>
+      <div class="row"><span class="k">qdo search ... --type column</span><span class="d">Columns only</span></div>
+      <div class="row"><span class="k">qdo search ... --no-cache</span><span class="d">Bypass metadata cache</span></div>
+      <div class="row"><span class="k">qdo lineage -v VIEW -c CONN</span><span class="d">View SQL definition</span></div>
+      <div class="tip"><strong>Search</strong> uses the local metadata cache when available. Run <span class="cmd">qdo cache sync</span> first for instant results.</div>
+    </section>
+
+    <!-- ── SQL Generation ── -->
+    <section class="section theme-emerald">
+      <h2>SQL Generation</h2>
+      <div class="row"><span class="k">qdo sql select -t TABLE -c CONN</span><span class="d">SELECT with all columns</span></div>
+      <div class="row"><span class="k">qdo sql insert -t TABLE -c CONN</span><span class="d">INSERT with placeholders</span></div>
+      <div class="row"><span class="k">qdo sql ddl -t TABLE -c CONN</span><span class="d">CREATE TABLE DDL</span></div>
+      <div class="row"><span class="k">qdo sql scratch -t TABLE -c CONN -r 5</span><span class="d">Temp table + sample data</span></div>
+      <div class="row"><span class="k">qdo sql udf -t TABLE -c CONN</span><span class="d">UDF template</span></div>
+      <div class="row"><span class="k">qdo sql task -t TABLE -c CONN</span><span class="d">Task template (Snowflake)</span></div>
+      <div class="row"><span class="k">qdo sql procedure -t TABLE -c CONN</span><span class="d">Procedure (Snowflake)</span></div>
+      <div class="tip"><strong>Copy-paste ready:</strong> All SQL generation outputs plain text to stdout. Pipe to clipboard with <span class="cmd">| pbcopy</span> or <span class="cmd">| xclip</span>.</div>
+    </section>
+
+    <!-- ── Config & Cache ── -->
+    <section class="section theme-violet">
+      <h2>Config &amp; Cache</h2>
+      <div class="row"><span class="k">qdo config add NAME</span><span class="d">Add a connection (interactive)</span></div>
+      <div class="row"><span class="k">qdo config list</span><span class="d">List all connections</span></div>
+      <div class="row"><span class="k">qdo cache sync -c CONN</span><span class="d">Cache metadata locally</span></div>
+      <div class="row"><span class="k">qdo cache status</span><span class="d">Cache age / freshness</span></div>
+      <div class="row"><span class="k">qdo cache clear</span><span class="d">Clear cached metadata</span></div>
+      <div class="tip"><strong>Config path:</strong> macOS <span class="cmd">~/Library/Application Support/qdo/</span>, Linux <span class="cmd">~/.config/qdo/</span>. Override with <span class="cmd">QDO_CONFIG</span> env var.</div>
+    </section>
+
+    <!-- ── Interactive Modes ── -->
+    <section class="section wide theme-indigo">
+      <h2>Interactive Modes</h2>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;">
+        <div>
+          <div class="sub-heading">TUI &mdash; qdo explore</div>
+          <div class="row"><span class="k">qdo explore -t TABLE -c CONN</span><span class="d">Launch TUI</span></div>
+          <div class="row"><span class="k">q</span><span class="d">Quit</span></div>
+          <div class="row"><span class="k">?</span><span class="d">Help overlay</span></div>
+          <div class="row"><span class="k">i</span><span class="d">Inspect panel</span></div>
+          <div class="row"><span class="k">m</span><span class="d">Metadata sidebar</span></div>
+          <div class="row"><span class="k">/</span><span class="d">Filter bar (SQL WHERE)</span></div>
+          <div class="row"><span class="k">Esc</span><span class="d">Clear filter / close overlay</span></div>
+          <div class="row"><span class="k">r</span><span class="d">Refresh data</span></div>
+          <div class="tip">Requires <span class="cmd">querido[tui]</span>. Sortable columns &mdash; click header to cycle asc/desc/none.</div>
+        </div>
+        <div>
+          <div class="sub-heading">Web UI &mdash; qdo serve</div>
+          <div class="row"><span class="k">qdo serve -c CONN</span><span class="d">Launch web UI (port 8888)</span></div>
+          <div class="row"><span class="k">qdo serve -c CONN --port 9999</span><span class="d">Custom port</span></div>
+          <div class="row"><span class="k">?</span><span class="d">Help (keyboard shortcut)</span></div>
+          <div class="row"><span class="k">/</span><span class="d">Focus search (keyboard shortcut)</span></div>
+          <div class="row"><span class="k">Esc</span><span class="d">Close overlay</span></div>
+          <div class="tip">Requires <span class="cmd">querido[web]</span>. HTMX-powered tabs for inspect, preview, profile, dist, template. Includes pivot builder and search.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Connection Resolution ── -->
+    <section class="section theme-teal">
+      <h2>Connection Resolution</h2>
+      <div class="row"><span class="k">-c my-named-conn</span><span class="d">Lookup in config file</span></div>
+      <div class="row"><span class="k">-c data.duckdb</span><span class="d">.duckdb / .ddb &rarr; DuckDB</span></div>
+      <div class="row"><span class="k">-c data.parquet</span><span class="d">.parquet &rarr; Parquet (via DuckDB)</span></div>
+      <div class="row"><span class="k">-c data.db</span><span class="d">Anything else &rarr; SQLite</span></div>
+      <div class="tip"><strong>Resolution order:</strong> 1) Named connection in config, 2) File path with extension-based type inference. Table and column names are <strong>case-insensitive</strong> &mdash; type in any case.</div>
+    </section>
+
+    <!-- ── Common Workflows ── -->
+    <section class="section wide theme-rose">
+      <h2>Common Workflows</h2>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;">
+        <div class="scenario">
+          <div class="scenario-title">Quick data check</div>
+          <div class="row"><span class="k">qdo inspect -t users -c mydb</span><span class="d">See columns &amp; types</span></div>
+          <div class="row"><span class="k">qdo preview -t users -c mydb</span><span class="d">Eyeball sample rows</span></div>
+          <div class="row"><span class="k">qdo profile -t users -c mydb</span><span class="d">Stats + null counts</span></div>
+          <div class="row"><span class="k">qdo dist -t users -col age -c mydb</span><span class="d">Age distribution</span></div>
+          <div class="tip" style="margin-top:4px"><strong>Pipeline:</strong> Add <span class="cmd">--format json</span> to any command to pipe into <span class="cmd">jq</span> for scripting.</div>
+        </div>
+        <div class="scenario">
+          <div class="scenario-title">Document a table</div>
+          <div class="row"><span class="k">qdo template -t users -c mydb</span><span class="d">Generate doc template</span></div>
+          <div class="row"><span class="k">qdo inspect -t users -c mydb -v</span><span class="d">Check existing comments</span></div>
+          <div class="row"><span class="k">qdo sql ddl -t users -c mydb</span><span class="d">Get full CREATE TABLE</span></div>
+          <div class="row"><span class="k">qdo sql scratch -t users -c mydb</span><span class="d">Reproducible test fixture</span></div>
+          <div class="tip" style="margin-top:4px"><strong>Template</strong> auto-populates column stats &amp; sample values, leaving <span class="cmd">&lt;business_definition&gt;</span> placeholders to fill in.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Snowflake-Specific ── -->
+    <section class="section theme-sky">
+      <h2>Snowflake-Specific</h2>
+      <div class="row"><span class="k">qdo snowflake semantic -t TABLE -c CONN</span><span class="d">YAML semantic model</span></div>
+      <div class="row"><span class="k">qdo snowflake lineage --object FQN -c CONN</span><span class="d">GET_LINEAGE query</span></div>
+      <div class="row"><span class="k">--direction upstream</span><span class="d">Trace upstream lineage</span></div>
+      <div class="row"><span class="k">--direction downstream</span><span class="d">Trace downstream lineage</span></div>
+      <div class="row"><span class="k">--domain table</span><span class="d">Table-level lineage</span></div>
+      <div class="row"><span class="k">--domain column</span><span class="d">Column-level lineage</span></div>
+      <div class="row"><span class="k">--depth 5</span><span class="d">Traversal depth (default 5)</span></div>
+      <div class="tip"><strong>Semantic:</strong> Auto-classifies columns into dimensions, time_dimensions, and measures for Cortex Analyst. <strong>Lineage:</strong> Requires Snowflake Enterprise Edition.</div>
+    </section>
+
+  </div>
+
+  <!-- Footer -->
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:8px; border-top:2px solid #e2e8f0; font-size:0.72rem; color:#94a3b8;">
+    <span><strong style="color:#6366f1">Backends:</strong> SQLite (built-in) &ensp;|&ensp; <span class="cmd">querido[duckdb]</span> DuckDB + Parquet &ensp;|&ensp; <span class="cmd">querido[snowflake]</span> Snowflake</span>
+    <span><span class="cmd">querido[tui]</span> Textual TUI &ensp;|&ensp; <span class="cmd">querido[web]</span> Web UI &ensp;|&ensp; Python 3.12+</span>
+  </div>
+
+</div>
+</body>
+</html>

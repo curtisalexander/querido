@@ -97,7 +97,7 @@ Numeric: min, max, mean, median, stddev, null count/%, distinct. String: min/max
 
 ### dist — column distribution
 ```bash
-qdo dist -c <connection> -t <table> -col <column> [--buckets N] [--top N]
+qdo dist -c <connection> -t <table> -C <column> [--buckets N] [--top N]
 ```
 Numeric: histogram with N buckets (default 20). Categorical: top N values by frequency (default 20).
 
@@ -157,6 +157,17 @@ qdo config list
 
 ### Connection resolution
 `-c` accepts a named connection from `connections.toml` or a file path. Extension determines type: `.duckdb`/`.ddb` → DuckDB, `.parquet` → Parquet (via DuckDB), else → SQLite. Override with `--db-type`.
+
+## Interactive Demo
+
+```bash
+uv run python scripts/demo.py              # walk through all features (no setup needed)
+uv run python scripts/demo.py inspect      # run a specific demo
+uv run python scripts/demo.py --list       # list available demos
+uv run python scripts/demo.py --db FILE    # use your own database
+```
+
+Auto-generates a temp SQLite database with sample data, walks through each command interactively (shows the command, runs it, pauses for review), and cleans up on exit. 11 demos: inspect, preview, profile, search, dist, sql, template, lineage, formats, showsql, cache.
 
 ## Test Data
 

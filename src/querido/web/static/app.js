@@ -143,7 +143,10 @@ function initKeyboardShortcuts() {
     if (e.key === "?") {
       e.preventDefault();
       var overlay = document.querySelector(".help-overlay");
-      if (overlay) overlay.classList.toggle("show");
+      if (overlay) {
+        overlay.classList.toggle("show");
+        overlay.setAttribute("aria-hidden", overlay.classList.contains("show") ? "false" : "true");
+      }
     }
     if (e.key === "/") {
       e.preventDefault();
@@ -152,15 +155,22 @@ function initKeyboardShortcuts() {
     }
     if (e.key === "Escape") {
       var overlay = document.querySelector(".help-overlay");
-      if (overlay) overlay.classList.remove("show");
+      if (overlay) {
+        overlay.classList.remove("show");
+        overlay.setAttribute("aria-hidden", "true");
+      }
     }
   });
 }
 
 // Tab switching helper
 function activateTab(el) {
-  el.closest(".tab-bar").querySelectorAll("a").forEach(function(a) { a.classList.remove("active"); });
+  el.closest(".tab-bar").querySelectorAll("a").forEach(function(a) {
+    a.classList.remove("active");
+    a.setAttribute("aria-selected", "false");
+  });
   el.classList.add("active");
+  el.setAttribute("aria-selected", "true");
 }
 
 // --- Query elapsed timer ---

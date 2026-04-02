@@ -72,6 +72,8 @@ class ExploreApp(App):
         Binding("q", "quit", "Quit", priority=True),
         Binding("question_mark", "help", "Help", key_display="?"),
         Binding("i", "inspect", "Inspect"),
+        Binding("p", "profile", "Profile"),
+        Binding("d", "distribution", "Dist"),
         Binding("m", "sidebar", "Metadata"),
         Binding("slash", "filter", "Filter", key_display="/"),
         Binding("escape", "escape", "Clear/Close", show=False),
@@ -248,6 +250,25 @@ class ExploreApp(App):
         from querido.tui.screens.inspect import InspectScreen
 
         self.push_screen(InspectScreen(self.connector, self.table))
+
+    def action_profile(self) -> None:
+        from querido.tui.screens.profile import ProfileScreen
+
+        self.push_screen(ProfileScreen(self.connector, self.table))
+
+    def action_distribution(self) -> None:
+        from querido.tui.screens.column_picker import ColumnPickerScreen
+
+        def _on_column_selected(col_name: str | None) -> None:
+            if col_name is not None:
+                from querido.tui.screens.dist import DistScreen
+
+                self.push_screen(DistScreen(self.connector, self.table, col_name))
+
+        self.push_screen(
+            ColumnPickerScreen(self._columns, title="Select column for distribution"),
+            callback=_on_column_selected,
+        )
 
     def action_help(self) -> None:
         from querido.tui.screens.help import HelpScreen

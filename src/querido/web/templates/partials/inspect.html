@@ -4,22 +4,23 @@
 <p class="page-subtitle">{{ "{:,}".format(row_count) }} rows &middot; {{ columns|length }} columns</p>
 
 <div class="toolbar">
-  <input type="text" placeholder="Filter columns..." data-filter-table="inspect-table">
-  <span class="badge" data-count-for="inspect-table"></span>
-  <button onclick="copyTable('inspect-table')">Copy</button>
-  <button onclick="exportCSV('inspect-table')">Export CSV</button>
+  <label for="inspect-filter" class="sr-only">Filter columns</label>
+  <input type="text" id="inspect-filter" placeholder="Filter columns..." data-filter-table="inspect-table">
+  <span class="badge" data-count-for="inspect-table" aria-live="polite"></span>
+  <button type="button" onclick="copyTable('inspect-table')" aria-label="Copy table to clipboard">Copy</button>
+  <button type="button" onclick="exportCSV('inspect-table')" aria-label="Export table as CSV">Export CSV</button>
 </div>
 
 <div class="table-wrapper">
-  <table id="inspect-table" data-sortable>
+  <table id="inspect-table" data-sortable aria-label="Column metadata for {{ table_name }}">
     <thead>
       <tr>
-        <th>Column<span class="sort-arrow"></span></th>
-        <th>Type<span class="sort-arrow"></span></th>
-        <th>Nullable<span class="sort-arrow"></span></th>
-        <th>Default<span class="sort-arrow"></span></th>
-        <th>Primary Key<span class="sort-arrow"></span></th>
-        <th>Comment<span class="sort-arrow"></span></th>
+        <th scope="col">Column<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Type<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Nullable<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Default<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Primary Key<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Comment<span class="sort-arrow" aria-hidden="true"></span></th>
       </tr>
     </thead>
     <tbody>

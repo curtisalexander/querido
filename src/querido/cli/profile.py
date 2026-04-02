@@ -1,9 +1,12 @@
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Profile table data.")
 
 
 @app.callback(invoke_without_command=True)
+@friendly_errors
 def profile(
     table: str = typer.Option(..., "--table", "-t", help="Table name to profile."),
     connection: str = typer.Option(
@@ -35,65 +38,59 @@ def profile(
     ),
 ) -> None:
     """Statistical profile of table columns."""
-    from querido.cli._errors import friendly_errors
+    from querido.cli._context import maybe_show_sql
+    from querido.cli._errors import set_last_sql
+    from querido.cli._pipeline import dispatch_output, table_command
 
-    @friendly_errors
-    def _run() -> None:
-        from querido.cli._context import maybe_show_sql
-        from querido.cli._errors import set_last_sql
-        from querido.cli._pipeline import dispatch_output, table_command
+    with table_command(table=table, connection=connection, db_type=db_type) as ctx:
+        with ctx.spin(f"Profiling [bold]{ctx.table}[/bold]"):
+            from querido.core.profile import get_profile
+            from querido.sql.renderer import render_template
 
-        with table_command(table=table, connection=connection, db_type=db_type) as ctx:
-            with ctx.spin(f"Profiling [bold]{ctx.table}[/bold]"):
-                from querido.core.profile import get_profile
-                from querido.sql.renderer import render_template
+            count_sql = render_template("count", ctx.connector.dialect, table=ctx.table)
+            maybe_show_sql(count_sql)
+            set_last_sql(count_sql)
 
-                count_sql = render_template("count", ctx.connector.dialect, table=ctx.table)
-                maybe_show_sql(count_sql)
-                set_last_sql(count_sql)
-
-                try:
-                    result = get_profile(
-                        ctx.connector,
-                        ctx.table,
-                        columns=columns,
-                        sample=sample,
-                        no_sample=no_sample,
-                        exact=exact,
-                    )
-                except ValueError as exc:
-                    raise typer.BadParameter(str(exc)) from exc
-
-                profile_sql = render_template(
-                    "profile",
-                    ctx.connector.dialect,
-                    columns=result["col_info"],
-                    source=result["source"],
-                    approx=not exact,
+            try:
+                result = get_profile(
+                    ctx.connector,
+                    ctx.table,
+                    columns=columns,
+                    sample=sample,
+                    no_sample=no_sample,
+                    exact=exact,
                 )
-                maybe_show_sql(profile_sql)
-                set_last_sql(profile_sql)
+            except ValueError as exc:
+                raise typer.BadParameter(str(exc)) from exc
 
-            dispatch_output(
+            profile_sql = render_template(
                 "profile",
-                ctx.table,
-                result["stats"],
-                result["row_count"],
-                result["sampled"],
-                result["sample_size"],
+                ctx.connector.dialect,
+                columns=result["col_info"],
+                source=result["source"],
+                approx=not exact,
             )
+            maybe_show_sql(profile_sql)
+            set_last_sql(profile_sql)
 
-            if top > 0:
-                with ctx.spin(f"Computing top {top} values"):
-                    from querido.core.profile import get_frequencies
+        dispatch_output(
+            "profile",
+            ctx.table,
+            result["stats"],
+            result["row_count"],
+            result["sampled"],
+            result["sample_size"],
+        )
 
-                    freq_data = get_frequencies(
-                        ctx.connector,
-                        result["source"],
-                        result["col_info"],
-                        top,
-                    )
+        if top > 0:
+            with ctx.spin(f"Computing top {top} values"):
+                from querido.core.profile import get_frequencies
 
-                dispatch_output("frequencies", ctx.table, freq_data, result["row_count"])
+                freq_data = get_frequencies(
+                    ctx.connector,
+                    result["source"],
+                    result["col_info"],
+                    top,
+                )
 
-    _run()
+            dispatch_output("frequencies", ctx.table, freq_data, result["row_count"])

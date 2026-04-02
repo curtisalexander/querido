@@ -12,7 +12,8 @@
 
   <fieldset>
     <legend>Group by (rows)</legend>
-    <select name="rows" multiple size="6">
+    <label for="pivot-rows" class="sr-only">Select columns to group by</label>
+    <select id="pivot-rows" name="rows" multiple size="6" required aria-required="true">
       {% for col in columns %}
       <option value="{{ col.name }}">{{ col.name }} ({{ col.type }})</option>
       {% endfor %}
@@ -21,7 +22,8 @@
 
   <fieldset>
     <legend>Aggregate (values)</legend>
-    <select name="values" multiple size="6">
+    <label for="pivot-values" class="sr-only">Select columns to aggregate</label>
+    <select id="pivot-values" name="values" multiple size="6" required aria-required="true">
       {% for col in columns %}
       <option value="{{ col.name }}">{{ col.name }} ({{ col.type }})</option>
       {% endfor %}
@@ -30,7 +32,8 @@
 
   <fieldset>
     <legend>Aggregation function</legend>
-    <select name="agg">
+    <label for="pivot-agg" class="sr-only">Select aggregation function</label>
+    <select id="pivot-agg" name="agg">
       <option value="COUNT">COUNT</option>
       <option value="SUM">SUM</option>
       <option value="AVG">AVG</option>

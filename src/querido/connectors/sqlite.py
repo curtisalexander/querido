@@ -74,9 +74,19 @@ class SQLiteConnector:
         # Bernoulli-style sampling: probabilistically include rows without
         # sorting.  Much faster than ORDER BY RANDOM() on large tables because
         # it avoids the full sort and can stop early via LIMIT.
+        # When row_count is provided, use it directly instead of embedding a
+        # nested count(*) subquery that would re-scan the table.
+        if row_count > 0:
+            modulus = max(row_count // sample_size, 1)
+        else:
+            # Fallback: embed the count subquery when row_count is unknown.
+            return (
+                f"(select * from {table} where abs(random()) % "
+                f"max((select count(*) from {table}) / {sample_size}, 1) = 0 "
+                f"limit {sample_size}) as _sample"
+            )
         return (
-            f"(select * from {table} where abs(random()) % "
-            f"max((select count(*) from {table}) / {sample_size}, 1) = 0 "
+            f"(select * from {table} where abs(random()) % {modulus} = 0 "
             f"limit {sample_size}) as _sample"
         )
 

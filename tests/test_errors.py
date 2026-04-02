@@ -56,7 +56,7 @@ def duckdb_path(tmp_path: Path) -> str:
         ["inspect", "-t", "nonexistent"],
         ["preview", "-t", "nonexistent"],
         ["profile", "-t", "nonexistent"],
-        ["dist", "-t", "nonexistent", "-col", "id"],
+        ["dist", "-t", "nonexistent", "-C", "id"],
         ["sql", "select", "-t", "nonexistent"],
     ],
     ids=["inspect", "preview", "profile", "dist", "sql-select"],
@@ -114,13 +114,13 @@ def test_table_fuzzy_still_lists_available(sqlite_path: str):
 
 
 def test_dist_column_not_found(sqlite_path: str):
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-col", "nonexistent"])
+    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"])
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
 
 
 def test_dist_column_not_found_lists_available(sqlite_path: str):
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-col", "nonexistent"])
+    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"])
     assert result.exit_code != 0
     # Should list available columns
     assert "name" in result.output or "id" in result.output
@@ -141,7 +141,7 @@ def test_profile_column_filter_not_found(sqlite_path: str):
 
 def test_column_fuzzy_suggestion_typo(sqlite_path: str):
     """Misspelling 'email' as 'emal' should suggest 'email'."""
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-col", "emal"])
+    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "emal"])
     assert result.exit_code != 0
     assert "Did you mean" in result.output
     assert "email" in result.output
@@ -149,7 +149,7 @@ def test_column_fuzzy_suggestion_typo(sqlite_path: str):
 
 def test_column_fuzzy_suggestion_partial(sqlite_path: str):
     """'nam' should suggest 'name'."""
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-col", "nam"])
+    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "nam"])
     assert result.exit_code != 0
     assert "Did you mean" in result.output
     assert "name" in result.output
@@ -157,7 +157,7 @@ def test_column_fuzzy_suggestion_partial(sqlite_path: str):
 
 def test_column_fuzzy_context_message(sqlite_path: str):
     """Error message should mention the table name for context."""
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-col", "nonexistent"])
+    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"])
     assert result.exit_code != 0
     assert "table 'users'" in result.output
 
@@ -193,7 +193,7 @@ def test_invalid_table_name(sqlite_path: str):
 
 def test_invalid_column_name(sqlite_path: str):
     result = runner.invoke(
-        app, ["dist", "-c", sqlite_path, "-t", "users", "-col", "col; DROP TABLE"]
+        app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "col; DROP TABLE"]
     )
     assert result.exit_code != 0
 
@@ -205,12 +205,12 @@ def test_invalid_column_name(sqlite_path: str):
 
 def test_dist_case_insensitive_column_sqlite(sqlite_path: str):
     """Column name matching should be case-insensitive."""
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-col", "NAME"])
+    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "NAME"])
     assert result.exit_code == 0
 
 
 def test_dist_case_insensitive_column_duckdb(duckdb_path: str):
-    result = runner.invoke(app, ["dist", "-c", duckdb_path, "-t", "users", "-col", "NAME"])
+    result = runner.invoke(app, ["dist", "-c", duckdb_path, "-t", "users", "-C", "NAME"])
     assert result.exit_code == 0
 
 

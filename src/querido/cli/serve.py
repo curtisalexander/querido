@@ -2,10 +2,13 @@
 
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Serve interactive web UI.")
 
 
 @app.callback(invoke_without_command=True)
+@friendly_errors
 def serve(
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
@@ -18,7 +21,7 @@ def serve(
 ) -> None:
     """Start a local web server for interactive data exploration."""
     try:
-        import uvicorn  # noqa: F401
+        import uvicorn
     except ImportError:
         from rich.console import Console
 
@@ -28,32 +31,26 @@ def serve(
         )
         raise typer.Exit(1) from None
 
-    from querido.cli._errors import friendly_errors
+    import uvicorn
 
-    @friendly_errors
-    def _run() -> None:
-        import uvicorn
+    from querido.config import resolve_connection
+    from querido.connectors.factory import create_connector
+    from querido.web import create_app
 
-        from querido.config import resolve_connection
-        from querido.connectors.factory import create_connector
-        from querido.web import create_app
+    config = resolve_connection(connection, db_type)
+    # Allow cross-thread access for async web server
+    if config.get("type") == "sqlite":
+        config["check_same_thread"] = False
+    connector = create_connector(config)
+    try:
+        application = create_app(connector, connection)
 
-        config = resolve_connection(connection, db_type)
-        # Allow cross-thread access for async web server
-        if config.get("type") == "sqlite":
-            config["check_same_thread"] = False
-        connector = create_connector(config)
-        try:
-            application = create_app(connector, connection)
+        from rich.console import Console
 
-            from rich.console import Console
+        console = Console(stderr=True)
+        console.print(f"\n  [bold]qdo serve[/bold] — {connection}")
+        console.print(f"  [dim]http://{host}:{port}[/dim]\n")
 
-            console = Console(stderr=True)
-            console.print(f"\n  [bold]qdo serve[/bold] — {connection}")
-            console.print(f"  [dim]http://{host}:{port}[/dim]\n")
-
-            uvicorn.run(application, host=host, port=port, log_level="warning")
-        finally:
-            connector.close()
-
-    _run()
+        uvicorn.run(application, host=host, port=port, log_level="warning")
+    finally:
+        connector.close()

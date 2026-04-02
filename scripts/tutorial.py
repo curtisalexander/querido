@@ -128,13 +128,13 @@ def main() -> None:
 
     step(
         "Profile specific columns",
-        f"profile -c {DUCKDB_DB} -t products --columns price,stock",
-        "Use --columns to focus on specific columns.\n  Comma-separated, no spaces.",
+        f"profile -c {DUCKDB_DB} -t products --Cumns price,stock",
+        "Use --Cumns to focus on specific columns.\n  Comma-separated, no spaces.",
     )
 
     step(
         "Top frequent values",
-        f"profile -c {SQLITE_DB} -t customers --columns company --top 5",
+        f"profile -c {SQLITE_DB} -t customers --Cumns company --top 5",
         "Use --top N to see the most frequent values per column.\n"
         "  Shows count and percentage of total rows.",
     )
@@ -161,14 +161,14 @@ def main() -> None:
 
     step(
         "Numeric distribution (histogram)",
-        f"dist -c {SQLITE_DB} -t products -col price",
+        f"dist -c {SQLITE_DB} -t products -C price",
         "Visualize how values are distributed. Numeric columns get a\n"
         "  histogram with bucket counts. Default is 20 buckets.",
     )
 
     step(
         "Categorical distribution (frequency table)",
-        f"dist -c {DUCKDB_DB} -t customers -col country --top 10",
+        f"dist -c {DUCKDB_DB} -t customers -C country --top 10",
         "String/categorical columns show the top values by frequency\n"
         "  with counts and percentages. Use --top to control how many.",
     )
@@ -338,7 +338,7 @@ def main() -> None:
     print("    qdo profile -c <db> -t <table>          Statistical profiling")
     print("    qdo profile ... --top N                 Top frequent values")
     print("    qdo search -p <pattern> -c <db>         Search metadata")
-    print("    qdo dist -c <db> -t <tbl> -col <col>   Column distribution")
+    print("    qdo dist -c <db> -t <tbl> -C <col>   Column distribution")
     print("    qdo sql select/insert/ddl/scratch ...   Generate SQL")
     print("    qdo sql task/udf/procedure ...          Snowflake SQL templates")
     print("    qdo template -c <db> -t <table>         Doc template generation")

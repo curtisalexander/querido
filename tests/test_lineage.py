@@ -40,14 +40,14 @@ def view_duckdb(tmp_path: Path) -> str:
 
 
 def test_lineage_sqlite_rich(view_sqlite: str):
-    result = runner.invoke(app, ["lineage", "-v", "active_users", "-c", view_sqlite])
+    result = runner.invoke(app, ["lineage", "--view", "active_users", "-c", view_sqlite])
     assert result.exit_code == 0
     assert "active_users" in result.output
 
 
 def test_lineage_sqlite_json(view_sqlite: str):
     result = runner.invoke(
-        app, ["--format", "json", "lineage", "-v", "active_users", "-c", view_sqlite]
+        app, ["--format", "json", "lineage", "--view", "active_users", "-c", view_sqlite]
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -59,7 +59,7 @@ def test_lineage_sqlite_json(view_sqlite: str):
 
 def test_lineage_sqlite_markdown(view_sqlite: str):
     result = runner.invoke(
-        app, ["--format", "markdown", "lineage", "-v", "active_users", "-c", view_sqlite]
+        app, ["--format", "markdown", "lineage", "--view", "active_users", "-c", view_sqlite]
     )
     assert result.exit_code == 0
     assert "## View: active_users" in result.output
@@ -68,7 +68,7 @@ def test_lineage_sqlite_markdown(view_sqlite: str):
 
 def test_lineage_sqlite_csv(view_sqlite: str):
     result = runner.invoke(
-        app, ["--format", "csv", "lineage", "-v", "active_users", "-c", view_sqlite]
+        app, ["--format", "csv", "lineage", "--view", "active_users", "-c", view_sqlite]
     )
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
@@ -80,14 +80,14 @@ def test_lineage_sqlite_csv(view_sqlite: str):
 
 
 def test_lineage_duckdb_rich(view_duckdb: str):
-    result = runner.invoke(app, ["lineage", "-v", "high_value_orders", "-c", view_duckdb])
+    result = runner.invoke(app, ["lineage", "--view", "high_value_orders", "-c", view_duckdb])
     assert result.exit_code == 0
     assert "high_value_orders" in result.output
 
 
 def test_lineage_duckdb_json(view_duckdb: str):
     result = runner.invoke(
-        app, ["--format", "json", "lineage", "-v", "high_value_orders", "-c", view_duckdb]
+        app, ["--format", "json", "lineage", "--view", "high_value_orders", "-c", view_duckdb]
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -101,19 +101,19 @@ def test_lineage_duckdb_json(view_duckdb: str):
 
 def test_lineage_table_not_view(view_sqlite: str):
     """Requesting lineage for a table (not a view) should fail gracefully."""
-    result = runner.invoke(app, ["lineage", "-v", "users", "-c", view_sqlite])
+    result = runner.invoke(app, ["lineage", "--view", "users", "-c", view_sqlite])
     assert result.exit_code != 0
 
 
 def test_lineage_nonexistent_view(view_sqlite: str):
     """Requesting lineage for a view that doesn't exist should fail."""
-    result = runner.invoke(app, ["lineage", "-v", "no_such_view", "-c", view_sqlite])
+    result = runner.invoke(app, ["lineage", "--view", "no_such_view", "-c", view_sqlite])
     assert result.exit_code != 0
 
 
 def test_lineage_invalid_name(view_sqlite: str):
     """Invalid view names should be rejected."""
-    result = runner.invoke(app, ["lineage", "-v", "'; DROP TABLE--", "-c", view_sqlite])
+    result = runner.invoke(app, ["lineage", "--view", "'; DROP TABLE--", "-c", view_sqlite])
     assert result.exit_code != 0
 
 

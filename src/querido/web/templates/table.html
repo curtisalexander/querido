@@ -4,32 +4,32 @@
 {% block content %}
 <h1 class="page-title">{{ table_name }}</h1>
 <p class="page-subtitle">
-  <span class="table-type-badge">{{ table_type }}</span>
+  <span class="table-type-badge" aria-label="{{ table_type }}">{{ table_type }}</span>
 </p>
 
-<div class="tab-bar">
-  <a href="#" class="active"
+<div class="tab-bar" role="tablist" aria-label="Table views">
+  <a href="#" class="active" role="tab" aria-selected="true"
      hx-get="/fragments/inspect/{{ table_name }}"
      hx-target="#tab-content"
      hx-indicator="#global-indicator"
      onclick="activateTab(this)">Inspect</a>
-  <a href="#"
+  <a href="#" role="tab" aria-selected="false"
      hx-get="/fragments/preview/{{ table_name }}"
      hx-target="#tab-content"
      hx-indicator="#global-indicator"
      onclick="activateTab(this)">Preview</a>
-  <a href="#"
+  <a href="#" role="tab" aria-selected="false"
      hx-get="/fragments/profile/{{ table_name }}"
      hx-target="#tab-content"
      hx-indicator="#global-indicator"
      onclick="activateTab(this)">Profile</a>
-  <a href="#"
+  <a href="#" role="tab" aria-selected="false"
      hx-get="/fragments/template/{{ table_name }}"
      hx-target="#tab-content"
      hx-indicator="#global-indicator"
      onclick="activateTab(this)">Template</a>
   {% if table_type == "view" %}
-  <a href="#"
+  <a href="#" role="tab" aria-selected="false"
      hx-get="/fragments/lineage/{{ table_name }}"
      hx-target="#tab-content"
      hx-indicator="#global-indicator"
@@ -38,10 +38,10 @@
   <a href="/table/{{ table_name }}/pivot">Pivot</a>
 </div>
 
-<div id="tab-content"
+<div id="tab-content" role="tabpanel"
      hx-get="/fragments/inspect/{{ table_name }}"
      hx-trigger="load"
      hx-indicator="#global-indicator">
-  <span class="spinner"></span> Loading...
+  <span class="spinner" aria-hidden="true"></span> Loading...
 </div>
 {% endblock %}

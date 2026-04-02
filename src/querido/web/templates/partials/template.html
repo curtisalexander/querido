@@ -4,25 +4,26 @@
 </p>
 
 <div class="toolbar">
-  <input type="text" placeholder="Filter columns..." data-filter-table="template-table">
-  <span class="badge" data-count-for="template-table"></span>
-  <button onclick="copyTable('template-table')">Copy</button>
-  <button onclick="exportCSV('template-table')">Export CSV</button>
+  <label for="template-filter" class="sr-only">Filter columns</label>
+  <input type="text" id="template-filter" placeholder="Filter columns..." data-filter-table="template-table">
+  <span class="badge" data-count-for="template-table" aria-live="polite"></span>
+  <button type="button" onclick="copyTable('template-table')" aria-label="Copy table to clipboard">Copy</button>
+  <button type="button" onclick="exportCSV('template-table')" aria-label="Export table as CSV">Export CSV</button>
 </div>
 
 <div class="table-wrapper">
-  <table id="template-table" data-sortable>
+  <table id="template-table" data-sortable aria-label="Documentation template">
     <thead>
       <tr>
-        <th>Column<span class="sort-arrow"></span></th>
-        <th>Type<span class="sort-arrow"></span></th>
-        <th>Nullable<span class="sort-arrow"></span></th>
-        <th>Distinct<span class="sort-arrow"></span></th>
-        <th>Nulls<span class="sort-arrow"></span></th>
-        <th>Null %<span class="sort-arrow"></span></th>
-        <th>Min<span class="sort-arrow"></span></th>
-        <th>Max<span class="sort-arrow"></span></th>
-        <th>Sample Values<span class="sort-arrow"></span></th>
+        <th scope="col">Column<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Type<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Nullable<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Distinct<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Nulls<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Null %<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Min<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Max<span class="sort-arrow" aria-hidden="true"></span></th>
+        <th scope="col">Sample Values<span class="sort-arrow" aria-hidden="true"></span></th>
       </tr>
     </thead>
     <tbody>

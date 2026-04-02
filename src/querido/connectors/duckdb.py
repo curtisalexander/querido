@@ -29,7 +29,7 @@ class DuckDBConnector:
         safe_path = resolved.replace("\\", "/").replace("'", "''")
         safe_name = name.replace('"', '""')
         self.conn.execute(
-            f'create or replace view "{safe_name}" as select * from read_parquet(\'{safe_path}\')'
+            f"create or replace view \"{safe_name}\" as select * from read_parquet('{safe_path}')"
         )
         return name
 
@@ -39,7 +39,7 @@ class DuckDBConnector:
             return []
         try:
             return result.fetch_arrow_table().to_pylist()
-        except Exception:
+        except (ImportError, RuntimeError, AttributeError):
             columns = [desc[0] for desc in result.description]
             rows = result.fetchall()
             return [dict(zip(columns, row, strict=True)) for row in rows]

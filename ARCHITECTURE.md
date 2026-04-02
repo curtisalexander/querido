@@ -16,7 +16,8 @@ querido/
 ├── README.md
 ├── scripts/
 │   ├── init_test_data.py           # Generate synthetic data → data/test.db + data/test.duckdb
-│   └── tutorial.py                 # Interactive step-by-step tutorial
+│   ├── tutorial.py                 # Interactive step-by-step tutorial
+│   └── demo.py                     # Modular feature demo (zero-setup, auto-generates temp DB)
 ├── src/
 │   └── querido/
 │       ├── __init__.py             # Version string (__version__)

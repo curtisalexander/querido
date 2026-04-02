@@ -49,7 +49,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `inspect -c CONN -t TABLE` | Column metadata and row count |
 | `preview -c CONN -t TABLE [-r ROWS]` | Preview rows (default 20) |
 | `profile -c CONN -t TABLE [--top N]` | Statistical profile |
-| `dist -c CONN -t TABLE -col COLUMN` | Column distribution |
+| `dist -c CONN -t TABLE -C COLUMN` | Column distribution |
 | `search -c CONN -p PATTERN` | Search tables/columns by name |
 | `lineage -c CONN -v VIEW` | View SQL definition |
 | `template -c CONN -t TABLE` | Documentation template |

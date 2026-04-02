@@ -42,6 +42,8 @@ class HelpScreen(ModalScreen):
   [bold cyan]q[/]          Quit
   [bold cyan]?[/]          Show this help
   [bold cyan]i[/]          Inspect column metadata
+  [bold cyan]p[/]          Profile statistics
+  [bold cyan]d[/]          Column distribution
   [bold cyan]m[/]          Toggle metadata sidebar
   [bold cyan]/[/]          Focus filter bar
   [bold cyan]Escape[/]     Clear filter / close overlay

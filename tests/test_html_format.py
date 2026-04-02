@@ -106,7 +106,7 @@ def test_search_html(sqlite_path: str) -> None:
 
 
 def test_dist_html(sqlite_path: str) -> None:
-    code, html = _invoke_html(["dist", "-c", sqlite_path, "-t", "users", "-col", "age"])
+    code, html = _invoke_html(["dist", "-c", sqlite_path, "-t", "users", "-C", "age"])
     assert code == 0
     assert "Distribution:" in html
     assert "age" in html

@@ -4,18 +4,19 @@
 <p class="page-subtitle">Showing {{ rows|length }} row(s) (limit {{ limit }})</p>
 
 <div class="toolbar">
-  <input type="text" placeholder="Filter rows..." data-filter-table="preview-table">
-  <span class="badge" data-count-for="preview-table"></span>
-  <button onclick="copyTable('preview-table')">Copy</button>
-  <button onclick="exportCSV('preview-table')">Export CSV</button>
+  <label for="preview-filter" class="sr-only">Filter rows</label>
+  <input type="text" id="preview-filter" placeholder="Filter rows..." data-filter-table="preview-table">
+  <span class="badge" data-count-for="preview-table" aria-live="polite"></span>
+  <button type="button" onclick="copyTable('preview-table')" aria-label="Copy table to clipboard">Copy</button>
+  <button type="button" onclick="exportCSV('preview-table')" aria-label="Export table as CSV">Export CSV</button>
 </div>
 
 <div class="table-wrapper">
-  <table id="preview-table" data-sortable>
+  <table id="preview-table" data-sortable aria-label="Preview rows">
     <thead>
       <tr>
         {% for h in headers %}
-        <th>{{ h }}<span class="sort-arrow"></span></th>
+        <th scope="col">{{ h }}<span class="sort-arrow" aria-hidden="true"></span></th>
         {% endfor %}
       </tr>
     </thead>

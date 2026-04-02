@@ -18,9 +18,7 @@ def get_view_definition(connector: Connector, view: str) -> dict:
     sql_def = connector.get_view_definition(view)
 
     if sql_def is None:
-        raise LookupError(
-            f"'{view}' is not a view or does not exist. Use `qdo search` to find available views."
-        )
+        raise LookupError(f"'{view}' is not a view or does not exist.")
 
     return {
         "view": view,
