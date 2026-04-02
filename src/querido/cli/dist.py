@@ -19,6 +19,16 @@ def dist(
     top: int = typer.Option(
         20, "--top", min=1, help="Number of top values for categorical columns."
     ),
+    sample: int | None = typer.Option(
+        None,
+        "--sample",
+        "-s",
+        min=1,
+        help="Sample size (number of rows). Default: auto-sample at >1M rows.",
+    ),
+    no_sample: bool = typer.Option(
+        False, "--no-sample", help="Force full table scan, no sampling."
+    ),
     db_type: str | None = typer.Option(
         None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
     ),
@@ -37,7 +47,13 @@ def dist(
             from querido.core.dist import get_distribution
 
             dist_result = get_distribution(
-                ctx.connector, ctx.table, canonical_col, buckets=buckets, top=top
+                ctx.connector,
+                ctx.table,
+                canonical_col,
+                buckets=buckets,
+                top=top,
+                sample=sample,
+                no_sample=no_sample,
             )
 
         dispatch_output("dist", dist_result)

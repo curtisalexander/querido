@@ -48,11 +48,6 @@ def _render(template_name: str, dialect: str, **kwargs: object) -> None:
     print(sql)
 
 
-def _require_snowflake(dialect: str, command: str) -> None:
-    if dialect != "snowflake":
-        raise typer.BadParameter(f"'{command}' is only supported for Snowflake connections.")
-
-
 def _format_sql_literal(value: object) -> str:
     """Format a Python value as a SQL literal string."""
     if value is None:
@@ -116,7 +111,8 @@ def task(
 ) -> None:
     """Generate a Snowflake task template. (Snowflake only)"""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-    _require_snowflake(dialect, "task")
+    from querido.cli._validation import require_snowflake
+    require_snowflake(dialect, "task")
     _render(
         "task",
         dialect,
@@ -147,7 +143,8 @@ def procedure(
 ) -> None:
     """Generate a stored procedure template. (Snowflake only)"""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-    _require_snowflake(dialect, "procedure")
+    from querido.cli._validation import require_snowflake
+    require_snowflake(dialect, "procedure")
     _render(
         "procedure",
         dialect,

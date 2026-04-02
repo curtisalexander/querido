@@ -33,6 +33,14 @@ def build_pivot_query(
         SQL query string.
     """
 
+    from querido.connectors.base import validate_column_name, validate_table_name
+
+    validate_table_name(table)
+    for col in rows:
+        validate_column_name(col)
+    for col in values:
+        validate_column_name(col)
+
     valid_aggs = {"COUNT", "SUM", "AVG", "MIN", "MAX"}
     if agg.upper() not in valid_aggs:
         raise ValueError(f"Invalid aggregation: {agg!r}. Must be one of: {sorted(valid_aggs)}")

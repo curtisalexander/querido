@@ -721,7 +721,7 @@ class TestCheckTableExistsQualified:
         )
         mock_conn.cursor.return_value = cursor
 
-        from querido.cli._util import check_table_exists
+        from querido.cli._validation import check_table_exists
 
         # Should not raise
         check_table_exists(connector, "other_db.staging.raw_data")
@@ -748,7 +748,7 @@ class TestCheckTableExistsQualified:
         )
         mock_conn.cursor.return_value = cursor
 
-        from querido.cli._util import check_table_exists
+        from querido.cli._validation import check_table_exists
 
         with pytest.raises(typer.BadParameter, match="not found"):
             check_table_exists(connector, "other_db.staging.missing_table")
@@ -766,7 +766,7 @@ class TestCheckTableExistsQualified:
         )
         mock_conn.cursor.return_value = cursor
 
-        from querido.cli._util import check_table_exists
+        from querido.cli._validation import check_table_exists
 
         # Should not raise
         check_table_exists(connector, "analytics.events")

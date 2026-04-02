@@ -14,17 +14,24 @@ def get_distribution(
     buckets: int = 20,
     top: int = 20,
     column_type: str | None = None,
+    sample: int | None = None,
+    no_sample: bool = False,
 ) -> dict:
     """Compute distribution for a column.
 
     Returns a dict with keys:
       - table, column, column_type, mode ("numeric" or "categorical")
       - total_rows, null_count
+      - sampled, sample_size
       - buckets (list, numeric mode) or values (list, categorical mode)
 
     When *column_type* is provided, the ``get_columns()`` lookup is skipped.
+
+    Sampling is applied automatically for tables over 1M rows (same
+    threshold as ``profile``).  Use *sample* to set an explicit sample
+    size, or *no_sample* to force a full scan.
     """
-    from querido.core.profile import is_numeric_type
+    from querido.core.profile import _build_sample_source, is_numeric_type
     from querido.sql.renderer import render_template
 
     col_type = column_type
@@ -38,12 +45,25 @@ def get_distribution(
             )
     is_num = is_numeric_type(col_type)
 
+    # Determine source (raw table or sampled subquery).
+    needs_auto_sample = sample is None and not no_sample
+    if needs_auto_sample:
+        count_sql = render_template("count", connector.dialect, table=table)
+        row_count = connector.execute(count_sql)[0]["cnt"]
+    elif sample is not None:
+        row_count = sample + 1
+    else:
+        row_count = 0
+
+    source, sampled, sample_size = _build_sample_source(
+        connector, table, row_count, sample=sample, no_sample=no_sample
+    )
+
     if is_num:
         sql = render_template(
-            "dist", connector.dialect, column=column, source=table, buckets=buckets
+            "dist", connector.dialect, column=column, source=source, buckets=buckets
         )
         data = connector.execute(sql)
-        # Dist templates now include total_rows and null_count in each row
         total_rows = data[0]["total_rows"] if data else 0
         null_count = data[0]["null_count"] if data else 0
         return {
@@ -53,17 +73,17 @@ def get_distribution(
             "mode": "numeric",
             "total_rows": total_rows,
             "null_count": null_count,
+            "sampled": sampled,
+            "sample_size": sample_size,
             "buckets": data,
         }
     else:
         freq_sql = render_template(
-            "frequency", connector.dialect, column=column, source=table, top=top
+            "frequency", connector.dialect, column=column, source=source, top=top
         )
         data = connector.execute(freq_sql)
-        # Frequency templates include total_rows and null_count via a stats CTE.
         total_rows = data[0]["total_rows"] if data else 0
         null_count = data[0]["null_count"] if data else 0
-        # Strip the stats columns from the value rows returned to callers.
         _strip = {"total_rows", "null_count"}
         values = [{k: v for k, v in row.items() if k not in _strip} for row in data]
         return {
@@ -73,5 +93,7 @@ def get_distribution(
             "mode": "categorical",
             "total_rows": total_rows,
             "null_count": null_count,
+            "sampled": sampled,
+            "sample_size": sample_size,
             "values": values,
         }
