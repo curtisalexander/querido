@@ -282,7 +282,7 @@ def test_no_traceback_on_missing_file(tmp_path: Path):
 
 
 def test_format_not_found_with_close_match():
-    from querido.cli._util import _format_not_found
+    from querido.cli._validation import _format_not_found
 
     msg = _format_not_found("Table", "usrs", ["users", "orders", "products"])
     assert "Did you mean" in msg
@@ -291,7 +291,7 @@ def test_format_not_found_with_close_match():
 
 
 def test_format_not_found_large_list_no_available():
-    from querido.cli._util import _format_not_found
+    from querido.cli._validation import _format_not_found
 
     candidates = [f"table_{i}" for i in range(100)]
     msg = _format_not_found("Table", "table_1", candidates, max_available=30)
@@ -300,7 +300,7 @@ def test_format_not_found_large_list_no_available():
 
 
 def test_format_not_found_preserves_original_casing():
-    from querido.cli._util import _format_not_found
+    from querido.cli._validation import _format_not_found
 
     msg = _format_not_found("Column", "usr_id", ["USER_ID", "ORDER_ID", "TOTAL"])
     assert "Did you mean" in msg
@@ -308,7 +308,7 @@ def test_format_not_found_preserves_original_casing():
 
 
 def test_fuzzy_suggestions_returns_matches():
-    from querido.cli._util import _fuzzy_suggestions
+    from querido.cli._validation import _fuzzy_suggestions
 
     matches = _fuzzy_suggestions("usrs", ["users", "orders", "products"])
     assert "users" in matches

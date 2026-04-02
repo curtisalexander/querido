@@ -223,6 +223,7 @@ def _write_connections(config_file: Path | str, connections: dict) -> None:
         os.close(fd)
         closed = True
         Path(tmp).replace(config_file)
+        config_file.chmod(0o600)
     except BaseException:
         if not closed:
             os.close(fd)

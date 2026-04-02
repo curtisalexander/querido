@@ -51,7 +51,9 @@ def get_sample_values(
     Returns ``{col_name: [val_str, ...]}``.  Uses concurrent execution
     when the connector supports it.
     """
-    from querido.connectors.base import validate_column_name
+    from querido.connectors.base import validate_column_name, validate_table_name
+
+    validate_table_name(table)
 
     def _fetch_one(col_name: str) -> tuple[str, list[str]]:
         validate_column_name(col_name)

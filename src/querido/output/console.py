@@ -262,7 +262,10 @@ def print_dist(
 
     console.print(grid)
     null_note = f"  nulls: {null_count:,}" if null_count else ""
-    console.print(f"\n  Total rows: [bold]{total_rows:,}[/bold]{null_note}")
+    sample_note = ""
+    if dist_result.get("sampled") and dist_result.get("sample_size"):
+        sample_note = f" (sampled {dist_result['sample_size']:,} rows)"
+    console.print(f"\n  Total rows: [bold]{total_rows:,}[/bold]{null_note}{sample_note}")
 
 
 def print_template(

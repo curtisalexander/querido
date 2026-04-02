@@ -31,8 +31,8 @@ querido/
 │       │   ├── _errors.py          # friendly_errors decorator, error classification
 │       │   ├── _pipeline.py        # table_command context manager, dispatch_output helper
 │       │   ├── _progress.py        # Elapsed-time query spinner with cancellation
-│       │   ├── _util.py            # Backward-compatible re-exports from split modules
-│       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions
+│       │   ├── _options.py          # Shared Typer option definitions (--connection, --db-type, etc.)
+│       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, require_snowflake
 │       │   ├── main.py             # Entry point, Typer app, registers subcommands
 │       │   ├── cache.py            # `qdo cache sync/status/clear` — metadata cache management
 │       │   ├── config.py           # `qdo config add/list` — connection management
@@ -43,7 +43,9 @@ querido/
 │       │   ├── profile.py          # `qdo profile` — data profiling
 │       │   ├── search.py           # `qdo search` — metadata search across tables/columns (cache-aware)
 │       │   ├── explore.py          # `qdo explore` — interactive TUI launcher
-│       │   ├── snowflake.py         # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
+│       │   ├── overview.py         # `qdo overview` — CLI reference markdown generation
+│       │   ├── serve.py            # `qdo serve` — FastAPI web UI launcher
+│       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
 │       │   ├── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
 │       │   └── template.py         # `qdo template` — documentation template generation
 │       ├── connectors/
@@ -54,6 +56,19 @@ querido/
 │       │   ├── sqlite.py           # SQLite connector (stdlib, always available)
 │       │   ├── duckdb.py           # DuckDB connector (optional install, also handles Parquet)
 │       │   └── snowflake.py        # Snowflake connector (optional install)
+│       ├── core/
+│       │   ├── __init__.py         # Package marker
+│       │   ├── _concurrent.py      # Parallel query execution helper (thread pool)
+│       │   ├── dist.py             # Distribution computation logic
+│       │   ├── inspect.py          # Inspect metadata logic
+│       │   ├── lineage.py          # View definition retrieval logic
+│       │   ├── pivot.py            # Pivot query builder and executor
+│       │   ├── preview.py          # Row preview logic
+│       │   ├── profile.py          # Data profiling logic (stats, frequencies, column classification)
+│       │   ├── runner.py           # Query execution with cancellation support
+│       │   ├── search.py           # Metadata search logic
+│       │   ├── semantic.py         # Snowflake Cortex Analyst semantic model YAML builder
+│       │   └── template.py         # Documentation template generation logic
 │       ├── sql/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── renderer.py         # Jinja2 template loading and rendering
@@ -65,9 +80,12 @@ querido/
 │       │       │   ├── duckdb.sql      # FLOOR-based binning
 │       │       │   └── snowflake.sql   # WIDTH_BUCKET binning
 │       │       ├── frequency/
-│       │       │   └── common.sql  # Top-N frequent values query
+│       │       │   ├── common.sql      # Top-N frequent values query
+│       │       │   └── snowflake.sql   # approx_top_k variant
 │       │       ├── null_count/
-│       │       │   └── common.sql  # NULL count + total rows for a column
+│       │       │   ├── common.sql      # NULL count + total rows for a column
+│       │       │   ├── duckdb.sql      # count_if variant
+│       │       │   └── snowflake.sql   # count_if variant
 │       │       ├── generate/           # SQL generation templates (qdo sql)
 │       │       │   ├── select/common.sql
 │       │       │   ├── insert/common.sql

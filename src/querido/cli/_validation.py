@@ -8,6 +8,16 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
+def require_snowflake(dialect: str, command: str) -> None:
+    """Raise typer.BadParameter if *dialect* is not ``snowflake``."""
+    if dialect != "snowflake":
+        import typer
+
+        raise typer.BadParameter(
+            f"'{command}' requires a Snowflake connection (got {dialect})."
+        )
+
+
 def _fuzzy_suggestions(name: str, candidates: list[str], *, n: int = 3) -> list[str]:
     """Return up to *n* close matches for *name* from *candidates* using difflib."""
     from difflib import get_close_matches

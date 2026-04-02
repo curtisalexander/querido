@@ -8,18 +8,12 @@ import typer
 
 from querido.cli._errors import friendly_errors
 from querido.cli._options import conn_opt, dbtype_opt
+from querido.cli._validation import require_snowflake
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 app = typer.Typer(help="Snowflake-specific commands.")
-
-
-def _require_snowflake(dialect: str, command: str) -> None:
-    if dialect != "snowflake":
-        raise typer.BadParameter(
-            f"'snowflake {command}' requires a Snowflake connection (got {dialect})."
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +42,7 @@ def semantic(
     from querido.cli._pipeline import table_command
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
-        _require_snowflake(ctx.connector.dialect, "semantic")
+        require_snowflake(ctx.connector.dialect, "semantic")
 
         with ctx.spin(f"Reading metadata for [bold]{ctx.table}[/bold]"):
             columns = ctx.connector.get_columns(ctx.table)
@@ -119,7 +113,7 @@ def lineage(
 
         console = Console(stderr=True)
 
-        _require_snowflake(connector.dialect, "lineage")
+        require_snowflake(connector.dialect, "lineage")
 
         from querido.cli._progress import query_status
 
