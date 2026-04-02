@@ -204,6 +204,45 @@ def clone(
     )
 
 
+@app.command()
+def test(
+    connection: str = typer.Argument(..., help="Connection name or file path to test."),
+    db_type: str | None = typer.Option(
+        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
+    ),
+) -> None:
+    """Test a connection by running SELECT 1."""
+    import time
+
+    from rich.console import Console
+
+    from querido.config import resolve_connection
+    from querido.connectors.factory import create_connector
+
+    console = Console(stderr=True)
+    config = resolve_connection(connection, db_type)
+    conn_type = config.get("type", "?")
+
+    try:
+        t0 = time.monotonic()
+        with create_connector(config) as connector:
+            connector.execute("select 1")
+        elapsed = time.monotonic() - t0
+    except Exception as exc:
+        console.print(f"[red bold]FAIL[/red bold] ({conn_type}) {exc}")
+        raise typer.Exit(1) from None
+
+    detail = config.get("path") or config.get("account", "")
+    console.print(f"[green bold]OK[/green bold] ({conn_type}) {detail} [{elapsed:.3f}s]")
+
+    # Show extra detail for Snowflake connections
+    if conn_type == "snowflake":
+        for key in ("database", "schema", "role", "warehouse"):
+            val = config.get(key, "")
+            if val:
+                console.print(f"  {key}: {val}")
+
+
 def _write_connections(config_file: Path | str, connections: dict) -> None:
     """Write connections dict back to TOML format using tomli-w.
 

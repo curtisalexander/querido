@@ -236,6 +236,26 @@ qdo inspect -c sf-base -t events
 
 This approach is intentional: each connection is self-contained and correct, so you never have to remember which role goes with which database. The `config clone` command makes setup fast — you only specify the fields that differ.
 
+## Shell Completions
+
+Tab completion is available for bash, zsh, fish, and PowerShell:
+
+```bash
+# Bash — add to ~/.bashrc:
+eval "$(qdo completion show bash)"
+
+# Zsh — add to ~/.zshrc:
+eval "$(qdo completion show zsh)"
+
+# Fish — save to completions directory:
+qdo completion show fish > ~/.config/fish/completions/qdo.fish
+
+# PowerShell — add to $PROFILE:
+qdo completion show powershell | Out-String | Invoke-Expression
+```
+
+Use `qdo completion show <shell> --hint` to see install instructions for a specific shell.
+
 ## Development
 
 ```bash
