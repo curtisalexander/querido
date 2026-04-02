@@ -49,20 +49,28 @@ def table_command(
                 data = get_preview(ctx.connector, ctx.table, limit=20)
             dispatch_output("preview", ctx.table, data, 20)
     """
+    import logging
+
     from querido.cli._validation import resolve_table
     from querido.config import resolve_connection
     from querido.connectors.base import validate_table_name
     from querido.connectors.factory import create_connector
 
+    log = logging.getLogger("querido.cli")
+
     validate_table_name(table)
     config = resolve_connection(connection, db_type)
+    detail = config.get("path") or config.get("account", "")
+    log.debug("Connection: type=%s %s", config.get("type", "?"), detail)
 
     with create_connector(config) as connector:
         from rich.console import Console
 
         console = Console(stderr=True)
+        log.debug("Connected (%s)", connector.dialect)
 
         resolved_table = resolve_table(connector, table)
+        log.debug("Resolved table: %s", resolved_table)
 
         _maybe_warm_cache(connection, config, connector)
 

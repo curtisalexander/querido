@@ -23,6 +23,11 @@ def get_output_format() -> str:
     return _get_root_obj().get("format", "rich")
 
 
+def get_debug() -> bool:
+    """Return ``True`` if ``--debug`` was passed on the CLI."""
+    return bool(_get_root_obj().get("debug"))
+
+
 def emit_html(html_content: str, prefix: str = "qdo-") -> None:
     """Write *html_content* to a temp file, open it in the browser, and print the path."""
     from querido.output.html import open_html

@@ -18,7 +18,8 @@ querido/
 │   ├── init_test_data.py           # Generate synthetic data → data/test.db + data/test.duckdb
 │   ├── tutorial.py                 # Interactive step-by-step tutorial
 │   ├── demo.py                     # Modular feature demo (zero-setup, auto-generates temp DB)
-│   └── check_deps.py              # Dependency checker with supply-chain quarantine
+│   ├── check_deps.py              # Dependency checker with supply-chain quarantine
+│   └── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
 ├── src/
 │   └── querido/
 │       ├── __init__.py             # Version string (__version__)
@@ -35,7 +36,8 @@ querido/
 │       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, require_snowflake
 │       │   ├── main.py             # Entry point, Typer app, registers subcommands
 │       │   ├── cache.py            # `qdo cache sync/status/clear` — metadata cache management
-│       │   ├── config.py           # `qdo config add/list` — connection management
+│       │   ├── completion.py       # `qdo completion show` — shell completion scripts (bash/zsh/fish/powershell)
+│       │   ├── config.py           # `qdo config add/list/clone/test` — connection management
 │       │   ├── dist.py             # `qdo dist` — column distribution visualization
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
 │       │   ├── lineage.py          # `qdo lineage` — view SQL definition retrieval
@@ -304,8 +306,9 @@ Progress spinners (Rich `Status`) display on stderr during query execution so th
 ### 7. Global Flags
 
 - `--version` / `-V`: Show version and exit
-- `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_util.py:maybe_show_sql()`.
-- `--format {rich,markdown,json,csv,html,yaml}` / `-f`: Output format. Default is `rich` (Rich terminal tables). `html` opens results in the default browser. `yaml` is used for Snowflake semantic model output. Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_util.py:get_output_format()`.
+- `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_context.py:maybe_show_sql()`.
+- `--format {rich,markdown,json,csv,html,yaml}` / `-f`: Output format. Default is `rich` (Rich terminal tables). `html` opens results in the default browser. `yaml` is used for Snowflake semantic model output. Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_context.py:get_output_format()`.
+- `--debug`: Enable debug logging to stderr. Logs connection details, query timing, table resolution, and cache status. Uses Python `logging` module with `querido` logger hierarchy.
 
 Command-specific flags:
 - `inspect --verbose` / `-v`: Show extended metadata (table and column comments/descriptions).

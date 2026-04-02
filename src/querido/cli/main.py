@@ -17,6 +17,7 @@ from typer.core import TyperGroup
 _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     #  name  → (module_path, help_text)
     "cache": ("querido.cli.cache", "Manage local metadata cache."),
+    "completion": ("querido.cli.completion", "Generate shell completion scripts."),
     "config": ("querido.cli.config", "Manage connections."),
     "dist": ("querido.cli.dist", "Column distribution visualization."),
     "explore": ("querido.cli.explore", "Interactive data exploration (TUI)."),
@@ -152,6 +153,11 @@ def main(
         "-f",
         help="Output format: rich, markdown, json, csv, html, yaml.",
     ),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help="Enable debug logging to stderr.",
+    ),
 ) -> None:
     """qdo — query, do. Data analysis from your terminal."""
     valid = {"rich", "markdown", "json", "csv", "html", "yaml"}
@@ -160,3 +166,19 @@ def main(
     ctx.ensure_object(dict)
     ctx.obj["show_sql"] = show_sql
     ctx.obj["format"] = output_format
+    ctx.obj["debug"] = debug
+
+    import logging
+
+    logger = logging.getLogger("querido")
+    # Reset handlers to avoid accumulation across CliRunner invocations in tests
+    logger.handlers.clear()
+    if debug:
+        import sys
+
+        logger.setLevel(logging.DEBUG)
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("[qdo] %(message)s"))
+        logger.addHandler(handler)
+    else:
+        logger.setLevel(logging.WARNING)

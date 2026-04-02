@@ -223,3 +223,46 @@ def test_config_clone_no_overrides(tmp_path):
     assert result.exit_code == 0
     content = (tmp_path / "connections.toml").read_text()
     assert "[connections.copy]" in content
+
+
+# ---------------------------------------------------------------------------
+# config test
+# ---------------------------------------------------------------------------
+
+
+def test_config_test_sqlite(sqlite_path):
+    result = runner.invoke(app, ["config", "test", sqlite_path])
+    assert result.exit_code == 0
+    assert "OK" in result.output
+    assert "sqlite" in result.output
+
+
+def test_config_test_duckdb(duckdb_path):
+    result = runner.invoke(app, ["config", "test", duckdb_path])
+    assert result.exit_code == 0
+    assert "OK" in result.output
+    assert "duckdb" in result.output
+
+
+def test_config_test_named_connection(tmp_path, sqlite_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    # Add a named connection pointing to a real database
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "mydb", "--type", "sqlite", "--path", sqlite_path],
+        env=env,
+    )
+    result = runner.invoke(app, ["config", "test", "mydb"], env=env)
+    assert result.exit_code == 0
+    assert "OK" in result.output
+
+
+def test_config_test_missing_file():
+    result = runner.invoke(app, ["config", "test", "/nonexistent/path.db"])
+    assert result.exit_code != 0
+
+
+def test_config_test_invalid_connection(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(app, ["config", "test", "no_such_connection"], env=env)
+    assert result.exit_code != 0

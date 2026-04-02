@@ -92,6 +92,10 @@ def query_status(
         stop_event.set()
         live.stop()
 
+    import logging
+
+    logging.getLogger("querido.cli").debug("Query completed in %.3fs", status.elapsed)
+
     # Print elapsed time for longer queries (only on a real terminal to avoid
     # polluting piped or captured output)
     if status.elapsed >= show_elapsed_threshold and console.is_terminal:
