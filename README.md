@@ -244,3 +244,13 @@ uv run ruff format src/ tests/   # format
 uv run ty check                   # type check
 uv run pytest                     # test
 ```
+
+### Dependency updates
+
+```bash
+uv run python scripts/check_deps.py              # check for outdated deps
+uv run python scripts/check_deps.py --update     # update safe packages
+uv run python scripts/check_deps.py --audit      # also check for known CVEs
+```
+
+New releases are quarantined for 7 days (configurable with `--days`) before `--update` will apply them. This guards against supply-chain attacks by giving the community time to detect and yank compromised packages.

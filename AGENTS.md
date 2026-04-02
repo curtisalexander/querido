@@ -199,6 +199,17 @@ See `PLAN.md` for the phased build plan. Work through phases in order. Each phas
 - DuckDB and Snowflake are optional extras, not default dependencies
 - DuckDB is included in the `[dependency-groups] dev` group so tests always run
 
+### Checking and updating dependencies
+
+```bash
+uv run python scripts/check_deps.py              # report outdated with quarantine status
+uv run python scripts/check_deps.py --update     # update only packages past quarantine
+uv run python scripts/check_deps.py --audit      # include uv audit for known CVEs
+uv run python scripts/check_deps.py --days 3     # set quarantine to 3 days
+```
+
+The checker queries PyPI for release dates and flags packages published within the quarantine window (default 7 days) to guard against supply-chain attacks. `--update` runs `uv lock --upgrade-package` + `uv sync` for safe packages only — quarantined and flagged packages are skipped. Always run tests after updating.
+
 ## Config File
 
 Connections are stored in TOML. Location determined by `platformdirs`:
