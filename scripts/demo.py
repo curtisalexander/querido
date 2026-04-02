@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import collections.abc
 import os
 import shutil
 import sqlite3
@@ -478,7 +479,7 @@ def demo_cache(db: str) -> None:
 # Registry
 # ---------------------------------------------------------------------------
 
-DEMOS: dict[str, tuple[callable, str]] = {
+DEMOS: dict[str, tuple[collections.abc.Callable, str]] = {
     "inspect": (demo_inspect, "Table structure and metadata"),
     "preview": (demo_preview, "Quick row preview"),
     "profile": (demo_profile, "Column statistics and frequency"),
