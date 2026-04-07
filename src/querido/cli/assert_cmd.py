@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import typer
 
 from querido.cli._errors import friendly_errors
@@ -18,34 +20,21 @@ def assert_cmd(
     sql: str | None = typer.Option(
         None, "--sql", "-s", help="SQL query (must return a single numeric value)."
     ),
-    file: str | None = typer.Option(
-        None, "--file", "-F", help="Path to a .sql file."
-    ),
+    file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file."),
     db_type: str | None = typer.Option(
-        None, "--db-type",
+        None,
+        "--db-type",
         help="Database type (sqlite/duckdb). Inferred from path if omitted.",
     ),
-    expect: float | None = typer.Option(
-        None, "--expect", help="Assert result equals this value."
-    ),
-    expect_gt: float | None = typer.Option(
-        None, "--expect-gt", help="Assert result > value."
-    ),
-    expect_lt: float | None = typer.Option(
-        None, "--expect-lt", help="Assert result < value."
-    ),
-    expect_gte: float | None = typer.Option(
-        None, "--expect-gte", help="Assert result >= value."
-    ),
-    expect_lte: float | None = typer.Option(
-        None, "--expect-lte", help="Assert result <= value."
-    ),
+    expect: float | None = typer.Option(None, "--expect", help="Assert result equals this value."),
+    expect_gt: float | None = typer.Option(None, "--expect-gt", help="Assert result > value."),
+    expect_lt: float | None = typer.Option(None, "--expect-lt", help="Assert result < value."),
+    expect_gte: float | None = typer.Option(None, "--expect-gte", help="Assert result >= value."),
+    expect_lte: float | None = typer.Option(None, "--expect-lte", help="Assert result <= value."),
     name: str | None = typer.Option(
         None, "--name", "-n", help="Descriptive name for the assertion."
     ),
-    quiet: bool = typer.Option(
-        False, "--quiet", "-q", help="No output, just exit code."
-    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="No output, just exit code."),
 ) -> None:
     """Assert a SQL query result meets a condition.
 
@@ -65,9 +54,7 @@ def assert_cmd(
     from querido.connectors.factory import create_connector
 
     query_sql = _resolve_sql(sql, file, sys.stdin)
-    operator, expected = _resolve_operator(
-        expect, expect_gt, expect_lt, expect_gte, expect_lte
-    )
+    operator, expected = _resolve_operator(expect, expect_gt, expect_lt, expect_gte, expect_lte)
 
     config = resolve_connection(connection, db_type)
 
@@ -103,7 +90,7 @@ def assert_cmd(
 def _resolve_sql(
     sql_option: str | None,
     file_option: str | None,
-    stdin: object,
+    stdin: Any,
 ) -> str:
     """Resolve SQL from --sql, --file, or stdin."""
     if sql_option is not None:
@@ -122,9 +109,7 @@ def _resolve_sql(
         if text:
             return text
 
-    raise typer.BadParameter(
-        "No SQL provided. Use --sql, --file, or pipe SQL via stdin."
-    )
+    raise typer.BadParameter("No SQL provided. Use --sql, --file, or pipe SQL via stdin.")
 
 
 def _resolve_operator(
@@ -146,14 +131,10 @@ def _resolve_operator(
 
     if len(provided) == 0:
         raise typer.BadParameter(
-            "Must provide one of: --expect, --expect-gt, "
-            "--expect-lt, --expect-gte, --expect-lte"
+            "Must provide one of: --expect, --expect-gt, --expect-lt, --expect-gte, --expect-lte"
         )
     if len(provided) > 1:
-        flags = [f"--expect-{op}" if op != "eq" else "--expect"
-                 for op, _ in provided]
-        raise typer.BadParameter(
-            f"Only one comparison allowed, got: {', '.join(flags)}"
-        )
+        flags = [f"--expect-{op}" if op != "eq" else "--expect" for op, _ in provided]
+        raise typer.BadParameter(f"Only one comparison allowed, got: {', '.join(flags)}")
 
     return provided[0]

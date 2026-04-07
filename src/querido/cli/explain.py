@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import typer
 
 from querido.cli._errors import friendly_errors
@@ -15,18 +17,16 @@ def explain(
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
-    sql: str | None = typer.Option(
-        None, "--sql", "-s", help="SQL query to explain."
-    ),
-    file: str | None = typer.Option(
-        None, "--file", "-F", help="Path to a .sql file."
-    ),
+    sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query to explain."),
+    file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file."),
     db_type: str | None = typer.Option(
-        None, "--db-type",
+        None,
+        "--db-type",
         help="Database type (sqlite/duckdb). Inferred from path if omitted.",
     ),
     analyze: bool = typer.Option(
-        False, "--analyze",
+        False,
+        "--analyze",
         help="Run EXPLAIN ANALYZE for actual execution stats (DuckDB).",
     ),
 ) -> None:
@@ -68,7 +68,7 @@ def explain(
 def _resolve_sql(
     sql_option: str | None,
     file_option: str | None,
-    stdin: object,
+    stdin: Any,
 ) -> str:
     """Resolve SQL from --sql, --file, or stdin."""
     if sql_option is not None:
@@ -87,6 +87,4 @@ def _resolve_sql(
         if text:
             return text
 
-    raise typer.BadParameter(
-        "No SQL provided. Use --sql, --file, or pipe SQL via stdin."
-    )
+    raise typer.BadParameter("No SQL provided. Use --sql, --file, or pipe SQL via stdin.")

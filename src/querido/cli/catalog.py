@@ -26,7 +26,8 @@ def catalog(
     ),
     schema: str | None = typer.Option(None, "--schema", help="Schema filter (Snowflake only)."),
     enrich: bool = typer.Option(
-        False, "--enrich",
+        False,
+        "--enrich",
         help="Merge stored metadata (descriptions, owner) into output.",
     ),
 ) -> None:
@@ -59,9 +60,7 @@ def catalog(
 
             console = Console(stderr=True)
             with query_status(console, "Loading catalog", connector):
-                result = get_catalog(
-                    connector, tables_only=tables_only, schema=schema
-                )
+                result = get_catalog(connector, tables_only=tables_only, schema=schema)
 
     if enrich and result:
         from querido.core.catalog import enrich_catalog

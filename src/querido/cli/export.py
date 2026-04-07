@@ -15,35 +15,32 @@ def export(
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
-    table: str | None = typer.Option(
-        None, "--table", "-t", help="Table to export."
-    ),
-    sql: str | None = typer.Option(
-        None, "--sql", "-s", help="SQL query to export."
-    ),
-    output: str | None = typer.Option(
-        None, "--output", "-o", help="Output file path."
-    ),
+    table: str | None = typer.Option(None, "--table", "-t", help="Table to export."),
+    sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query to export."),
+    output: str | None = typer.Option(None, "--output", "-o", help="Output file path."),
     export_format: str = typer.Option(
-        "csv", "--export-format", "-e",
+        "csv",
+        "--export-format",
+        "-e",
         help="Export format: csv, tsv, json, jsonl.",
     ),
     db_type: str | None = typer.Option(
-        None, "--db-type",
+        None,
+        "--db-type",
         help="Database type (sqlite/duckdb). Inferred from path if omitted.",
     ),
     filter_expr: str | None = typer.Option(
         None, "--filter", "-w", help="SQL WHERE clause expression."
     ),
-    limit: int | None = typer.Option(
-        None, "--limit", "-l", min=1, help="Maximum rows to export."
-    ),
+    limit: int | None = typer.Option(None, "--limit", "-l", min=1, help="Maximum rows to export."),
     columns: str | None = typer.Option(
-        None, "--columns",
+        None,
+        "--columns",
         help="Comma-separated column names to export.",
     ),
     clipboard: bool = typer.Option(
-        False, "--clipboard",
+        False,
+        "--clipboard",
         help="Copy TSV to clipboard (for pasting into Excel).",
     ),
 ) -> None:

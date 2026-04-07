@@ -23,16 +23,16 @@ def init(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
     db_type: str | None = typer.Option(
-        None, "--db-type",
+        None,
+        "--db-type",
         help="Database type (sqlite/duckdb). Inferred from path if omitted.",
     ),
     sample_values: int = typer.Option(
-        3, "--sample-values",
+        3,
+        "--sample-values",
         help="Number of sample values per column (0 to skip).",
     ),
-    force: bool = typer.Option(
-        False, "--force", help="Overwrite existing metadata file."
-    ),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing metadata file."),
 ) -> None:
     """Generate a metadata YAML file for a table.
 
@@ -54,8 +54,11 @@ def init(
         console = Console(stderr=True)
         with query_status(console, f"Generating metadata for [bold]{table}[/bold]", connector):
             init_metadata(
-                connector, connection, table,
-                sample_values=sample_values, force=force,
+                connector,
+                connection,
+                table,
+                sample_values=sample_values,
+                force=force,
             )
 
     path = metadata_path(connection, table)
@@ -73,9 +76,7 @@ app.add_typer(show_app, name="show")
 @friendly_errors
 def show(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection."
-    ),
+    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
 ) -> None:
     """Show stored metadata for a table."""
     from querido.cli._pipeline import dispatch_output
@@ -84,8 +85,7 @@ def show(
     meta = show_metadata(connection, table)
     if meta is None:
         raise typer.BadParameter(
-            f"No metadata found for {connection}/{table}. "
-            "Run 'qdo metadata init' first."
+            f"No metadata found for {connection}/{table}. Run 'qdo metadata init' first."
         )
 
     dispatch_output("metadata", meta)
@@ -100,9 +100,7 @@ app.add_typer(list_app, name="list")
 @list_app.callback(invoke_without_command=True)
 @friendly_errors
 def list_cmd(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection."
-    ),
+    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
 ) -> None:
     """List all tables with stored metadata for a connection."""
     from querido.cli._pipeline import dispatch_output
@@ -122,9 +120,7 @@ app.add_typer(edit_app, name="edit")
 @friendly_errors
 def edit(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection."
-    ),
+    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
 ) -> None:
     """Open the metadata YAML file in your default editor."""
     import os
@@ -134,9 +130,7 @@ def edit(
 
     path = metadata_path(connection, table)
     if not path.exists():
-        raise typer.BadParameter(
-            f"No metadata found: {path}. Run 'qdo metadata init' first."
-        )
+        raise typer.BadParameter(f"No metadata found: {path}. Run 'qdo metadata init' first.")
 
     editor = os.environ.get("EDITOR", "vi")
     subprocess.run([editor, str(path)], check=True)
@@ -156,11 +150,13 @@ def refresh(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
     db_type: str | None = typer.Option(
-        None, "--db-type",
+        None,
+        "--db-type",
         help="Database type (sqlite/duckdb). Inferred from path if omitted.",
     ),
     sample_values: int = typer.Option(
-        3, "--sample-values",
+        3,
+        "--sample-values",
         help="Number of sample values per column (0 to skip).",
     ),
 ) -> None:
@@ -188,7 +184,9 @@ def refresh(
             connector,
         ):
             refresh_metadata(
-                connector, connection, table,
+                connector,
+                connection,
+                table,
                 sample_values=sample_values,
             )
 

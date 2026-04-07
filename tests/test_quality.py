@@ -11,25 +11,19 @@ runner = CliRunner()
 
 
 def test_quality_sqlite(sqlite_path: str):
-    result = runner.invoke(
-        app, ["quality", "-c", sqlite_path, "-t", "users"]
-    )
+    result = runner.invoke(app, ["quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
     assert "ok" in result.output.lower()
 
 
 def test_quality_duckdb(duckdb_path: str):
-    result = runner.invoke(
-        app, ["quality", "-c", duckdb_path, "-t", "users"]
-    )
+    result = runner.invoke(app, ["quality", "-c", duckdb_path, "-t", "users"])
     assert result.exit_code == 0
     assert "ok" in result.output.lower()
 
 
 def test_quality_format_json(sqlite_path: str):
-    result = runner.invoke(
-        app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"]
-    )
+    result = runner.invoke(app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
     import json
 
@@ -44,18 +38,14 @@ def test_quality_format_json(sqlite_path: str):
 
 
 def test_quality_format_csv(sqlite_path: str):
-    result = runner.invoke(
-        app, ["-f", "csv", "quality", "-c", sqlite_path, "-t", "users"]
-    )
+    result = runner.invoke(app, ["-f", "csv", "quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
     assert "column" in result.output
     assert "null_count" in result.output
 
 
 def test_quality_format_markdown(sqlite_path: str):
-    result = runner.invoke(
-        app, ["-f", "markdown", "quality", "-c", sqlite_path, "-t", "users"]
-    )
+    result = runner.invoke(app, ["-f", "markdown", "quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
     assert "| Column" in result.output
 
@@ -67,15 +57,11 @@ def test_quality_with_nulls(tmp_path: Path):
     conn.execute("CREATE TABLE t (id INTEGER, name TEXT, notes TEXT)")
     for i in range(10):
         name = f"user_{i}" if i < 8 else None
-        conn.execute(
-            "INSERT INTO t VALUES (?, ?, NULL)", (i, name)
-        )
+        conn.execute("INSERT INTO t VALUES (?, ?, NULL)", (i, name))
     conn.commit()
     conn.close()
 
-    result = runner.invoke(
-        app, ["-f", "json", "quality", "-c", db_path, "-t", "t"]
-    )
+    result = runner.invoke(app, ["-f", "json", "quality", "-c", db_path, "-t", "t"])
     assert result.exit_code == 0
     import json
 
@@ -114,8 +100,14 @@ def test_quality_check_duplicates_none(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "quality", "-c", sqlite_path,
-            "-t", "users", "--check-duplicates",
+            "-f",
+            "json",
+            "quality",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--check-duplicates",
         ],
     )
     assert result.exit_code == 0
@@ -149,9 +141,7 @@ def test_quality_check_duplicates_found(tmp_path: Path):
 
 def test_quality_no_duplicates_flag_means_null(sqlite_path: str):
     """Without --check-duplicates, duplicate_rows should be null."""
-    result = runner.invoke(
-        app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"]
-    )
+    result = runner.invoke(app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
     import json
 
@@ -161,9 +151,7 @@ def test_quality_no_duplicates_flag_means_null(sqlite_path: str):
 
 def test_quality_uniqueness(sqlite_path: str):
     """Each user has unique id/name/age so uniqueness should be 100%."""
-    result = runner.invoke(
-        app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"]
-    )
+    result = runner.invoke(app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
     import json
 

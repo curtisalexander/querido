@@ -16,22 +16,14 @@ def relational_db(tmp_path: Path) -> str:
     """Database with customers, orders, products, order_items tables."""
     db_path = str(tmp_path / "shop.db")
     conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE customers ("
-        "  id INTEGER PRIMARY KEY, name TEXT, email TEXT"
-        ")"
-    )
+    conn.execute("CREATE TABLE customers (  id INTEGER PRIMARY KEY, name TEXT, email TEXT)")
     conn.execute(
         "CREATE TABLE orders ("
         "  id INTEGER PRIMARY KEY, customer_id INTEGER, "
         "  order_date TEXT, total REAL"
         ")"
     )
-    conn.execute(
-        "CREATE TABLE products ("
-        "  id INTEGER PRIMARY KEY, name TEXT, price REAL"
-        ")"
-    )
+    conn.execute("CREATE TABLE products (  id INTEGER PRIMARY KEY, name TEXT, price REAL)")
     conn.execute(
         "CREATE TABLE order_items ("
         "  id INTEGER PRIMARY KEY, order_id INTEGER, "
@@ -52,8 +44,15 @@ def test_joins_discovers_convention_match(relational_db: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "joins", "-c", relational_db,
-            "-t", "orders", "--target", "customers",
+            "-f",
+            "json",
+            "joins",
+            "-c",
+            relational_db,
+            "-t",
+            "orders",
+            "--target",
+            "customers",
         ],
     )
     assert result.exit_code == 0
@@ -63,10 +62,7 @@ def test_joins_discovers_convention_match(relational_db: str):
     assert len(payload["candidates"]) == 1
     keys = payload["candidates"][0]["join_keys"]
     # Should find customer_id → id convention match
-    matches = [
-        k for k in keys
-        if k["source_col"] == "customer_id" and k["target_col"] == "id"
-    ]
+    matches = [k for k in keys if k["source_col"] == "customer_id" and k["target_col"] == "id"]
     assert len(matches) == 1
     assert matches[0]["match_type"] == "convention"
 
@@ -76,8 +72,15 @@ def test_joins_discovers_exact_name_match(relational_db: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "joins", "-c", relational_db,
-            "-t", "orders", "--target", "order_items",
+            "-f",
+            "json",
+            "joins",
+            "-c",
+            relational_db,
+            "-t",
+            "orders",
+            "--target",
+            "order_items",
         ],
     )
     assert result.exit_code == 0
@@ -140,8 +143,15 @@ def test_joins_format_csv(relational_db: str):
     result = runner.invoke(
         app,
         [
-            "-f", "csv", "joins", "-c", relational_db,
-            "-t", "orders", "--target", "customers",
+            "-f",
+            "csv",
+            "joins",
+            "-c",
+            relational_db,
+            "-t",
+            "orders",
+            "--target",
+            "customers",
         ],
     )
     assert result.exit_code == 0
@@ -153,8 +163,15 @@ def test_joins_format_markdown(relational_db: str):
     result = runner.invoke(
         app,
         [
-            "-f", "markdown", "joins", "-c", relational_db,
-            "-t", "orders", "--target", "customers",
+            "-f",
+            "markdown",
+            "joins",
+            "-c",
+            relational_db,
+            "-t",
+            "orders",
+            "--target",
+            "customers",
         ],
     )
     assert result.exit_code == 0
@@ -166,8 +183,15 @@ def test_joins_reverse_convention(relational_db: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "joins", "-c", relational_db,
-            "-t", "customers", "--target", "orders",
+            "-f",
+            "json",
+            "joins",
+            "-c",
+            relational_db,
+            "-t",
+            "customers",
+            "--target",
+            "orders",
         ],
     )
     assert result.exit_code == 0
@@ -201,12 +225,8 @@ def test_joins_duckdb(tmp_path: Path):
 
     db_path = str(tmp_path / "shop.duckdb")
     conn = duckdb.connect(db_path)
-    conn.execute(
-        "CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR)"
-    )
-    conn.execute(
-        "CREATE TABLE posts (id INTEGER, user_id INTEGER, title VARCHAR)"
-    )
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR)")
+    conn.execute("CREATE TABLE posts (id INTEGER, user_id INTEGER, title VARCHAR)")
     conn.execute("INSERT INTO users VALUES (1, 'Alice')")
     conn.execute("INSERT INTO posts VALUES (1, 1, 'Hello')")
     conn.close()
@@ -221,7 +241,5 @@ def test_joins_duckdb(tmp_path: Path):
     payload = json.loads(result.output)
     assert len(payload["candidates"]) == 1
     keys = payload["candidates"][0]["join_keys"]
-    convention = [
-        k for k in keys if k["source_col"] == "user_id"
-    ]
+    convention = [k for k in keys if k["source_col"] == "user_id"]
     assert len(convention) >= 1

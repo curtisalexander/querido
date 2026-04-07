@@ -40,9 +40,7 @@ def test_catalog_format_json(sqlite_path: str):
 
 
 def test_catalog_format_json_tables_only(sqlite_path: str):
-    result = runner.invoke(
-        app, ["-f", "json", "catalog", "-c", sqlite_path, "--tables-only"]
-    )
+    result = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path, "--tables-only"])
     assert result.exit_code == 0
     import json
 
@@ -116,9 +114,7 @@ def test_catalog_includes_views(tmp_path: Path):
 
 def test_catalog_live_flag(sqlite_path: str):
     """--live should always query the database, not the cache."""
-    result = runner.invoke(
-        app, ["-f", "json", "catalog", "-c", sqlite_path, "--live"]
-    )
+    result = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path, "--live"])
     assert result.exit_code == 0
     import json
 
@@ -151,9 +147,7 @@ def test_catalog_enrich(sqlite_path: str, tmp_path: Path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     # First, init metadata
-    result = runner.invoke(
-        app, ["metadata", "init", "-c", sqlite_path, "-t", "users"]
-    )
+    result = runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
 
     # Fill in human fields

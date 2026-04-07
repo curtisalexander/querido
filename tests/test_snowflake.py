@@ -724,7 +724,7 @@ class TestCheckTableExistsQualified:
         from querido.cli._validation import resolve_table
 
         # Should not raise
-        resolve_table(connector,"other_db.staging.raw_data")
+        resolve_table(connector, "other_db.staging.raw_data")
 
         # Verify get_tables was called against the right database/schema
         sql_arg = cursor.execute.call_args[0][0]
@@ -751,7 +751,7 @@ class TestCheckTableExistsQualified:
         from querido.cli._validation import resolve_table
 
         with pytest.raises(typer.BadParameter, match="not found"):
-            resolve_table(connector,"other_db.staging.missing_table")
+            resolve_table(connector, "other_db.staging.missing_table")
 
     def test_schema_qualified_name_matches(self):
         """Schema-qualified name should match when table exists."""
@@ -769,7 +769,7 @@ class TestCheckTableExistsQualified:
         from querido.cli._validation import resolve_table
 
         # Should not raise
-        resolve_table(connector,"analytics.events")
+        resolve_table(connector, "analytics.events")
 
 
 # ---------------------------------------------------------------------------

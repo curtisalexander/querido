@@ -181,9 +181,7 @@ def main(
         output_format = env_fmt if env_fmt in valid else "rich"
 
     if output_format not in valid:
-        raise typer.BadParameter(
-            f"--format must be one of: {', '.join(sorted(valid))}"
-        )
+        raise typer.BadParameter(f"--format must be one of: {', '.join(sorted(valid))}")
     ctx.ensure_object(dict)
     ctx.obj["show_sql"] = show_sql
     ctx.obj["format"] = output_format

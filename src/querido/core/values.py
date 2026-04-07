@@ -42,7 +42,7 @@ def get_distinct_values(
 
     # Get total rows and null count in one query
     stats_sql = (
-        f'select count(*) as total_rows, '
+        f"select count(*) as total_rows, "
         f'count(*) - count("{column}") as null_count, '
         f'count(distinct "{column}") as distinct_count '
         f'from "{table}"'

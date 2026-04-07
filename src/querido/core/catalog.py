@@ -41,8 +41,10 @@ def get_catalog(
     if tables_only:
         tables = [
             {
-                "name": t.get("name", ""), "type": t.get("type", ""),
-                "row_count": None, "columns": None,
+                "name": t.get("name", ""),
+                "type": t.get("type", ""),
+                "row_count": None,
+                "columns": None,
             }
             for t in raw_tables
         ]
@@ -82,8 +84,10 @@ def get_catalog_cached(
         if tables_only:
             tables = [
                 {
-                    "name": t.get("name", ""), "type": t.get("type", ""),
-                    "row_count": None, "columns": None,
+                    "name": t.get("name", ""),
+                    "type": t.get("type", ""),
+                    "row_count": None,
+                    "columns": None,
                 }
                 for t in cached_tables
             ]
@@ -152,9 +156,7 @@ def enrich_catalog(catalog: dict, connection: str) -> dict:
 
         # Column-level descriptions
         if enriched.get("columns") and meta.get("columns"):
-            meta_cols = {
-                c.get("name", "").lower(): c for c in meta.get("columns", [])
-            }
+            meta_cols = {c.get("name", "").lower(): c for c in meta.get("columns", [])}
             enriched_cols = []
             for col in enriched.get("columns", []):
                 col_copy = dict(col)

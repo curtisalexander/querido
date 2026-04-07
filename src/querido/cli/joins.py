@@ -17,11 +17,13 @@ def joins(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
     db_type: str | None = typer.Option(
-        None, "--db-type",
+        None,
+        "--db-type",
         help="Database type (sqlite/duckdb). Inferred from path if omitted.",
     ),
     target: str | None = typer.Option(
-        None, "--target",
+        None,
+        "--target",
         help="Target table (default: check all tables).",
     ),
 ) -> None:
@@ -40,8 +42,6 @@ def joins(
         with ctx.spin(f"Discovering joins for [bold]{ctx.table}[/bold]"):
             from querido.core.joins import discover_joins
 
-            result = discover_joins(
-                ctx.connector, ctx.table, target=target
-            )
+            result = discover_joins(ctx.connector, ctx.table, target=target)
 
         dispatch_output("joins", result)

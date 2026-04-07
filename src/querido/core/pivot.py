@@ -99,8 +99,13 @@ def get_pivot(
         }
     """
     sql = build_pivot_query(
-        table, rows, values, agg,
-        filter_expr=filter_expr, order_by=order_by, limit=limit,
+        table,
+        rows,
+        values,
+        agg,
+        filter_expr=filter_expr,
+        order_by=order_by,
+        limit=limit,
     )
     data = connector.execute(sql)
     headers = list(data[0].keys()) if data else rows + [f"{agg.lower()}_{v}" for v in values]

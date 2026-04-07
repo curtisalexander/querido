@@ -17,15 +17,18 @@ def quality(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
     db_type: str | None = typer.Option(
-        None, "--db-type",
+        None,
+        "--db-type",
         help="Database type (sqlite/duckdb). Inferred from path if omitted.",
     ),
     columns: str | None = typer.Option(
-        None, "--columns",
+        None,
+        "--columns",
         help="Comma-separated column names to check (default: all).",
     ),
     check_duplicates: bool = typer.Option(
-        False, "--check-duplicates",
+        False,
+        "--check-duplicates",
         help="Check for fully duplicate rows (can be slow).",
     ),
 ) -> None:

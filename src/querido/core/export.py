@@ -37,9 +37,9 @@ def export_data(
             "content": str | None,  # set when output_path is None (clipboard)
         }
     """
-    query_sql = _build_query(connector, table=table, sql=sql,
-                             limit=limit, filter_expr=filter_expr,
-                             columns=columns)
+    query_sql = _build_query(
+        connector, table=table, sql=sql, limit=limit, filter_expr=filter_expr, columns=columns
+    )
 
     data = connector.execute(query_sql)
     content = _format_data(data, fmt)
@@ -133,7 +133,9 @@ def _to_delimited(data: list[dict], *, delimiter: str) -> str:
     """Write rows as delimiter-separated text."""
     buf = io.StringIO()
     writer = csv.DictWriter(
-        buf, fieldnames=list(data[0].keys()), delimiter=delimiter,
+        buf,
+        fieldnames=list(data[0].keys()),
+        delimiter=delimiter,
     )
     writer.writeheader()
     writer.writerows(data)
@@ -161,11 +163,14 @@ def copy_to_clipboard(content: str) -> None:
 
     try:
         subprocess.run(
-            cmd, input=content, text=True, check=True,
-            capture_output=True, timeout=5,
+            cmd,
+            input=content,
+            text=True,
+            check=True,
+            capture_output=True,
+            timeout=5,
         )
     except FileNotFoundError:
         raise RuntimeError(
-            f"Clipboard tool not found: {cmd[0]}. "
-            f"Install it or use --output to write to a file."
+            f"Clipboard tool not found: {cmd[0]}. Install it or use --output to write to a file."
         ) from None

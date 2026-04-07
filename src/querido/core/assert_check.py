@@ -43,8 +43,7 @@ def run_assertion(
     """
     if operator not in OPERATORS:
         raise ValueError(
-            f"Invalid operator: {operator!r}. "
-            f"Must be one of: {', '.join(sorted(OPERATORS))}"
+            f"Invalid operator: {operator!r}. Must be one of: {', '.join(sorted(OPERATORS))}"
         )
 
     rows = connector.execute(sql)

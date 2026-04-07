@@ -692,23 +692,25 @@ def format_diff_html(
             table_html="<p>No differences.</p>",
         )
 
-    headers = ["Change", "Column", "Left Type", "Right Type",
-               "Left Nullable", "Right Nullable"]
+    headers = ["Change", "Column", "Left Type", "Right Type", "Left Nullable", "Right Nullable"]
     rows: list[list] = [
         *[
-            ["added", c["name"], "", c["type"],
-             "", "YES" if c["nullable"] else "NO"]
+            ["added", c["name"], "", c["type"], "", "YES" if c["nullable"] else "NO"]
             for c in added
         ],
         *[
-            ["removed", c["name"], c["type"], "",
-             "YES" if c["nullable"] else "NO", ""]
+            ["removed", c["name"], c["type"], "", "YES" if c["nullable"] else "NO", ""]
             for c in removed
         ],
         *[
-            ["changed", c["name"], c["left_type"], c["right_type"],
-             "YES" if c["left_nullable"] else "NO",
-             "YES" if c["right_nullable"] else "NO"]
+            [
+                "changed",
+                c["name"],
+                c["left_type"],
+                c["right_type"],
+                "YES" if c["left_nullable"] else "NO",
+                "YES" if c["right_nullable"] else "NO",
+            ]
             for c in changed
         ],
     ]
@@ -771,8 +773,14 @@ def format_quality_html(
         )
 
     headers = [
-        "Column", "Type", "Nulls", "Null %",
-        "Distinct", "Unique %", "Status", "Issues",
+        "Column",
+        "Type",
+        "Nulls",
+        "Null %",
+        "Distinct",
+        "Unique %",
+        "Status",
+        "Issues",
     ]
     rows = [
         [

@@ -15,12 +15,8 @@ runner = CliRunner()
 def diff_db(tmp_path: Path) -> str:
     db_path = str(tmp_path / "diff.db")
     conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE users_v1 (id INTEGER PRIMARY KEY, name TEXT NOT NULL, age INTEGER)"
-    )
-    conn.execute(
-        "CREATE TABLE users_v2 (id INTEGER PRIMARY KEY, name TEXT, age REAL, email TEXT)"
-    )
+    conn.execute("CREATE TABLE users_v1 (id INTEGER PRIMARY KEY, name TEXT NOT NULL, age INTEGER)")
+    conn.execute("CREATE TABLE users_v2 (id INTEGER PRIMARY KEY, name TEXT, age REAL, email TEXT)")
     conn.execute("INSERT INTO users_v1 VALUES (1, 'Alice', 30)")
     conn.execute("INSERT INTO users_v2 VALUES (1, 'Alice', 30.0, 'a@b.com')")
     conn.commit()
@@ -104,8 +100,15 @@ def test_diff_format_markdown(diff_db: str):
     result = runner.invoke(
         app,
         [
-            "-f", "markdown", "diff", "-c", diff_db,
-            "-t", "users_v1", "--target", "users_v2",
+            "-f",
+            "markdown",
+            "diff",
+            "-c",
+            diff_db,
+            "-t",
+            "users_v1",
+            "--target",
+            "users_v2",
         ],
     )
     assert result.exit_code == 0
@@ -141,9 +144,17 @@ def test_diff_cross_connection(tmp_path: Path):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "diff",
-            "-c", db1, "-t", "t",
-            "--target-connection", db2, "--target", "t",
+            "-f",
+            "json",
+            "diff",
+            "-c",
+            db1,
+            "-t",
+            "t",
+            "--target-connection",
+            db2,
+            "--target",
+            "t",
         ],
     )
     assert result.exit_code == 0

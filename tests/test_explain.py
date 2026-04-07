@@ -28,8 +28,13 @@ def test_explain_format_json(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "explain", "-c", sqlite_path,
-            "--sql", "select * from users where age > 25",
+            "-f",
+            "json",
+            "explain",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select * from users where age > 25",
         ],
     )
     assert result.exit_code == 0
@@ -46,8 +51,13 @@ def test_explain_format_csv(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "csv", "explain", "-c", sqlite_path,
-            "--sql", "select * from users",
+            "-f",
+            "csv",
+            "explain",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select * from users",
         ],
     )
     assert result.exit_code == 0
@@ -59,8 +69,13 @@ def test_explain_format_markdown(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "markdown", "explain", "-c", sqlite_path,
-            "--sql", "select * from users",
+            "-f",
+            "markdown",
+            "explain",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select * from users",
         ],
     )
     assert result.exit_code == 0
@@ -72,8 +87,14 @@ def test_explain_analyze_duckdb(duckdb_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "explain", "-c", duckdb_path,
-            "--sql", "select * from users", "--analyze",
+            "-f",
+            "json",
+            "explain",
+            "-c",
+            duckdb_path,
+            "--sql",
+            "select * from users",
+            "--analyze",
         ],
     )
     assert result.exit_code == 0
@@ -114,8 +135,13 @@ def test_explain_with_where_clause(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "explain", "-c", sqlite_path,
-            "--sql", "select * from users where name = 'Alice'",
+            "-f",
+            "json",
+            "explain",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select * from users where name = 'Alice'",
         ],
     )
     assert result.exit_code == 0

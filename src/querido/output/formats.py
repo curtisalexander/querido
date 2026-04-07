@@ -738,7 +738,8 @@ def format_metadata_list(
     if fmt == "json":
         return json.dumps(
             {"connection": connection, "tables": entries},
-            indent=2, default=str,
+            indent=2,
+            default=str,
         )
 
     if fmt == "csv":
@@ -803,22 +804,36 @@ def format_diff(
     if fmt == "csv":
         flat = [
             *[
-                {"change": "added", "column": c["name"], "left_type": "",
-                 "right_type": c["type"], "left_nullable": "",
-                 "right_nullable": c["nullable"]}
+                {
+                    "change": "added",
+                    "column": c["name"],
+                    "left_type": "",
+                    "right_type": c["type"],
+                    "left_nullable": "",
+                    "right_nullable": c["nullable"],
+                }
                 for c in added
             ],
             *[
-                {"change": "removed", "column": c["name"],
-                 "left_type": c["type"], "right_type": "",
-                 "left_nullable": c["nullable"], "right_nullable": ""}
+                {
+                    "change": "removed",
+                    "column": c["name"],
+                    "left_type": c["type"],
+                    "right_type": "",
+                    "left_nullable": c["nullable"],
+                    "right_nullable": "",
+                }
                 for c in removed
             ],
             *[
-                {"change": "changed", "column": c["name"],
-                 "left_type": c["left_type"], "right_type": c["right_type"],
-                 "left_nullable": c["left_nullable"],
-                 "right_nullable": c["right_nullable"]}
+                {
+                    "change": "changed",
+                    "column": c["name"],
+                    "left_type": c["left_type"],
+                    "right_type": c["right_type"],
+                    "left_nullable": c["left_nullable"],
+                    "right_nullable": c["right_nullable"],
+                }
                 for c in changed
             ],
         ]
@@ -839,10 +854,7 @@ def format_diff(
         lines.append("### Added (in right only)")
         lines.append("")
         headers = ["Column", "Type", "Nullable"]
-        rows = [
-            [c["name"], c["type"], "YES" if c["nullable"] else "NO"]
-            for c in added
-        ]
+        rows = [[c["name"], c["type"], "YES" if c["nullable"] else "NO"] for c in added]
         lines.append(to_markdown_table(headers, rows))
         lines.append("")
 
@@ -850,10 +862,7 @@ def format_diff(
         lines.append("### Removed (in left only)")
         lines.append("")
         headers = ["Column", "Type", "Nullable"]
-        rows = [
-            [c["name"], c["type"], "YES" if c["nullable"] else "NO"]
-            for c in removed
-        ]
+        rows = [[c["name"], c["type"], "YES" if c["nullable"] else "NO"] for c in removed]
         lines.append(to_markdown_table(headers, rows))
         lines.append("")
 
@@ -861,12 +870,17 @@ def format_diff(
         lines.append("### Changed")
         lines.append("")
         headers = [
-            "Column", "Left Type", "Right Type",
-            "Left Nullable", "Right Nullable",
+            "Column",
+            "Left Type",
+            "Right Type",
+            "Left Nullable",
+            "Right Nullable",
         ]
         rows = [
             [
-                c["name"], c["left_type"], c["right_type"],
+                c["name"],
+                c["left_type"],
+                c["right_type"],
                 "YES" if c["left_nullable"] else "NO",
                 "YES" if c["right_nullable"] else "NO",
             ]
@@ -909,7 +923,11 @@ def format_joins(
     # markdown
     lines = [f"## Join candidates for {result['source']}", ""]
     headers = [
-        "Target", "Source Col", "Target Col", "Match", "Confidence",
+        "Target",
+        "Source Col",
+        "Target Col",
+        "Match",
+        "Confidence",
     ]
     rows = [
         [
@@ -964,8 +982,14 @@ def format_quality(
         "",
     ]
     headers = [
-        "Column", "Type", "Nulls", "Null %",
-        "Distinct", "Unique %", "Status", "Issues",
+        "Column",
+        "Type",
+        "Nulls",
+        "Null %",
+        "Distinct",
+        "Unique %",
+        "Status",
+        "Issues",
     ]
     rows = [
         [
@@ -985,10 +1009,7 @@ def format_quality(
     if result["duplicate_rows"] is not None:
         lines.append("")
         dup = result["duplicate_rows"]
-        lines.append(
-            f"Duplicate rows: {dup:,}" if dup > 0
-            else "No duplicate rows"
-        )
+        lines.append(f"Duplicate rows: {dup:,}" if dup > 0 else "No duplicate rows")
 
     return "\n".join(lines)
 
@@ -1116,15 +1137,17 @@ def format_catalog(
                     for c in t["columns"]
                 )
             else:
-                flat.append({
-                    "table": t["name"],
-                    "table_type": t["type"],
-                    "row_count": row_ct,
-                    "column": "",
-                    "column_type": "",
-                    "nullable": "",
-                    "comment": "",
-                })
+                flat.append(
+                    {
+                        "table": t["name"],
+                        "table_type": t["type"],
+                        "row_count": row_ct,
+                        "column": "",
+                        "column_type": "",
+                        "nullable": "",
+                        "comment": "",
+                    }
+                )
         return dicts_to_csv(flat) if flat else ""
 
     # markdown

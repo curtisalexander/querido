@@ -53,8 +53,15 @@ def test_export_jsonl_to_file(sqlite_path: str, tmp_path: Path):
     result = runner.invoke(
         app,
         [
-            "export", "-c", sqlite_path, "-t", "users",
-            "-o", out, "-e", "jsonl",
+            "export",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "-o",
+            out,
+            "-e",
+            "jsonl",
         ],
     )
     assert result.exit_code == 0
@@ -78,9 +85,13 @@ def test_export_with_sql(sqlite_path: str, tmp_path: Path):
     result = runner.invoke(
         app,
         [
-            "export", "-c", sqlite_path,
-            "--sql", "select name from users where age > 26",
-            "-o", out,
+            "export",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select name from users where age > 26",
+            "-o",
+            out,
         ],
     )
     assert result.exit_code == 0
@@ -94,8 +105,15 @@ def test_export_with_filter(sqlite_path: str, tmp_path: Path):
     result = runner.invoke(
         app,
         [
-            "export", "-c", sqlite_path, "-t", "users",
-            "-o", out, "--filter", "age > 26",
+            "export",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "-o",
+            out,
+            "--filter",
+            "age > 26",
         ],
     )
     assert result.exit_code == 0
@@ -109,8 +127,15 @@ def test_export_with_limit(sqlite_path: str, tmp_path: Path):
     result = runner.invoke(
         app,
         [
-            "export", "-c", sqlite_path, "-t", "users",
-            "-o", out, "--limit", "1",
+            "export",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "-o",
+            out,
+            "--limit",
+            "1",
         ],
     )
     assert result.exit_code == 0
@@ -124,8 +149,15 @@ def test_export_with_columns(sqlite_path: str, tmp_path: Path):
     result = runner.invoke(
         app,
         [
-            "export", "-c", sqlite_path, "-t", "users",
-            "-o", out, "--columns", "name,age",
+            "export",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "-o",
+            out,
+            "--columns",
+            "name,age",
         ],
     )
     assert result.exit_code == 0
@@ -147,8 +179,15 @@ def test_export_invalid_format(sqlite_path: str, tmp_path: Path):
     result = runner.invoke(
         app,
         [
-            "export", "-c", sqlite_path, "-t", "users",
-            "-o", str(tmp_path / "x"), "-e", "badformat",
+            "export",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "-o",
+            str(tmp_path / "x"),
+            "-e",
+            "badformat",
         ],
     )
     assert result.exit_code != 0

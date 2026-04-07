@@ -29,8 +29,13 @@ def test_assert_gt_pass(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect-gt", "1",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect-gt",
+            "1",
         ],
     )
     assert result.exit_code == 0
@@ -40,8 +45,13 @@ def test_assert_gt_fail(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect-gt", "100",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect-gt",
+            "100",
         ],
     )
     assert result.exit_code == 1
@@ -51,8 +61,13 @@ def test_assert_lt_pass(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect-lt", "10",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect-lt",
+            "10",
         ],
     )
     assert result.exit_code == 0
@@ -62,8 +77,13 @@ def test_assert_gte_pass(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect-gte", "2",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect-gte",
+            "2",
         ],
     )
     assert result.exit_code == 0
@@ -73,8 +93,13 @@ def test_assert_lte_pass(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect-lte", "2",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect-lte",
+            "2",
         ],
     )
     assert result.exit_code == 0
@@ -84,8 +109,13 @@ def test_assert_quiet_pass(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect", "2",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect",
+            "2",
             "--quiet",
         ],
     )
@@ -97,8 +127,13 @@ def test_assert_quiet_fail(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect", "99",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect",
+            "99",
             "--quiet",
         ],
     )
@@ -110,9 +145,15 @@ def test_assert_with_name(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect", "2",
-            "--name", "user count check",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect",
+            "2",
+            "--name",
+            "user count check",
         ],
     )
     assert result.exit_code == 0
@@ -123,8 +164,13 @@ def test_assert_sql_error(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "assert", "-c", sqlite_path,
-            "--sql", "select * from nonexistent", "--expect", "0",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select * from nonexistent",
+            "--expect",
+            "0",
         ],
     )
     assert result.exit_code == 1
@@ -143,8 +189,15 @@ def test_assert_format_json(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect", "2",
+            "-f",
+            "json",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect",
+            "2",
         ],
     )
     assert result.exit_code == 0
@@ -161,8 +214,15 @@ def test_assert_format_json_fail(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect", "99",
+            "-f",
+            "json",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect",
+            "99",
         ],
     )
     assert result.exit_code == 1
@@ -177,8 +237,15 @@ def test_assert_format_csv(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "csv", "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect", "2",
+            "-f",
+            "csv",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect",
+            "2",
         ],
     )
     assert result.exit_code == 0
@@ -189,8 +256,15 @@ def test_assert_format_markdown(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "markdown", "assert", "-c", sqlite_path,
-            "--sql", "select count(*) from users", "--expect", "2",
+            "-f",
+            "markdown",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select count(*) from users",
+            "--expect",
+            "2",
         ],
     )
     assert result.exit_code == 0

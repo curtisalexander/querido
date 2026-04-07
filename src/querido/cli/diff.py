@@ -16,15 +16,15 @@ def diff(
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
-    target: str = typer.Option(
-        ..., "--target", help="Right table name."
-    ),
+    target: str = typer.Option(..., "--target", help="Right table name."),
     target_connection: str | None = typer.Option(
-        None, "--target-connection",
+        None,
+        "--target-connection",
         help="Connection for right table (default: same as --connection).",
     ),
     db_type: str | None = typer.Option(
-        None, "--db-type",
+        None,
+        "--db-type",
         help="Database type (sqlite/duckdb). Inferred from path if omitted.",
     ),
 ) -> None:

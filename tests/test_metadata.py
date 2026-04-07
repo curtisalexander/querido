@@ -200,7 +200,9 @@ def test_metadata_show_format_csv(sqlite_path: str, tmp_path: Path, monkeypatch)
 
 
 def test_metadata_show_format_markdown(
-    sqlite_path: str, tmp_path: Path, monkeypatch,
+    sqlite_path: str,
+    tmp_path: Path,
+    monkeypatch,
 ):
     monkeypatch.chdir(tmp_path)
     runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
@@ -208,8 +210,14 @@ def test_metadata_show_format_markdown(
     result = runner.invoke(
         app,
         [
-            "-f", "markdown", "metadata", "show",
-            "-c", sqlite_path, "-t", "users",
+            "-f",
+            "markdown",
+            "metadata",
+            "show",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
         ],
     )
     assert result.exit_code == 0

@@ -480,10 +480,7 @@ def _print_json() -> None:
                     "help": "Maximum result rows.",
                 },
             ],
-            "example": (
-                'qdo pivot -c ./my.db -t orders -g region'
-                ' -a "sum(amount)" -f json'
-            ),
+            "example": ('qdo pivot -c ./my.db -t orders -g region -a "sum(amount)" -f json'),
             "output_shape": {
                 "headers": ["string"],
                 "rows": [{"column_name": "value"}],

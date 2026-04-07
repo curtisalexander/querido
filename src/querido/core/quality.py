@@ -120,24 +120,24 @@ def _compute_column_quality(
         max_val = stats_row.get(f"{name}_max")
 
         null_pct = round(100.0 * null_count / row_count, 2) if row_count else 0.0
-        uniqueness_pct = (
-            round(100.0 * distinct_count / row_count, 2) if row_count else 0.0
-        )
+        uniqueness_pct = round(100.0 * distinct_count / row_count, 2) if row_count else 0.0
 
         status, issues = _classify(null_pct, distinct_count, row_count)
 
-        results.append({
-            "name": name,
-            "type": col.get("type", ""),
-            "null_count": null_count,
-            "null_pct": null_pct,
-            "distinct_count": distinct_count,
-            "uniqueness_pct": uniqueness_pct,
-            "min": min_val,
-            "max": max_val,
-            "status": status,
-            "issues": issues,
-        })
+        results.append(
+            {
+                "name": name,
+                "type": col.get("type", ""),
+                "null_count": null_count,
+                "null_pct": null_pct,
+                "distinct_count": distinct_count,
+                "uniqueness_pct": uniqueness_pct,
+                "min": min_val,
+                "max": max_val,
+                "status": status,
+                "issues": issues,
+            }
+        )
 
     return results
 
@@ -177,6 +177,7 @@ def _check_duplicate_rows(
     columns: list[dict],
 ) -> int:
     """Count fully duplicate rows in the table."""
+
     def _q(name: str) -> str:
         return '"' + name.replace('"', '""') + '"'
 

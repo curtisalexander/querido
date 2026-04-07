@@ -20,8 +20,10 @@ def pivot(
         ..., "--group-by", "-g", help="Comma-separated columns to group by."
     ),
     agg: str = typer.Option(
-        ..., "--agg", "-a",
-        help="Comma-separated aggregation expressions, e.g. sum(amount),count(id)."
+        ...,
+        "--agg",
+        "-a",
+        help="Comma-separated aggregation expressions, e.g. sum(amount),count(id).",
     ),
     db_type: str | None = typer.Option(
         None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
@@ -32,9 +34,7 @@ def pivot(
     order_by: str | None = typer.Option(
         None, "--order-by", "-o", help="SQL ORDER BY expression (default: group-by columns)."
     ),
-    limit: int | None = typer.Option(
-        None, "--limit", "-l", min=1, help="Maximum result rows."
-    ),
+    limit: int | None = typer.Option(None, "--limit", "-l", min=1, help="Maximum result rows."),
 ) -> None:
     """Aggregate data with GROUP BY.
 

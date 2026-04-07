@@ -1301,6 +1301,7 @@ source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
     { name = "platformdirs" },
+    { name = "pyyaml" },
     { name = "rich" },
     { name = "tomli-w" },
     { name = "typer" },
@@ -1361,6 +1362,7 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'snowflake'", specifier = ">=14" },
     { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.20" },
     { name = "python-multipart", marker = "extra == 'web'", specifier = ">=0.0.20" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7" },
     { name = "snowflake-connector-python", marker = "extra == 'all'", specifier = ">=3.6" },
     { name = "snowflake-connector-python", marker = "extra == 'snowflake'", specifier = ">=3.6" },

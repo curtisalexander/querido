@@ -484,11 +484,13 @@ def print_explain(
     if analyzed:
         title += " [ANALYZE]"
 
-    console.print(Panel(
-        Syntax(plan, "text", theme="monokai", line_numbers=False),
-        title=title,
-        expand=True,
-    ))
+    console.print(
+        Panel(
+            Syntax(plan, "text", theme="monokai", line_numbers=False),
+            title=title,
+            expand=True,
+        )
+    )
 
 
 def print_diff(
@@ -507,8 +509,7 @@ def print_diff(
     unchanged = result["unchanged_count"]
 
     console.print(
-        f"\n  Schema diff: [cyan]{result['left']}[/cyan]"
-        f" → [cyan]{result['right']}[/cyan]"
+        f"\n  Schema diff: [cyan]{result['left']}[/cyan] → [cyan]{result['right']}[/cyan]"
     )
 
     if not added and not removed and not changed:
@@ -524,7 +525,8 @@ def print_diff(
         grid.add_column("Nullable")
         for col in added:
             grid.add_row(
-                col["name"], col["type"],
+                col["name"],
+                col["type"],
                 "YES" if col["nullable"] else "NO",
             )
         console.print(grid)
@@ -538,7 +540,8 @@ def print_diff(
         grid.add_column("Nullable")
         for col in removed:
             grid.add_row(
-                col["name"], col["type"],
+                col["name"],
+                col["type"],
                 "YES" if col["nullable"] else "NO",
             )
         console.print(grid)
@@ -578,15 +581,11 @@ def print_joins(
 
     candidates = result["candidates"]
     if not candidates:
-        console.print(
-            f"[dim]No join candidates found for {result['source']}.[/dim]"
-        )
+        console.print(f"[dim]No join candidates found for {result['source']}.[/dim]")
         return
 
     for cand in candidates:
-        grid = Table(
-            title=f"{result['source']} → {cand['target_table']}"
-        )
+        grid = Table(title=f"{result['source']} → {cand['target_table']}")
         grid.add_column("Source Column", style="cyan")
         grid.add_column("Target Column", style="green")
         grid.add_column("Match Type", style="dim")
@@ -603,9 +602,7 @@ def print_joins(
 
         console.print(grid)
 
-    console.print(
-        f"\n  [bold]{len(candidates)}[/bold] table(s) with join candidates"
-    )
+    console.print(f"\n  [bold]{len(candidates)}[/bold] table(s) with join candidates")
 
 
 def print_quality(
@@ -684,9 +681,7 @@ def print_assert_check(
     op_sym = op_labels.get(result["operator"], result["operator"])
 
     console.print(f"\n{label}{status}")
-    console.print(
-        f"  actual={result['actual']}  expected {op_sym} {result['expected']}"
-    )
+    console.print(f"  actual={result['actual']}  expected {op_sym} {result['expected']}")
 
 
 def print_pivot(

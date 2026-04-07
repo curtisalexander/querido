@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import typer
 
 from querido.cli._errors import friendly_errors
@@ -16,9 +18,7 @@ def query(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
     sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query string."),
-    file: str | None = typer.Option(
-        None, "--file", "-F", help="Path to a .sql file to execute."
-    ),
+    file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file to execute."),
     limit: int = typer.Option(
         1000, "--limit", "-l", min=0, help="Max rows to return (0 = no limit)."
     ),
@@ -72,7 +72,7 @@ def query(
 def _resolve_sql(
     sql_option: str | None,
     file_option: str | None,
-    stdin: object,
+    stdin: Any,
 ) -> str:
     """Resolve the SQL string from --sql, --file, or stdin.
 
@@ -95,6 +95,4 @@ def _resolve_sql(
         if text:
             return text
 
-    raise typer.BadParameter(
-        "No SQL provided. Use --sql, --file, or pipe SQL via stdin."
-    )
+    raise typer.BadParameter("No SQL provided. Use --sql, --file, or pipe SQL via stdin.")

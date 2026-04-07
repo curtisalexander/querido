@@ -8,18 +8,14 @@ runner = CliRunner()
 
 
 def test_query_inline_sql(sqlite_path: str):
-    result = runner.invoke(
-        app, ["query", "-c", sqlite_path, "--sql", "select * from users"]
-    )
+    result = runner.invoke(app, ["query", "-c", sqlite_path, "--sql", "select * from users"])
     assert result.exit_code == 0
     assert "Alice" in result.output
     assert "Bob" in result.output
 
 
 def test_query_inline_sql_duckdb(duckdb_path: str):
-    result = runner.invoke(
-        app, ["query", "-c", duckdb_path, "--sql", "select * from users"]
-    )
+    result = runner.invoke(app, ["query", "-c", duckdb_path, "--sql", "select * from users"])
     assert result.exit_code == 0
     assert "Alice" in result.output
 
@@ -27,9 +23,7 @@ def test_query_inline_sql_duckdb(duckdb_path: str):
 def test_query_from_file(sqlite_path: str, tmp_path: Path):
     sql_file = tmp_path / "test.sql"
     sql_file.write_text("select name from users where age > 26")
-    result = runner.invoke(
-        app, ["query", "-c", sqlite_path, "--file", str(sql_file)]
-    )
+    result = runner.invoke(app, ["query", "-c", sqlite_path, "--file", str(sql_file)])
     assert result.exit_code == 0
     assert "Alice" in result.output
     assert "Bob" not in result.output
@@ -109,9 +103,7 @@ def test_query_no_sql_provided(sqlite_path: str):
 
 
 def test_query_file_not_found(sqlite_path: str):
-    result = runner.invoke(
-        app, ["query", "-c", sqlite_path, "--file", "/nonexistent/path.sql"]
-    )
+    result = runner.invoke(app, ["query", "-c", sqlite_path, "--file", "/nonexistent/path.sql"])
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
 

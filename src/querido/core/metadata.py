@@ -11,15 +11,26 @@ if TYPE_CHECKING:
 # Fields that are auto-populated from the database and safe to overwrite
 _MACHINE_TABLE_FIELDS = {"row_count", "table_comment"}
 _MACHINE_COLUMN_FIELDS = {
-    "type", "nullable", "primary_key", "distinct_count", "null_count",
-    "null_pct", "min_val", "max_val", "min_length", "max_length",
+    "type",
+    "nullable",
+    "primary_key",
+    "distinct_count",
+    "null_count",
+    "null_pct",
+    "min_val",
+    "max_val",
+    "min_length",
+    "max_length",
     "sample_values",
 }
 
 # Fields that humans fill in — never overwritten by refresh
 _HUMAN_COLUMN_FIELDS = {"description", "pii", "valid_values"}
 _HUMAN_TABLE_FIELDS = {
-    "table_description", "data_owner", "update_frequency", "notes",
+    "table_description",
+    "data_owner",
+    "update_frequency",
+    "notes",
 }
 
 
@@ -73,10 +84,7 @@ def init_metadata(
     """
     path = metadata_path(connection, table)
     if path.exists() and not force:
-        raise FileExistsError(
-            f"Metadata already exists: {path}\n"
-            "Use --force to overwrite."
-        )
+        raise FileExistsError(f"Metadata already exists: {path}\nUse --force to overwrite.")
 
     from querido.core.template import get_template
 
@@ -112,12 +120,14 @@ def list_metadata(connection: str) -> list[dict]:
         meta = _read_yaml(yaml_file)
         if meta is None:
             continue
-        results.append({
-            "table": yaml_file.stem,
-            "path": str(yaml_file),
-            "last_modified": yaml_file.stat().st_mtime,
-            "completeness": _calc_completeness(meta),
-        })
+        results.append(
+            {
+                "table": yaml_file.stem,
+                "path": str(yaml_file),
+                "last_modified": yaml_file.stat().st_mtime,
+                "completeness": _calc_completeness(meta),
+            }
+        )
     return results
 
 
@@ -135,10 +145,7 @@ def refresh_metadata(
     """
     path = metadata_path(connection, table)
     if not path.exists():
-        raise FileNotFoundError(
-            f"No metadata to refresh: {path}\n"
-            "Run 'qdo metadata init' first."
-        )
+        raise FileNotFoundError(f"No metadata to refresh: {path}\nRun 'qdo metadata init' first.")
 
     existing = _read_yaml(path)
     if existing is None:
@@ -205,9 +212,7 @@ def _merge_metadata(existing: dict, fresh: dict) -> dict:
             merged[key] = fresh.get(key, "")
 
     # Merge columns
-    existing_cols = {
-        c.get("name", ""): c for c in existing.get("columns", [])
-    }
+    existing_cols = {c.get("name", ""): c for c in existing.get("columns", [])}
     fresh_cols = fresh.get("columns", [])
 
     merged_cols = []
@@ -256,7 +261,10 @@ def _write_yaml(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(
-            data, f, default_flow_style=False, sort_keys=False,
+            data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
             allow_unicode=True,
         )
 

@@ -9,18 +9,14 @@ runner = CliRunner()
 
 
 def test_values_sqlite(sqlite_path: str):
-    result = runner.invoke(
-        app, ["values", "-c", sqlite_path, "-t", "users", "-C", "name"]
-    )
+    result = runner.invoke(app, ["values", "-c", sqlite_path, "-t", "users", "-C", "name"])
     assert result.exit_code == 0
     assert "Alice" in result.output
     assert "Bob" in result.output
 
 
 def test_values_duckdb(duckdb_path: str):
-    result = runner.invoke(
-        app, ["values", "-c", duckdb_path, "-t", "users", "-C", "name"]
-    )
+    result = runner.invoke(app, ["values", "-c", duckdb_path, "-t", "users", "-C", "name"])
     assert result.exit_code == 0
     assert "Alice" in result.output
     assert "Bob" in result.output
@@ -65,8 +61,17 @@ def test_values_sort_frequency(sqlite_path: str):
     result = runner.invoke(
         app,
         [
-            "-f", "json", "values", "-c", sqlite_path,
-            "-t", "users", "-C", "name", "--sort", "frequency",
+            "-f",
+            "json",
+            "values",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "-C",
+            "name",
+            "--sort",
+            "frequency",
         ],
     )
     assert result.exit_code == 0
@@ -111,9 +116,7 @@ def test_values_with_nulls(tmp_path: Path):
     conn.commit()
     conn.close()
 
-    result = runner.invoke(
-        app, ["-f", "json", "values", "-c", db_path, "-t", "t", "-C", "status"]
-    )
+    result = runner.invoke(app, ["-f", "json", "values", "-c", db_path, "-t", "t", "-C", "status"])
     assert result.exit_code == 0
     import json
 
@@ -128,9 +131,7 @@ def test_values_with_nulls(tmp_path: Path):
 
 
 def test_values_nonexistent_column(sqlite_path: str):
-    result = runner.invoke(
-        app, ["values", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"]
-    )
+    result = runner.invoke(app, ["values", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"])
     assert result.exit_code != 0
 
 
