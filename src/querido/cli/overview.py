@@ -71,6 +71,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
 | `diff -c CONN -t A --target B` | Compare schemas between tables |
 | `explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
+| `export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
@@ -647,6 +648,30 @@ def _print_json() -> None:
                 "dialect": "string",
                 "analyzed": "boolean",
             },
+        },
+        {
+            "name": "export",
+            "description": "Export data to a file or clipboard.",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {"flag": "-t, --table", "required": False, "help": "Table to export."},
+                {"flag": "-s, --sql", "required": False, "help": "SQL query to export."},
+                {"flag": "-o, --output", "required": False, "help": "Output file path."},
+                {
+                    "flag": "-e, --export-format",
+                    "required": False,
+                    "help": "Format: csv, tsv, json, jsonl (default csv).",
+                },
+                {"flag": "--clipboard", "required": False, "help": "Copy TSV to clipboard."},
+                {"flag": "-w, --filter", "required": False, "help": "WHERE clause."},
+                {"flag": "-l, --limit", "required": False, "help": "Max rows."},
+                {"flag": "--columns", "required": False, "help": "Columns to export."},
+            ],
+            "example": "qdo export -c ./my.db -t users -o users.csv",
         },
         {
             "name": "sql",

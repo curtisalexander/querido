@@ -24,6 +24,7 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "diff": ("querido.cli.diff", "Compare schemas between two tables."),
     "dist": ("querido.cli.dist", "Column distribution visualization."),
     "explain": ("querido.cli.explain", "Show query execution plan (EXPLAIN)."),
+    "export": ("querido.cli.export", "Export data to a file (csv, tsv, json, jsonl)."),
     "explore": ("querido.cli.explore", "Interactive data exploration (TUI)."),
     "inspect": ("querido.cli.inspect", "Inspect table structure."),
     "joins": ("querido.cli.joins", "Discover likely join keys between tables."),

@@ -46,6 +46,7 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
 | `qdo diff -c CONN -t A --target B` | Compare schemas between two tables |
 | `qdo explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
+| `qdo export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |
 | `qdo sql select -c CONN -t TABLE` | Generate SELECT statement |
 | `qdo sql ddl -c CONN -t TABLE` | Generate CREATE TABLE DDL |
 | `qdo cache sync -c CONN` | Cache metadata locally for fast search |
