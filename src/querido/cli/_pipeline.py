@@ -103,6 +103,10 @@ def _maybe_warm_cache(connection: str, config: dict, connector: object) -> None:
     if connection not in connections:
         return
 
+    import logging
+
+    log = logging.getLogger("querido.cli.cache")
+
     try:
         from querido.cache import MetadataCache
 
@@ -115,14 +119,14 @@ def _maybe_warm_cache(connection: str, config: dict, connector: object) -> None:
             try:
                 cache.sync_tables_only(connection, connector)  # type: ignore[arg-type]
             except Exception:
-                pass
+                log.debug("Background cache warm failed", exc_info=True)
             finally:
                 cache.close()
 
         t = threading.Thread(target=_warm, daemon=True)
         t.start()
     except Exception:
-        pass
+        log.debug("Failed to start cache warm", exc_info=True)
 
 
 def _maybe_reraise_as_table_not_found(exc: Exception, connector: object, table: str) -> None:
@@ -142,7 +146,11 @@ def _maybe_reraise_as_table_not_found(exc: Exception, connector: object, table: 
     except typer.BadParameter:
         raise
     except Exception:
-        pass
+        import logging
+
+        logging.getLogger("querido.cli").debug(
+            "Failed to build table-not-found suggestion", exc_info=True
+        )
 
 
 def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:

@@ -15,8 +15,8 @@ class DuckDBConnector:
         self.conn = duckdb.connect(path)
         self._columns_cache: dict[str, list[dict]] = {}
 
-    def register_parquet(self, parquet_path: str) -> str:
-        """Register a parquet file as a view and return the view name."""
+    def register_parquet(self, parquet_path: str) -> None:
+        """Register a parquet file as a view."""
         from pathlib import Path
 
         p = Path(parquet_path)
@@ -31,7 +31,6 @@ class DuckDBConnector:
         self.conn.execute(
             f"create or replace view \"{safe_name}\" as select * from read_parquet('{safe_path}')"
         )
-        return name
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
         result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
@@ -120,6 +119,8 @@ class DuckDBConnector:
         # Use system (block-level) sampling for large tables (>10M rows).
         # System sampling skips entire row groups and is significantly faster
         # than reservoir sampling, which must scan every row.
+        if sample_size <= 0:
+            raise ValueError(f"sample_size must be positive, got {sample_size}")
         if row_count > 10_000_000:
             pct = max(sample_size / row_count * 100, 0.01)
             return f"(select * from {table} using sample {pct:.4f} percent (system)) as _sample"

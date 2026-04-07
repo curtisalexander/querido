@@ -52,8 +52,8 @@ Systematic improvements to query speed, round-trip reduction, and caching across
 ## P2 — Medium Value / Low-Medium Effort
 
 ### P2-1: Cache-backed existence checks
-- **Problem**: Some paths (explore TUI, error recovery) still call `check_table_exists()` which hits the database.
-- **Solution**: Added `MetadataCache.has_table()`, `get_cached_columns()`, and `get_cached_tables()` methods. Available for integration into `check_table_exists()`.
+- **Problem**: Some paths (explore TUI, error recovery) still call `resolve_table()` which hits the database.
+- **Solution**: Added `MetadataCache.has_table()`, `get_cached_columns()`, and `get_cached_tables()` methods. Available for integration into `resolve_table()`.
 - **Files**: `src/querido/cache.py`
 - **Impact**: Instant existence checks for Snowflake users with a warm cache
 - **Status**: [x] Cache methods added; integration into validation deferred (P1-3 memoization covers most cases)

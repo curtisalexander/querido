@@ -283,6 +283,8 @@ class SnowflakeConnector:
         # Use block sampling for large tables (>10M rows). Block sampling
         # operates on whole micropartitions and is 5-10x faster because it
         # skips entire storage blocks rather than evaluating each row.
+        if sample_size <= 0:
+            raise ValueError(f"sample_size must be positive, got {sample_size}")
         if row_count > 10_000_000:
             pct = max(sample_size / row_count * 100, 0.01)
             return f"(select * from {table} sample system ({pct:.4f})) as _sample"
@@ -305,17 +307,6 @@ class SnowflakeConnector:
 
     def __exit__(self, *args: object) -> None:
         self.close()
-
-    @staticmethod
-    def _lower_keys(rows: list[dict]) -> list[dict]:
-        """Normalize dict keys to lowercase for consistency with other connectors.
-
-        Snowflake returns uppercase column names for unquoted identifiers
-        (e.g. ``SELECT COUNT(*) AS cnt`` → ``{"CNT": 42}``).  Lowercasing
-        here lets all downstream code use the same lowercase keys that
-        DuckDB and SQLite produce.
-        """
-        return [{k.lower(): v for k, v in row.items()} for row in rows]
 
     def _fetch_arrow(self, cursor: object) -> list[dict]:
         import pyarrow as pa

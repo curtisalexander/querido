@@ -14,6 +14,11 @@ def sync(
     db_type: str | None = typer.Option(
         None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
     ),
+    cache_ttl: int = typer.Option(
+        24 * 60 * 60,
+        "--cache-ttl",
+        help="Cache TTL in seconds (default: 86400 = 24h). Set to 0 to always re-sync.",
+    ),
 ) -> None:
     """Fetch all table/column metadata and cache locally."""
     from querido.cache import MetadataCache
@@ -28,6 +33,19 @@ def sync(
         console = Console(stderr=True)
 
         from querido.cli._progress import query_status
+
+        # Skip sync if cache is still fresh (unless ttl=0 forces re-sync)
+        if cache_ttl > 0:
+            check_cache = MetadataCache()
+            try:
+                if check_cache.is_fresh(connection, ttl_seconds=cache_ttl):
+                    console.print(
+                        f"[dim]Cache for '{connection}' is still fresh "
+                        f"(TTL {cache_ttl}s). Use --cache-ttl 0 to force re-sync.[/dim]"
+                    )
+                    return
+            finally:
+                check_cache.close()
 
         msg = f"Syncing metadata for [bold]{connection}[/bold]"
         with query_status(console, msg, connector):

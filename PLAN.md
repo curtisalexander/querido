@@ -500,7 +500,7 @@ Use an open-weight local LLM to generate SQL from natural language, informed by 
 
 - [x] `_fuzzy_suggestions()` helper using `difflib.get_close_matches()` (stdlib, zero deps)
 - [x] `_format_not_found()` shared helper for building "not found" messages with suggestions
-- [x] `check_table_exists()` shows "Did you mean: ..." with top 3 matches
+- [x] `resolve_table()` shows "Did you mean: ..." with top 3 matches
 - [x] `resolve_column()` shows "Did you mean: ..." with top 3 matches and table context
 - [x] Full "Available tables/columns:" list shown for small counts (≤30), omitted for large databases
 - [x] Original casing preserved in suggestions (handles case-insensitive matching)

@@ -300,8 +300,8 @@ def print_template(
     grid.add_column("Notes", style="italic magenta")
 
     for col in columns:
-        min_display = fmt_value(col["min_val"]) or fmt_value(col["min_length"])
-        max_display = fmt_value(col["max_val"]) or fmt_value(col["max_length"])
+        min_display = fmt_value(col.get("min_val")) or fmt_value(col.get("min_length"))
+        max_display = fmt_value(col.get("max_val")) or fmt_value(col.get("max_length"))
         grid.add_row(
             col["name"],
             col["type"],

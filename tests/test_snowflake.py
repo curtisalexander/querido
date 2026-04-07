@@ -701,12 +701,12 @@ class TestNoDefaultDatabaseSchema:
 
 
 # ---------------------------------------------------------------------------
-# check_table_exists with qualified Snowflake names
+# resolve_table with qualified Snowflake names
 # ---------------------------------------------------------------------------
 
 
 class TestCheckTableExistsQualified:
-    """check_table_exists should resolve qualified names for Snowflake."""
+    """resolve_table should resolve qualified names for Snowflake."""
 
     def test_qualified_name_matches(self):
         """Fully-qualified name should match when table exists in target schema."""
@@ -721,10 +721,10 @@ class TestCheckTableExistsQualified:
         )
         mock_conn.cursor.return_value = cursor
 
-        from querido.cli._validation import check_table_exists
+        from querido.cli._validation import resolve_table
 
         # Should not raise
-        check_table_exists(connector, "other_db.staging.raw_data")
+        resolve_table(connector,"other_db.staging.raw_data")
 
         # Verify get_tables was called against the right database/schema
         sql_arg = cursor.execute.call_args[0][0]
@@ -748,10 +748,10 @@ class TestCheckTableExistsQualified:
         )
         mock_conn.cursor.return_value = cursor
 
-        from querido.cli._validation import check_table_exists
+        from querido.cli._validation import resolve_table
 
         with pytest.raises(typer.BadParameter, match="not found"):
-            check_table_exists(connector, "other_db.staging.missing_table")
+            resolve_table(connector,"other_db.staging.missing_table")
 
     def test_schema_qualified_name_matches(self):
         """Schema-qualified name should match when table exists."""
@@ -766,10 +766,10 @@ class TestCheckTableExistsQualified:
         )
         mock_conn.cursor.return_value = cursor
 
-        from querido.cli._validation import check_table_exists
+        from querido.cli._validation import resolve_table
 
         # Should not raise
-        check_table_exists(connector, "analytics.events")
+        resolve_table(connector,"analytics.events")
 
 
 # ---------------------------------------------------------------------------

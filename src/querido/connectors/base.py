@@ -72,7 +72,12 @@ class Connector(Protocol):
         ...
 
     def cancel(self) -> None:
-        """Cancel a running query.  Default is a no-op."""
+        """Cancel a running query.  Default is a no-op.
+
+        Behavior varies by connector: SQLite/DuckDB call ``conn.interrupt()``
+        which cancels all queries on the connection, while Snowflake calls
+        ``cursor.cancel()`` which only cancels the active cursor's query.
+        """
         ...
 
     def close(self) -> None: ...
