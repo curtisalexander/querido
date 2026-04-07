@@ -38,7 +38,7 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo lineage -c CONN -v VIEW` | View SQL definition |
 | `qdo template -c CONN -t TABLE` | Generate documentation template |
 | `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
-| `qdo catalog -c CONN [--tables-only]` | Full database catalog (tables, columns, rows) |
+| `qdo catalog -c CONN [--tables-only] [--enrich]` | Full database catalog (+ metadata with --enrich) |
 | `qdo values -c CONN -t TABLE -C COL` | Distinct values for a column |
 | `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |

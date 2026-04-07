@@ -63,7 +63,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `lineage -c CONN -v VIEW` | View SQL definition |
 | `template -c CONN -t TABLE` | Documentation template |
 | `query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL |
-| `catalog -c CONN [--tables-only]` | Full database catalog |
+| `catalog -c CONN [--tables-only] [--enrich]` | Full database catalog |
 | `values -c CONN -t TABLE -C COLUMN` | Distinct values for a column |
 | `pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0/1) |
@@ -381,8 +381,13 @@ def _print_json() -> None:
                     "required": False,
                     "help": "Bypass cache and query the database directly.",
                 },
+                {
+                    "flag": "--enrich",
+                    "required": False,
+                    "help": "Merge stored metadata (descriptions, owner) into output.",
+                },
             ],
-            "example": "qdo catalog -c ./my.db -f json",
+            "example": "qdo catalog -c mydb --enrich -f json",
             "output_shape": {
                 "table_count": "integer",
                 "tables": [

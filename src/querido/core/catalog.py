@@ -117,6 +117,68 @@ def get_catalog_cached(
         cache.close()
 
 
+def enrich_catalog(catalog: dict, connection: str) -> dict:
+    """Merge stored metadata into a catalog result.
+
+    For each table with a ``.qdo/metadata/<connection>/<table>.yaml`` file,
+    adds ``table_description``, ``data_owner``, ``update_frequency``, and
+    per-column ``description`` fields from the stored metadata.
+    """
+    from querido.core.metadata import list_metadata, show_metadata
+
+    available = {e.get("table", ""): e for e in list_metadata(connection)}
+    if not available:
+        return catalog
+
+    enriched_tables = []
+    for table in catalog.get("tables", []):
+        table_name = table.get("name", "")
+        if table_name not in available:
+            enriched_tables.append(table)
+            continue
+
+        meta = show_metadata(connection, table_name)
+        if meta is None:
+            enriched_tables.append(table)
+            continue
+
+        enriched = dict(table)
+
+        # Table-level human fields
+        for key in ("table_description", "data_owner", "update_frequency", "notes"):
+            val = meta.get(key, "")
+            if val and not str(val).startswith("<"):
+                enriched[key] = val
+
+        # Column-level descriptions
+        if enriched.get("columns") and meta.get("columns"):
+            meta_cols = {
+                c.get("name", "").lower(): c for c in meta.get("columns", [])
+            }
+            enriched_cols = []
+            for col in enriched.get("columns", []):
+                col_copy = dict(col)
+                mc = meta_cols.get(col_copy.get("name", "").lower(), {})
+                desc = mc.get("description", "")
+                if desc and not str(desc).startswith("<"):
+                    col_copy["description"] = desc
+                pii = mc.get("pii")
+                if pii is not None:
+                    col_copy["pii"] = pii
+                valid = mc.get("valid_values")
+                if valid:
+                    col_copy["valid_values"] = valid
+                enriched_cols.append(col_copy)
+            enriched["columns"] = enriched_cols
+
+        enriched_tables.append(enriched)
+
+    return {
+        "tables": enriched_tables,
+        "table_count": catalog.get("table_count", len(enriched_tables)),
+    }
+
+
 def _fetch_table_detail(connector: Connector, table_info: dict) -> dict:
     """Fetch columns and row count for a single table."""
     from querido.sql.renderer import render_template

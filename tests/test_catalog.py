@@ -142,3 +142,59 @@ def test_catalog_column_details(sqlite_path: str):
     for c in cols:
         assert "type" in c
         assert "nullable" in c
+
+
+def test_catalog_enrich(sqlite_path: str, tmp_path: Path, monkeypatch):
+    """--enrich merges stored metadata into catalog output."""
+    import yaml
+
+    monkeypatch.chdir(tmp_path)
+
+    # First, init metadata
+    result = runner.invoke(
+        app, ["metadata", "init", "-c", sqlite_path, "-t", "users"]
+    )
+    assert result.exit_code == 0
+
+    # Fill in human fields
+    meta_dir = tmp_path / ".qdo" / "metadata" / "test"
+    meta_file = meta_dir / "users.yaml"
+    meta = yaml.safe_load(meta_file.read_text())
+    meta["table_description"] = "Application user accounts"
+    meta["data_owner"] = "Identity team"
+    meta["columns"][0]["description"] = "Auto-increment primary key"
+    with open(meta_file, "w") as f:
+        yaml.dump(meta, f)
+
+    # Run catalog with --enrich
+    result = runner.invoke(
+        app,
+        ["-f", "json", "catalog", "-c", sqlite_path, "--enrich"],
+    )
+    assert result.exit_code == 0
+    import json
+
+    payload = json.loads(result.output)
+    users_table = payload["tables"][0]
+    assert users_table.get("table_description") == "Application user accounts"
+    assert users_table.get("data_owner") == "Identity team"
+
+    # First column should have enriched description
+    first_col = users_table["columns"][0]
+    assert first_col.get("description") == "Auto-increment primary key"
+
+
+def test_catalog_enrich_no_metadata(sqlite_path: str, tmp_path: Path, monkeypatch):
+    """--enrich with no stored metadata should return catalog unchanged."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["-f", "json", "catalog", "-c", sqlite_path, "--enrich"],
+    )
+    assert result.exit_code == 0
+    import json
+
+    payload = json.loads(result.output)
+    # Should work fine, just no enrichment
+    assert payload["table_count"] == 1
+    assert "table_description" not in payload["tables"][0]

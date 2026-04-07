@@ -25,11 +25,18 @@ def catalog(
         False, "--live", help="Bypass cache and query the database directly."
     ),
     schema: str | None = typer.Option(None, "--schema", help="Schema filter (Snowflake only)."),
+    enrich: bool = typer.Option(
+        False, "--enrich",
+        help="Merge stored metadata (descriptions, owner) into output.",
+    ),
 ) -> None:
     """Show the full catalog for a database — all tables, columns, and row counts.
 
     Cache-first by default: uses cached metadata if fresh, falls back to live
     queries. Use --live to always query the database directly.
+
+    Use --enrich to merge business context from stored metadata files
+    (.qdo/metadata/) into the catalog output.
     """
     from querido.cli._pipeline import dispatch_output
     from querido.config import resolve_connection
@@ -55,5 +62,10 @@ def catalog(
                 result = get_catalog(
                     connector, tables_only=tables_only, schema=schema
                 )
+
+    if enrich and result:
+        from querido.core.catalog import enrich_catalog
+
+        result = enrich_catalog(result, connection)
 
     dispatch_output("catalog", result)
