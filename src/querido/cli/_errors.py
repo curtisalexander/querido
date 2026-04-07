@@ -51,6 +51,9 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
     import errors are all turned into one-line messages on stderr.  When a
     database error occurs, the last rendered SQL is automatically printed to
     help with debugging.
+
+    When ``--format json`` is active, errors are emitted as structured JSON
+    to stderr so that coding agents can parse them programmatically.
     """
 
     @wraps(fn)
@@ -69,23 +72,54 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
             # QueryCancelled is a subclass of KeyboardInterrupt
             raise typer.Exit(code=130) from None
         except Exception as exc:
-            from rich.console import Console
-
-            console = Console(stderr=True)
             msg = _classify_error(exc)
-            console.print(f"\n[bold red]Error:[/bold red] {msg}")
+            code = _error_code(exc)
+            hint = _recovery_hint(exc)
 
             with _last_sql_lock:
                 last = _last_sql
-            if last is not None and _is_db_error(exc):
-                from querido.cli._context import print_sql
 
-                console.print("\n[dim]The SQL that was being executed:[/dim]")
-                print_sql(last)
+            from querido.cli._context import get_output_format
+
+            if get_output_format() == "json":
+                _emit_json_error(msg, code, hint, last if _is_db_error(exc) else None)
+            else:
+                _emit_rich_error(msg, exc, last)
 
             raise typer.Exit(code=1) from None
 
     return wrapper
+
+
+def _emit_rich_error(msg: str, exc: Exception, last_sql: str | None) -> None:
+    """Print a human-readable error to stderr with Rich markup."""
+    from rich.console import Console
+
+    console = Console(stderr=True)
+    console.print(f"\n[bold red]Error:[/bold red] {msg}")
+
+    hint = _recovery_hint(exc)
+    if hint:
+        console.print(f"[dim]Hint: {hint}[/dim]")
+
+    if last_sql is not None and _is_db_error(exc):
+        from querido.cli._context import print_sql
+
+        console.print("\n[dim]The SQL that was being executed:[/dim]")
+        print_sql(last_sql)
+
+
+def _emit_json_error(msg: str, code: str, hint: str | None, sql: str | None) -> None:
+    """Print a structured JSON error object to stderr."""
+    import json
+    import sys
+
+    payload: dict = {"error": True, "code": code, "message": msg}
+    if hint:
+        payload["hint"] = hint
+    if sql:
+        payload["sql"] = sql
+    print(json.dumps(payload, indent=2), file=sys.stderr)
 
 
 def _is_db_error(exc: Exception) -> bool:
@@ -117,3 +151,52 @@ def _classify_error(exc: Exception) -> str:
         return f"Permission denied: {exc}"
 
     return f"{type(exc).__name__}: {exc}"
+
+
+def _error_code(exc: Exception) -> str:
+    """Return a machine-readable error code for *exc*."""
+    if _is_db_error(exc):
+        msg_lower = str(exc).lower()
+        if "no such table" in msg_lower or "does not exist" in msg_lower:
+            return "TABLE_NOT_FOUND"
+        if "no such column" in msg_lower:
+            return "COLUMN_NOT_FOUND"
+        if "database is locked" in msg_lower:
+            return "DATABASE_LOCKED"
+        if "unable to open database" in msg_lower or "could not open" in msg_lower:
+            return "DATABASE_OPEN_FAILED"
+        if "authentication" in msg_lower or "password" in msg_lower:
+            return "AUTH_FAILED"
+        return "DATABASE_ERROR"
+
+    if isinstance(exc, FileNotFoundError):
+        return "FILE_NOT_FOUND"
+    if isinstance(exc, ValueError):
+        return "VALIDATION_ERROR"
+    if isinstance(exc, ImportError):
+        return "MISSING_DEPENDENCY"
+    if isinstance(exc, PermissionError):
+        return "PERMISSION_DENIED"
+    return "UNKNOWN_ERROR"
+
+
+def _recovery_hint(exc: Exception) -> str | None:
+    """Return an actionable hint for recovering from *exc*, or None."""
+    if _is_db_error(exc):
+        msg_lower = str(exc).lower()
+        if "no such table" in msg_lower or "does not exist" in msg_lower:
+            return "Try: qdo search -c <connection> -p <pattern> to find available tables"
+        if "no such column" in msg_lower:
+            return "Try: qdo inspect -c <connection> -t <table> to see available columns"
+        if "database is locked" in msg_lower:
+            return "Close other connections to this database and retry"
+        if "authentication" in msg_lower or "password" in msg_lower:
+            return "Check your credentials in connections.toml or re-authenticate"
+
+    if isinstance(exc, FileNotFoundError):
+        return "Check the file path and ensure it exists"
+    if isinstance(exc, ImportError):
+        return (
+            "Install the missing extra: uv pip install 'querido[duckdb]' or 'querido[snowflake]'"
+        )
+    return None

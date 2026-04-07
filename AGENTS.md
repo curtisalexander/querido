@@ -158,6 +158,84 @@ qdo config list
 ### Connection resolution
 `-c` accepts a named connection from `connections.toml` or a file path. Extension determines type: `.duckdb`/`.ddb` → DuckDB, `.parquet` → Parquet (via DuckDB), else → SQLite. Override with `--db-type`.
 
+## Using qdo as an Agent Tool
+
+If you are a coding agent using qdo to analyze data (rather than developing qdo itself), this section describes the recommended workflow and output formats.
+
+### Always use `--format json`
+
+All commands support `--format json` (or `-f json`). JSON output goes to stdout; errors go to stderr. This is the most reliable way to consume qdo output programmatically.
+
+```bash
+qdo -f json inspect -c ./my.db -t users
+qdo -f json preview -c ./my.db -t users -r 5
+qdo -f json profile -c ./my.db -t users --top 3
+```
+
+### Recommended exploration workflow
+
+1. **Discover tables** — find what's available:
+   ```bash
+   qdo -f json search -c ./my.db -p ""        # list all tables (empty pattern matches all)
+   qdo -f json search -c ./my.db -p orders     # find tables/columns matching "orders"
+   ```
+
+2. **Inspect structure** — understand columns and types:
+   ```bash
+   qdo -f json inspect -c ./my.db -t orders
+   ```
+   Returns: `{"table", "row_count", "columns": [{"name", "type", "nullable", "default", "primary_key"}]}`
+
+3. **Preview data** — see sample rows:
+   ```bash
+   qdo -f json preview -c ./my.db -t orders -r 5
+   ```
+   Returns: `{"table", "limit", "row_count", "rows": [...]}`
+
+4. **Profile statistics** — understand distributions and quality:
+   ```bash
+   qdo -f json profile -c ./my.db -t orders --top 3
+   ```
+   Returns: `{"table", "row_count", "sampled", "columns": [{"column_name", "min_val", "max_val", "null_count", "distinct_count", ...}]}`
+
+5. **Drill into columns** — distribution detail:
+   ```bash
+   qdo -f json dist -c ./my.db -t orders -C status
+   ```
+
+6. **Generate documentation** — full metadata for prompting:
+   ```bash
+   qdo -f json template -c ./my.db -t orders
+   ```
+   Returns column metadata with sample values — useful as context for LLM prompts.
+
+### Error handling
+
+When `--format json` is active, errors are emitted as structured JSON to stderr:
+```json
+{"error": true, "code": "TABLE_NOT_FOUND", "message": "Table not found: ...", "hint": "Try: qdo search -c <connection> -p <pattern>"}
+```
+
+Error codes: `TABLE_NOT_FOUND`, `COLUMN_NOT_FOUND`, `DATABASE_LOCKED`, `DATABASE_OPEN_FAILED`, `AUTH_FAILED`, `DATABASE_ERROR`, `FILE_NOT_FOUND`, `VALIDATION_ERROR`, `MISSING_DEPENDENCY`, `PERMISSION_DENIED`.
+
+Exit codes: `0` success, `1` error, `130` interrupted.
+
+### Command discovery
+
+To get a machine-readable description of all commands, options, and output shapes:
+```bash
+qdo -f json overview
+```
+
+### Caching for performance
+
+For large databases (especially Snowflake), cache metadata locally to speed up search and validation:
+```bash
+qdo cache sync -c my-snowflake-conn                # cache for 24h (default)
+qdo cache sync -c my-snowflake-conn --cache-ttl 0  # force re-sync
+qdo -f json cache status                           # check cache freshness
+```
+
 ## Interactive Demo
 
 ```bash

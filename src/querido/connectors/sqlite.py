@@ -76,6 +76,8 @@ class SQLiteConnector:
         # it avoids the full sort and can stop early via LIMIT.
         # When row_count is provided, use it directly instead of embedding a
         # nested count(*) subquery that would re-scan the table.
+        if sample_size <= 0:
+            raise ValueError(f"sample_size must be positive, got {sample_size}")
         if row_count > 0:
             modulus = max(row_count // sample_size, 1)
         else:

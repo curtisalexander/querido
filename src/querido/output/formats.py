@@ -105,7 +105,13 @@ def format_preview(
         return "" if fmt == "csv" else "No rows found."
 
     if fmt == "json":
-        return json.dumps(data, indent=2, default=str)
+        payload: dict = {
+            "table": table_name,
+            "limit": limit,
+            "row_count": len(data),
+            "rows": data,
+        }
+        return json.dumps(payload, indent=2, default=str)
 
     if fmt == "csv":
         return dicts_to_csv(data)

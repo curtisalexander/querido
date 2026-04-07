@@ -46,8 +46,11 @@ def test_preview_json(sqlite_path: str):
     result = runner.invoke(app, ["--format", "json", "preview", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
     data = json.loads(result.output)
-    assert len(data) == 2
-    assert data[0]["name"] == "Alice"
+    assert data["table"] == "users"
+    assert data["limit"] == 20
+    assert data["row_count"] == 2
+    assert len(data["rows"]) == 2
+    assert data["rows"][0]["name"] == "Alice"
 
 
 def test_preview_csv(sqlite_path: str):

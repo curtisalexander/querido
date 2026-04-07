@@ -4,22 +4,26 @@ from __future__ import annotations
 
 import asyncio
 from functools import partial
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
+if TYPE_CHECKING:
+    from querido.connectors.base import Connector
+
 router = APIRouter()
 
 
-def _get_tables_with_counts(connector: object) -> list[dict]:
+def _get_tables_with_counts(connector: Connector) -> list[dict]:
     """Fetch table list enriched with row counts (blocking)."""
     from querido.sql.renderer import render_template
 
-    tables = connector.get_tables()  # type: ignore[union-attr]
+    tables = connector.get_tables()
     for tbl in tables:
         try:
-            count_sql = render_template("count", connector.dialect, table=tbl["name"])  # type: ignore[union-attr]
-            tbl["row_count"] = connector.execute(count_sql)[0]["cnt"]  # type: ignore[union-attr]
+            count_sql = render_template("count", connector.dialect, table=tbl["name"])
+            tbl["row_count"] = connector.execute(count_sql)[0]["cnt"]
         except Exception:
             tbl["row_count"] = None
     return tables

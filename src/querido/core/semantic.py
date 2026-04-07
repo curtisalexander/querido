@@ -59,7 +59,7 @@ def get_sample_values(
         validate_column_name(col_name)
         sql = (
             f'select distinct "{col_name}" as val '
-            f"from {table} "
+            f'from "{table}" '
             f'where "{col_name}" is not null '
             f"limit {int(limit)}"
         )

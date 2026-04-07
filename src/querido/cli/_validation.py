@@ -89,15 +89,6 @@ def resolve_table(connector: Connector, table: str) -> str:
     raise typer.BadParameter(_format_not_found("Table", table, table_names))
 
 
-def check_table_exists(connector: Connector, table: str) -> None:
-    """Raise typer.BadParameter if *table* does not exist in the database.
-
-    Thin wrapper around :func:`resolve_table` for callers that only need
-    an existence check without the canonical name.
-    """
-    resolve_table(connector, table)
-
-
 def resolve_column(connector: Connector, table: str, column: str, *, label: str = "column") -> str:
     """Return the canonical column name (as stored in the database).
 

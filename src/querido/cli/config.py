@@ -263,7 +263,7 @@ def _write_connections(config_file: Path | str, connections: dict) -> None:
         closed = True
         Path(tmp).replace(config_file)
         config_file.chmod(0o600)
-    except BaseException:
+    except Exception:
         if not closed:
             os.close(fd)
         Path(tmp).unlink(missing_ok=True)

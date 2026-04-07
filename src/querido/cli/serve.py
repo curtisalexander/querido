@@ -31,8 +31,6 @@ def serve(
         )
         raise typer.Exit(1) from None
 
-    import uvicorn
-
     from querido.config import resolve_connection
     from querido.connectors.factory import create_connector
     from querido.web import create_app
