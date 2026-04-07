@@ -382,6 +382,32 @@ def print_snowflake_lineage(
     console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")
 
 
+def print_explain(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print query execution plan with syntax highlighting."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.syntax import Syntax
+
+    if console is None:
+        console = Console()
+
+    plan = result.get("plan", "")
+    dialect = result.get("dialect", "")
+    analyzed = result.get("analyzed", False)
+    title = f"Query Plan ({dialect})"
+    if analyzed:
+        title += " [ANALYZE]"
+
+    console.print(Panel(
+        Syntax(plan, "text", theme="monokai", line_numbers=False),
+        title=title,
+        expand=True,
+    ))
+
+
 def print_diff(
     result: dict,
     console: Console | None = None,

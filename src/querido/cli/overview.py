@@ -70,6 +70,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness) |
 | `joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
 | `diff -c CONN -t A --target B` | Compare schemas between tables |
+| `explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
@@ -617,6 +618,34 @@ def _print_json() -> None:
                     }
                 ],
                 "unchanged_count": "integer",
+            },
+        },
+        {
+            "name": "explain",
+            "description": "Show query execution plan (EXPLAIN).",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {
+                    "flag": "-s, --sql",
+                    "required": False,
+                    "help": "SQL query (alternative: --file or stdin).",
+                },
+                {
+                    "flag": "--analyze",
+                    "required": False,
+                    "help": "Run EXPLAIN ANALYZE (DuckDB).",
+                },
+            ],
+            "example": 'qdo explain -c ./my.db --sql "select * from users" -f json',
+            "output_shape": {
+                "plan": "string",
+                "sql": "string",
+                "dialect": "string",
+                "analyzed": "boolean",
             },
         },
         {

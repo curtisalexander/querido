@@ -672,6 +672,33 @@ def format_frequencies(
     return "\n".join(lines)
 
 
+# -- explain ------------------------------------------------------------------
+
+
+def format_explain(
+    result: dict,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        return result.get("plan", "")
+
+    # markdown
+    plan = result.get("plan", "")
+    dialect = result.get("dialect", "")
+    analyzed = " (ANALYZE)" if result.get("analyzed") else ""
+    lines = [
+        f"## Query Plan — {dialect}{analyzed}",
+        "",
+        "```",
+        plan,
+        "```",
+    ]
+    return "\n".join(lines)
+
+
 # -- diff ---------------------------------------------------------------------
 
 

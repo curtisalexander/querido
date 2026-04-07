@@ -23,6 +23,7 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "config": ("querido.cli.config", "Manage connections."),
     "diff": ("querido.cli.diff", "Compare schemas between two tables."),
     "dist": ("querido.cli.dist", "Column distribution visualization."),
+    "explain": ("querido.cli.explain", "Show query execution plan (EXPLAIN)."),
     "explore": ("querido.cli.explore", "Interactive data exploration (TUI)."),
     "inspect": ("querido.cli.inspect", "Inspect table structure."),
     "joins": ("querido.cli.joins", "Discover likely join keys between tables."),

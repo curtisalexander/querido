@@ -601,6 +601,27 @@ def format_frequencies_html(
     )
 
 
+def format_explain_html(
+    result: dict,
+) -> str:
+    """Render query plan as a standalone HTML page."""
+    plan = result.get("plan", "")
+    dialect = result.get("dialect", "")
+    analyzed = " (ANALYZE)" if result.get("analyzed") else ""
+
+    # Render plan as preformatted text
+    import html
+
+    plan_html = f"<pre style='font-family:monospace;padding:1em'>{html.escape(plan)}</pre>"
+
+    return _html_page(
+        title=f"Query Plan — {dialect}{analyzed}",
+        subtitle=result.get("sql", ""),
+        table_html=plan_html,
+        footer_text="qdo explain",
+    )
+
+
 def format_diff_html(
     result: dict,
 ) -> str:
