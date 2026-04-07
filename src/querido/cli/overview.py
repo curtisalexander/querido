@@ -66,6 +66,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `catalog -c CONN [--tables-only]` | Full database catalog |
 | `values -c CONN -t TABLE -C COLUMN` | Distinct values for a column |
 | `pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
+| `assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0/1) |
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
@@ -473,6 +474,38 @@ def _print_json() -> None:
                 "headers": ["string"],
                 "rows": [{"column_name": "value"}],
                 "row_count": "integer",
+                "sql": "string",
+            },
+        },
+        {
+            "name": "assert",
+            "description": "Assert a SQL query result meets a condition. Exit 0=pass, 1=fail.",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {
+                    "flag": "-s, --sql",
+                    "required": False,
+                    "help": "SQL query (alternative: --file or stdin).",
+                },
+                {"flag": "--expect", "required": False, "help": "Assert result == value."},
+                {"flag": "--expect-gt", "required": False, "help": "Assert result > value."},
+                {"flag": "--expect-lt", "required": False, "help": "Assert result < value."},
+                {"flag": "--expect-gte", "required": False, "help": "Assert result >= value."},
+                {"flag": "--expect-lte", "required": False, "help": "Assert result <= value."},
+                {"flag": "-n, --name", "required": False, "help": "Descriptive name."},
+                {"flag": "-q, --quiet", "required": False, "help": "No output, just exit code."},
+            ],
+            "example": 'qdo assert -c ./my.db --sql "select count(*) from users" --expect 100',
+            "output_shape": {
+                "passed": "boolean",
+                "actual": "number",
+                "expected": "number",
+                "operator": "eq|gt|lt|gte|lte",
+                "name": "string|null",
                 "sql": "string",
             },
         },

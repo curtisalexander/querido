@@ -672,6 +672,33 @@ def format_frequencies(
     return "\n".join(lines)
 
 
+# -- assert_check -------------------------------------------------------------
+
+
+def format_assert_check(
+    result: dict,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        return dicts_to_csv([result])
+
+    # markdown
+    status = "PASSED" if result["passed"] else "FAILED"
+    op_labels = {"eq": "==", "gt": ">", "lt": "<", "gte": ">=", "lte": "<="}
+    op_sym = op_labels.get(result["operator"], result["operator"])
+    name = result.get("name") or "Assertion"
+    lines = [
+        f"## {name}: {status}",
+        "",
+        f"- actual: {result['actual']}",
+        f"- expected: {op_sym} {result['expected']}",
+    ]
+    return "\n".join(lines)
+
+
 # -- pivot --------------------------------------------------------------------
 
 

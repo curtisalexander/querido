@@ -601,6 +601,31 @@ def format_frequencies_html(
     )
 
 
+def format_assert_check_html(
+    result: dict,
+) -> str:
+    """Render assertion result as a standalone HTML page."""
+    status = "PASSED" if result["passed"] else "FAILED"
+    op_labels = {"eq": "==", "gt": ">", "lt": "<", "gte": ">=", "lte": "<="}
+    op_sym = op_labels.get(result["operator"], result["operator"])
+    name = result.get("name") or "Assertion"
+
+    headers = ["Field", "Value"]
+    rows = [
+        ["Name", name],
+        ["Status", status],
+        ["Actual", str(result["actual"])],
+        ["Expected", f"{op_sym} {result['expected']}"],
+    ]
+
+    return _html_page(
+        title=f"Assert: {name}",
+        subtitle=status,
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo assert — {status}",
+    )
+
+
 def format_pivot_html(
     result: dict,
 ) -> str:

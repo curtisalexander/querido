@@ -382,6 +382,30 @@ def print_snowflake_lineage(
     console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")
 
 
+def print_assert_check(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print assertion result."""
+    from rich.console import Console
+
+    if console is None:
+        console = Console()
+
+    passed = result["passed"]
+    status = "[bold green]PASSED[/bold green]" if passed else "[bold red]FAILED[/bold red]"
+    name = result.get("name")
+    label = f"  {name}: " if name else "  Assertion: "
+
+    op_labels = {"eq": "==", "gt": ">", "lt": "<", "gte": ">=", "lte": "<="}
+    op_sym = op_labels.get(result["operator"], result["operator"])
+
+    console.print(f"\n{label}{status}")
+    console.print(
+        f"  actual={result['actual']}  expected {op_sym} {result['expected']}"
+    )
+
+
 def print_pivot(
     result: dict,
     console: Console | None = None,

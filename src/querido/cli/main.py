@@ -16,6 +16,7 @@ from typer.core import TyperGroup
 
 _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     #  name  → (module_path, help_text)
+    "assert": ("querido.cli.assert_cmd", "Assert conditions on query results."),
     "cache": ("querido.cli.cache", "Manage local metadata cache."),
     "catalog": ("querido.cli.catalog", "Show full database catalog."),
     "completion": ("querido.cli.completion", "Generate shell completion scripts."),
