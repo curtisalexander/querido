@@ -382,6 +382,80 @@ def print_snowflake_lineage(
     console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")
 
 
+def print_diff(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print schema diff as Rich output."""
+    from rich.console import Console
+
+    if console is None:
+        console = Console()
+
+    added = result["added"]
+    removed = result["removed"]
+    changed = result["changed"]
+    unchanged = result["unchanged_count"]
+
+    console.print(
+        f"\n  Schema diff: [cyan]{result['left']}[/cyan]"
+        f" → [cyan]{result['right']}[/cyan]"
+    )
+
+    if not added and not removed and not changed:
+        console.print("  [green]Schemas are identical.[/green]")
+        return
+
+    if added:
+        from rich.table import Table
+
+        grid = Table(title="Added (in right only)", show_lines=True)
+        grid.add_column("Column", style="green bold")
+        grid.add_column("Type", style="green")
+        grid.add_column("Nullable")
+        for col in added:
+            grid.add_row(
+                col["name"], col["type"],
+                "YES" if col["nullable"] else "NO",
+            )
+        console.print(grid)
+
+    if removed:
+        from rich.table import Table
+
+        grid = Table(title="Removed (in left only)", show_lines=True)
+        grid.add_column("Column", style="red bold")
+        grid.add_column("Type", style="red")
+        grid.add_column("Nullable")
+        for col in removed:
+            grid.add_row(
+                col["name"], col["type"],
+                "YES" if col["nullable"] else "NO",
+            )
+        console.print(grid)
+
+    if changed:
+        from rich.table import Table
+
+        grid = Table(title="Changed", show_lines=True)
+        grid.add_column("Column", style="yellow bold")
+        grid.add_column("Left Type")
+        grid.add_column("Right Type")
+        grid.add_column("Left Nullable")
+        grid.add_column("Right Nullable")
+        for col in changed:
+            grid.add_row(
+                col["name"],
+                col["left_type"],
+                col["right_type"],
+                "YES" if col["left_nullable"] else "NO",
+                "YES" if col["right_nullable"] else "NO",
+            )
+        console.print(grid)
+
+    console.print(f"\n  {unchanged} unchanged column(s)")
+
+
 def print_joins(
     result: dict,
     console: Console | None = None,

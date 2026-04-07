@@ -69,6 +69,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0/1) |
 | `quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness) |
 | `joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
+| `diff -c CONN -t A --target B` | Compare schemas between tables |
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
@@ -583,6 +584,39 @@ def _print_json() -> None:
                         ],
                     }
                 ],
+            },
+        },
+        {
+            "name": "diff",
+            "description": "Compare column schemas between two tables.",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {"flag": "-t, --table", "required": True, "help": "Left table."},
+                {"flag": "--target", "required": True, "help": "Right table."},
+                {
+                    "flag": "--target-connection",
+                    "required": False,
+                    "help": "Connection for right table (cross-connection diff).",
+                },
+            ],
+            "example": "qdo diff -c ./my.db -t users_v1 --target users_v2 -f json",
+            "output_shape": {
+                "left": "string",
+                "right": "string",
+                "added": [{"name": "string", "type": "string", "nullable": "boolean"}],
+                "removed": [{"name": "string", "type": "string", "nullable": "boolean"}],
+                "changed": [
+                    {
+                        "name": "string",
+                        "left_type": "string",
+                        "right_type": "string",
+                    }
+                ],
+                "unchanged_count": "integer",
             },
         },
         {

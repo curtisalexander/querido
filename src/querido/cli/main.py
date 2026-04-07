@@ -21,6 +21,7 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "catalog": ("querido.cli.catalog", "Show full database catalog."),
     "completion": ("querido.cli.completion", "Generate shell completion scripts."),
     "config": ("querido.cli.config", "Manage connections."),
+    "diff": ("querido.cli.diff", "Compare schemas between two tables."),
     "dist": ("querido.cli.dist", "Column distribution visualization."),
     "explore": ("querido.cli.explore", "Interactive data exploration (TUI)."),
     "inspect": ("querido.cli.inspect", "Inspect table structure."),

@@ -601,6 +601,54 @@ def format_frequencies_html(
     )
 
 
+def format_diff_html(
+    result: dict,
+) -> str:
+    """Render schema diff as a standalone HTML page."""
+    added = result["added"]
+    removed = result["removed"]
+    changed = result["changed"]
+
+    if not added and not removed and not changed:
+        return _html_page(
+            title=f"Diff: {result['left']} → {result['right']}",
+            subtitle="Schemas are identical.",
+            table_html="<p>No differences.</p>",
+        )
+
+    headers = ["Change", "Column", "Left Type", "Right Type",
+               "Left Nullable", "Right Nullable"]
+    rows: list[list] = [
+        *[
+            ["added", c["name"], "", c["type"],
+             "", "YES" if c["nullable"] else "NO"]
+            for c in added
+        ],
+        *[
+            ["removed", c["name"], c["type"], "",
+             "YES" if c["nullable"] else "NO", ""]
+            for c in removed
+        ],
+        *[
+            ["changed", c["name"], c["left_type"], c["right_type"],
+             "YES" if c["left_nullable"] else "NO",
+             "YES" if c["right_nullable"] else "NO"]
+            for c in changed
+        ],
+    ]
+
+    summary = (
+        f"{len(added)} added, {len(removed)} removed, "
+        f"{len(changed)} changed, {result['unchanged_count']} unchanged"
+    )
+    return _html_page(
+        title=f"Diff: {result['left']} → {result['right']}",
+        subtitle=summary,
+        table_html=_build_table(headers, rows),
+        footer_text="qdo diff",
+    )
+
+
 def format_joins_html(
     result: dict,
 ) -> str:
@@ -614,16 +662,17 @@ def format_joins_html(
         )
 
     headers = ["Target", "Source Col", "Target Col", "Match", "Confidence"]
-    rows = []
-    for cand in candidates:
-        for key in cand["join_keys"]:
-            rows.append([
-                cand["target_table"],
-                key["source_col"],
-                key["target_col"],
-                key["match_type"],
-                f"{key['confidence']:.0%}",
-            ])
+    rows = [
+        [
+            cand["target_table"],
+            key["source_col"],
+            key["target_col"],
+            key["match_type"],
+            f"{key['confidence']:.0%}",
+        ]
+        for cand in candidates
+        for key in cand["join_keys"]
+    ]
 
     return _html_page(
         title=f"Joins: {result['source']}",
