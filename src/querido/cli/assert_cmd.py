@@ -96,7 +96,7 @@ def assert_cmd(
 
         dispatch_output("assert_check", result)
 
-    if not result["passed"]:
+    if not result.get("passed", False):
         raise typer.Exit(code=1)
 
 

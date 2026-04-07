@@ -410,7 +410,7 @@ def _print_json() -> None:
                 {
                     "flag": "-m, --max",
                     "required": False,
-                    "help": "Max distinct values (default 1000). Truncates high-cardinality columns.",
+                    "help": "Max distinct values (default 1000).",
                 },
                 {
                     "flag": "-s, --sort",

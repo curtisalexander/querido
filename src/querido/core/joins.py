@@ -53,8 +53,8 @@ def discover_joins(
         target_names = [target]
     else:
         target_names = [
-            t["name"] for t in all_tables
-            if t["name"].lower() != table.lower()
+            t.get("name", "") for t in all_tables
+            if t.get("name", "").lower() != table.lower()
         ]
 
     candidates = []
@@ -63,7 +63,7 @@ def discover_joins(
         keys = _find_join_keys(table, source_cols, tgt, tgt_cols)
         if keys:
             # Sort by confidence descending
-            keys.sort(key=lambda k: -k["confidence"])
+            keys.sort(key=lambda k: -k.get("confidence", 0.0))
             candidates.append({
                 "target_table": tgt,
                 "join_keys": keys,
@@ -71,7 +71,7 @@ def discover_joins(
 
     # Sort candidates by best key confidence
     candidates.sort(
-        key=lambda c: -max(k["confidence"] for k in c["join_keys"])
+        key=lambda c: -max(k.get("confidence", 0.0) for k in c.get("join_keys", []))
     )
 
     return {"source": table, "candidates": candidates}
@@ -87,24 +87,24 @@ def _find_join_keys(
     keys: list[dict] = []
     seen: set[tuple[str, str]] = set()
 
-    tgt_by_name = {c["name"].lower(): c for c in tgt_cols}
+    tgt_by_name = {c.get("name", "").lower(): c for c in tgt_cols}
 
     for sc in src_cols:
-        sc_name = sc["name"].lower()
-        sc_type = _type_family(sc["type"])
+        sc_name = sc.get("name", "").lower()
+        sc_type = _type_family(sc.get("type", ""))
 
         # 1. Exact name match
         if sc_name in tgt_by_name:
             tc = tgt_by_name[sc_name]
-            tc_type = _type_family(tc["type"])
-            pair = (sc["name"], tc["name"])
+            tc_type = _type_family(tc.get("type", ""))
+            pair = (sc.get("name", ""), tc.get("name", ""))
             if pair not in seen:
                 seen.add(pair)
                 type_match = sc_type == tc_type
                 confidence = 0.9 if type_match else 0.5
                 keys.append({
-                    "source_col": sc["name"],
-                    "target_col": tc["name"],
+                    "source_col": sc.get("name", ""),
+                    "target_col": tc.get("name", ""),
                     "match_type": "exact_name",
                     "confidence": confidence,
                 })
@@ -113,16 +113,16 @@ def _find_join_keys(
         tgt_lower = tgt_table.lower().rstrip("s")  # naive singular
         convention_name = f"{tgt_lower}_id"
         if sc_name == convention_name and "id" in tgt_by_name:
-            tc = tgt_by_name["id"]
-            tc_type = _type_family(tc["type"])
-            pair = (sc["name"], tc["name"])
+            tc = tgt_by_name.get("id", {})
+            tc_type = _type_family(tc.get("type", ""))
+            pair = (sc.get("name", ""), tc.get("name", ""))
             if pair not in seen:
                 seen.add(pair)
                 type_match = sc_type == tc_type
                 confidence = 0.8 if type_match else 0.4
                 keys.append({
-                    "source_col": sc["name"],
-                    "target_col": tc["name"],
+                    "source_col": sc.get("name", ""),
+                    "target_col": tc.get("name", ""),
                     "match_type": "convention",
                     "confidence": confidence,
                 })
@@ -131,22 +131,22 @@ def _find_join_keys(
     src_lower = src_table.lower().rstrip("s")
     reverse_name = f"{src_lower}_id"
     for tc in tgt_cols:
-        if tc["name"].lower() == reverse_name:
+        if tc.get("name", "").lower() == reverse_name:
             # Find source "id" column
             src_id = next(
-                (c for c in src_cols if c["name"].lower() == "id"), None
+                (c for c in src_cols if c.get("name", "").lower() == "id"), None
             )
             if src_id:
-                pair = (src_id["name"], tc["name"])
+                pair = (src_id.get("name", ""), tc.get("name", ""))
                 if pair not in seen:
                     seen.add(pair)
                     type_match = (
-                        _type_family(src_id["type"]) == _type_family(tc["type"])
+                        _type_family(src_id.get("type", "")) == _type_family(tc.get("type", ""))
                     )
                     confidence = 0.8 if type_match else 0.4
                     keys.append({
-                        "source_col": src_id["name"],
-                        "target_col": tc["name"],
+                        "source_col": src_id.get("name", ""),
+                        "target_col": tc.get("name", ""),
                         "match_type": "convention",
                         "confidence": confidence,
                     })

@@ -40,7 +40,10 @@ def get_catalog(
 
     if tables_only:
         tables = [
-            {"name": t["name"], "type": t["type"], "row_count": None, "columns": None}
+            {
+                "name": t.get("name", ""), "type": t.get("type", ""),
+                "row_count": None, "columns": None,
+            }
             for t in raw_tables
         ]
         return {"tables": tables, "table_count": len(tables)}
@@ -78,7 +81,10 @@ def get_catalog_cached(
 
         if tables_only:
             tables = [
-                {"name": t["name"], "type": t["type"], "row_count": None, "columns": None}
+                {
+                    "name": t.get("name", ""), "type": t.get("type", ""),
+                    "row_count": None, "columns": None,
+                }
                 for t in cached_tables
             ]
             return {"tables": tables, "table_count": len(tables)}
@@ -86,22 +92,22 @@ def get_catalog_cached(
         # Build full catalog from cache (columns but no row counts)
         tables = []
         for t in cached_tables:
-            cached_cols = cache.get_cached_columns(connection_name, t["name"])
+            cached_cols = cache.get_cached_columns(connection_name, t.get("name", ""))
             columns = None
             if cached_cols is not None:
                 columns = [
                     {
-                        "name": c["column_name"],
-                        "type": c["column_type"],
-                        "nullable": bool(c["nullable"]),
+                        "name": c.get("column_name", ""),
+                        "type": c.get("column_type", ""),
+                        "nullable": bool(c.get("nullable", False)),
                         "comment": c.get("comment") or "",
                     }
                     for c in cached_cols
                 ]
             tables.append(
                 {
-                    "name": t["name"],
-                    "type": t["type"],
+                    "name": t.get("name", ""),
+                    "type": t.get("type", ""),
                     "row_count": None,  # cache doesn't store row counts
                     "columns": columns,
                 }
@@ -115,24 +121,24 @@ def _fetch_table_detail(connector: Connector, table_info: dict) -> dict:
     """Fetch columns and row count for a single table."""
     from querido.sql.renderer import render_template
 
-    name = table_info["name"]
+    name = table_info.get("name", "")
     columns = connector.get_columns(name)
 
     try:
         count_sql = render_template("count", connector.dialect, table=name)
-        row_count = connector.execute(count_sql)[0]["cnt"]
+        row_count = connector.execute(count_sql)[0].get("cnt", 0)
     except Exception:
         row_count = None
 
     return {
         "name": name,
-        "type": table_info["type"],
+        "type": table_info.get("type", ""),
         "row_count": row_count,
         "columns": [
             {
-                "name": c["name"],
-                "type": c["type"],
-                "nullable": c["nullable"],
+                "name": c.get("name", ""),
+                "type": c.get("type", ""),
+                "nullable": c.get("nullable", False),
                 "comment": c.get("comment") or "",
             }
             for c in columns

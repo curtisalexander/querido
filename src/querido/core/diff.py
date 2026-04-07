@@ -27,8 +27,8 @@ def schema_diff(
     *removed* = columns in left but not right.
     *changed* = same column name, different type or nullable.
     """
-    left_by_name = {c["name"].lower(): c for c in left_columns}
-    right_by_name = {c["name"].lower(): c for c in right_columns}
+    left_by_name = {c.get("name", "").lower(): c for c in left_columns}
+    right_by_name = {c.get("name", "").lower(): c for c in right_columns}
 
     left_names = set(left_by_name.keys())
     right_names = set(right_by_name.keys())
@@ -49,11 +49,11 @@ def schema_diff(
         rc = right_by_name[n]
         if _columns_differ(lc, rc):
             changed.append({
-                "name": lc["name"],
-                "left_type": lc["type"],
-                "right_type": rc["type"],
-                "left_nullable": lc["nullable"],
-                "right_nullable": rc["nullable"],
+                "name": lc.get("name", ""),
+                "left_type": lc.get("type", ""),
+                "right_type": rc.get("type", ""),
+                "left_nullable": lc.get("nullable", False),
+                "right_nullable": rc.get("nullable", False),
             })
         else:
             unchanged_count += 1
@@ -70,14 +70,14 @@ def schema_diff(
 
 def _col_summary(col: dict) -> dict:
     return {
-        "name": col["name"],
-        "type": col["type"],
-        "nullable": col["nullable"],
+        "name": col.get("name", ""),
+        "type": col.get("type", ""),
+        "nullable": col.get("nullable", False),
     }
 
 
 def _columns_differ(left: dict, right: dict) -> bool:
     return (
-        left["type"].lower() != right["type"].lower()
-        or left["nullable"] != right["nullable"]
+        left.get("type", "").lower() != right.get("type", "").lower()
+        or left.get("nullable", False) != right.get("nullable", False)
     )

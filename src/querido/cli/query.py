@@ -61,10 +61,10 @@ def query(
 
         dispatch_output(
             "query",
-            result["columns"],
-            result["rows"],
-            result["row_count"],
-            limited=result["limited"],
+            result.get("columns", []),
+            result.get("rows", []),
+            result.get("row_count", 0),
+            limited=result.get("limited", False),
             sql=query_sql,
         )
 

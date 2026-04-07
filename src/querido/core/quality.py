@@ -46,14 +46,14 @@ def get_quality(
 
     # Get row count
     count_sql = render_template("count", connector.dialect, table=table)
-    row_count = connector.execute(count_sql)[0]["cnt"]
+    row_count = connector.execute(count_sql)[0].get("cnt", 0)
 
     # Get column metadata
     all_columns = connector.get_columns(table)
 
     if columns:
         col_names_lower = {c.lower() for c in columns}
-        all_columns = [c for c in all_columns if c["name"].lower() in col_names_lower]
+        all_columns = [c for c in all_columns if c.get("name", "").lower() in col_names_lower]
 
     # Build per-column quality query
     col_results = _compute_column_quality(connector, table, all_columns, row_count)
@@ -81,8 +81,8 @@ def _compute_column_quality(
     if not columns or row_count == 0:
         return [
             {
-                "name": c["name"],
-                "type": c["type"],
+                "name": c.get("name", ""),
+                "type": c.get("type", ""),
                 "null_count": 0,
                 "null_pct": 0.0,
                 "distinct_count": 0,
@@ -101,22 +101,23 @@ def _compute_column_quality(
     # Build a single query that computes stats for all columns at once
     parts = []
     for col in columns:
-        qn = _q(col["name"])
-        parts.append(f'count(*) - count({qn}) as "{col["name"]}_nulls"')
-        parts.append(f'count(distinct {qn}) as "{col["name"]}_distinct"')
-        parts.append(f'min({qn}) as "{col["name"]}_min"')
-        parts.append(f'max({qn}) as "{col["name"]}_max"')
+        col_name = col.get("name", "")
+        qn = _q(col_name)
+        parts.append(f'count(*) - count({qn}) as "{col_name}_nulls"')
+        parts.append(f'count(distinct {qn}) as "{col_name}_distinct"')
+        parts.append(f'min({qn}) as "{col_name}_min"')
+        parts.append(f'max({qn}) as "{col_name}_max"')
 
     sql = f'select {", ".join(parts)} from "{table}"'
     stats_row = connector.execute(sql)[0]
 
     results = []
     for col in columns:
-        name = col["name"]
-        null_count = stats_row[f"{name}_nulls"]
-        distinct_count = stats_row[f"{name}_distinct"]
-        min_val = stats_row[f"{name}_min"]
-        max_val = stats_row[f"{name}_max"]
+        name = col.get("name", "")
+        null_count = stats_row.get(f"{name}_nulls", 0)
+        distinct_count = stats_row.get(f"{name}_distinct", 0)
+        min_val = stats_row.get(f"{name}_min")
+        max_val = stats_row.get(f"{name}_max")
 
         null_pct = round(100.0 * null_count / row_count, 2) if row_count else 0.0
         uniqueness_pct = (
@@ -127,7 +128,7 @@ def _compute_column_quality(
 
         results.append({
             "name": name,
-            "type": col["type"],
+            "type": col.get("type", ""),
             "null_count": null_count,
             "null_pct": null_pct,
             "distinct_count": distinct_count,
@@ -179,7 +180,7 @@ def _check_duplicate_rows(
     def _q(name: str) -> str:
         return '"' + name.replace('"', '""') + '"'
 
-    col_list = ", ".join(_q(c["name"]) for c in columns)
+    col_list = ", ".join(_q(c.get("name", "")) for c in columns)
 
     # Count groups that appear more than once
     sql = (
@@ -188,4 +189,4 @@ def _check_duplicate_rows(
         f'from "{table}" group by {col_list} having count(*) > 1) as _d'
     )
     result = connector.execute(sql)
-    return int(result[0]["duplicates"]) if result else 0
+    return int(result[0].get("duplicates", 0)) if result else 0

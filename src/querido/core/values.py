@@ -48,9 +48,9 @@ def get_distinct_values(
         f'from "{table}"'
     )
     stats = connector.execute(stats_sql)[0]
-    total_rows = stats["total_rows"]
-    null_count = stats["null_count"]
-    distinct_count = stats["distinct_count"]
+    total_rows = stats.get("total_rows", 0)
+    null_count = stats.get("null_count", 0)
+    distinct_count = stats.get("distinct_count", 0)
 
     # Decide whether to fetch all or top-N
     truncated = distinct_count > max_values
@@ -74,7 +74,7 @@ def get_distinct_values(
 
     # If user wants value sort but we fetched by frequency (truncated), re-sort
     if truncated and sort == "value":
-        rows.sort(key=lambda r: (r["value"] is None, str(r["value"])))
+        rows.sort(key=lambda r: (r.get("value") is None, str(r.get("value", ""))))
 
     return {
         "table": table,

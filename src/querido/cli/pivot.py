@@ -64,8 +64,8 @@ def pivot(
                 limit=limit,
             )
 
-        maybe_show_sql(result["sql"])
-        set_last_sql(result["sql"])
+        maybe_show_sql(result.get("sql", ""))
+        set_last_sql(result.get("sql", ""))
         dispatch_output("pivot", result)
 
 
