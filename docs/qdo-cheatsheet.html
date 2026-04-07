@@ -408,6 +408,75 @@
       </div>
     </section>
 
+    <!-- ── Query & Export ── -->
+    <section class="section theme-emerald">
+      <h2>Query &amp; Export</h2>
+      <div class="row"><span class="k">qdo query -c CONN --sql "SQL"</span><span class="d">Run ad-hoc SQL</span></div>
+      <div class="row"><span class="k">qdo query ... --file q.sql</span><span class="d">SQL from file</span></div>
+      <div class="row"><span class="k">echo "SQL" | qdo query -c CONN</span><span class="d">SQL from stdin</span></div>
+      <div class="row"><span class="k">qdo query ... --limit 100</span><span class="d">Limit rows (default 1000)</span></div>
+      <div class="row"><span class="k">qdo export -c CONN -t TABLE -o f.csv</span><span class="d">Export to CSV</span></div>
+      <div class="row"><span class="k">qdo export ... -e tsv</span><span class="d">Export to TSV</span></div>
+      <div class="row"><span class="k">qdo export ... --clipboard</span><span class="d">Copy TSV to clipboard (Excel)</span></div>
+      <div class="row"><span class="k">qdo explain -c CONN --sql "SQL"</span><span class="d">Query plan (EXPLAIN)</span></div>
+      <div class="row"><span class="k">qdo explain ... --analyze</span><span class="d">EXPLAIN ANALYZE (DuckDB)</span></div>
+      <div class="tip"><strong>Export formats:</strong> csv, tsv, json, jsonl. Use <span class="cmd">--clipboard</span> for direct paste into Excel/Sheets.</div>
+    </section>
+
+    <!-- ── Data Quality & Analysis ── -->
+    <section class="section theme-amber">
+      <h2>Quality &amp; Analysis</h2>
+      <div class="row"><span class="k">qdo catalog -c CONN</span><span class="d">Full schema (all tables + columns)</span></div>
+      <div class="row"><span class="k">qdo catalog ... --tables-only</span><span class="d">Just table names</span></div>
+      <div class="row"><span class="k">qdo values -c CONN -t T -C COL</span><span class="d">All distinct values</span></div>
+      <div class="row"><span class="k">qdo values ... --max 50</span><span class="d">Limit distinct values</span></div>
+      <div class="row"><span class="k">qdo pivot -c CONN -t T -g COL -a "sum(c)"</span><span class="d">GROUP BY aggregation</span></div>
+      <div class="row"><span class="k">qdo quality -c CONN -t TABLE</span><span class="d">Null/uniqueness per column</span></div>
+      <div class="row"><span class="k">qdo quality ... --check-duplicates</span><span class="d">+ duplicate row check</span></div>
+      <div class="row"><span class="k">qdo assert -c CONN --sql "SQL" --expect 0</span><span class="d">Assert result (exit 0/1)</span></div>
+      <div class="row"><span class="k">qdo joins -c CONN -t TABLE</span><span class="d">Discover join keys</span></div>
+      <div class="row"><span class="k">qdo diff -c CONN -t A --target B</span><span class="d">Compare schemas</span></div>
+      <div class="tip"><strong>Assert operators:</strong> <span class="cmd">--expect</span> (==), <span class="cmd">--expect-gt</span>, <span class="cmd">--expect-lt</span>, <span class="cmd">--expect-gte</span>, <span class="cmd">--expect-lte</span>. Exit 0=pass, 1=fail.</div>
+    </section>
+
+    <!-- ── Metadata Workflow ── -->
+    <section class="section theme-rose">
+      <h2>Metadata Workflow</h2>
+      <div class="row"><span class="k">qdo metadata init -c CONN -t TABLE</span><span class="d">Generate YAML template</span></div>
+      <div class="row"><span class="k">qdo metadata show -c CONN -t TABLE</span><span class="d">Read stored metadata</span></div>
+      <div class="row"><span class="k">qdo metadata list -c CONN</span><span class="d">List files + completeness</span></div>
+      <div class="row"><span class="k">qdo metadata edit -c CONN -t TABLE</span><span class="d">Open in $EDITOR</span></div>
+      <div class="row"><span class="k">qdo metadata refresh -c CONN -t TABLE</span><span class="d">Update stats, keep descriptions</span></div>
+      <div class="tip"><strong>Storage:</strong> <span class="cmd">.qdo/metadata/&lt;conn&gt;/&lt;table&gt;.yaml</span> &mdash; version-controlled with your project. Fill in descriptions, owner, PII flags, valid values.</div>
+    </section>
+
+    <!-- ── Agent Setup ── -->
+    <section class="section wide theme-indigo">
+      <h2>Setting Up a Coding Agent</h2>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;">
+        <div>
+          <div class="sub-heading">1. Enable JSON mode</div>
+          <div class="row"><span class="k">export QDO_FORMAT=json</span><span class="d">All commands return JSON</span></div>
+          <div class="sub-heading" style="margin-top:8px">2. Get full context</div>
+          <div class="row"><span class="k">qdo catalog -c mydb</span><span class="d">Full schema</span></div>
+          <div class="row"><span class="k">qdo metadata show -c mydb -t T</span><span class="d">Business context</span></div>
+          <div class="sub-heading" style="margin-top:8px">3. Query &amp; validate</div>
+          <div class="row"><span class="k">qdo query -c mydb --sql "..."</span><span class="d">Run queries</span></div>
+          <div class="row"><span class="k">qdo assert -c mydb --sql "..." --expect N</span><span class="d">Verify results</span></div>
+        </div>
+        <div>
+          <div class="sub-heading">Recommended agent workflow</div>
+          <div class="row"><span class="k">1.</span><span class="d"><span class="cmd">qdo catalog</span> &rarr; understand schema</span></div>
+          <div class="row"><span class="k">2.</span><span class="d"><span class="cmd">qdo metadata show</span> &rarr; business context</span></div>
+          <div class="row"><span class="k">3.</span><span class="d"><span class="cmd">qdo values</span> &rarr; valid filter values</span></div>
+          <div class="row"><span class="k">4.</span><span class="d"><span class="cmd">qdo joins</span> &rarr; discover relationships</span></div>
+          <div class="row"><span class="k">5.</span><span class="d"><span class="cmd">qdo query</span> &rarr; answer the question</span></div>
+          <div class="row"><span class="k">6.</span><span class="d"><span class="cmd">qdo assert</span> &rarr; validate assumptions</span></div>
+          <div class="tip"><strong>Priority:</strong> explicit <span class="cmd">--format</span> &gt; <span class="cmd">QDO_FORMAT</span> env &gt; rich. Errors return structured JSON when format is json.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Snowflake-Specific ── -->
     <section class="section theme-sky">
       <h2>Snowflake-Specific</h2>

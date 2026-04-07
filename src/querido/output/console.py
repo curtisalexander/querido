@@ -382,6 +382,89 @@ def print_snowflake_lineage(
     console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")
 
 
+def print_metadata(
+    meta: dict,
+    console: Console | None = None,
+) -> None:
+    """Print stored metadata as Rich output."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    table_name = meta.get("table", "")
+    console.print(f"\n  [bold cyan]{table_name}[/bold cyan]")
+
+    desc = meta.get("table_description", "")
+    if desc and not str(desc).startswith("<"):
+        console.print(f"  {desc}")
+    owner = meta.get("data_owner", "")
+    if owner and not str(owner).startswith("<"):
+        console.print(f"  Owner: {owner}")
+    freq = meta.get("update_frequency", "")
+    if freq and not str(freq).startswith("<"):
+        console.print(f"  Update frequency: {freq}")
+    notes = meta.get("notes", "")
+    if notes and str(notes).strip():
+        console.print(f"  Notes: {notes.strip()}")
+
+    console.print(f"  Row count: [bold]{meta.get('row_count', 0):,}[/bold]")
+
+    columns = meta.get("columns", [])
+    if columns:
+        grid = Table(title="Columns", show_lines=True)
+        grid.add_column("Name", style="cyan bold")
+        grid.add_column("Type", style="green")
+        grid.add_column("Description", style="dim")
+        grid.add_column("Nulls", justify="right")
+        grid.add_column("Distinct", justify="right")
+
+        for col in columns:
+            desc_val = col.get("description", "")
+            if str(desc_val).startswith("<"):
+                desc_val = ""
+            grid.add_row(
+                col.get("name", ""),
+                col.get("type", ""),
+                desc_val,
+                str(col.get("null_count", "")),
+                str(col.get("distinct_count", "")),
+            )
+        console.print(grid)
+
+
+def print_metadata_list(
+    connection: str,
+    entries: list[dict],
+    console: Console | None = None,
+) -> None:
+    """Print metadata file listing."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    if not entries:
+        console.print(f"[dim]No metadata stored for {connection}.[/dim]")
+        return
+
+    grid = Table(title=f"Metadata: {connection}")
+    grid.add_column("Table", style="cyan")
+    grid.add_column("Completeness", justify="right")
+    grid.add_column("Path", style="dim")
+
+    for entry in entries:
+        grid.add_row(
+            entry.get("table", ""),
+            f"{entry.get('completeness', 0):.0f}%",
+            entry.get("path", ""),
+        )
+
+    console.print(grid)
+
+
 def print_explain(
     result: dict,
     console: Console | None = None,

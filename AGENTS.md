@@ -236,6 +236,70 @@ All commands support `--format json` (or `-f json`). JSON output goes to stdout;
     ```
     Returns column metadata with sample values — useful as context for LLM prompts.
 
+### Metadata workflow — enriched context for intelligent queries
+
+The metadata system lets you create, store, and read back enriched table
+documentation. This gives an agent business context (descriptions, owners,
+PII flags, valid values) beyond what the raw schema provides.
+
+**Setup (one-time per table):**
+```bash
+# 1. Generate a metadata template with auto-populated stats
+qdo metadata init -c mydb -t orders
+
+# 2. The analyst fills in human fields in the YAML file:
+#    .qdo/metadata/mydb/orders.yaml
+#    - table_description, data_owner, update_frequency, notes
+#    - per-column: description, pii flag, valid_values
+
+# 3. Optionally open in editor:
+qdo metadata edit -c mydb -t orders
+```
+
+**Agent reads context before writing queries:**
+```bash
+# Get enriched metadata (schema + business context) as JSON
+qdo metadata show -c mydb -t orders -f json
+
+# List all tables with metadata and completeness scores
+qdo metadata list -c mydb -f json
+```
+
+**Keep metadata fresh as schema evolves:**
+```bash
+# Re-run inspect/profile, update row counts and types
+# Human-written fields (descriptions, owner, notes) are preserved
+qdo metadata refresh -c mydb -t orders
+```
+
+**Storage:** Metadata lives in `.qdo/metadata/<connection>/<table>.yaml`
+in the project directory. This is version-controlled with the repo, so
+metadata travels with the codebase. Override the location with the
+`QDO_METADATA_DIR` environment variable.
+
+**YAML structure:**
+```yaml
+table: orders
+connection: mydb
+row_count: 50000
+table_description: "Sales orders — one row per transaction"
+data_owner: "Revenue team (revenue@company.com)"
+update_frequency: "Hourly via CDC"
+notes: |
+  PII: customer_email
+  Soft-deleted rows have status='cancelled'
+columns:
+  - name: id
+    type: INTEGER
+    description: "Auto-increment order ID"
+    distinct_count: 50000
+    null_count: 0
+  - name: status
+    type: TEXT
+    description: "Order lifecycle status"
+    valid_values: ["pending", "shipped", "cancelled"]
+```
+
 ### Error handling
 
 When `--format json` is active, errors are emitted as structured JSON to stderr:

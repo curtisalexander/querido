@@ -72,6 +72,10 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `diff -c CONN -t A --target B` | Compare schemas between tables |
 | `explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
 | `export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |
+| `metadata init -c CONN -t TABLE` | Generate metadata YAML template |
+| `metadata show -c CONN -t TABLE` | Show stored metadata |
+| `metadata list -c CONN` | List metadata files for a connection |
+| `metadata refresh -c CONN -t TABLE` | Refresh machine fields |
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
@@ -672,6 +676,46 @@ def _print_json() -> None:
                 {"flag": "--columns", "required": False, "help": "Columns to export."},
             ],
             "example": "qdo export -c ./my.db -t users -o users.csv",
+        },
+        {
+            "name": "metadata",
+            "description": "Manage enriched table metadata (init, show, list, refresh).",
+            "subcommands": ["init", "show", "list", "edit", "refresh"],
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {
+                    "flag": "-t, --table",
+                    "required": True,
+                    "help": "Table name (init/show/refresh).",
+                },
+                {"flag": "--force", "required": False, "help": "Overwrite existing (init)."},
+            ],
+            "example": "qdo metadata init -c mydb -t users",
+            "output_shape": {
+                "table": "string",
+                "connection": "string",
+                "row_count": "integer",
+                "table_description": "string",
+                "data_owner": "string",
+                "columns": [
+                    {
+                        "name": "string",
+                        "type": "string",
+                        "description": "string",
+                        "distinct_count": "integer",
+                    }
+                ],
+            },
+            "workflow": [
+                "qdo metadata init -c mydb -t users  # generate YAML template",
+                "# edit .qdo/metadata/mydb/users.yaml — fill in descriptions",
+                "qdo metadata show -c mydb -t users -f json  # agent reads context",
+                "qdo metadata refresh -c mydb -t users  # update stats, keep descriptions",
+            ],
         },
         {
             "name": "sql",

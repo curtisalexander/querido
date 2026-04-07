@@ -672,6 +672,93 @@ def format_frequencies(
     return "\n".join(lines)
 
 
+# -- metadata -----------------------------------------------------------------
+
+
+def format_metadata(
+    meta: dict,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        return json.dumps(meta, indent=2, default=str)
+
+    if fmt == "csv":
+        columns = meta.get("columns", [])
+        if not columns:
+            return ""
+        flat = [
+            {
+                "name": c.get("name", ""),
+                "type": c.get("type", ""),
+                "description": c.get("description", ""),
+                "nullable": c.get("nullable", False),
+                "null_count": c.get("null_count", ""),
+                "distinct_count": c.get("distinct_count", ""),
+            }
+            for c in columns
+        ]
+        return dicts_to_csv(flat)
+
+    # markdown
+    lines = [f"## {meta.get('table', '')}"]
+    desc = meta.get("table_description", "")
+    if desc and not str(desc).startswith("<"):
+        lines.append(f"\n{desc}")
+    lines.append(f"\nRow count: {meta.get('row_count', 0):,}")
+    lines.append("")
+    columns = meta.get("columns", [])
+    if columns:
+        headers = ["Name", "Type", "Description", "Nulls", "Distinct"]
+        rows = [
+            [
+                c.get("name", ""),
+                c.get("type", ""),
+                c.get("description", ""),
+                str(c.get("null_count", "")),
+                str(c.get("distinct_count", "")),
+            ]
+            for c in columns
+        ]
+        lines.append(to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
+def format_metadata_list(
+    connection: str,
+    entries: list[dict],
+    fmt: str,
+) -> str:
+    if not entries:
+        if fmt == "csv":
+            return ""
+        if fmt == "json":
+            return json.dumps({"connection": connection, "tables": []})
+        return f"No metadata stored for {connection}."
+
+    if fmt == "json":
+        return json.dumps(
+            {"connection": connection, "tables": entries},
+            indent=2, default=str,
+        )
+
+    if fmt == "csv":
+        return dicts_to_csv(entries)
+
+    # markdown
+    lines = [f"## Metadata: {connection}", ""]
+    headers = ["Table", "Completeness", "Path"]
+    rows = [
+        [
+            e.get("table", ""),
+            f"{e.get('completeness', 0):.0f}%",
+            e.get("path", ""),
+        ]
+        for e in entries
+    ]
+    lines.append(to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
 # -- explain ------------------------------------------------------------------
 
 

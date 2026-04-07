@@ -601,6 +601,61 @@ def format_frequencies_html(
     )
 
 
+def format_metadata_html(
+    meta: dict,
+) -> str:
+    """Render stored metadata as a standalone HTML page."""
+    columns = meta.get("columns", [])
+    headers = ["Name", "Type", "Description", "Nulls", "Distinct"]
+    rows = [
+        [
+            c.get("name", ""),
+            c.get("type", ""),
+            c.get("description", ""),
+            str(c.get("null_count", "")),
+            str(c.get("distinct_count", "")),
+        ]
+        for c in columns
+    ]
+
+    return _html_page(
+        title=f"Metadata: {meta.get('table', '')}",
+        subtitle=f"Row count: {meta.get('row_count', 0):,}",
+        table_html=_build_table(headers, rows) if rows else "<p>No columns.</p>",
+        footer_text=f"qdo metadata show — {meta.get('table', '')}",
+    )
+
+
+def format_metadata_list_html(
+    connection: str,
+    entries: list[dict],
+) -> str:
+    """Render metadata listing as a standalone HTML page."""
+    if not entries:
+        return _html_page(
+            title=f"Metadata: {connection}",
+            subtitle="No metadata stored.",
+            table_html="<p>No data.</p>",
+        )
+
+    headers = ["Table", "Completeness", "Path"]
+    rows = [
+        [
+            e.get("table", ""),
+            f"{e.get('completeness', 0):.0f}%",
+            e.get("path", ""),
+        ]
+        for e in entries
+    ]
+
+    return _html_page(
+        title=f"Metadata: {connection}",
+        subtitle=f"{len(entries)} table(s)",
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo metadata list — {connection}",
+    )
+
+
 def format_explain_html(
     result: dict,
 ) -> str:
