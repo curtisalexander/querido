@@ -17,6 +17,7 @@ from typer.core import TyperGroup
 _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     #  name  → (module_path, help_text)
     "cache": ("querido.cli.cache", "Manage local metadata cache."),
+    "catalog": ("querido.cli.catalog", "Show full database catalog."),
     "completion": ("querido.cli.completion", "Generate shell completion scripts."),
     "config": ("querido.cli.config", "Manage connections."),
     "dist": ("querido.cli.dist", "Column distribution visualization."),
@@ -24,13 +25,16 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "inspect": ("querido.cli.inspect", "Inspect table structure."),
     "lineage": ("querido.cli.lineage", "View definition and simple lineage."),
     "overview": ("querido.cli.overview", "Print CLI overview (markdown)."),
+    "pivot": ("querido.cli.pivot", "Pivot / aggregate table data."),
     "preview": ("querido.cli.preview", "Preview rows from a table."),
     "profile": ("querido.cli.profile", "Profile table data."),
+    "query": ("querido.cli.query", "Execute ad-hoc SQL queries."),
     "search": ("querido.cli.search", "Search table and column metadata."),
     "serve": ("querido.cli.serve", "Serve interactive web UI."),
     "snowflake": ("querido.cli.snowflake", "Snowflake-specific commands."),
     "sql": ("querido.cli.sql", "Generate SQL statements for a table."),
     "template": ("querido.cli.template", "Generate documentation templates for tables."),
+    "values": ("querido.cli.values", "Show distinct values for a column."),
 }
 
 

@@ -62,6 +62,10 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `search -c CONN -p PATTERN` | Search tables/columns by name |
 | `lineage -c CONN -v VIEW` | View SQL definition |
 | `template -c CONN -t TABLE` | Documentation template |
+| `query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL |
+| `catalog -c CONN [--tables-only]` | Full database catalog |
+| `values -c CONN -t TABLE -C COLUMN` | Distinct values for a column |
+| `pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
@@ -302,6 +306,163 @@ def _print_json() -> None:
             ],
             "example": "qdo lineage -c ./my.db -v my_view",
             "output_shape": {"view": "string", "dialect": "string", "definition": "string"},
+        },
+        {
+            "name": "query",
+            "description": "Execute ad-hoc SQL and display results.",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {
+                    "flag": "-s, --sql",
+                    "required": False,
+                    "help": "SQL query string (alternative: --file or stdin).",
+                },
+                {
+                    "flag": "-F, --file",
+                    "required": False,
+                    "help": "Path to a .sql file to execute.",
+                },
+                {
+                    "flag": "-l, --limit",
+                    "required": False,
+                    "help": "Max rows to return (default 1000, 0 = no limit).",
+                },
+            ],
+            "example": 'qdo query -c ./my.db --sql "select * from users"',
+            "output_shape": {
+                "columns": ["string"],
+                "row_count": "integer",
+                "limited": "boolean",
+                "rows": [{"column_name": "value"}],
+            },
+        },
+        {
+            "name": "catalog",
+            "description": "Show full database catalog — all tables, columns, row counts.",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {
+                    "flag": "--tables-only",
+                    "required": False,
+                    "help": "List tables only (skip columns and row counts).",
+                },
+                {
+                    "flag": "--live",
+                    "required": False,
+                    "help": "Bypass cache and query the database directly.",
+                },
+            ],
+            "example": "qdo catalog -c ./my.db -f json",
+            "output_shape": {
+                "table_count": "integer",
+                "tables": [
+                    {
+                        "name": "string",
+                        "type": "table|view",
+                        "row_count": "integer|null",
+                        "columns": [
+                            {
+                                "name": "string",
+                                "type": "string",
+                                "nullable": "boolean",
+                                "comment": "string",
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        {
+            "name": "values",
+            "description": "Show all distinct values for a column (with counts).",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {"flag": "-t, --table", "required": True, "help": "Table name."},
+                {"flag": "-C, --column", "required": True, "help": "Column to enumerate."},
+                {
+                    "flag": "-m, --max",
+                    "required": False,
+                    "help": "Max distinct values (default 1000). Truncates high-cardinality columns.",
+                },
+                {
+                    "flag": "-s, --sort",
+                    "required": False,
+                    "help": "Sort: value (alphabetical) or frequency (count desc).",
+                },
+            ],
+            "example": "qdo values -c ./my.db -t users -C status -f json",
+            "output_shape": {
+                "table": "string",
+                "column": "string",
+                "distinct_count": "integer",
+                "total_rows": "integer",
+                "null_count": "integer",
+                "truncated": "boolean",
+                "values": [{"value": "any", "count": "integer"}],
+            },
+        },
+        {
+            "name": "pivot",
+            "description": "Aggregate data with GROUP BY.",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {
+                    "flag": "-t, --table",
+                    "required": True,
+                    "help": "Table name.",
+                },
+                {
+                    "flag": "-g, --group-by",
+                    "required": True,
+                    "help": "Comma-separated columns to group by.",
+                },
+                {
+                    "flag": "-a, --agg",
+                    "required": True,
+                    "help": "Aggregation expressions, e.g. sum(amount).",
+                },
+                {
+                    "flag": "-w, --filter",
+                    "required": False,
+                    "help": "SQL WHERE clause expression.",
+                },
+                {
+                    "flag": "-o, --order-by",
+                    "required": False,
+                    "help": "SQL ORDER BY (default: group-by columns).",
+                },
+                {
+                    "flag": "-l, --limit",
+                    "required": False,
+                    "help": "Maximum result rows.",
+                },
+            ],
+            "example": (
+                'qdo pivot -c ./my.db -t orders -g region'
+                ' -a "sum(amount)" -f json'
+            ),
+            "output_shape": {
+                "headers": ["string"],
+                "rows": [{"column_name": "value"}],
+                "row_count": "integer",
+                "sql": "string",
+            },
         },
         {
             "name": "sql",

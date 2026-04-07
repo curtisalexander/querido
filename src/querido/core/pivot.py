@@ -13,6 +13,10 @@ def build_pivot_query(
     rows: list[str],
     values: list[str],
     agg: str,
+    *,
+    filter_expr: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
 ) -> str:
     """Generate a GROUP BY SQL query for pivot summarization.
 
@@ -26,6 +30,12 @@ def build_pivot_query(
         Columns to aggregate (already validated).
     agg : str
         Aggregation function (COUNT, SUM, AVG, MIN, MAX).
+    filter_expr : str, optional
+        SQL WHERE clause expression (passed through, not validated).
+    order_by : str, optional
+        SQL ORDER BY expression. Defaults to group-by columns.
+    limit : int, optional
+        Maximum number of result rows.
 
     Returns
     -------
@@ -51,10 +61,19 @@ def build_pivot_query(
 
     group_cols = ", ".join(_q(r) for r in rows)
     agg_exprs = ", ".join(f'{agg}({_q(v)}) AS "{agg.lower()}_{v}"' for v in values)
-    return (
-        f"select {group_cols}, {agg_exprs} from {_q(table)}"
-        f" group by {group_cols} order by {group_cols}"
-    )
+
+    parts = [f"select {group_cols}, {agg_exprs} from {_q(table)}"]
+
+    if filter_expr:
+        parts.append(f"where {filter_expr}")
+
+    parts.append(f"group by {group_cols}")
+    parts.append(f"order by {order_by}" if order_by else f"order by {group_cols}")
+
+    if limit is not None and limit > 0:
+        parts.append(f"limit {limit}")
+
+    return " ".join(parts)
 
 
 def get_pivot(
@@ -64,6 +83,9 @@ def get_pivot(
     rows: list[str],
     values: list[str],
     agg: str,
+    filter_expr: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
 ) -> dict:
     """Execute a pivot query and return results.
 
@@ -72,14 +94,19 @@ def get_pivot(
         {
             "headers": list[str],
             "rows": list[dict],
+            "row_count": int,
             "sql": str,
         }
     """
-    sql = build_pivot_query(table, rows, values, agg)
+    sql = build_pivot_query(
+        table, rows, values, agg,
+        filter_expr=filter_expr, order_by=order_by, limit=limit,
+    )
     data = connector.execute(sql)
     headers = list(data[0].keys()) if data else rows + [f"{agg.lower()}_{v}" for v in values]
     return {
         "headers": headers,
         "rows": data,
+        "row_count": len(data),
         "sql": sql,
     }

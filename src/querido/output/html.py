@@ -599,3 +599,115 @@ def format_frequencies_html(
         table_html=_build_table(headers, rows) if rows else "<p>No frequency data.</p>",
         footer_text=f"qdo profile --top — {table_name}",
     )
+
+
+def format_pivot_html(
+    result: dict,
+) -> str:
+    """Render pivot results as a standalone HTML page."""
+    rows = result["rows"]
+    if not rows:
+        return _html_page(
+            title="Pivot Results",
+            subtitle="No rows returned.",
+            table_html="<p>No data.</p>",
+        )
+
+    headers = result["headers"]
+    table_rows = [[row.get(h) for h in headers] for row in rows]
+
+    return _html_page(
+        title="Pivot Results",
+        subtitle=f"{result['row_count']} group(s)",
+        table_html=_build_table(headers, table_rows),
+        footer_text=f"qdo pivot — {result['row_count']} groups",
+    )
+
+
+def format_values_html(
+    result: dict,
+) -> str:
+    """Render distinct values as a standalone HTML page."""
+    values = result["values"]
+    col = result["column"]
+    tbl = result["table"]
+    truncated = result["truncated"]
+
+    if not values:
+        return _html_page(
+            title=f"Values: {tbl}.{col}",
+            subtitle="No values found.",
+            table_html="<p>No data.</p>",
+        )
+
+    subtitle = f"{result['distinct_count']:,} distinct values, {result['null_count']:,} nulls"
+    if truncated:
+        subtitle += f" (showing top {len(values)})"
+
+    headers = ["Value", "Count"]
+    rows = [
+        [str(v["value"]) if v["value"] is not None else "(NULL)", f"{v['count']:,}"]
+        for v in values
+    ]
+
+    return _html_page(
+        title=f"Values: {tbl}.{col}",
+        subtitle=subtitle,
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo values — {tbl}.{col}",
+    )
+
+
+def format_catalog_html(
+    catalog: dict,
+) -> str:
+    """Render database catalog as a standalone HTML page."""
+    tables = catalog["tables"]
+    if not tables:
+        return _html_page(
+            title="Catalog",
+            subtitle="No tables found.",
+            table_html="<p>No data.</p>",
+        )
+
+    headers = ["Table", "Type", "Columns", "Rows"]
+    rows = []
+    for t in tables:
+        col_count = str(len(t["columns"])) if t["columns"] is not None else "-"
+        row_count = f"{t['row_count']:,}" if t["row_count"] is not None else "-"
+        rows.append([t["name"], t["type"], col_count, row_count])
+
+    return _html_page(
+        title="Catalog",
+        subtitle=f"{catalog['table_count']} tables",
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo catalog — {catalog['table_count']} tables",
+    )
+
+
+def format_query_html(
+    columns: list[str],
+    rows: list[dict],
+    row_count: int,
+    *,
+    limited: bool = False,
+    sql: str = "",
+) -> str:
+    """Render ad-hoc query results as a standalone HTML page."""
+    if not rows:
+        return _html_page(
+            title="Query Results",
+            subtitle="Query returned no rows.",
+            table_html="<p>No data.</p>",
+        )
+
+    headers = list(rows[0].keys())
+    table_rows = [[row.get(h) for h in headers] for row in rows]
+    suffix = " (limit reached)" if limited else ""
+
+    return _html_page(
+        title="Query Results",
+        subtitle=f"{row_count} row(s) returned{suffix}",
+        table_html=_build_table(headers, table_rows),
+        footer_text=f"qdo query — {row_count} rows",
+    )

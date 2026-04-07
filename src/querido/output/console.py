@@ -382,6 +382,133 @@ def print_snowflake_lineage(
     console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")
 
 
+def print_pivot(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print pivot / aggregation results as a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    rows = result["rows"]
+    if not rows:
+        console.print("[dim]Pivot returned no rows.[/dim]")
+        return
+
+    grid = Table(title="Pivot Results")
+    for header in result["headers"]:
+        grid.add_column(header, style="cyan")
+
+    for row in rows:
+        grid.add_row(*(str(v) if v is not None else "" for v in row.values()))
+
+    console.print(grid)
+    console.print(f"\n  [bold]{result['row_count']}[/bold] group(s)")
+
+
+def print_values(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print distinct values as a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    values = result["values"]
+    col = result["column"]
+    tbl = result["table"]
+    truncated = result["truncated"]
+
+    title = f"Values: {tbl}.{col}"
+    if truncated:
+        title += f" (top {len(values)} of {result['distinct_count']:,})"
+
+    grid = Table(title=title)
+    grid.add_column("Value", style="cyan")
+    grid.add_column("Count", justify="right")
+
+    for row in values:
+        val = str(row["value"]) if row["value"] is not None else "(NULL)"
+        grid.add_row(val, f"{row['count']:,}")
+
+    console.print(grid)
+
+    parts = [f"  [bold]{result['distinct_count']:,}[/bold] distinct values"]
+    if result["null_count"] > 0:
+        parts.append(f"[dim]{result['null_count']:,} nulls[/dim]")
+    if truncated:
+        parts.append("[yellow]truncated[/yellow]")
+    console.print("\n" + "  |  ".join(parts))
+
+
+def print_catalog(
+    catalog: dict,
+    console: Console | None = None,
+) -> None:
+    """Print the database catalog as a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    tables = catalog["tables"]
+    if not tables:
+        console.print("[dim]No tables found.[/dim]")
+        return
+
+    grid = Table(title=f"Catalog ({catalog['table_count']} tables)")
+    grid.add_column("Table", style="cyan bold")
+    grid.add_column("Type", style="green")
+    grid.add_column("Columns", justify="right")
+    grid.add_column("Rows", justify="right")
+
+    for t in tables:
+        col_count = str(len(t["columns"])) if t["columns"] is not None else "-"
+        row_count = f"{t['row_count']:,}" if t["row_count"] is not None else "-"
+        grid.add_row(t["name"], t["type"], col_count, row_count)
+
+    console.print(grid)
+
+
+def print_query(
+    columns: list[str],
+    rows: list[dict],
+    row_count: int,
+    *,
+    limited: bool = False,
+    sql: str = "",
+    console: Console | None = None,
+) -> None:
+    """Print ad-hoc query results as a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    if not rows:
+        console.print("[dim]Query returned no rows.[/dim]")
+        return
+
+    grid = Table(title="Query Results")
+    for col in columns:
+        grid.add_column(col, style="cyan")
+
+    for row in rows:
+        grid.add_row(*(str(v) if v is not None else "" for v in row.values()))
+
+    console.print(grid)
+    suffix = " (limit reached)" if limited else ""
+    console.print(f"\n  [bold]{row_count}[/bold] row(s) returned{suffix}")
+
+
 def print_frequencies(
     table_name: str,
     freq_data: dict[str, list[dict]],

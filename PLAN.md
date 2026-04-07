@@ -526,6 +526,367 @@ Use an open-weight local LLM to generate SQL from natural language, informed by 
 
 ---
 
+## Phase 9: Agent-Ready Data Interface
+
+**Goal**: Transform qdo from a set of canned reports into a general-purpose data interface that a coding agent can use to explore, query, and validate data on behalf of a data analyst. Every new command returns structured output (JSON/CSV/markdown) suitable for agent consumption, and follows the existing `table_command` → `core/` → `dispatch_output` pattern.
+
+### F17: Ad-hoc SQL execution (`qdo query`) ✨ **Highest priority**
+
+**Ease: Easy** — Connectors already have `execute()`, output layer already handles `list[dict]`. This is mostly wiring.
+
+**Why**: Without this, the agent is limited to canned commands. With it, the agent can ask any question about the data.
+
+- [ ] `src/querido/cli/query.py` — `qdo query --connection <name> --sql "select ..." [--format json]`
+- [ ] `src/querido/core/query.py` — `run_query(connector, sql) → dict` returning `{"columns": [...], "rows": [...], "row_count": int}`
+- [ ] Three SQL input modes:
+  - `--sql "select ..."` — inline SQL string
+  - `--file query.sql` — read SQL from a file
+  - stdin — `echo "select ..." | qdo query -c mydb` (detect with `sys.stdin.isatty()`)
+  - Priority: `--sql` > `--file` > stdin; error if none provided and stdin is a tty
+- [ ] **No table name validation** — the user provides arbitrary SQL, so we skip `validate_table_name()` but still use parameterized execution where possible
+- [ ] `--limit N` flag (default: 1000) — append `LIMIT N` as a safety net (agent can override with `--limit 0` for no limit)
+- [ ] Use `run_cancellable()` from `core/runner.py` for cancellation support
+- [ ] Spinner via `query_status` on stderr
+- [ ] `--show-sql` works as expected (echoes the SQL to stderr)
+- [ ] All output formats: rich, markdown, json, csv, html
+- [ ] `output/console.py:print_query()` — Rich table with dynamic columns from result set
+- [ ] `output/formats.py:format_query()` — JSON/CSV/markdown formatters
+- [ ] `output/html.py:format_query_html()` — HTML with interactive table
+- [ ] Register in `cli/main.py`
+- [ ] Tests: inline SQL, file input, stdin input, limit flag, empty result set, SQL error handling, all output formats
+
+**Design note**: This command intentionally does NOT validate or parse the SQL. The connector's `execute()` handles errors, and we surface them via `friendly_errors`. The `--limit` safety net is appended naively — if the user's SQL already has a LIMIT, theirs wins (we wrap in a subquery or just document the behavior).
+
+### F18: Full catalog export (`qdo catalog`)
+
+**Ease: Easy** — Cache already stores all metadata. `get_tables()` + `get_columns()` exist on every connector.
+
+**Why**: An agent needs to see the entire database schema in one call to plan queries. Running `inspect` per table is N+1 queries.
+
+- [ ] `src/querido/cli/catalog.py` — `qdo catalog --connection <name> [--format json]`
+- [ ] `src/querido/core/catalog.py` — `get_catalog(connector) → dict`
+  - Returns `{"tables": [{"name": str, "type": "table"|"view", "row_count": int, "columns": [{"name", "type", "nullable", "comment"}]}]}`
+  - Calls `get_tables()` once, then `get_columns()` per table (parallelized for concurrent connectors)
+  - Row counts via count template per table (parallelized)
+- [ ] **Cache-first by default** — prefer cached metadata when fresh, fall back to live query
+  - Default: use cache if fresh (within TTL), else query live
+  - `--live` flag to bypass cache and force live queries
+  - `--cache-ttl N` override (seconds) for staleness threshold
+- [ ] `--tables-only` flag — skip columns and row counts, just list tables with types
+- [ ] `--schema` filter for Snowflake
+- [ ] All output formats (JSON is the primary agent-facing format)
+- [ ] Tests: full catalog, tables-only, cache mode, DuckDB + SQLite, all formats
+
+**Design note**: For large Snowflake databases (hundreds of tables), full catalog with row counts could be slow. The `--use-cache` flag + `--tables-only` flag give the agent escape hatches. Consider adding `--include-counts / --no-counts` to skip row counts specifically.
+
+### F19: Distinct value enumeration (`qdo values`)
+
+**Ease: Easy** — Simple `select distinct` query with cardinality guard.
+
+**Why**: When an agent needs to write a WHERE clause filtering on `status` or `region`, it needs to know the valid values. `dist --top N` shows frequencies but not *all* values. This fills that gap.
+
+- [ ] `src/querido/cli/values.py` — `qdo values --connection <name> --table <table> --column <col>`
+- [ ] `src/querido/core/values.py` — `get_distinct_values(connector, table, column, max_values=1000) → dict`
+  - Returns `{"column": str, "distinct_count": int, "values": [...], "truncated": bool, "total_rows": int}`
+  - First queries `count(distinct col)` — if > `max_values`, returns truncated=True with top N by frequency
+  - If ≤ `max_values`, returns all distinct values sorted
+- [ ] `--max N` flag (default: 1000) — maximum distinct values to return
+- [ ] `--sort {value,frequency}` flag (default: value) — sort alphabetically or by count
+- [ ] SQL template: `sql/templates/values/common.sql` — `select distinct "col" from "table" order by 1`
+- [ ] All output formats
+- [ ] Tests: low cardinality (all values), high cardinality (truncated), sort modes, null handling, all formats
+
+### F20: Pivot / aggregate as CLI command (`qdo pivot`)
+
+**Ease: Easy** — `core/pivot.py` already exists and works. Just needs a CLI entry point.
+
+**Why**: Quick aggregations without writing raw SQL. The agent can answer "what's the total revenue by region?" without composing SQL.
+
+- [ ] `src/querido/cli/pivot.py` — `qdo pivot --connection <name> --table <table> --group-by col1,col2 --agg "sum(amount),count(*)" [--filter "status = 'active'"]`
+- [ ] Wire existing `core.pivot.get_pivot()` to CLI with spinner + output dispatch
+- [ ] `--group-by` accepts comma-separated column names
+- [ ] `--agg` accepts comma-separated aggregation expressions (count, sum, avg, min, max)
+- [ ] `--filter` optional WHERE clause (passed through, not validated — like the TUI filter bar)
+- [ ] `--order-by` optional ORDER BY (default: group-by columns)
+- [ ] `--limit N` optional row limit on result
+- [ ] All output formats
+- [ ] Tests: basic pivot, multiple group-by, multiple aggs, filter, all formats
+
+**Design note**: May need to extend `core/pivot.py` to support `--filter` and `--order-by` — currently it only takes rows/values/agg.
+
+### F21: Row freshness / staleness (`qdo freshness`)
+
+**Ease: Easy-Medium** — Needs timestamp column auto-detection heuristic.
+
+**Why**: "Is this table still being loaded?" is one of the most common analyst questions. The agent needs to answer it without the analyst knowing the column names.
+
+- [ ] `src/querido/cli/freshness.py` — `qdo freshness --connection <name> --table <table> [--column updated_at]`
+- [ ] `src/querido/core/freshness.py` — `get_freshness(connector, table, column=None) → dict`
+  - Returns `{"table": str, "column": str, "min": str, "max": str, "now": str, "staleness_hours": float, "row_count": int}`
+  - If `--column` not specified, auto-detect: scan `get_columns()` for date/timestamp types, prefer names matching `updated_at`, `modified_at`, `created_at`, `loaded_at`, `_date`, `_timestamp`, `_at` patterns
+  - Error if no timestamp column found and none specified
+- [ ] `--threshold` optional — exit code 1 if staleness exceeds N hours (agent can use for assertions)
+- [ ] All output formats
+- [ ] Tests: explicit column, auto-detect, threshold exit code, no timestamp column error, all formats
+
+### F22: Assertion / test framework (`qdo assert`)
+
+**Ease: Easy** — Thin wrapper around `qdo query` with exit code semantics.
+
+**Why**: Lets the agent verify assumptions programmatically. "Are there negative amounts?" → run assertion → exit code 0/1. No output parsing needed.
+
+- [ ] `src/querido/cli/assert_cmd.py` — `qdo assert --connection <name> --sql "select count(*) from orders where amount < 0" --expect 0`
+- [ ] `src/querido/core/assert_check.py` — `run_assertion(connector, sql, operator, expected) → dict`
+  - Returns `{"passed": bool, "actual": value, "expected": value, "operator": str, "sql": str}`
+- [ ] Comparison operators: `--expect N` (equals), `--expect-gt N`, `--expect-lt N`, `--expect-gte N`, `--expect-lte N`, `--expect-between N M`
+  - Compares the first column of the first row of the result
+- [ ] `--name "descriptive name"` optional — included in output for human readability
+- [ ] Exit code: 0 = passed, 1 = failed, 2 = SQL error
+- [ ] All output formats (JSON is most useful: `{"passed": true, "actual": 0, "expected": 0}`)
+- [ ] `--quiet` flag — no output, just exit code (for scripting)
+- [ ] Tests: pass/fail for each operator, SQL error, quiet mode, all formats
+
+### F23: Data quality summary (`qdo quality`)
+
+**Ease: Medium** — Multiple checks, each a separate SQL query. Parallelizable.
+
+**Why**: Quick health check on a table. Agent can scan for problems without writing bespoke queries per column.
+
+- [ ] `src/querido/cli/quality.py` — `qdo quality --connection <name> --table <table> [--columns col1,col2]`
+- [ ] `src/querido/core/quality.py` — `get_quality(connector, table, columns=None) → dict`
+  - Returns per-column quality metrics:
+    ```
+    {"table": str, "row_count": int, "columns": [
+      {"name": str, "type": str,
+       "null_count": int, "null_pct": float,
+       "distinct_count": int, "uniqueness_pct": float,
+       "duplicate_count": int,
+       "min": value, "max": value,
+       "status": "ok"|"warn"|"fail",
+       "issues": ["52% null", "0% unique"]}
+    ]}
+    ```
+  - Status logic: fail if >90% null or 0 distinct; warn if >20% null or uniqueness <1% (configurable?)
+  - **No referential integrity checks** — FK relationships are out of scope; keep this focused on per-column basics
+- [ ] `--check-duplicates` flag — check for fully duplicate rows (expensive, off by default)
+  - SQL: `select count(*) - count(distinct *) from table` (DuckDB) or hash-based for SQLite
+- [ ] SQL templates per dialect: `sql/templates/quality/{sqlite,duckdb,snowflake}.sql`
+  - Single query per column: null count, distinct count, min, max — combine in one pass
+  - Or one query for all columns if the dialect supports it efficiently
+- [ ] Parallel execution for concurrent connectors (reuse `_concurrent.py`)
+- [ ] All output formats
+- [ ] Tests: clean table, table with nulls, table with duplicates, column filter, all formats
+
+### F24: Join key discovery (`qdo joins`)
+
+**Ease: Medium** — Name/type matching is easy; value overlap sampling is harder.
+
+**Why**: Agent asks "how do orders relate to customers?" — needs join keys to write correct SQL.
+
+- [ ] `src/querido/cli/joins.py` — `qdo joins --connection <name> --table orders [--target customers]`
+- [ ] `src/querido/core/joins.py` — `discover_joins(connector, table, target=None) → dict`
+  - Returns `{"source": str, "candidates": [{"target_table": str, "join_keys": [{"source_col": str, "target_col": str, "match_type": "exact_name"|"convention"|"name+type", "confidence": float}]}]}`
+  - **Name + type matching only** (no value sampling — analyst provides more context if needed):
+    - Exact column name match across tables (e.g., `customer_id` in both)
+    - Convention-based: `table_id` pattern (e.g., `customers.id` ↔ `orders.customer_id`)
+    - Type compatibility check (int↔int, not int↔varchar)
+    - Confidence scoring: exact name + same type = high, convention match = medium, name-only = low
+  - Uses cache for column metadata when available (fast scan across many tables)
+- [ ] `--target` optional — if omitted, check against all tables
+- [ ] All output formats
+- [ ] Tests: exact name match, convention match, type mismatch rejection, multi-table scan
+
+### F25: Schema diff (`qdo diff`)
+
+**Ease: Medium** — Cross-connection support makes this interesting.
+
+**Why**: "What changed between staging and prod?" or "How do these two tables differ?"
+
+- [ ] `src/querido/cli/diff.py` — `qdo diff --connection <name> --table A --target B` (same connection) or `qdo diff --connection conn1 --table A --target-connection conn2 --target B`
+- [ ] `src/querido/core/diff.py` — `schema_diff(left_columns, right_columns) → dict`
+  - Returns `{"added": [...], "removed": [...], "changed": [...], "unchanged_count": int}`
+  - Changed: same column name, different type/nullable/default
+  - Compares `get_columns()` output from each side
+- [ ] Cross-connection: resolves two separate connectors
+- [ ] `--data-sample` flag — also compare N sample rows (show differences in actual data)
+- [ ] All output formats
+- [ ] Tests: identical tables, added/removed columns, type changes, cross-connection, all formats
+
+### F26: Query plan / EXPLAIN (`qdo explain`)
+
+**Ease: Easy** — Thin wrapper around each dialect's EXPLAIN syntax.
+
+**Why**: Agent diagnosing slow queries needs to see the plan.
+
+- [ ] `src/querido/cli/explain.py` — `qdo explain --connection <name> --sql "select ..."`
+- [ ] `src/querido/core/explain.py` — `get_explain(connector, sql) → dict`
+  - SQLite: `explain query plan <sql>`
+  - DuckDB: `explain <sql>`
+  - Snowflake: `explain using text <sql>` (or JSON with `explain using json`)
+- [ ] Accept SQL via same three modes as `qdo query` (--sql, --file, stdin)
+- [ ] `--analyze` flag — run `explain analyze` where supported (DuckDB, Snowflake) for actual execution stats
+- [ ] All output formats (rich output uses syntax highlighting for the plan text)
+- [ ] Tests: SQLite plan, DuckDB plan, analyze flag, all formats
+
+### F27: Sample export (`qdo export`)
+
+**Ease: Easy-Medium** — File writing with format selection.
+
+**Why**: Agent extracts a subset to hand off to pandas, another tool, or the analyst.
+
+- [ ] `src/querido/cli/export.py` — `qdo export --connection <name> --table <table> --output data.csv [--filter "status = 'active'"] [--limit 10000]`
+- [ ] `src/querido/core/export.py` — `export_data(connector, table_or_sql, output_path, format, limit, filter) → dict`
+  - Returns `{"path": str, "rows": int, "format": str, "size_bytes": int}`
+- [ ] Output formats: `csv`, `json`, `parquet` (requires DuckDB/pyarrow)
+  - CSV: Python csv module
+  - JSON: json.dumps with newline-delimited option (`--jsonl`)
+  - Parquet: via DuckDB `COPY ... TO` or pyarrow writer
+- [ ] `--sql` as alternative to `--table` — export arbitrary query results
+- [ ] `--filter` optional WHERE clause
+- [ ] `--limit N` (default: no limit — exports full table/result)
+- [ ] `--columns col1,col2` — select specific columns
+- [ ] Streaming for large exports (don't load entire table into memory)
+- [ ] Progress reporting on stderr (row count as it writes)
+- [ ] Tests: CSV export, JSON export, filter, limit, columns, large dataset streaming
+
+---
+
+## Phase 10: Agent Ergonomics & Metadata Workflow
+
+**Goal**: Make qdo seamlessly usable by coding agents, and provide a workflow for enriching raw schema with business context that agents can consume.
+
+### F28: Agent mode via `QDO_FORMAT` environment variable
+
+**Ease: Easy** — Small change to format resolution in `_context.py`.
+
+**Why**: An agent (or its harness) sets `QDO_FORMAT=json` once, and every qdo command returns structured JSON without `--format json` on each call. The human default stays Rich.
+
+- [ ] `cli/_context.py:get_output_format()` checks `QDO_FORMAT` env var when `--format` not explicitly passed
+  - Priority: explicit `--format` flag > `QDO_FORMAT` env var > default (`rich`)
+- [ ] Valid values: `rich`, `json`, `csv`, `markdown`, `html`, `yaml`
+- [ ] Document in README, AGENTS.md, and `qdo overview` output
+- [ ] Agent setup instructions: "Set `export QDO_FORMAT=json` in your agent's environment"
+- [ ] Tests: env var sets default, explicit flag overrides env var, invalid env var ignored
+
+### F29: Structured error output
+
+**Ease: Easy** — Extend `_errors.py` to emit JSON errors when format is JSON.
+
+**Why**: Agents need machine-parseable errors, not Rich-formatted tracebacks.
+
+- [ ] When output format is `json`, errors emit `{"error": true, "type": "TableNotFound", "message": "...", "suggestions": [...]}`
+- [ ] Exit codes remain consistent (1 = user error, 2 = SQL error)
+- [ ] `friendly_errors` decorator checks output format before rendering
+
+### F30: Metadata store — create, fill, read back (`qdo metadata`)
+
+**Ease: Medium** — New command group with file-based storage. The key design challenge is the workflow, not the code.
+
+**Why**: Schema alone doesn't tell an agent what a column *means*. `qdo template` generates documentation scaffolding, but there's no way to store the filled-out result and read it back. This feature closes the loop: generate → fill out → store → read → feed to agent context.
+
+**Workflow**:
+1. `qdo metadata init -c mydb -t users` — generates template, writes to metadata store
+2. Analyst fills in business definitions, data owner, notes (edits the file)
+3. `qdo metadata show -c mydb -t users` — reads enriched metadata back (all output formats)
+4. `qdo catalog -c mydb --enrich` — merges cached schema with stored metadata for full context
+5. Agent reads `qdo metadata show -c mydb -t users -f json` to get business context before writing queries
+
+**Storage**:
+- [ ] Default location: `.qdo/metadata/<connection>/<table>.yaml` in project directory
+  - Project-local so metadata travels with the repo and is version-controlled
+  - `.qdo/` directory (not `~/.config/qdo/`) — per-project, not global
+- [ ] Alternative: `QDO_METADATA_DIR` env var or `metadata_dir` in connections.toml for override
+- [ ] YAML format — human-editable, structured enough for machine reading
+  - Reuses the template output shape but with filled-in fields
+
+**Commands**:
+- [ ] `qdo metadata init -c <conn> -t <table> [--force]`
+  - Runs `core.template.get_template()` to generate scaffolding
+  - Writes YAML with placeholder fields: `description: <business_definition>`, `owner: <data_owner>`, `notes: <notes>`
+  - `--force` overwrites existing file (default: error if exists)
+  - Prints path to created file
+- [ ] `qdo metadata show -c <conn> -t <table> [--format json]`
+  - Reads stored YAML, returns as structured data
+  - If no stored metadata, falls back to live `get_template()` output with a warning
+- [ ] `qdo metadata list -c <conn>`
+  - Lists all tables with stored metadata for a connection
+  - Shows: table name, last modified, completeness (% of fields filled vs placeholders)
+- [ ] `qdo metadata edit -c <conn> -t <table>`
+  - Opens the YAML file in `$EDITOR` (convenience shortcut)
+- [ ] `qdo metadata refresh -c <conn> -t <table>`
+  - Re-runs inspect/profile to update auto-populated fields (row counts, types, sample values) while preserving human-written fields (description, owner, notes)
+  - Smart merge: overwrite machine fields, keep human fields
+
+**YAML schema**:
+```yaml
+# .qdo/metadata/mydb/users.yaml
+table: users
+connection: mydb
+row_count: 50000
+table_description: "Core user accounts table — one row per registered user"
+data_owner: "Identity team (identity@company.com)"
+update_frequency: "Real-time via CDC"
+notes: |
+  PII columns: email, first_name, last_name
+  Soft-deleted rows have status='inactive'
+columns:
+  - name: id
+    type: INTEGER
+    nullable: false
+    primary_key: true
+    description: "Auto-increment user ID, used as FK in orders/events"
+    distinct_count: 50000
+    null_count: 0
+    sample_values: "1, 2, 3"
+  - name: email
+    type: TEXT
+    nullable: false
+    description: "User email — unique, used for login"
+    pii: true
+    distinct_count: 50000
+    null_count: 0
+    sample_values: "alice@example.com, bob@example.com"
+  - name: status
+    type: TEXT
+    nullable: false
+    description: "Account status"
+    valid_values: ["active", "inactive", "suspended"]
+    distinct_count: 3
+    null_count: 0
+```
+
+**Integration with catalog (F18)**:
+- [ ] `qdo catalog -c mydb --enrich` flag merges stored metadata descriptions into catalog output
+  - Each column in the catalog gains `"description"` and `"notes"` from stored metadata
+  - Tables gain `"table_description"`, `"data_owner"`, `"update_frequency"`
+  - Agent gets full context in one call: schema + types + business definitions
+
+**Integration with overview**:
+- [ ] Add `metadata` command to `qdo overview` (both markdown and JSON output)
+- [ ] JSON output shape documented for agent consumption
+
+**Tests**:
+- [ ] Init creates YAML with correct structure
+- [ ] Show reads back stored metadata
+- [ ] List reports completeness
+- [ ] Refresh preserves human fields while updating machine fields
+- [ ] Enrich flag on catalog merges correctly
+- [ ] Missing metadata falls back gracefully
+
+### F31: Update `qdo overview` for all new commands
+
+**Ease: Easy** — Mechanical update to `cli/overview.py`.
+
+**Why**: The overview is the agent's entry point to discovering qdo capabilities. Every new command must be documented there with its options and output shape.
+
+- [ ] Add to `_print_fallback()` markdown table: query, catalog, values, pivot, freshness, assert, quality, joins, diff, explain, export, metadata
+- [ ] Add to `_print_json()` commands list: full option specs and output shapes for each new command
+- [ ] Add `metadata_workflow` section to JSON output explaining the init → fill → show workflow
+- [ ] Add `agent_setup` section to JSON output: `QDO_FORMAT=json`, recommended command sequence
+- [ ] Update `docs/cli-reference.md` if it exists
+
+---
+
 ## Architectural Notes for Future Features
 
 The `core/` refactor (Phase 7) addresses the separation between **business logic** and **presentation** that was identified early in the project. Once Phase 7 is complete, all presentation layers share the same data-fetching logic:

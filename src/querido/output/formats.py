@@ -670,3 +670,168 @@ def format_frequencies(
         lines.append(to_markdown_table(headers, md_rows))
         lines.append("")
     return "\n".join(lines)
+
+
+# -- pivot --------------------------------------------------------------------
+
+
+def format_pivot(
+    result: dict,
+    fmt: str,
+) -> str:
+    rows = result["rows"]
+    if not rows:
+        return "" if fmt == "csv" else "Pivot returned no rows."
+
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        return dicts_to_csv(rows)
+
+    # markdown
+    headers = result["headers"]
+    md_rows = [[str(v) if v is not None else "" for v in row.values()] for row in rows]
+    lines = [f"## Pivot Results ({result['row_count']} groups)", ""]
+    lines.append(to_markdown_table(headers, md_rows))
+    lines.append("")
+    lines.append(f"{result['row_count']} group(s)")
+    return "\n".join(lines)
+
+
+# -- values -------------------------------------------------------------------
+
+
+def format_values(
+    result: dict,
+    fmt: str,
+) -> str:
+    values = result["values"]
+    if not values:
+        return "" if fmt == "csv" else "No values found."
+
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        return dicts_to_csv(values)
+
+    # markdown
+    col = result["column"]
+    tbl = result["table"]
+    truncated = result["truncated"]
+    header = f"## Values: {tbl}.{col}"
+    if truncated:
+        header += f" (top {len(values)} of {result['distinct_count']:,})"
+
+    lines = [header, ""]
+    headers = ["Value", "Count"]
+    rows = [
+        [str(v["value"]) if v["value"] is not None else "(NULL)", f"{v['count']:,}"]
+        for v in values
+    ]
+    lines.append(to_markdown_table(headers, rows))
+    lines.append("")
+    lines.append(f"{result['distinct_count']:,} distinct values, {result['null_count']:,} nulls")
+    return "\n".join(lines)
+
+
+# -- catalog ------------------------------------------------------------------
+
+
+def format_catalog(
+    catalog: dict,
+    fmt: str,
+) -> str:
+    tables = catalog["tables"]
+    if not tables:
+        return "" if fmt == "csv" else "No tables found."
+
+    if fmt == "json":
+        return json.dumps(catalog, indent=2, default=str)
+
+    if fmt == "csv":
+        flat: list[dict] = []
+        for t in tables:
+            if t["columns"]:
+                for c in t["columns"]:
+                    flat.append(
+                        {
+                            "table": t["name"],
+                            "table_type": t["type"],
+                            "row_count": t["row_count"] if t["row_count"] is not None else "",
+                            "column": c["name"],
+                            "column_type": c["type"],
+                            "nullable": c["nullable"],
+                            "comment": c.get("comment", ""),
+                        }
+                    )
+            else:
+                flat.append(
+                    {
+                        "table": t["name"],
+                        "table_type": t["type"],
+                        "row_count": t["row_count"] if t["row_count"] is not None else "",
+                        "column": "",
+                        "column_type": "",
+                        "nullable": "",
+                        "comment": "",
+                    }
+                )
+        return dicts_to_csv(flat) if flat else ""
+
+    # markdown
+    lines = [f"## Catalog ({catalog['table_count']} tables)", ""]
+
+    for t in tables:
+        row_str = f"{t['row_count']:,}" if t["row_count"] is not None else "N/A"
+        lines.append(f"### {t['name']} ({t['type']}, {row_str} rows)")
+        lines.append("")
+        if t["columns"]:
+            headers = ["Column", "Type", "Nullable", "Comment"]
+            rows = [
+                [c["name"], c["type"], "YES" if c["nullable"] else "NO", c.get("comment", "")]
+                for c in t["columns"]
+            ]
+            lines.append(to_markdown_table(headers, rows))
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+# -- query --------------------------------------------------------------------
+
+
+def format_query(
+    columns: list[str],
+    rows: list[dict],
+    row_count: int,
+    fmt: str,
+    *,
+    limited: bool = False,
+    sql: str = "",
+) -> str:
+    if not rows:
+        return "" if fmt == "csv" else "Query returned no rows."
+
+    if fmt == "json":
+        payload: dict = {
+            "columns": columns,
+            "row_count": row_count,
+            "limited": limited,
+            "rows": rows,
+        }
+        return json.dumps(payload, indent=2, default=str)
+
+    if fmt == "csv":
+        return dicts_to_csv(rows)
+
+    # markdown
+    headers = list(rows[0].keys())
+    md_rows = [[str(v) if v is not None else "" for v in row.values()] for row in rows]
+    suffix = " (limit reached)" if limited else ""
+    lines = [f"## Query Results ({row_count} rows{suffix})", ""]
+    lines.append(to_markdown_table(headers, md_rows))
+    lines.append("")
+    lines.append(f"{row_count} row(s) returned{suffix}")
+    return "\n".join(lines)

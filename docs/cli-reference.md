@@ -37,6 +37,10 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo search -c CONN -p PATTERN` | Search tables/columns by name |
 | `qdo lineage -c CONN -v VIEW` | View SQL definition |
 | `qdo template -c CONN -t TABLE` | Generate documentation template |
+| `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
+| `qdo catalog -c CONN [--tables-only]` | Full database catalog (tables, columns, rows) |
+| `qdo values -c CONN -t TABLE -C COL` | Distinct values for a column |
+| `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo sql select -c CONN -t TABLE` | Generate SELECT statement |
 | `qdo sql ddl -c CONN -t TABLE` | Generate CREATE TABLE DDL |
 | `qdo cache sync -c CONN` | Cache metadata locally for fast search |
@@ -136,6 +140,21 @@ qdo search -c prod -p email --type column
 
 # Get JSON metadata for scripting
 qdo inspect -c mydb -t users -f json
+
+# Get full database catalog as JSON (for agents or scripting)
+qdo catalog -c mydb -f json
+
+# List just table names
+qdo catalog -c mydb --tables-only
+
+# Run an ad-hoc query
+qdo query -c mydb --sql "select count(*) from users where age > 30" -f json
+
+# Run SQL from a file
+qdo query -c mydb --file report.sql
+
+# Pipe SQL via stdin
+echo "select * from events limit 10" | qdo query -c analytics.duckdb
 
 # Generate DDL for a table
 qdo sql ddl -c mydb -t users
