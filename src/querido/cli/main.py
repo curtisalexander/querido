@@ -151,8 +151,8 @@ def main(
         "--show-sql",
         help="Print rendered SQL to stderr before executing.",
     ),
-    output_format: str = typer.Option(
-        "rich",
+    output_format: str | None = typer.Option(
+        None,
         "--format",
         "-f",
         help="Output format: rich, markdown, json, csv, html, yaml.",
@@ -164,9 +164,19 @@ def main(
     ),
 ) -> None:
     """qdo — query, do. Data analysis from your terminal."""
+    import os
+
     valid = {"rich", "markdown", "json", "csv", "html", "yaml"}
+
+    # Resolve format: explicit --format > QDO_FORMAT env var > "rich"
+    if output_format is None:
+        env_fmt = os.environ.get("QDO_FORMAT", "").lower().strip()
+        output_format = env_fmt if env_fmt in valid else "rich"
+
     if output_format not in valid:
-        raise typer.BadParameter(f"--format must be one of: {', '.join(sorted(valid))}")
+        raise typer.BadParameter(
+            f"--format must be one of: {', '.join(sorted(valid))}"
+        )
     ctx.ensure_object(dict)
     ctx.obj["show_sql"] = show_sql
     ctx.obj["format"] = output_format

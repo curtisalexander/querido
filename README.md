@@ -137,8 +137,30 @@ qdo serve --connection my-db --port 8888 --host 127.0.0.1
 qdo inspect --connection my-db --table users --format json
 qdo inspect --connection my-db --table users --format html
 
+# Run ad-hoc SQL
+qdo query --connection my-db --sql "select count(*) from users" --format json
+
+# Full database catalog in one call
+qdo catalog --connection my-db --format json
+
+# Distinct values for a column
+qdo values --connection my-db --table users --column status
+
+# Aggregate with GROUP BY
+qdo pivot --connection my-db --table orders --group-by region --agg "sum(amount)"
+
 # Query a Parquet file directly (table name = filename stem)
 qdo preview --connection data.parquet --table data
+```
+
+### Agent mode
+
+Set `QDO_FORMAT` to get structured output from all commands without `--format` on every call:
+
+```bash
+export QDO_FORMAT=json
+qdo catalog -c my-db              # full schema as JSON
+qdo query -c my-db --sql "..."    # query results as JSON
 ```
 
 ### Snowflake-specific commands

@@ -79,7 +79,21 @@ qdo profile -c mydb -t orders -f csv > profile.csv
 |------|-------------|
 | `--format`, `-f` | Output format: `rich`, `json`, `csv`, `markdown`, `html`, `yaml` |
 | `--show-sql` | Print rendered SQL to stderr before executing |
+| `--debug` | Enable debug logging to stderr |
 | `--version`, `-V` | Show version |
+
+## Agent Mode
+
+Set `QDO_FORMAT` to get structured output from all commands by default, without passing `--format` on every call:
+
+```bash
+export QDO_FORMAT=json
+qdo catalog -c mydb              # full schema as JSON
+qdo query -c mydb --sql "..."    # query results as JSON
+qdo values -c mydb -t t -C col   # distinct values as JSON
+```
+
+Priority: explicit `--format` flag > `QDO_FORMAT` env var > `rich` (default). Invalid `QDO_FORMAT` values are silently ignored (falls back to `rich`).
 
 ## Query Interruption
 

@@ -79,7 +79,19 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 
 `--format`, `-f` : rich, json, csv, markdown, html, yaml
 `--show-sql`     : Print rendered SQL to stderr
+`--debug`        : Enable debug logging to stderr
 `--version`, `-V`: Show version
+
+## Agent Mode
+
+Set `QDO_FORMAT=json` in your environment to get structured JSON from all
+commands by default. Explicit `--format` always takes priority.
+
+```bash
+export QDO_FORMAT=json
+qdo catalog -c mydb              # JSON schema
+qdo query -c mydb --sql "..."    # JSON results
+```
 
 Run `qdo <command> --help` for details on any command.
 """)
@@ -571,6 +583,22 @@ def _print_json() -> None:
         "global_options": global_options,
         "connection_resolution": connection_resolution,
         "error_format": error_shape,
+        "agent_setup": {
+            "description": (
+                "Set QDO_FORMAT=json in your agent's environment to get "
+                "structured JSON output from all commands by default."
+            ),
+            "env_var": "QDO_FORMAT",
+            "valid_values": ["rich", "json", "csv", "markdown", "html", "yaml"],
+            "priority": "explicit --format flag > QDO_FORMAT env var > rich",
+            "recommended_workflow": [
+                "export QDO_FORMAT=json",
+                "qdo catalog -c <conn>  # full schema",
+                "qdo query -c <conn> --sql '...'  # ad-hoc queries",
+                "qdo values -c <conn> -t <table> -C <col>  # distinct values",
+                "qdo pivot -c <conn> -t <table> -g <col> -a 'sum(col)'",
+            ],
+        },
     }
 
     print(json.dumps(payload, indent=2))

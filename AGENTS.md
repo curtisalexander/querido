@@ -162,52 +162,79 @@ qdo config list
 
 If you are a coding agent using qdo to analyze data (rather than developing qdo itself), this section describes the recommended workflow and output formats.
 
-### Always use `--format json`
+### Agent mode — set once, get JSON everywhere
 
-All commands support `--format json` (or `-f json`). JSON output goes to stdout; errors go to stderr. This is the most reliable way to consume qdo output programmatically.
+Set `QDO_FORMAT=json` in your environment to get structured JSON from all commands by default:
 
 ```bash
-qdo -f json inspect -c ./my.db -t users
-qdo -f json preview -c ./my.db -t users -r 5
-qdo -f json profile -c ./my.db -t users --top 3
+export QDO_FORMAT=json
 ```
+
+Priority: explicit `--format` flag > `QDO_FORMAT` env var > `rich` (default).
+
+All commands support `--format json` (or `-f json`). JSON output goes to stdout; errors go to stderr.
 
 ### Recommended exploration workflow
 
-1. **Discover tables** — find what's available:
+1. **Get full schema** — see everything in one call:
    ```bash
-   qdo -f json search -c ./my.db -p ""        # list all tables (empty pattern matches all)
-   qdo -f json search -c ./my.db -p orders     # find tables/columns matching "orders"
+   qdo catalog -c ./my.db                    # all tables, columns, row counts
+   qdo catalog -c ./my.db --tables-only      # just table names
+   ```
+   Returns: `{"table_count", "tables": [{"name", "type", "row_count", "columns": [...]}]}`
+
+2. **Discover tables** — search by name:
+   ```bash
+   qdo search -c ./my.db -p ""               # list all tables
+   qdo search -c ./my.db -p orders           # find tables/columns matching "orders"
    ```
 
-2. **Inspect structure** — understand columns and types:
+3. **Inspect structure** — understand columns and types:
    ```bash
-   qdo -f json inspect -c ./my.db -t orders
+   qdo inspect -c ./my.db -t orders
    ```
    Returns: `{"table", "row_count", "columns": [{"name", "type", "nullable", "default", "primary_key"}]}`
 
-3. **Preview data** — see sample rows:
+4. **Preview data** — see sample rows:
    ```bash
-   qdo -f json preview -c ./my.db -t orders -r 5
+   qdo preview -c ./my.db -t orders -r 5
    ```
    Returns: `{"table", "limit", "row_count", "rows": [...]}`
 
-4. **Profile statistics** — understand distributions and quality:
+5. **Profile statistics** — understand distributions and quality:
    ```bash
-   qdo -f json profile -c ./my.db -t orders --top 3
+   qdo profile -c ./my.db -t orders --top 3
    ```
    Returns: `{"table", "row_count", "sampled", "columns": [{"column_name", "min_val", "max_val", "null_count", "distinct_count", ...}]}`
 
-5. **Drill into columns** — distribution detail:
+6. **Distinct values** — enumerate valid values for a column:
    ```bash
-   qdo -f json dist -c ./my.db -t orders -C status
+   qdo values -c ./my.db -t orders -C status
+   ```
+   Returns: `{"column", "distinct_count", "truncated", "values": [{"value", "count"}]}`
+
+7. **Run ad-hoc SQL** — answer specific questions:
+   ```bash
+   qdo query -c ./my.db --sql "select region, sum(amount) from orders group by region"
+   ```
+   Returns: `{"columns", "rows", "row_count", "limited"}`
+
+8. **Aggregate data** — quick GROUP BY without writing SQL:
+   ```bash
+   qdo pivot -c ./my.db -t orders -g region -a "sum(amount)"
+   ```
+   Returns: `{"headers", "rows", "row_count", "sql"}`
+
+9. **Drill into columns** — distribution detail:
+   ```bash
+   qdo dist -c ./my.db -t orders -C status
    ```
 
-6. **Generate documentation** — full metadata for prompting:
-   ```bash
-   qdo -f json template -c ./my.db -t orders
-   ```
-   Returns column metadata with sample values — useful as context for LLM prompts.
+10. **Generate documentation** — full metadata for prompting:
+    ```bash
+    qdo template -c ./my.db -t orders
+    ```
+    Returns column metadata with sample values — useful as context for LLM prompts.
 
 ### Error handling
 
