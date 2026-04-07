@@ -24,6 +24,7 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "dist": ("querido.cli.dist", "Column distribution visualization."),
     "explore": ("querido.cli.explore", "Interactive data exploration (TUI)."),
     "inspect": ("querido.cli.inspect", "Inspect table structure."),
+    "joins": ("querido.cli.joins", "Discover likely join keys between tables."),
     "lineage": ("querido.cli.lineage", "View definition and simple lineage."),
     "overview": ("querido.cli.overview", "Print CLI overview (markdown)."),
     "pivot": ("querido.cli.pivot", "Pivot / aggregate table data."),

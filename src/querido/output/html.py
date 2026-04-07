@@ -601,6 +601,38 @@ def format_frequencies_html(
     )
 
 
+def format_joins_html(
+    result: dict,
+) -> str:
+    """Render join candidates as a standalone HTML page."""
+    candidates = result["candidates"]
+    if not candidates:
+        return _html_page(
+            title=f"Joins: {result['source']}",
+            subtitle="No join candidates found.",
+            table_html="<p>No data.</p>",
+        )
+
+    headers = ["Target", "Source Col", "Target Col", "Match", "Confidence"]
+    rows = []
+    for cand in candidates:
+        for key in cand["join_keys"]:
+            rows.append([
+                cand["target_table"],
+                key["source_col"],
+                key["target_col"],
+                key["match_type"],
+                f"{key['confidence']:.0%}",
+            ])
+
+    return _html_page(
+        title=f"Joins: {result['source']}",
+        subtitle=f"{len(candidates)} table(s) with join candidates",
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo joins — {result['source']}",
+    )
+
+
 def format_quality_html(
     result: dict,
 ) -> str:

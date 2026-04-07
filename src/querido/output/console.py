@@ -382,6 +382,49 @@ def print_snowflake_lineage(
     console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")
 
 
+def print_joins(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print join key candidates as Rich tables."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    candidates = result["candidates"]
+    if not candidates:
+        console.print(
+            f"[dim]No join candidates found for {result['source']}.[/dim]"
+        )
+        return
+
+    for cand in candidates:
+        grid = Table(
+            title=f"{result['source']} → {cand['target_table']}"
+        )
+        grid.add_column("Source Column", style="cyan")
+        grid.add_column("Target Column", style="green")
+        grid.add_column("Match Type", style="dim")
+        grid.add_column("Confidence", justify="right")
+
+        for key in cand["join_keys"]:
+            conf = f"{key['confidence']:.0%}"
+            grid.add_row(
+                key["source_col"],
+                key["target_col"],
+                key["match_type"],
+                conf,
+            )
+
+        console.print(grid)
+
+    console.print(
+        f"\n  [bold]{len(candidates)}[/bold] table(s) with join candidates"
+    )
+
+
 def print_quality(
     result: dict,
     console: Console | None = None,

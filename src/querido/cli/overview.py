@@ -68,6 +68,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0/1) |
 | `quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness) |
+| `joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
@@ -546,6 +547,40 @@ def _print_json() -> None:
                         "uniqueness_pct": "float",
                         "status": "ok|warn|fail",
                         "issues": ["string"],
+                    }
+                ],
+            },
+        },
+        {
+            "name": "joins",
+            "description": "Discover likely join keys between tables.",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {"flag": "-t, --table", "required": True, "help": "Source table."},
+                {
+                    "flag": "--target",
+                    "required": False,
+                    "help": "Target table (default: all tables).",
+                },
+            ],
+            "example": "qdo joins -c ./my.db -t orders -f json",
+            "output_shape": {
+                "source": "string",
+                "candidates": [
+                    {
+                        "target_table": "string",
+                        "join_keys": [
+                            {
+                                "source_col": "string",
+                                "target_col": "string",
+                                "match_type": "exact_name|convention",
+                                "confidence": "float (0-1)",
+                            }
+                        ],
                     }
                 ],
             },

@@ -43,6 +43,7 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
 | `qdo quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness, issues) |
+| `qdo joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
 | `qdo sql select -c CONN -t TABLE` | Generate SELECT statement |
 | `qdo sql ddl -c CONN -t TABLE` | Generate CREATE TABLE DDL |
 | `qdo cache sync -c CONN` | Cache metadata locally for fast search |

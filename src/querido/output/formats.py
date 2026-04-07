@@ -672,6 +672,53 @@ def format_frequencies(
     return "\n".join(lines)
 
 
+# -- joins --------------------------------------------------------------------
+
+
+def format_joins(
+    result: dict,
+    fmt: str,
+) -> str:
+    candidates = result["candidates"]
+
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        flat = [
+            {
+                "source_table": result["source"],
+                "target_table": cand["target_table"],
+                "source_col": key["source_col"],
+                "target_col": key["target_col"],
+                "match_type": key["match_type"],
+                "confidence": key["confidence"],
+            }
+            for cand in candidates
+            for key in cand["join_keys"]
+        ]
+        return dicts_to_csv(flat)
+
+    # markdown
+    lines = [f"## Join candidates for {result['source']}", ""]
+    headers = [
+        "Target", "Source Col", "Target Col", "Match", "Confidence",
+    ]
+    rows = [
+        [
+            cand["target_table"],
+            key["source_col"],
+            key["target_col"],
+            key["match_type"],
+            f"{key['confidence']:.0%}",
+        ]
+        for cand in candidates
+        for key in cand["join_keys"]
+    ]
+    lines.append(to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
 # -- quality ------------------------------------------------------------------
 
 
