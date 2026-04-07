@@ -140,7 +140,7 @@ def test_export_with_limit(sqlite_path: str, tmp_path: Path):
     )
     assert result.exit_code == 0
     content = Path(out).read_text()
-    lines = content.strip().split("\n")
+    lines = [ln for ln in content.splitlines() if ln.strip()]
     assert len(lines) == 2  # header + 1 row
 
 
