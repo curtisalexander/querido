@@ -672,6 +672,73 @@ def format_frequencies(
     return "\n".join(lines)
 
 
+# -- quality ------------------------------------------------------------------
+
+
+def format_quality(
+    result: dict,
+    fmt: str,
+) -> str:
+    columns = result["columns"]
+    if not columns:
+        return "" if fmt == "csv" else "No columns to check."
+
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        flat = [
+            {
+                "column": col["name"],
+                "type": col["type"],
+                "null_count": col["null_count"],
+                "null_pct": col["null_pct"],
+                "distinct_count": col["distinct_count"],
+                "uniqueness_pct": col["uniqueness_pct"],
+                "min": col["min"],
+                "max": col["max"],
+                "status": col["status"],
+                "issues": "; ".join(col["issues"]),
+            }
+            for col in columns
+        ]
+        return dicts_to_csv(flat)
+
+    # markdown
+    lines = [
+        f"## Quality: {result['table']} ({result['row_count']:,} rows)",
+        "",
+    ]
+    headers = [
+        "Column", "Type", "Nulls", "Null %",
+        "Distinct", "Unique %", "Status", "Issues",
+    ]
+    rows = [
+        [
+            col["name"],
+            col["type"],
+            f"{col['null_count']:,}",
+            f"{col['null_pct']}%",
+            f"{col['distinct_count']:,}",
+            f"{col['uniqueness_pct']}%",
+            col["status"],
+            "; ".join(col["issues"]),
+        ]
+        for col in columns
+    ]
+    lines.append(to_markdown_table(headers, rows))
+
+    if result["duplicate_rows"] is not None:
+        lines.append("")
+        dup = result["duplicate_rows"]
+        lines.append(
+            f"Duplicate rows: {dup:,}" if dup > 0
+            else "No duplicate rows"
+        )
+
+    return "\n".join(lines)
+
+
 # -- assert_check -------------------------------------------------------------
 
 
@@ -780,31 +847,30 @@ def format_catalog(
     if fmt == "csv":
         flat: list[dict] = []
         for t in tables:
+            row_ct = t["row_count"] if t["row_count"] is not None else ""
             if t["columns"]:
-                for c in t["columns"]:
-                    flat.append(
-                        {
-                            "table": t["name"],
-                            "table_type": t["type"],
-                            "row_count": t["row_count"] if t["row_count"] is not None else "",
-                            "column": c["name"],
-                            "column_type": c["type"],
-                            "nullable": c["nullable"],
-                            "comment": c.get("comment", ""),
-                        }
-                    )
-            else:
-                flat.append(
+                flat.extend(
                     {
                         "table": t["name"],
                         "table_type": t["type"],
-                        "row_count": t["row_count"] if t["row_count"] is not None else "",
-                        "column": "",
-                        "column_type": "",
-                        "nullable": "",
-                        "comment": "",
+                        "row_count": row_ct,
+                        "column": c["name"],
+                        "column_type": c["type"],
+                        "nullable": c["nullable"],
+                        "comment": c.get("comment", ""),
                     }
+                    for c in t["columns"]
                 )
+            else:
+                flat.append({
+                    "table": t["name"],
+                    "table_type": t["type"],
+                    "row_count": row_ct,
+                    "column": "",
+                    "column_type": "",
+                    "nullable": "",
+                    "comment": "",
+                })
         return dicts_to_csv(flat) if flat else ""
 
     # markdown

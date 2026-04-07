@@ -382,6 +382,63 @@ def print_snowflake_lineage(
     console.print(f"\n  [bold]{len(entries)}[/bold] lineage entries")
 
 
+def print_quality(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print data quality summary as a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    columns = result["columns"]
+    if not columns:
+        console.print("[dim]No columns to check.[/dim]")
+        return
+
+    grid = Table(
+        title=f"Quality: {result['table']} ({result['row_count']:,} rows)",
+        show_lines=True,
+    )
+    grid.add_column("Column", style="cyan bold")
+    grid.add_column("Type", style="dim")
+    grid.add_column("Nulls", justify="right")
+    grid.add_column("Null %", justify="right")
+    grid.add_column("Distinct", justify="right")
+    grid.add_column("Unique %", justify="right")
+    grid.add_column("Status")
+    grid.add_column("Issues", style="dim")
+
+    status_styles = {
+        "ok": "[green]ok[/green]",
+        "warn": "[yellow]warn[/yellow]",
+        "fail": "[red]fail[/red]",
+    }
+
+    for col in columns:
+        grid.add_row(
+            col["name"],
+            col["type"],
+            f"{col['null_count']:,}",
+            f"{col['null_pct']}%",
+            f"{col['distinct_count']:,}",
+            f"{col['uniqueness_pct']}%",
+            status_styles.get(col["status"], col["status"]),
+            "; ".join(col["issues"]) if col["issues"] else "",
+        )
+
+    console.print(grid)
+
+    if result["duplicate_rows"] is not None:
+        dup = result["duplicate_rows"]
+        if dup > 0:
+            console.print(f"\n  [yellow]{dup:,} duplicate row(s)[/yellow]")
+        else:
+            console.print("\n  [green]No duplicate rows[/green]")
+
+
 def print_assert_check(
     result: dict,
     console: Console | None = None,

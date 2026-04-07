@@ -67,6 +67,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `values -c CONN -t TABLE -C COLUMN` | Distinct values for a column |
 | `pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0/1) |
+| `quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness) |
 | `sql select\\|ddl\\|insert -c CONN -t TABLE` | Generate SQL |
 | `cache sync -c CONN` | Cache metadata locally |
 | `config add` | Add named connection |
@@ -507,6 +508,46 @@ def _print_json() -> None:
                 "operator": "eq|gt|lt|gte|lte",
                 "name": "string|null",
                 "sql": "string",
+            },
+        },
+        {
+            "name": "quality",
+            "description": "Data quality summary — nulls, uniqueness, issues per column.",
+            "options": [
+                {
+                    "flag": "-c, --connection",
+                    "required": True,
+                    "help": "Named connection or file path.",
+                },
+                {"flag": "-t, --table", "required": True, "help": "Table name."},
+                {
+                    "flag": "--columns",
+                    "required": False,
+                    "help": "Comma-separated columns to check (default: all).",
+                },
+                {
+                    "flag": "--check-duplicates",
+                    "required": False,
+                    "help": "Check for fully duplicate rows.",
+                },
+            ],
+            "example": "qdo quality -c ./my.db -t users -f json",
+            "output_shape": {
+                "table": "string",
+                "row_count": "integer",
+                "duplicate_rows": "integer|null",
+                "columns": [
+                    {
+                        "name": "string",
+                        "type": "string",
+                        "null_count": "integer",
+                        "null_pct": "float",
+                        "distinct_count": "integer",
+                        "uniqueness_pct": "float",
+                        "status": "ok|warn|fail",
+                        "issues": ["string"],
+                    }
+                ],
             },
         },
         {

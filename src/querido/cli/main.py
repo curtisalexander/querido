@@ -29,6 +29,7 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "pivot": ("querido.cli.pivot", "Pivot / aggregate table data."),
     "preview": ("querido.cli.preview", "Preview rows from a table."),
     "profile": ("querido.cli.profile", "Profile table data."),
+    "quality": ("querido.cli.quality", "Data quality summary for a table."),
     "query": ("querido.cli.query", "Execute ad-hoc SQL queries."),
     "search": ("querido.cli.search", "Search table and column metadata."),
     "serve": ("querido.cli.serve", "Serve interactive web UI."),

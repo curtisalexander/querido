@@ -601,6 +601,48 @@ def format_frequencies_html(
     )
 
 
+def format_quality_html(
+    result: dict,
+) -> str:
+    """Render data quality summary as a standalone HTML page."""
+    columns = result["columns"]
+    if not columns:
+        return _html_page(
+            title=f"Quality: {result['table']}",
+            subtitle="No columns to check.",
+            table_html="<p>No data.</p>",
+        )
+
+    headers = [
+        "Column", "Type", "Nulls", "Null %",
+        "Distinct", "Unique %", "Status", "Issues",
+    ]
+    rows = [
+        [
+            col["name"],
+            col["type"],
+            f"{col['null_count']:,}",
+            f"{col['null_pct']}%",
+            f"{col['distinct_count']:,}",
+            f"{col['uniqueness_pct']}%",
+            col["status"],
+            "; ".join(col["issues"]),
+        ]
+        for col in columns
+    ]
+
+    subtitle = f"{result['row_count']:,} rows"
+    if result["duplicate_rows"] is not None:
+        subtitle += f", {result['duplicate_rows']:,} duplicate rows"
+
+    return _html_page(
+        title=f"Quality: {result['table']}",
+        subtitle=subtitle,
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo quality — {result['table']}",
+    )
+
+
 def format_assert_check_html(
     result: dict,
 ) -> str:
