@@ -267,13 +267,12 @@ Errors also output structured JSON in this mode:
 
 **Give your agent the SKILL file:**
 
-A ready-made context file lives at `skills/querido/SKILL.md`. Copy it into your agent harness so it knows how to use qdo:
+Ready-made context files live in the `integrations/` directory. Copy the one that matches your agent harness:
 
 | Harness | How to install |
 |---------|----------------|
-| **Claude Code** | Copy `skills/querido/` to your project's `skills/` directory, or paste the contents into your `CLAUDE.md` |
-| **Pi** | Copy `skills/querido/SKILL.md` contents into your pi skills directory or paste into your project instructions |
-| **Continue.dev** | Create `.continuerules` at your project root and paste the SKILL.md contents into it — or save it as `.continue/rules/qdo.md` |
+| **Claude Code** | Copy `integrations/skills/SKILL.md` to your project's `skills/querido/` directory, or paste the contents into your `CLAUDE.md` |
+| **Continue.dev** | Copy `integrations/continue/qdo.md` to your project's `.continue/rules/` directory |
 
 **Recommended agent workflow:**
 

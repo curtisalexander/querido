@@ -282,13 +282,13 @@ def get_lessons(db_path: str) -> list[Lesson]:
                 "    qdo --help                                  See all commands\n"
                 "\n"
                 "  Skill file for coding agents:\n"
-                "    A ready-made skill file lives in the skills/querido/ directory\n"
-                "    of this repository. Add it to your coding agent to give it\n"
-                "    full knowledge of the qdo workflow — including this metadata\n"
+                "    Ready-made context files live in the integrations/ directory.\n"
+                "    Add the one matching your agent harness to give it full\n"
+                "    knowledge of the qdo workflow — including this metadata\n"
                 "    enrichment pattern and the recommended prompt structure.\n"
                 "\n"
-                "    See: skills/querido/SKILL.md\n"
-                "    Install: copy skills/querido/ to your agent's skills directory"
+                "    Claude Code: integrations/skills/SKILL.md\n"
+                "    Continue.dev: integrations/continue/qdo.md"
             ),
             info_only=True,
         ),
