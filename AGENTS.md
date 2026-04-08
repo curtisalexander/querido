@@ -325,16 +325,24 @@ qdo cache sync -c my-snowflake-conn --cache-ttl 0  # force re-sync
 qdo -f json cache status                           # check cache freshness
 ```
 
-## Interactive Tutorial
+## Interactive Tutorials
 
 ```bash
-qdo tutorial              # walk through all features (generates a National Parks database)
-qdo tutorial --list       # list all 15 lessons
-qdo tutorial --lesson 5   # start from a specific lesson
-qdo tutorial --db FILE    # use your own database
+# Core exploration workflow (catalog → inspect → profile → query, 15 lessons)
+qdo tutorial explore              # run all lessons
+qdo tutorial explore --list       # list all 15 lessons
+qdo tutorial explore --lesson 5   # start from a specific lesson
+qdo tutorial explore --db FILE    # use your own database
+
+# Metadata + AI-assisted SQL workflow (13 lessons)
+qdo tutorial agent                # metadata enrichment and agent prompt pattern
+qdo tutorial agent --list         # list all 13 lessons
+qdo tutorial agent --lesson 4     # start from a specific lesson
 ```
 
-Generates a National Parks DuckDB database (parks, trails, wildlife sightings, visitor stats) in a temp directory, walks through 15 lessons covering the full qdo workflow, and cleans up on exit. Requires `querido[duckdb]`.
+Both tutorials generate a National Parks DuckDB database (parks, trails, wildlife sightings, visitor stats) in a temp directory and clean up on exit. Require `querido[duckdb]`.
+
+The `agent` tutorial covers: `template` → `metadata init` → enriching human fields → `metadata show` → exporting JSON for agent context → the recommended prompt structure → a metadata-aware join query.
 
 ## Test Data
 

@@ -163,6 +163,23 @@ qdo catalog -c my-db              # full schema as JSON
 qdo query -c my-db --sql "..."    # query results as JSON
 ```
 
+### Interactive tutorials
+
+Two interactive tutorials using a National Parks dataset (requires `querido[duckdb]`):
+
+```bash
+# Core workflow: catalog → inspect → profile → query (15 lessons)
+qdo tutorial explore
+qdo tutorial explore --list          # list all lessons
+qdo tutorial explore --lesson 5      # start at a specific lesson
+
+# Metadata + AI-assisted SQL (13 lessons)
+qdo tutorial agent
+qdo tutorial agent --list
+```
+
+The `agent` tutorial covers: generating metadata templates, enriching them with business context (descriptions, valid values, PII flags), exporting metadata as JSON for a coding agent, and the recommended prompt structure for getting accurate SQL. See `skills/querido/SKILL.md` for a ready-made skill file you can add to your coding agent.
+
 ### Snowflake-specific commands
 
 ```bash

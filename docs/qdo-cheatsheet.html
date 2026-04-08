@@ -274,6 +274,7 @@
           <p><span class="cmd">querido[duckdb]</span> <span class="cmd">querido[snowflake]</span><br><span class="cmd">querido[tui]</span> <span class="cmd">querido[web]</span></p>
         </div>
       </div>
+      <div class="tip" style="margin-top:10px"><strong>Tutorials:</strong> <span class="cmd">qdo tutorial explore</span> &mdash; 15-lesson core workflow &ensp;|&ensp; <span class="cmd">qdo tutorial agent</span> &mdash; 13-lesson metadata + AI-assisted SQL &ensp;|&ensp; Add <span class="cmd">--list</span> to see lessons, <span class="cmd">--lesson N</span> to jump in. Requires <span class="cmd">querido[duckdb]</span>.</div>
     </section>
 
     <!-- ── Global Flags ── -->
@@ -447,7 +448,7 @@
       <div class="row"><span class="k">qdo metadata list -c CONN</span><span class="d">List files + completeness</span></div>
       <div class="row"><span class="k">qdo metadata edit -c CONN -t TABLE</span><span class="d">Open in $EDITOR</span></div>
       <div class="row"><span class="k">qdo metadata refresh -c CONN -t TABLE</span><span class="d">Update stats, keep descriptions</span></div>
-      <div class="tip"><strong>Storage:</strong> <span class="cmd">.qdo/metadata/&lt;conn&gt;/&lt;table&gt;.yaml</span> &mdash; version-controlled with your project. Fill in descriptions, owner, PII flags, valid values.</div>
+      <div class="tip"><strong>Storage:</strong> <span class="cmd">.qdo/metadata/&lt;conn&gt;/&lt;table&gt;.yaml</span> &mdash; version-controlled with your project. Fill in descriptions, owner, PII flags, valid values. &ensp;<strong>Learn:</strong> <span class="cmd">qdo tutorial agent</span> walks through the full enrichment → agent prompt workflow.</div>
     </section>
 
     <!-- ── Agent Setup ── -->
@@ -473,6 +474,7 @@
           <div class="row"><span class="k">5.</span><span class="d"><span class="cmd">qdo query</span> &rarr; answer the question</span></div>
           <div class="row"><span class="k">6.</span><span class="d"><span class="cmd">qdo assert</span> &rarr; validate assumptions</span></div>
           <div class="tip"><strong>Priority:</strong> explicit <span class="cmd">--format</span> &gt; <span class="cmd">QDO_FORMAT</span> env &gt; rich. Errors return structured JSON when format is json.</div>
+          <div class="tip" style="margin-top:6px"><strong>Skill file:</strong> <span class="cmd">skills/querido/SKILL.md</span> &mdash; add to your coding agent for full qdo knowledge including the metadata prompt pattern.</div>
         </div>
       </div>
     </section>
