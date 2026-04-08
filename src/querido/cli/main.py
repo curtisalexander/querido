@@ -74,6 +74,12 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
         ],
     ),
     (
+        "Learn",
+        [
+            ("tutorial", "querido.cli.tutorial", "Interactive tutorial with National Parks data."),
+        ],
+    ),
+    (
         "Reference",
         [
             ("overview", "querido.cli.overview", "Print CLI overview (markdown)."),

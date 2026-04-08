@@ -325,16 +325,16 @@ qdo cache sync -c my-snowflake-conn --cache-ttl 0  # force re-sync
 qdo -f json cache status                           # check cache freshness
 ```
 
-## Interactive Demo
+## Interactive Tutorial
 
 ```bash
-uv run python scripts/demo.py              # walk through all features (no setup needed)
-uv run python scripts/demo.py inspect      # run a specific demo
-uv run python scripts/demo.py --list       # list available demos
-uv run python scripts/demo.py --db FILE    # use your own database
+qdo tutorial              # walk through all features (generates a National Parks database)
+qdo tutorial --list       # list all 15 lessons
+qdo tutorial --lesson 5   # start from a specific lesson
+qdo tutorial --db FILE    # use your own database
 ```
 
-Auto-generates a temp SQLite database with sample data, walks through each command interactively (shows the command, runs it, pauses for review), and cleans up on exit. 11 demos: inspect, preview, profile, search, dist, sql, template, lineage, formats, showsql, cache.
+Generates a National Parks DuckDB database (parks, trails, wildlife sightings, visitor stats) in a temp directory, walks through 15 lessons covering the full qdo workflow, and cleans up on exit. Requires `querido[duckdb]`.
 
 ## Test Data
 

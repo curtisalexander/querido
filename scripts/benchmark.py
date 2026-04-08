@@ -90,7 +90,13 @@ def run_benchmarks(db_path: str, rows: int, operations: list[str]) -> list[dict]
         "dist (numeric)": ["dist", "-t", "benchmark", "-C", "amount", "--no-sample"],
         "dist (categorical)": ["dist", "-t", "benchmark", "-C", "category", "--no-sample"],
         "dist --sample 100000": [
-            "dist", "-t", "benchmark", "-C", "amount", "--sample", "100000",
+            "dist",
+            "-t",
+            "benchmark",
+            "-C",
+            "amount",
+            "--sample",
+            "100000",
         ],
     }
 
@@ -134,7 +140,8 @@ def main() -> None:
         "--operations",
         type=str,
         default=None,
-        help=f"Comma-separated list of operations (default: all). Options: {', '.join(ALL_OPERATIONS)}",
+        help="Comma-separated list of operations (default: all). "
+        f"Options: {', '.join(ALL_OPERATIONS)}",
     )
     args = parser.parse_args()
 

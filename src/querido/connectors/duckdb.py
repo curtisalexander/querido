@@ -37,7 +37,7 @@ class DuckDBConnector:
         if result.description is None:
             return []
         try:
-            return result.fetch_arrow_table().to_pylist()
+            return result.to_arrow_table().to_pylist()
         except (ImportError, RuntimeError, AttributeError):
             columns = [desc[0] for desc in result.description]
             rows = result.fetchall()
@@ -50,7 +50,7 @@ class DuckDBConnector:
         result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
         if result.description is None:
             return pa.table({})
-        return result.fetch_arrow_table()
+        return result.to_arrow_table()
 
     def get_tables(self, *, database: str | None = None, schema: str | None = None) -> list[dict]:
         rows = self.execute(

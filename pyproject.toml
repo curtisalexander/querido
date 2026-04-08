@@ -58,6 +58,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "W", "C4", "PERF"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/querido/tutorial/data.py" = ["E501"]  # Data file with long curated park tuples
+
 [tool.ty.environment]
 root = ["src", "tests"]
 
