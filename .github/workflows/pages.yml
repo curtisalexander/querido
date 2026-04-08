@@ -20,6 +20,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Build index.md from README
+        run: |
+          {
+            echo '---'
+            echo 'layout: default'
+            echo 'title: Home'
+            echo '---'
+            echo ''
+            echo '## Documentation'
+            echo ''
+            echo '- [CLI Reference](cli-reference.html) — full command listing with flags and examples'
+            echo '- [Cheatsheet](qdo-cheatsheet.html) — visual quick-reference card'
+            echo '- [GitHub Repository](https://github.com/curtisalexander/querido)'
+            echo ''
+            cat README.md
+          } > docs/index.md
+
       - name: Setup Pages
         uses: actions/configure-pages@v6
 
