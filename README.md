@@ -133,13 +133,13 @@ qdo joins     -c my-db -t orders              # suggest likely join keys
 ### Query — run and validate SQL
 
 ```bash
-qdo query     -c my-db --sql "select ..."     # ad-hoc SQL
-qdo catalog   -c my-db                        # all tables and columns
-qdo catalog   -c my-db --pattern order        # filter tables/columns by name
+qdo query     -c my-db --sql "select ..."                    # ad-hoc SQL
+qdo catalog   -c my-db                                       # all tables and columns
+qdo catalog   -c my-db --pattern order                       # filter tables/columns by name
 qdo pivot     -c my-db -t orders -g region -a "sum(amount)"  # GROUP BY
-qdo explain   -c my-db --sql "select ..."     # query execution plan
-qdo assert    -c my-db --sql "..." --expect 0 # assert a condition (CI-friendly)
-qdo export    -c my-db -t orders -o out.csv   # export to file
+qdo explain   -c my-db --sql "select ..."                    # query execution plan
+qdo assert    -c my-db --sql "..." --expect 0                # assert a condition (CI-friendly)
+qdo export    -c my-db -t orders -o out.csv                  # export to file
 ```
 
 ### Generate — scaffold SQL and docs
@@ -209,10 +209,10 @@ qdo catalog -c data.parquet                       # see all tables in the file
 `context` is the fastest way to understand a table. It returns schema, statistics, and sample values in a single database scan (DuckDB/Snowflake), or a profile scan plus frequency queries (SQLite).
 
 ```bash
-qdo context -c my-db -t orders                  # rich terminal output
-qdo context -c my-db -t orders -f json          # machine-readable
-qdo context -c my-db -t orders --sample-values 10   # more sample values
-qdo context -c my-db -t orders --no-sample      # exact stats, no row sampling
+qdo context -c my-db -t orders                     # rich terminal output
+qdo context -c my-db -t orders -f json             # machine-readable
+qdo context -c my-db -t orders --sample-values 10  # more sample values
+qdo context -c my-db -t orders --no-sample         # exact stats, no row sampling
 ```
 
 If you've run `qdo metadata init` on the table, stored descriptions, valid values, and PII flags are merged in automatically.
