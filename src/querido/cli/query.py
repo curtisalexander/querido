@@ -37,26 +37,18 @@ def query(
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
     from querido.cli._options import resolve_sql
-    from querido.cli._pipeline import dispatch_output
-    from querido.config import resolve_connection
-    from querido.connectors.factory import create_connector
+    from querido.cli._pipeline import database_command, dispatch_output
 
     query_sql = resolve_sql(sql, file, sys.stdin)
-    config = resolve_connection(connection, db_type)
 
-    with create_connector(config) as connector:
-        from rich.console import Console
-
-        from querido.cli._progress import query_status
-
+    with database_command(connection=connection, db_type=db_type) as ctx:
         maybe_show_sql(query_sql)
         set_last_sql(query_sql)
 
-        console = Console(stderr=True)
-        with query_status(console, "Executing query", connector):
+        with ctx.spin("Executing query"):
             from querido.core.query import run_query
 
-            result = run_query(connector, query_sql, limit=limit)
+            result = run_query(ctx.connector, query_sql, limit=limit)
 
         dispatch_output(
             "query",

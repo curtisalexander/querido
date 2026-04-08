@@ -8,7 +8,7 @@ app = typer.Typer(help="Profile table data.")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def profile(
-    table: str = typer.Option(..., "--table", "-t", help="Table name to profile."),
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),

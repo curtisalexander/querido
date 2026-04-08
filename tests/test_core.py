@@ -129,7 +129,7 @@ def test_get_frequencies(sqlite_path: str) -> None:
 
 
 def test_is_numeric_type() -> None:
-    from querido.core.profile import is_numeric_type
+    from querido.core._utils import is_numeric_type
 
     assert is_numeric_type("INTEGER")
     assert is_numeric_type("BIGINT")

@@ -412,38 +412,6 @@ def format_profile_html(
     )
 
 
-def format_search_html(
-    pattern: str,
-    results: list[dict],
-) -> str:
-    """Render search results as a standalone HTML page."""
-    if not results:
-        return _html_page(
-            title=f"Search: '{pattern}'",
-            subtitle="No matches found.",
-            table_html="<p>No matches.</p>",
-        )
-
-    headers = ["Table", "Type", "Match", "Column", "Column Type"]
-    rows = [
-        [
-            r["table_name"],
-            r["table_type"],
-            r["match_type"],
-            r["column_name"] or "",
-            r["column_type"] or "",
-        ]
-        for r in results
-    ]
-
-    return _html_page(
-        title=f"Search: '{pattern}'",
-        subtitle=f"{len(results)} match(es)",
-        table_html=_build_table(headers, rows),
-        footer_text=f"qdo search — {len(results)} matches for '{pattern}'",
-    )
-
-
 def format_dist_html(dist_result: dict) -> str:
     """Render distribution results as a standalone HTML page."""
     table_name = dist_result["table"]
@@ -952,7 +920,6 @@ REGISTRY: dict[str, object] = {
     "inspect": format_inspect_html,
     "preview": format_preview_html,
     "profile": format_profile_html,
-    "search": format_search_html,
     "dist": format_dist_html,
     "template": format_template_html,
     "lineage": format_lineage_html,

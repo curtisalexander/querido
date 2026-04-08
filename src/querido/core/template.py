@@ -13,14 +13,14 @@ def get_columns_and_count(
 
     Returns ``(columns, table_comment, row_count, col_info)``.
     """
-    from querido.core.profile import _build_col_info
+    from querido.core._utils import build_col_info
 
     columns = connector.get_columns(table)
     table_comment = connector.get_table_comment(table)
 
     row_count = connector.get_row_count(table)
 
-    col_info = _build_col_info(columns)
+    col_info = build_col_info(columns)
 
     return columns, table_comment, row_count, col_info
 
@@ -29,10 +29,10 @@ def get_profile_stats(
     connector: Connector, table: str, col_info: list[dict], row_count: int
 ) -> list[dict]:
     """Run the profile query and return per-column statistics."""
-    from querido.core.profile import _build_sample_source
+    from querido.core._utils import build_sample_source
     from querido.sql.renderer import render_template
 
-    source, _sampled, _sample_size = _build_sample_source(connector, table, row_count)
+    source, _sampled, _sample_size = build_sample_source(connector, table, row_count)
 
     profile_sql = render_template(
         "profile", connector.dialect, columns=col_info, source=source, approx=True
@@ -41,9 +41,9 @@ def get_profile_stats(
 
     # Snowflake single-scan template returns one wide row; reshape it.
     if profile_data and len(profile_data) == 1 and "total_rows" in profile_data[0]:
-        from querido.core.profile import _unpack_single_row
+        from querido.core._utils import unpack_single_row
 
-        profile_data = _unpack_single_row(profile_data[0], col_info)
+        profile_data = unpack_single_row(profile_data[0], col_info)
 
     return profile_data
 

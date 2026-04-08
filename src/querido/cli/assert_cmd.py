@@ -49,28 +49,20 @@ def assert_cmd(
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
     from querido.cli._options import resolve_sql
-    from querido.config import resolve_connection
-    from querido.connectors.factory import create_connector
+    from querido.cli._pipeline import database_command
 
     query_sql = resolve_sql(sql, file, sys.stdin)
     operator, expected = _resolve_operator(expect, expect_gt, expect_lt, expect_gte, expect_lte)
 
-    config = resolve_connection(connection, db_type)
-
-    with create_connector(config) as connector:
-        from rich.console import Console
-
-        from querido.cli._progress import query_status
-
+    with database_command(connection=connection, db_type=db_type) as ctx:
         maybe_show_sql(query_sql)
         set_last_sql(query_sql)
 
-        console = Console(stderr=True)
-        with query_status(console, "Running assertion", connector):
+        with ctx.spin("Running assertion"):
             from querido.core.assert_check import run_assertion
 
             result = run_assertion(
-                connector,
+                ctx.connector,
                 query_sql,
                 operator=operator,
                 expected=expected,

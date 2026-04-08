@@ -2,140 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from querido.core._utils import build_col_info, build_sample_source, unpack_single_row
+
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
-
-NUMERIC_TYPE_PREFIXES = (
-    "int",
-    "integer",
-    "bigint",
-    "smallint",
-    "tinyint",
-    "float",
-    "double",
-    "real",
-    "decimal",
-    "numeric",
-    "number",
-    "hugeint",
-)
-
-
-def is_numeric_type(type_str: str) -> bool:
-    """Return True if the SQL type string represents a numeric type."""
-    return type_str.lower().startswith(NUMERIC_TYPE_PREFIXES)
-
-
-_TIME_KEYWORDS = ("date", "time", "timestamp", "created", "updated", "modified")
-_ID_KEYWORDS = ("_id", "_key", "_pk", "_fk", "_code", "_num")
-
-
-def classify_column_kind(col: dict) -> str:
-    """Classify a column as 'dimension', 'time_dimension', or 'measure'.
-
-    Uses the column's ``type`` and ``name`` keys to infer the semantic role.
-    """
-    col_type = col["type"].lower()
-    col_name = col["name"].lower()
-
-    if any(kw in col_type for kw in ("date", "time", "timestamp")):
-        return "time_dimension"
-    if any(kw in col_name for kw in _TIME_KEYWORDS):
-        return "time_dimension"
-
-    if is_numeric_type(col_type) and not any(kw in col_name for kw in _ID_KEYWORDS):
-        return "measure"
-
-    return "dimension"
-
-
-def _build_col_info(columns: list[dict]) -> list[dict]:
-    """Build the column info list used by profile SQL templates."""
-    from querido.connectors.base import validate_column_name
-
-    return [
-        {
-            "name": validate_column_name(c["name"]),
-            "type": c["type"],
-            "numeric": is_numeric_type(c["type"]),
-        }
-        for c in columns
-    ]
-
-
-def _build_sample_source(
-    connector: Connector,
-    table: str,
-    row_count: int,
-    *,
-    sample: int | None = None,
-    no_sample: bool = False,
-) -> tuple[str, bool, int | None]:
-    """Determine the source expression (table or sampled subquery).
-
-    Returns ``(source, sampled, sample_size)``.
-    """
-    source = table
-    sampled = False
-    sample_size = None
-
-    if no_sample:
-        return source, sampled, sample_size
-
-    import os
-
-    auto_threshold = int(os.environ.get("QDO_SAMPLE_THRESHOLD", "1000000"))
-    if sample is not None:
-        sample_size = sample
-    elif row_count > auto_threshold:
-        sample_size = 100_000
-
-    if sample_size is not None and sample_size < row_count:
-        source = connector.sample_source(table, sample_size, row_count=row_count)
-        sampled = True
-
-    return source, sampled, sample_size
-
-
-def _unpack_single_row(row: dict, col_info: list[dict]) -> list[dict]:
-    """Reshape a single wide row into per-column stat dicts.
-
-    The Snowflake single-scan profile template produces one row with
-    prefixed column names like ``COL__null_count``.  This function
-    unpacks that into the standard list-of-dicts format expected by all
-    downstream consumers.
-    """
-    total_rows = row.get("total_rows", 0)
-    stats: list[dict] = []
-    for col in col_info:
-        name = col["name"]
-        prefix = f"{name}__".lower()
-        entry: dict = {
-            "column_name": name,
-            "column_type": col["type"],
-            "total_rows": total_rows,
-            "null_count": row.get(f"{prefix}null_count"),
-            "null_pct": row.get(f"{prefix}null_pct"),
-            "distinct_count": row.get(f"{prefix}distinct_count"),
-        }
-        if col["numeric"]:
-            entry["min_val"] = row.get(f"{prefix}min_val")
-            entry["max_val"] = row.get(f"{prefix}max_val")
-            entry["mean_val"] = row.get(f"{prefix}mean_val")
-            entry["median_val"] = row.get(f"{prefix}median_val")
-            entry["stddev_val"] = row.get(f"{prefix}stddev_val")
-            entry["min_length"] = None
-            entry["max_length"] = None
-        else:
-            entry["min_val"] = None
-            entry["max_val"] = None
-            entry["mean_val"] = None
-            entry["median_val"] = None
-            entry["stddev_val"] = None
-            entry["min_length"] = row.get(f"{prefix}min_length")
-            entry["max_length"] = row.get(f"{prefix}max_length")
-        stats.append(entry)
-    return stats
 
 
 def get_profile(
@@ -176,7 +46,7 @@ def get_profile(
             )
         col_meta = filtered
 
-    col_info = _build_col_info(col_meta)
+    col_info = build_col_info(col_meta)
 
     # Only run a separate count query when we need it for auto-sampling.
     # When sample is explicit or no_sample is set, skip the extra table scan;
@@ -192,7 +62,7 @@ def get_profile(
         # no_sample is True — row_count is unused for sampling decisions.
         row_count = 0
 
-    source, sampled, sample_size = _build_sample_source(
+    source, sampled, sample_size = build_sample_source(
         connector, table, row_count, sample=sample, no_sample=no_sample
     )
 
@@ -215,7 +85,7 @@ def get_profile(
 
         # The single-scan templates produce a single wide row; reshape it.
         if raw and len(raw) == 1 and "total_rows" in raw[0]:
-            stats = _unpack_single_row(raw[0], col_info)
+            stats = unpack_single_row(raw[0], col_info)
         else:
             stats = raw
 
@@ -258,7 +128,7 @@ def _profile_batched(
         )
         raw = connector.execute(sql)
         if raw and len(raw) == 1 and "total_rows" in raw[0]:
-            return _unpack_single_row(raw[0], batch)
+            return unpack_single_row(raw[0], batch)
         return raw
 
     from querido.core._concurrent import run_parallel_ordered

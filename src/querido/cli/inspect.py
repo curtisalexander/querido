@@ -8,7 +8,7 @@ app = typer.Typer(help="Inspect table structure.")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def inspect(
-    table: str = typer.Option(..., "--table", "-t", help="Table name to inspect."),
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),

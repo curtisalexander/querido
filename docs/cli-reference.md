@@ -28,6 +28,8 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 
 ## Commands
 
+### Explore
+
 | Command | Purpose |
 |---------|---------|
 | `qdo context -c CONN -t TABLE` | Schema + stats + sample values in one call |
@@ -35,33 +37,68 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo preview -c CONN -t TABLE [-r ROWS]` | Preview rows (default 20) |
 | `qdo profile -c CONN -t TABLE [--top N]` | Statistical profile (min/max/mean/nulls/distinct) |
 | `qdo dist -c CONN -t TABLE -C COLUMN` | Column value distribution / histogram |
-| `qdo catalog -c CONN -p PATTERN` | Search tables/columns by name |
-| `qdo view-def -c CONN -v VIEW` | View SQL definition |
-| `qdo template -c CONN -t TABLE` | Generate documentation template |
-| `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
-| `qdo catalog -c CONN [--tables-only] [--enrich]` | Full database catalog (+ metadata with --enrich) |
 | `qdo values -c CONN -t TABLE -C COL` | Distinct values for a column |
-| `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
-| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
 | `qdo quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness, issues) |
-| `qdo joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
 | `qdo diff -c CONN -t A --target B` | Compare schemas between two tables |
+| `qdo joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
+
+### Query
+
+| Command | Purpose |
+|---------|---------|
+| `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
+| `qdo catalog -c CONN [--pattern P] [--tables-only]` | Full database catalog |
+| `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
+| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
 | `qdo export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |
+
+### Generate
+
+| Command | Purpose |
+|---------|---------|
+| `qdo sql select -c CONN -t TABLE` | Generate SELECT statement |
+| `qdo sql ddl -c CONN -t TABLE` | Generate CREATE TABLE DDL |
+| `qdo sql scratch -c CONN -t TABLE` | Temp table + sample INSERTs |
+| `qdo template -c CONN -t TABLE` | Generate documentation template |
+| `qdo view-def -c CONN -v VIEW` | View SQL definition |
+
+### Manage
+
+| Command | Purpose |
+|---------|---------|
+| `qdo config add` | Add a named connection |
+| `qdo config clone -s SRC -n NAME` | Clone a connection with overrides |
+| `qdo config list` | List configured connections |
+| `qdo cache sync -c CONN` | Cache metadata locally |
 | `qdo metadata init -c CONN -t TABLE` | Generate metadata YAML template |
 | `qdo metadata show -c CONN -t TABLE` | Show stored metadata |
 | `qdo metadata list -c CONN` | List metadata files |
 | `qdo metadata refresh -c CONN -t TABLE` | Refresh machine fields, keep human fields |
-| `qdo sql select -c CONN -t TABLE` | Generate SELECT statement |
-| `qdo sql ddl -c CONN -t TABLE` | Generate CREATE TABLE DDL |
-| `qdo cache sync -c CONN` | Cache metadata locally for fast search |
-| `qdo serve -c CONN` | Launch web UI (default port 8888) |
-| `qdo explore -c CONN -t TABLE` | Interactive TUI explorer |
+| `qdo completion show SHELL` | Generate shell completion scripts |
+
+### Snowflake
+
+| Command | Purpose |
+|---------|---------|
 | `qdo snowflake semantic -c CONN -t TABLE` | Cortex Analyst YAML |
 | `qdo snowflake lineage -c CONN --object NAME` | Snowflake lineage graph |
-| `qdo config add` | Add a named connection |
-| `qdo config clone -s SRC -n NAME` | Clone a connection with overrides |
-| `qdo config list` | List configured connections |
+| `qdo sql task -c CONN -t TABLE` | Task template |
+| `qdo sql procedure -c CONN -t TABLE` | Stored procedure template |
+
+### Interactive
+
+| Command | Purpose |
+|---------|---------|
+| `qdo explore -c CONN -t TABLE` | Interactive TUI explorer |
+| `qdo serve -c CONN` | Launch web UI (default port 8888) |
+
+### Learn
+
+| Command | Purpose |
+|---------|---------|
+| `qdo tutorial explore` | 15-lesson core workflow tutorial |
+| `qdo tutorial agent` | 13-lesson metadata + AI-assisted SQL tutorial |
 
 ## Output Formats
 

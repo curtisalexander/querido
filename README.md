@@ -84,9 +84,7 @@ uv pip install 'querido[web]'        # Web UI (qdo serve)
 uv pip install 'querido[all]'        # Everything
 ```
 
-## Usage
-
-### Explore a new database
+## Quick Start
 
 ```bash
 # 1. See all tables and columns
@@ -108,13 +106,20 @@ qdo profile -c my-db --table orders
 qdo query -c my-db --sql "select status, count(*) from orders group by 1"
 ```
 
-### All commands
+All commands support `--format json` (or `csv`, `markdown`, `html`, `yaml`). Output goes to stdout; spinners go to stderr so piping is safe:
 
 ```bash
-# Explore
+qdo context -c my-db -t orders -f json | jq '.columns[].name'
+qdo catalog -c my-db -f json > schema.json
+qdo profile -c my-db -t orders -f csv > stats.csv
+```
+
+## Commands
+
+### Explore — understand your data
+
+```bash
 qdo context   -c my-db -t orders              # schema + stats + sample values in one call
-qdo catalog   -c my-db                        # all tables and columns
-qdo catalog   -c my-db --pattern order        # filter tables/columns by name
 qdo inspect   -c my-db -t orders              # column types, nullable, PK, row count
 qdo preview   -c my-db -t orders -r 20        # see rows
 qdo profile   -c my-db -t orders --top 10     # stats + top frequent values
@@ -123,20 +128,38 @@ qdo values    -c my-db -t orders -C status    # all distinct values for a column
 qdo quality   -c my-db -t orders              # null rates, uniqueness, anomalies
 qdo diff      -c my-db -t orders --target v2  # compare two table schemas
 qdo joins     -c my-db -t orders              # suggest likely join keys
+```
 
-# Query
+### Query — run and validate SQL
+
+```bash
 qdo query     -c my-db --sql "select ..."     # ad-hoc SQL
+qdo catalog   -c my-db                        # all tables and columns
+qdo catalog   -c my-db --pattern order        # filter tables/columns by name
 qdo pivot     -c my-db -t orders -g region -a "sum(amount)"  # GROUP BY
 qdo explain   -c my-db --sql "select ..."     # query execution plan
 qdo assert    -c my-db --sql "..." --expect 0 # assert a condition (CI-friendly)
 qdo export    -c my-db -t orders -o out.csv   # export to file
+```
 
-# Generate
+### Generate — scaffold SQL and docs
+
+```bash
 qdo sql select   -c my-db -t orders           # SELECT scaffold
 qdo sql ddl      -c my-db -t orders           # CREATE TABLE DDL
 qdo sql scratch  -c my-db -t orders           # TEMP TABLE + sample INSERTs
 qdo template     -c my-db -t orders           # documentation template
 qdo view-def     -c my-db --view my_view      # SQL definition of a view
+```
+
+### Manage — connections, cache, metadata
+
+```bash
+qdo config add  --name mydb --type duckdb --path ./my.duckdb
+qdo config list
+qdo config clone --source sf-base --name sf-finance --database FINANCE_DB
+qdo cache sync  -c my-db
+qdo completion show fish > ~/.config/fish/completions/qdo.fish
 
 # Metadata (business context for AI-assisted SQL)
 qdo metadata init    -c my-db -t orders       # create metadata YAML
@@ -144,32 +167,44 @@ qdo metadata edit    -c my-db -t orders       # open in $EDITOR
 qdo metadata show    -c my-db -t orders       # read back metadata
 qdo metadata list    -c my-db                 # completeness overview
 qdo metadata refresh -c my-db -t orders       # re-profile, keep human fields
+```
 
-# Manage
-qdo config add  --name mydb --type duckdb --path ./my.duckdb
-qdo config list
-qdo cache sync  -c my-db
-qdo completion show fish > ~/.config/fish/completions/qdo.fish  # shell completions
+### Snowflake — platform-specific commands
 
-# Parquet files — pass the file path directly as the connection
-qdo preview -c data.parquet --table data          # table name = file stem
-qdo context -c data.parquet --table data          # full context
-qdo catalog -c data.parquet                       # see all tables in the file
+```bash
+qdo snowflake semantic -c prod -t my_table              # Cortex Analyst YAML
+qdo snowflake lineage -c prod --object DB.SCHEMA.TABLE  # GET_LINEAGE query
+qdo sql task -c prod -t my_table                        # task template
+qdo sql procedure -c prod -t my_table                   # stored procedure template
+```
 
-# Interactive
+### Interactive — TUI and web UI
+
+```bash
 qdo explore -c my-db -t orders               # terminal UI (requires querido[tui])
 qdo serve   -c my-db --port 8888             # web UI (requires querido[web])
 ```
 
-All commands support `--format json` (or `--format csv`, `--format markdown`). Output goes to stdout; spinners go to stderr so piping is safe:
+### Learn — built-in tutorials
 
 ```bash
-qdo context -c my-db -t orders -f json | jq '.columns[].name'
-qdo catalog -c my-db -f json > schema.json
-qdo profile -c my-db -t orders -f csv > stats.csv
+qdo tutorial explore                 # 15-lesson core workflow
+qdo tutorial agent                   # 13-lesson metadata + AI-assisted SQL
+qdo tutorial explore --list          # list lessons
+qdo tutorial explore --lesson 5      # jump to a lesson
 ```
 
-### context — the quick-look command
+### Parquet files
+
+Pass the file path directly as the connection — DuckDB handles the rest:
+
+```bash
+qdo preview -c data.parquet --table data          # table name = file stem
+qdo context -c data.parquet --table data          # full context
+qdo catalog -c data.parquet                       # see all tables in the file
+```
+
+## context — the quick-look command
 
 `context` is the fastest way to understand a table. It returns schema, statistics, and sample values in a single database scan (DuckDB/Snowflake), or a profile scan plus frequency queries (SQLite).
 
@@ -215,24 +250,7 @@ JSON output shape:
 }
 ```
 
-### Interactive tutorials
-
-Two interactive tutorials using a National Parks dataset (requires `querido[duckdb]`):
-
-```bash
-# Core workflow: catalog → inspect → profile → query (15 lessons)
-qdo tutorial explore
-qdo tutorial explore --list          # list all lessons
-qdo tutorial explore --lesson 5      # start at a specific lesson
-
-# Metadata + AI-assisted SQL (13 lessons)
-qdo tutorial agent
-qdo tutorial agent --list
-```
-
-The `agent` tutorial covers: generating metadata templates, enriching them with business context (descriptions, valid values, PII flags), exporting metadata as JSON for a coding agent, the recommended prompt structure for getting accurate SQL, and the `context` command workflow. See `skills/querido/SKILL.md` for a ready-made skill file you can add to your coding agent.
-
-### Using qdo with a coding agent
+## Using qdo with a coding agent
 
 qdo is designed to be useful at the keyboard for a human analyst, and equally useful as a tool for a coding agent writing SQL on your behalf.
 
@@ -274,20 +292,6 @@ qdo metadata show -c my-db -t orders -f json
 ```
 
 The `context` command is especially useful for agent workflows: it returns everything an LLM needs to write correct SQL for a table (column types, nullable flags, null rates, sample values for categoricals, min/max for numerics) in a single call.
-
-### Snowflake-specific commands
-
-```bash
-# Generate a Cortex Analyst semantic model YAML
-qdo snowflake semantic --connection prod --table my_table
-
-# Trace upstream/downstream lineage via GET_LINEAGE
-qdo snowflake lineage --connection prod --object DB.SCHEMA.TABLE --direction downstream
-
-# Snowflake-only SQL templates
-qdo sql task --connection prod --table my_table
-qdo sql procedure --connection prod --table my_table
-```
 
 ## Configuration
 
@@ -395,8 +399,8 @@ Use `qdo completion show <shell> --hint` to see install instructions for a speci
 ```bash
 uv run ruff check src/ tests/    # lint
 uv run ruff format src/ tests/   # format
-uv run ty check                   # type check
-uv run pytest                     # test
+uv run ty check                  # type check
+uv run pytest                    # test
 ```
 
 ### Dependency updates

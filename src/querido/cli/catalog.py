@@ -46,9 +46,7 @@ def catalog(
     former ``search`` command). Use --enrich to merge business context from
     stored metadata files (.qdo/metadata/) into the catalog output.
     """
-    from querido.cli._pipeline import dispatch_output
-    from querido.config import resolve_connection
-    from querido.connectors.factory import create_connector
+    from querido.cli._pipeline import database_command, dispatch_output
 
     # Try cache first (unless --live)
     result = None
@@ -58,16 +56,11 @@ def catalog(
         result = get_catalog_cached(connection, tables_only=tables_only)
 
     if result is None:
-        config = resolve_connection(connection, db_type)
-        with create_connector(config) as connector:
-            from rich.console import Console
-
-            from querido.cli._progress import query_status
+        with database_command(connection=connection, db_type=db_type) as ctx:
             from querido.core.catalog import get_catalog
 
-            console = Console(stderr=True)
-            with query_status(console, "Loading catalog", connector):
-                result = get_catalog(connector, tables_only=tables_only, schema=schema)
+            with ctx.spin("Loading catalog"):
+                result = get_catalog(ctx.connector, tables_only=tables_only, schema=schema)
 
     if enrich and result:
         from querido.core.catalog import enrich_catalog

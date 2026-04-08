@@ -62,31 +62,31 @@ class TestSemanticYamlGeneration:
         assert "time_dimensions:" in yaml_str
 
     def test_classify_id_as_dimension(self):
-        from querido.core.profile import classify_column_kind
+        from querido.core._utils import classify_column_kind
 
         col = {"name": "ORDER_ID", "type": "NUMBER"}
         assert classify_column_kind(col) == "dimension"
 
     def test_classify_numeric_as_measure(self):
-        from querido.core.profile import classify_column_kind
+        from querido.core._utils import classify_column_kind
 
         col = {"name": "TOTAL", "type": "FLOAT"}
         assert classify_column_kind(col) == "measure"
 
     def test_classify_date_as_time_dimension(self):
-        from querido.core.profile import classify_column_kind
+        from querido.core._utils import classify_column_kind
 
         col = {"name": "ORDER_DATE", "type": "DATE"}
         assert classify_column_kind(col) == "time_dimension"
 
     def test_classify_timestamp_as_time_dimension(self):
-        from querido.core.profile import classify_column_kind
+        from querido.core._utils import classify_column_kind
 
         col = {"name": "CREATED_AT", "type": "TIMESTAMP_NTZ"}
         assert classify_column_kind(col) == "time_dimension"
 
     def test_classify_string_as_dimension(self):
-        from querido.core.profile import classify_column_kind
+        from querido.core._utils import classify_column_kind
 
         col = {"name": "STATUS", "type": "VARCHAR"}
         assert classify_column_kind(col) == "dimension"

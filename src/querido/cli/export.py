@@ -55,8 +55,7 @@ def export(
     """
     import sys
 
-    from querido.config import resolve_connection
-    from querido.connectors.factory import create_connector
+    from querido.cli._pipeline import database_command
 
     if not table and not sql:
         raise typer.BadParameter("Must provide --table or --sql.")
@@ -76,18 +75,12 @@ def export(
     if columns:
         col_list = [c.strip() for c in columns.split(",") if c.strip()]
 
-    config = resolve_connection(connection, db_type)
-
-    with create_connector(config) as connector:
-        from rich.console import Console
-
-        from querido.cli._progress import query_status
+    with database_command(connection=connection, db_type=db_type) as ctx:
         from querido.core.export import export_data
 
-        console = Console(stderr=True)
-        with query_status(console, "Exporting data", connector):
+        with ctx.spin("Exporting data"):
             result = export_data(
-                connector,
+                ctx.connector,
                 table=table,
                 sql=sql,
                 output_path=output,
@@ -102,11 +95,11 @@ def export(
 
             content = result.get("content", "")
             copy_to_clipboard(content)
-            console.print(
+            ctx.console.print(
                 f"[green]Copied {result.get('rows', 0):,} rows to clipboard (TSV)[/green]",
             )
         elif output:
-            console.print(
+            ctx.console.print(
                 f"[green]Exported {result.get('rows', 0):,} rows to {output}"
                 f" ({result.get('size_bytes', 0):,} bytes)[/green]",
             )

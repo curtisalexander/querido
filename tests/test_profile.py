@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from querido.cli.main import app
-from querido.core.profile import _unpack_single_row
+from querido.core._utils import unpack_single_row as _unpack_single_row
 
 runner = CliRunner()
 
@@ -100,7 +100,12 @@ def test_profile_batched_produces_all_columns():
     the batching/merge logic by calling the internal helpers directly.
     """
     from querido.connectors.duckdb import DuckDBConnector
-    from querido.core.profile import _build_col_info, _unpack_single_row
+    from querido.core._utils import (
+        build_col_info as _build_col_info,
+    )
+    from querido.core._utils import (
+        unpack_single_row as _unpack_single_row,
+    )
     from querido.sql.renderer import render_template
 
     with DuckDBConnector() as connector:

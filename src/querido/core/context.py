@@ -49,12 +49,12 @@ def get_context(
         table_comment, table_description, columns (list), metadata (dict|None)
     """
     from querido.connectors.base import validate_table_name
-    from querido.core.profile import _build_col_info, _build_sample_source
+    from querido.core._utils import build_col_info, build_sample_source
 
     validate_table_name(table)
 
     col_meta = connector.get_columns(table)
-    col_info = _build_col_info(col_meta)
+    col_info = build_col_info(col_meta)
 
     # --- Determine sampling --------------------------------------------------
     needs_auto_sample = sample is None and not no_sample
@@ -65,7 +65,7 @@ def get_context(
     else:
         row_count_for_sample = 0
 
-    source, sampled, sample_size = _build_sample_source(
+    source, sampled, sample_size = build_sample_source(
         connector, table, row_count_for_sample, sample=sample, no_sample=no_sample
     )
 
@@ -102,7 +102,7 @@ def get_context(
             "distinct_count": stats.get("distinct_count"),
         }
 
-        from querido.core.profile import is_numeric_type
+        from querido.core._utils import is_numeric_type
 
         is_numeric = is_numeric_type(col.get("type", ""))
         if is_numeric:
@@ -180,9 +180,9 @@ def _fetch_stats(
         row = raw[0] if raw else {}
         row_count = int(row.get("total_rows", 0) or 0)
 
-        from querido.core.profile import _unpack_single_row
+        from querido.core._utils import unpack_single_row
 
-        stats_list = _unpack_single_row(row, col_info)
+        stats_list = unpack_single_row(row, col_info)
         stats_by_col = {s["column_name"]: s for s in stats_list}
 
         # Extract approx_top_k results for non-numeric columns
@@ -211,9 +211,9 @@ def _fetch_stats(
         row = raw[0] if raw else {}
         row_count = int(row.get("total_rows", 0) or 0)
 
-        from querido.core.profile import _unpack_single_row
+        from querido.core._utils import unpack_single_row
 
-        stats_list = _unpack_single_row(row, col_info)
+        stats_list = unpack_single_row(row, col_info)
         stats_by_col = {s["column_name"]: s for s in stats_list}
 
         top_values_by_col: dict[str, list[str] | None] = {}

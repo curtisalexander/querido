@@ -16,7 +16,7 @@ def test_overview_runs() -> None:
 def test_overview_contains_commands() -> None:
     result = runner.invoke(app, ["overview"])
     assert result.exit_code == 0
-    for cmd in ("inspect", "preview", "profile", "dist", "search", "lineage"):
+    for cmd in ("inspect", "preview", "profile", "dist", "catalog", "view-def"):
         assert cmd in result.output
 
 

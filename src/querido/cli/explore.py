@@ -8,7 +8,7 @@ app = typer.Typer(help="Interactive data exploration (TUI).")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def explore(
-    table: str = typer.Option(..., "--table", "-t", help="Table name to explore."),
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),

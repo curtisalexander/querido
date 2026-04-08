@@ -8,7 +8,7 @@ app = typer.Typer(help="Preview rows from a table.")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def preview(
-    table: str = typer.Option(..., "--table", "-t", help="Table name to preview."),
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),

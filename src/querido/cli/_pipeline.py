@@ -158,6 +158,45 @@ def _maybe_reraise_as_table_not_found(exc: Exception, connector: object, table: 
         )
 
 
+@contextlib.contextmanager
+def database_command(
+    *,
+    connection: str,
+    db_type: str | None = None,
+) -> Generator[CommandContext]:
+    """Context manager for CLI commands that don't target a specific table.
+
+    Like ``table_command`` but skips table validation and resolution.
+    Use for commands like ``query``, ``catalog``, ``explain``, ``assert``,
+    and ``export`` that operate at the database level.
+
+    Usage::
+
+        with database_command(connection=c, db_type=d) as ctx:
+            with ctx.spin("Executing query"):
+                data = run_query(ctx.connector, sql)
+            dispatch_output("query", data)
+    """
+    import logging
+
+    from querido.config import resolve_connection
+    from querido.connectors.factory import create_connector
+
+    log = logging.getLogger("querido.cli")
+
+    config = resolve_connection(connection, db_type)
+    detail = config.get("path") or config.get("account", "")
+    log.debug("Connection: type=%s %s", config.get("type", "?"), detail)
+
+    with create_connector(config) as connector:
+        from rich.console import Console
+
+        console = Console(stderr=True)
+        log.debug("Connected (%s)", connector.dialect)
+
+        yield CommandContext(connector=connector, console=console)
+
+
 def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
     """Three-way output dispatch based on the ``--format`` CLI flag.
 

@@ -239,7 +239,7 @@
   <div class="header">
     <div class="header-left">
       <h1><span>qdo</span> <span style="color:#6366f1">Cheatsheet</span></h1>
-      <div class="subtitle">CLI data analysis toolkit &mdash; inspect, profile, search, and explore database tables</div>
+      <div class="subtitle">CLI data analysis toolkit &mdash; inspect, profile, query, and explore database tables</div>
     </div>
     <div class="header-right">
       Supports <strong>SQLite</strong>, <strong>DuckDB</strong>, <strong>Snowflake</strong>, <strong>Parquet</strong><br>
@@ -313,15 +313,15 @@
       <div class="tip"><strong>Auto-sampling:</strong> Tables over 1M rows are automatically sampled (100k). Use <span class="cmd">--no-sample</span> to force a full scan.</div>
     </section>
 
-    <!-- ── Search & Lineage ── -->
+    <!-- ── Catalog & Views ── -->
     <section class="section theme-sky">
-      <h2>Search &amp; Lineage</h2>
-      <div class="row"><span class="k">qdo search -p PATTERN -c CONN</span><span class="d">Search tables &amp; columns</span></div>
-      <div class="row"><span class="k">qdo search ... --type table</span><span class="d">Tables only</span></div>
-      <div class="row"><span class="k">qdo search ... --type column</span><span class="d">Columns only</span></div>
-      <div class="row"><span class="k">qdo search ... --no-cache</span><span class="d">Bypass metadata cache</span></div>
-      <div class="row"><span class="k">qdo lineage -v VIEW -c CONN</span><span class="d">View SQL definition</span></div>
-      <div class="tip"><strong>Search</strong> uses the local metadata cache when available. Run <span class="cmd">qdo cache sync</span> first for instant results.</div>
+      <h2>Catalog &amp; Views</h2>
+      <div class="row"><span class="k">qdo catalog -c CONN</span><span class="d">Full schema (all tables + columns)</span></div>
+      <div class="row"><span class="k">qdo catalog ... --pattern order</span><span class="d">Filter by name</span></div>
+      <div class="row"><span class="k">qdo catalog ... --tables-only</span><span class="d">Just table names</span></div>
+      <div class="row"><span class="k">qdo context -c CONN -t TABLE</span><span class="d">Schema + stats + samples (one scan)</span></div>
+      <div class="row"><span class="k">qdo view-def -c CONN -v VIEW</span><span class="d">View SQL definition</span></div>
+      <div class="tip"><strong>Context</strong> is the fastest way to understand a table &mdash; returns everything a human or coding agent needs in one call. Add <span class="cmd">-f json</span> for machine-readable output.</div>
     </section>
 
     <!-- ── SQL Generation ── -->
