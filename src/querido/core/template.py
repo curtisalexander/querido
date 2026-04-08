@@ -14,13 +14,11 @@ def get_columns_and_count(
     Returns ``(columns, table_comment, row_count, col_info)``.
     """
     from querido.core.profile import _build_col_info
-    from querido.sql.renderer import render_template
 
     columns = connector.get_columns(table)
     table_comment = connector.get_table_comment(table)
 
-    count_sql = render_template("count", connector.dialect, table=table)
-    row_count = connector.execute(count_sql)[0]["cnt"]
+    row_count = connector.get_row_count(table)
 
     col_info = _build_col_info(columns)
 

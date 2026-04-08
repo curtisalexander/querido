@@ -21,8 +21,8 @@ async def pivot_page(request: Request, name: str) -> HTMLResponse:
     connector = request.app.state.connector
 
     loop = asyncio.get_running_loop()
-    columns = await loop.run_in_executor(None, connector.get_columns, name)
-    tables = await loop.run_in_executor(None, connector.get_tables)
+    columns = await loop.run_in_executor(request.app.state.executor, connector.get_columns, name)
+    tables = await loop.run_in_executor(request.app.state.executor, connector.get_tables)
 
     templates = request.app.state.templates
     return templates.TemplateResponse(

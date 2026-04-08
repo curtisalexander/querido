@@ -1205,3 +1205,30 @@ def format_query(
     lines.append("")
     lines.append(f"{row_count} row(s) returned{suffix}")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Registry — maps command names to text format functions for dispatch_output()
+# ---------------------------------------------------------------------------
+REGISTRY: dict[str, object] = {
+    "inspect": format_inspect,
+    "preview": format_preview,
+    "profile": format_profile,
+    "search": format_search,
+    "dist": format_dist,
+    "template": format_template,
+    "lineage": format_lineage,
+    "snowflake_lineage": format_snowflake_lineage,
+    "metadata": format_metadata,
+    "metadata_list": format_metadata_list,
+    "explain": format_explain,
+    "diff": format_diff,
+    "joins": format_joins,
+    "quality": format_quality,
+    "assert_check": format_assert_check,
+    "pivot": format_pivot,
+    "values": format_values,
+    "catalog": format_catalog,
+    "query": format_query,
+    "frequencies": format_frequencies,
+}

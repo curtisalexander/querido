@@ -33,7 +33,8 @@ async def _run_query(
     loop = asyncio.get_running_loop()
     t0 = time.monotonic()
     try:
-        result = await loop.run_in_executor(None, partial(fn, *args, **kwargs))
+        executor = request.app.state.executor
+        result = await loop.run_in_executor(executor, partial(fn, *args, **kwargs))
         elapsed = time.monotonic() - t0
         return result, elapsed
     except asyncio.CancelledError:

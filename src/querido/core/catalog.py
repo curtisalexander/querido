@@ -50,12 +50,19 @@ def get_catalog(
         ]
         return {"tables": tables, "table_count": len(tables)}
 
+    # Fetch all row counts in bulk (1 query instead of N).
+    table_names = [t.get("name", "") for t in raw_tables]
+    try:
+        row_counts = connector.get_table_row_counts(table_names)
+    except Exception:
+        row_counts = {}
+
     concurrent = getattr(connector, "supports_concurrent_queries", False)
 
     if concurrent and len(raw_tables) > 1:
-        tables = _fetch_parallel(connector, raw_tables)
+        tables = _fetch_parallel(connector, raw_tables, row_counts)
     else:
-        tables = [_fetch_table_detail(connector, t) for t in raw_tables]
+        tables = [_fetch_table_detail(connector, t, row_counts) for t in raw_tables]
 
     return {"tables": tables, "table_count": len(tables)}
 
@@ -181,18 +188,41 @@ def enrich_catalog(catalog: dict, connection: str) -> dict:
     }
 
 
-def _fetch_table_detail(connector: Connector, table_info: dict) -> dict:
-    """Fetch columns and row count for a single table."""
-    from querido.sql.renderer import render_template
+def filter_catalog(catalog: dict, pattern: str) -> dict:
+    """Filter catalog tables and columns by a case-insensitive substring pattern.
 
+    A table is included if its name matches OR if any of its columns match.
+    When a table is included via column matches, all columns are retained
+    (the match is for inclusion, not trimming).
+    """
+    pat = pattern.lower()
+    filtered = []
+    for table in catalog.get("tables", []):
+        name = table.get("name", "")
+        table_match = pat in name.lower()
+        columns = table.get("columns") or []
+        column_match = any(pat in c.get("name", "").lower() for c in columns)
+        if table_match or column_match:
+            filtered.append(table)
+    return {"tables": filtered, "table_count": len(filtered)}
+
+
+def _fetch_table_detail(
+    connector: Connector, table_info: dict, row_counts: dict[str, int] | None = None
+) -> dict:
+    """Fetch columns for a single table, using pre-fetched row counts."""
     name = table_info.get("name", "")
     columns = connector.get_columns(name)
 
-    try:
-        count_sql = render_template("count", connector.dialect, table=name)
-        row_count = connector.execute(count_sql)[0].get("cnt", 0)
-    except Exception:
-        row_count = None
+    row_count: int | None = None
+    if row_counts is not None:
+        row_count = row_counts.get(name)
+    if row_count is None:
+        # Fallback: individual count for tables not in the bulk result
+        try:
+            row_count = connector.get_row_count(name)
+        except Exception:
+            row_count = None
 
     return {
         "name": name,
@@ -210,12 +240,14 @@ def _fetch_table_detail(connector: Connector, table_info: dict) -> dict:
     }
 
 
-def _fetch_parallel(connector: Connector, raw_tables: list[dict]) -> list[dict]:
+def _fetch_parallel(
+    connector: Connector, raw_tables: list[dict], row_counts: dict[str, int] | None = None
+) -> list[dict]:
     """Fetch table details in parallel using thread pool."""
     from querido.core._concurrent import run_parallel_ordered
 
     return run_parallel_ordered(
         raw_tables,
-        lambda t: _fetch_table_detail(connector, t),
+        lambda t: _fetch_table_detail(connector, t, row_counts),
         max_workers=4,
     )

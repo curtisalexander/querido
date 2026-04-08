@@ -181,8 +181,7 @@ def get_profile(
     # the real row count will be extracted from the profile query result.
     needs_auto_sample = sample is None and not no_sample
     if needs_auto_sample:
-        count_sql = render_template("count", connector.dialect, table=table)
-        row_count = connector.execute(count_sql)[0]["cnt"]
+        row_count = connector.get_row_count(table)
     elif sample is not None:
         # Explicit sample requested — use a large sentinel so
         # _build_sample_source always enables sampling.
@@ -216,9 +215,10 @@ def get_profile(
         else:
             stats = raw
 
-    # Extract row_count from the profile result when we skipped the count query.
-    if not needs_auto_sample:
-        row_count = stats[0].get("total_rows", 0) if stats else 0
+    # Always prefer the actual row count from the profile result when
+    # available — it's exact, while get_row_count() may be an estimate.
+    if stats and stats[0].get("total_rows") is not None:
+        row_count = stats[0].get("total_rows", 0)
 
     return {
         "stats": stats,

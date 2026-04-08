@@ -34,6 +34,39 @@ def validate_object_name(name: str) -> str:
     return _validate_identifier(name, "object")
 
 
+# ---------------------------------------------------------------------------
+# Error hierarchy
+# ---------------------------------------------------------------------------
+
+
+class ConnectorError(Exception):
+    """Base exception for all connector errors."""
+
+
+class TableNotFoundError(ConnectorError):
+    """Raised when a referenced table does not exist."""
+
+    def __init__(self, table: str, available: list[str] | None = None) -> None:
+        self.table = table
+        self.available = available or []
+        super().__init__(f"Table not found: {table!r}")
+
+
+class ColumnNotFoundError(ConnectorError):
+    """Raised when a referenced column does not exist."""
+
+    def __init__(self, column: str, table: str, available: list[str] | None = None) -> None:
+        self.column = column
+        self.table = table
+        self.available = available or []
+        super().__init__(f"Column {column!r} not found in table {table!r}")
+
+
+# ---------------------------------------------------------------------------
+# Connector Protocol
+# ---------------------------------------------------------------------------
+
+
 @runtime_checkable
 class Connector(Protocol):
     dialect: str
@@ -61,6 +94,24 @@ class Connector(Protocol):
 
     def get_view_definition(self, view: str) -> str | None:
         """Return the SQL definition of a view, or None if not a view."""
+        ...
+
+    def get_row_count(self, table: str) -> int:
+        """Return the (possibly estimated) row count for *table*.
+
+        Connectors should use metadata lookups when possible to avoid a
+        full table scan.  The result is used for sampling decisions where
+        an estimate is acceptable.
+        """
+        ...
+
+    def get_table_row_counts(self, table_names: list[str]) -> dict[str, int]:
+        """Return estimated row counts for multiple tables in one call.
+
+        Returns a dict mapping table name to row count.  Connectors
+        should use bulk metadata queries when possible to avoid N+1
+        query patterns.
+        """
         ...
 
     def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:

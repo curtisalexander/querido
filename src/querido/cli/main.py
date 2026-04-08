@@ -14,34 +14,77 @@ from typer.core import TyperGroup
 # the module for the subcommand actually being invoked.  This avoids paying
 # the import cost of every subcommand on every CLI call (including --help).
 
+# Commands are organized by category for --help display.  Each entry is
+# (command_name, module_path, help_text).  The order here controls the
+# order in the help output.
+_COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
+    (
+        "Explore",
+        [
+            ("inspect", "querido.cli.inspect", "Inspect table structure."),
+            ("preview", "querido.cli.preview", "Preview rows from a table."),
+            ("profile", "querido.cli.profile", "Profile table data."),
+            ("dist", "querido.cli.dist", "Column distribution visualization."),
+            ("values", "querido.cli.values", "Show distinct values for a column."),
+            ("quality", "querido.cli.quality", "Data quality summary for a table."),
+            ("search", "querido.cli.search", "Search table and column metadata."),
+            ("diff", "querido.cli.diff", "Compare schemas between two tables."),
+            ("joins", "querido.cli.joins", "Discover likely join keys between tables."),
+        ],
+    ),
+    (
+        "Query",
+        [
+            ("query", "querido.cli.query", "Execute ad-hoc SQL queries."),
+            ("catalog", "querido.cli.catalog", "Show full database catalog."),
+            ("pivot", "querido.cli.pivot", "Pivot / aggregate table data."),
+            ("explain", "querido.cli.explain", "Show query execution plan (EXPLAIN)."),
+            ("assert", "querido.cli.assert_cmd", "Assert conditions on query results."),
+            ("export", "querido.cli.export", "Export data to a file (csv, tsv, json, jsonl)."),
+        ],
+    ),
+    (
+        "Generate",
+        [
+            ("sql", "querido.cli.sql", "Generate SQL statements for a table."),
+            ("template", "querido.cli.template", "Generate documentation templates for tables."),
+            ("lineage", "querido.cli.lineage", "View definition and simple lineage."),
+        ],
+    ),
+    (
+        "Manage",
+        [
+            ("config", "querido.cli.config", "Manage connections."),
+            ("cache", "querido.cli.cache", "Manage local metadata cache."),
+            ("metadata", "querido.cli.metadata", "Manage enriched table metadata."),
+            ("completion", "querido.cli.completion", "Generate shell completion scripts."),
+        ],
+    ),
+    (
+        "Snowflake",
+        [
+            ("snowflake", "querido.cli.snowflake", "Snowflake-specific commands."),
+        ],
+    ),
+    (
+        "Interactive",
+        [
+            ("explore", "querido.cli.explore", "Interactive data exploration (TUI)."),
+            ("serve", "querido.cli.serve", "Serve interactive web UI."),
+        ],
+    ),
+    (
+        "Reference",
+        [
+            ("overview", "querido.cli.overview", "Print CLI overview (markdown)."),
+        ],
+    ),
+]
+
+# Flatten for lookup — preserves the same {name: (module, help)} structure
+# that LazyGroup.get_command() expects.
 _SUBCOMMANDS: dict[str, tuple[str, str]] = {
-    #  name  → (module_path, help_text)
-    "assert": ("querido.cli.assert_cmd", "Assert conditions on query results."),
-    "cache": ("querido.cli.cache", "Manage local metadata cache."),
-    "catalog": ("querido.cli.catalog", "Show full database catalog."),
-    "completion": ("querido.cli.completion", "Generate shell completion scripts."),
-    "config": ("querido.cli.config", "Manage connections."),
-    "diff": ("querido.cli.diff", "Compare schemas between two tables."),
-    "dist": ("querido.cli.dist", "Column distribution visualization."),
-    "explain": ("querido.cli.explain", "Show query execution plan (EXPLAIN)."),
-    "export": ("querido.cli.export", "Export data to a file (csv, tsv, json, jsonl)."),
-    "explore": ("querido.cli.explore", "Interactive data exploration (TUI)."),
-    "inspect": ("querido.cli.inspect", "Inspect table structure."),
-    "joins": ("querido.cli.joins", "Discover likely join keys between tables."),
-    "lineage": ("querido.cli.lineage", "View definition and simple lineage."),
-    "metadata": ("querido.cli.metadata", "Manage enriched table metadata."),
-    "overview": ("querido.cli.overview", "Print CLI overview (markdown)."),
-    "pivot": ("querido.cli.pivot", "Pivot / aggregate table data."),
-    "preview": ("querido.cli.preview", "Preview rows from a table."),
-    "profile": ("querido.cli.profile", "Profile table data."),
-    "quality": ("querido.cli.quality", "Data quality summary for a table."),
-    "query": ("querido.cli.query", "Execute ad-hoc SQL queries."),
-    "search": ("querido.cli.search", "Search table and column metadata."),
-    "serve": ("querido.cli.serve", "Serve interactive web UI."),
-    "snowflake": ("querido.cli.snowflake", "Snowflake-specific commands."),
-    "sql": ("querido.cli.sql", "Generate SQL statements for a table."),
-    "template": ("querido.cli.template", "Generate documentation templates for tables."),
-    "values": ("querido.cli.values", "Show distinct values for a column."),
+    name: (mod, help_text) for _, cmds in _COMMAND_CATEGORIES for name, mod, help_text in cmds
 }
 
 
@@ -56,6 +99,7 @@ class LazyGroup(TyperGroup):
     ) -> None:
         super().__init__(*args, **kwargs)
         self._lazy_subcommands: dict[str, tuple[str, str]] = lazy_subcommands or {}
+        self._command_categories: list[tuple[str, list[tuple[str, str, str]]]] = []
 
     # -- Click Group interface -----------------------------------------------
 
@@ -85,23 +129,42 @@ class LazyGroup(TyperGroup):
         self.add_command(click_group, cmd_name)
         return click_group
 
-    def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        """Override to show help text for lazy commands without importing them."""
-        commands = []
-        for subcommand in self.list_commands(ctx):
-            cmd = super().get_command(ctx, subcommand)
-            if cmd is not None:
-                # Already resolved (eager or previously loaded lazy command)
-                help_text = cmd.get_short_help_str(limit=formatter.width)
-                commands.append((subcommand, help_text))
-            elif subcommand in self._lazy_subcommands:
-                # Lazy command — use the cached help text without importing
-                _, help_text = self._lazy_subcommands[subcommand]
-                commands.append((subcommand, help_text))
+    def _get_help_text(self, ctx: click.Context, name: str) -> str:
+        """Get help text for a command without importing it if possible."""
+        cmd = super().get_command(ctx, name)
+        if cmd is not None:
+            return cmd.get_short_help_str(limit=80)
+        if name in self._lazy_subcommands:
+            _, help_text = self._lazy_subcommands[name]
+            return help_text
+        return ""
 
-        if commands:
-            with formatter.section("Commands"):
-                formatter.write_dl(commands)
+    def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """Show commands grouped by category."""
+        if not self._command_categories:
+            # Fallback to flat list if categories aren't configured
+            return super().format_commands(ctx, formatter)
+
+        for category, cmds in self._command_categories:
+            rows = []
+            for name, _mod, _help in cmds:
+                help_text = self._get_help_text(ctx, name)
+                rows.append((name, help_text))
+            if rows:
+                with formatter.section(f"{category} Commands"):
+                    formatter.write_dl(rows)
+
+        # Quick start hint after all command categories
+        formatter.write("\n")
+        with formatter.section("Quick start"):
+            formatter.write_dl(
+                [
+                    ("catalog -c my.db", "List all tables"),
+                    ("inspect -c my.db -t users", "Show table columns"),
+                    ("preview -c my.db -t users", "See sample rows"),
+                    ("profile -c my.db -t users", "Profile statistics"),
+                ]
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +191,7 @@ def _patched_get_group(typer_app: typer.Typer, **kwargs: Any) -> click.Group:
     group = _original_get_group(typer_app, **kwargs)
     if isinstance(group, LazyGroup) and typer_app is app:
         group._lazy_subcommands = _SUBCOMMANDS
+        group._command_categories = _COMMAND_CATEGORIES
     return group
 
 

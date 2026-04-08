@@ -40,40 +40,47 @@ def get_distinct_values(
     validate_table_name(table)
     validate_column_name(column)
 
-    # Get total rows and null count in one query
-    stats_sql = (
-        f"select count(*) as total_rows, "
-        f'count(*) - count("{column}") as null_count, '
-        f'count(distinct "{column}") as distinct_count '
-        f'from "{table}"'
-    )
-    stats = connector.execute(stats_sql)[0]
-    total_rows = stats.get("total_rows", 0)
-    null_count = stats.get("null_count", 0)
-    distinct_count = stats.get("distinct_count", 0)
-
-    # Decide whether to fetch all or top-N
-    truncated = distinct_count > max_values
-    limit = max_values if truncated else distinct_count + 1  # +1 headroom
-
-    # Always fetch with counts — useful for both sort modes
+    # Single-scan CTE: group once, derive stats from the grouped result.
+    # We fetch max_values + 1 rows to detect truncation without a separate
+    # count(distinct) query.
+    fetch_limit = max_values + 1
     values_sql = (
+        f"with grouped as ("
         f'select "{column}" as value, count(*) as count '
         f'from "{table}" '
-        f'where "{column}" is not null '
-        f'group by "{column}" '
+        f'group by "{column}"'
+        f") "
+        f"select value, count, "
+        f"sum(count) over() as total_rows, "
+        f"coalesce((select count from grouped where value is null), 0) as null_count, "
+        f"count(*) over() as distinct_count "
+        f"from grouped "
+        f"where value is not null "
+        f"order by count desc, value asc "
+        f"limit {fetch_limit}"
     )
-
-    if sort == "frequency" or truncated:
-        # When truncated, always sort by frequency to get the top values
-        values_sql += f"order by count desc, value asc limit {limit}"
-    else:
-        values_sql += f"order by value asc limit {limit}"
-
     rows = connector.execute(values_sql)
 
-    # If user wants value sort but we fetched by frequency (truncated), re-sort
-    if truncated and sort == "value":
+    # Extract stats from first row (window functions populate every row)
+    if rows:
+        total_rows = rows[0].get("total_rows", 0)
+        null_count = rows[0].get("null_count", 0)
+        distinct_count = rows[0].get("distinct_count", 0)
+    else:
+        total_rows = connector.get_row_count(table)
+        null_count = 0
+        distinct_count = 0
+
+    # Detect truncation: if we got more rows than max_values, trim
+    truncated = len(rows) > max_values
+    if truncated:
+        rows = rows[:max_values]
+
+    # Strip stats columns from result rows
+    rows = [{"value": r.get("value"), "count": r.get("count", 0)} for r in rows]
+
+    # If user wants value sort, re-sort (we always fetch by frequency for truncation)
+    if sort == "value":
         rows.sort(key=lambda r: (r.get("value") is None, str(r.get("value", ""))))
 
     return {

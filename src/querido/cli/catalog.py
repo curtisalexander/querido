@@ -24,6 +24,9 @@ def catalog(
     live: bool = typer.Option(
         False, "--live", help="Bypass cache and query the database directly."
     ),
+    pattern: str | None = typer.Option(
+        None, "--pattern", "-p", help="Filter tables/columns by name pattern (substring match)."
+    ),
     schema: str | None = typer.Option(None, "--schema", help="Schema filter (Snowflake only)."),
     enrich: bool = typer.Option(
         False,
@@ -66,5 +69,10 @@ def catalog(
         from querido.core.catalog import enrich_catalog
 
         result = enrich_catalog(result, connection)
+
+    if pattern and result:
+        from querido.core.catalog import filter_catalog
+
+        result = filter_catalog(result, pattern)
 
     dispatch_output("catalog", result)

@@ -4,7 +4,7 @@ import typer
 
 from querido.cli._errors import friendly_errors
 
-app = typer.Typer(help="Search table and column metadata.")
+app = typer.Typer(help="Search table and column metadata. (Tip: try catalog --pattern)")
 
 
 @app.callback(invoke_without_command=True)
@@ -29,7 +29,11 @@ def search(
         False, "--no-cache", help="Bypass cache and query the database directly."
     ),
 ) -> None:
-    """Search for tables and columns matching a pattern."""
+    """Search for tables and columns matching a pattern.
+
+    Note: consider using ``qdo catalog --pattern`` instead, which provides
+    richer output including columns and row counts.
+    """
     from querido.cli._pipeline import dispatch_output
     from querido.config import resolve_connection
     from querido.connectors.factory import create_connector

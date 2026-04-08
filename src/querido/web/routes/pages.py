@@ -34,7 +34,8 @@ async def landing(request: Request) -> HTMLResponse:
     """Landing page — connection info and table list."""
     connector = request.app.state.connector
     loop = asyncio.get_running_loop()
-    tables = await loop.run_in_executor(None, partial(_get_tables_with_counts, connector))
+    executor = request.app.state.executor
+    tables = await loop.run_in_executor(executor, partial(_get_tables_with_counts, connector))
 
     templates = request.app.state.templates
     return templates.TemplateResponse(
@@ -56,7 +57,7 @@ async def table_detail(request: Request, name: str) -> HTMLResponse:
 
     connector = request.app.state.connector
     loop = asyncio.get_running_loop()
-    tables = await loop.run_in_executor(None, connector.get_tables)
+    tables = await loop.run_in_executor(request.app.state.executor, connector.get_tables)
     table_info = next((t for t in tables if t["name"] == name), None)
     table_type = table_info["type"] if table_info else "table"
 

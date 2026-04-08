@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import typer
 
 from querido.cli._errors import friendly_errors
@@ -41,11 +39,12 @@ def explain(
 
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
+    from querido.cli._options import resolve_sql
     from querido.cli._pipeline import dispatch_output
     from querido.config import resolve_connection
     from querido.connectors.factory import create_connector
 
-    query_sql = _resolve_sql(sql, file, sys.stdin)
+    query_sql = resolve_sql(sql, file, sys.stdin)
     config = resolve_connection(connection, db_type)
 
     with create_connector(config) as connector:
@@ -63,28 +62,3 @@ def explain(
             result = get_explain(connector, query_sql, analyze=analyze)
 
         dispatch_output("explain", result)
-
-
-def _resolve_sql(
-    sql_option: str | None,
-    file_option: str | None,
-    stdin: Any,
-) -> str:
-    """Resolve SQL from --sql, --file, or stdin."""
-    if sql_option is not None:
-        return sql_option
-
-    if file_option is not None:
-        from pathlib import Path
-
-        path = Path(file_option)
-        if not path.exists():
-            raise typer.BadParameter(f"SQL file not found: {file_option}")
-        return path.read_text().strip()
-
-    if hasattr(stdin, "isatty") and not stdin.isatty():
-        text = stdin.read().strip()
-        if text:
-            return text
-
-    raise typer.BadParameter("No SQL provided. Use --sql, --file, or pipe SQL via stdin.")

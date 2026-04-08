@@ -176,18 +176,16 @@ All commands support `--format json` (or `-f json`). JSON output goes to stdout;
 
 ### Recommended exploration workflow
 
+The canonical agent workflow is: **catalog -> inspect -> profile -> query**.
+Start broad, then narrow.
+
 1. **Get full schema** — see everything in one call:
    ```bash
    qdo catalog -c ./my.db                    # all tables, columns, row counts
    qdo catalog -c ./my.db --tables-only      # just table names
+   qdo catalog -c ./my.db --pattern orders   # filter by name
    ```
    Returns: `{"table_count", "tables": [{"name", "type", "row_count", "columns": [...]}]}`
-
-2. **Discover tables** — search by name:
-   ```bash
-   qdo search -c ./my.db -p ""               # list all tables
-   qdo search -c ./my.db -p orders           # find tables/columns matching "orders"
-   ```
 
 3. **Inspect structure** — understand columns and types:
    ```bash

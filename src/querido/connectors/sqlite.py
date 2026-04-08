@@ -70,6 +70,34 @@ class SQLiteConnector:
             return rows[0]["sql"]
         return None
 
+    def get_row_count(self, table: str) -> int:
+        """Return exact row count via ``SELECT COUNT(*)``.
+
+        SQLite has no metadata shortcut, so this always scans the table.
+        """
+        validate_table_name(table)
+        rows = self.execute(f'select count(*) as cnt from "{table}"')
+        return rows[0].get("cnt", 0) if rows else 0
+
+    def get_table_row_counts(self, table_names: list[str]) -> dict[str, int]:
+        """Return row counts for multiple tables via batched UNION ALL."""
+        if not table_names:
+            return {}
+        for name in table_names:
+            validate_table_name(name)
+
+        result: dict[str, int] = {}
+        # Batch in groups of 50 to avoid hitting SQL length limits.
+        batch_size = 50
+        for i in range(0, len(table_names), batch_size):
+            batch = table_names[i : i + batch_size]
+            parts = [f"select '{name}' as name, count(*) as cnt from \"{name}\"" for name in batch]
+            sql = " union all ".join(parts)
+            rows = self.execute(sql)
+            for row in rows:
+                result[row.get("name", "")] = row.get("cnt", 0)
+        return result
+
     def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
         # Bernoulli-style sampling: probabilistically include rows without
         # sorting.  Much faster than ORDER BY RANDOM() on large tables because

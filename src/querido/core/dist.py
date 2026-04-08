@@ -48,8 +48,7 @@ def get_distribution(
     # Determine source (raw table or sampled subquery).
     needs_auto_sample = sample is None and not no_sample
     if needs_auto_sample:
-        count_sql = render_template("count", connector.dialect, table=table)
-        row_count = connector.execute(count_sql)[0]["cnt"]
+        row_count = connector.get_row_count(table)
     elif sample is not None:
         row_count = sample + 1
     else:

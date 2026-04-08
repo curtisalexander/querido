@@ -943,3 +943,30 @@ def format_query_html(
         table_html=_build_table(headers, table_rows),
         footer_text=f"qdo query — {row_count} rows",
     )
+
+
+# ---------------------------------------------------------------------------
+# Registry — maps command names to HTML output functions for dispatch_output()
+# ---------------------------------------------------------------------------
+REGISTRY: dict[str, object] = {
+    "inspect": format_inspect_html,
+    "preview": format_preview_html,
+    "profile": format_profile_html,
+    "search": format_search_html,
+    "dist": format_dist_html,
+    "template": format_template_html,
+    "lineage": format_lineage_html,
+    "snowflake_lineage": format_snowflake_lineage_html,
+    "metadata": format_metadata_html,
+    "metadata_list": format_metadata_list_html,
+    "explain": format_explain_html,
+    "diff": format_diff_html,
+    "joins": format_joins_html,
+    "quality": format_quality_html,
+    "assert_check": format_assert_check_html,
+    "pivot": format_pivot_html,
+    "values": format_values_html,
+    "catalog": format_catalog_html,
+    "query": format_query_html,
+    "frequencies": format_frequencies_html,
+}

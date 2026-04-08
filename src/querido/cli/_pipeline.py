@@ -131,9 +131,14 @@ def _maybe_warm_cache(connection: str, config: dict, connector: object) -> None:
 
 def _maybe_reraise_as_table_not_found(exc: Exception, connector: object, table: str) -> None:
     """If *exc* is a 'table not found' error, re-raise as BadParameter with suggestions."""
-    msg = str(exc).lower()
-    if "no such table" not in msg and "does not exist" not in msg:
-        return
+    from querido.connectors.base import TableNotFoundError
+
+    is_table_error = isinstance(exc, TableNotFoundError)
+    if not is_table_error:
+        # Fallback: string-match for dialect-specific error messages
+        msg = str(exc).lower()
+        if "no such table" not in msg and "does not exist" not in msg:
+            return
 
     import typer
 
@@ -156,16 +161,13 @@ def _maybe_reraise_as_table_not_found(exc: Exception, connector: object, table: 
 def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
     """Three-way output dispatch based on the ``--format`` CLI flag.
 
-    Uses naming conventions to locate the right output function:
+    Each output module exposes a ``REGISTRY`` dict mapping command names
+    to their output functions.  This catches missing formatters at import
+    time rather than failing with an opaque ``AttributeError`` at runtime.
 
-    - ``rich``: ``querido.output.console.print_{command_name}(*args, **kwargs)``
-    - ``html``: ``querido.output.html.format_{command_name}_html(*args, **kwargs)``
-      → opened in the browser via ``emit_html``
-    - Otherwise: ``querido.output.formats.format_{command_name}(*args, fmt, **kwargs)``
-      → printed to stdout
-
-    The *fmt* string is automatically appended to positional args for the
-    text formatter.
+    - ``rich``: ``querido.output.console.REGISTRY[command_name]``
+    - ``html``: ``querido.output.html.REGISTRY[command_name]``
+    - Otherwise: ``querido.output.formats.REGISTRY[command_name]``
     """
     from importlib import import_module
 
@@ -174,14 +176,14 @@ def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
     fmt = get_output_format()
     if fmt == "rich":
         mod = import_module("querido.output.console")
-        getattr(mod, f"print_{command_name}")(*args, **kwargs)
+        mod.REGISTRY[command_name](*args, **kwargs)
     elif fmt == "html":
         from querido.cli._context import emit_html
 
         mod = import_module("querido.output.html")
-        html = getattr(mod, f"format_{command_name}_html")(*args, **kwargs)
+        html = mod.REGISTRY[command_name](*args, **kwargs)
         emit_html(html)
     else:
         mod = import_module("querido.output.formats")
-        text = getattr(mod, f"format_{command_name}")(*args, fmt, **kwargs)
+        text = mod.REGISTRY[command_name](*args, fmt, **kwargs)
         print(text)

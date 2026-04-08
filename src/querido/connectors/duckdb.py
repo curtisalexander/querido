@@ -115,6 +115,48 @@ class DuckDBConnector:
             return rows[0]["sql"]
         return None
 
+    def get_row_count(self, table: str) -> int:
+        """Return estimated row count from DuckDB metadata.
+
+        Uses ``duckdb_tables()`` for base tables (no scan). Falls back
+        to ``SELECT COUNT(*)`` for views or when metadata is unavailable.
+        """
+        validate_table_name(table)
+        rows = self.execute(
+            "select estimated_size from duckdb_tables() "
+            "where schema_name = 'main' and table_name = $table_name",
+            {"table_name": table.lower()},
+        )
+        if rows:
+            return rows[0].get("estimated_size", 0)
+        # Fallback for views or if metadata is unavailable
+        rows = self.execute(f'select count(*) as cnt from "{table}"')
+        return rows[0].get("cnt", 0) if rows else 0
+
+    def get_table_row_counts(self, table_names: list[str]) -> dict[str, int]:
+        """Return estimated row counts for all tables in one query.
+
+        Uses ``duckdb_tables()`` metadata — no table scans.  Falls back
+        to individual ``SELECT COUNT(*)`` for tables not found in metadata
+        (e.g. views).
+        """
+        if not table_names:
+            return {}
+        rows = self.execute(
+            "select table_name, estimated_size from duckdb_tables() where schema_name = 'main'"
+        )
+        metadata = {r.get("table_name", "").lower(): r.get("estimated_size", 0) for r in rows}
+
+        result: dict[str, int] = {}
+        for name in table_names:
+            count = metadata.get(name.lower())
+            if count is not None:
+                result[name] = count
+            else:
+                # Fallback for views
+                result[name] = self.get_row_count(name)
+        return result
+
     def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
         # Use system (block-level) sampling for large tables (>10M rows).
         # System sampling skips entire row groups and is significantly faster

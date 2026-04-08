@@ -18,17 +18,29 @@ def create_app(connector: Connector, connection_name: str) -> FastAPI:
 
     The *connector* is stored on ``app.state`` so route handlers can access it.
     """
+    from collections.abc import AsyncGenerator
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import asynccontextmanager
+
     from fastapi import FastAPI
     from fastapi.staticfiles import StaticFiles
     from fastapi.templating import Jinja2Templates
 
-    app = FastAPI(title="qdo", docs_url=None, redoc_url=None)
+    executor = ThreadPoolExecutor(max_workers=4)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+        yield
+        executor.shutdown(wait=False)
+
+    app = FastAPI(title="qdo", docs_url=None, redoc_url=None, lifespan=lifespan)
 
     # State ----------------------------------------------------------------
     app.state.connector = connector
     app.state.connection_name = connection_name
     app.state.templates = Jinja2Templates(directory=str(_HERE / "templates"))
     app.state.running_queries: dict[str, object] = {}  # request_id → connector for cancel
+    app.state.executor = executor
 
     # Static files ---------------------------------------------------------
     app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")

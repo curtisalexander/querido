@@ -279,6 +279,43 @@ class SnowflakeConnector:
             return rows[0]["view_definition"]
         return None
 
+    def get_row_count(self, table: str) -> int:
+        """Return row count from Snowflake metadata (no scan).
+
+        Uses ``information_schema.tables`` which Snowflake maintains
+        automatically.
+        """
+        database, schema, tbl = self._resolve_table(table)
+        rows = self.execute(
+            f"select row_count from {database}.information_schema.tables "
+            f"where table_schema = %s and table_name = %s",
+            (schema, tbl),
+        )
+        return rows[0].get("row_count", 0) if rows else 0
+
+    def get_table_row_counts(self, table_names: list[str]) -> dict[str, int]:
+        """Return row counts for all tables in one metadata query.
+
+        Uses ``information_schema.tables`` — no table scans.
+        """
+        if not table_names:
+            return {}
+        # All table names share the same database/schema context
+        db = self._database
+        sch = self._schema
+        rows = self.execute(
+            f"select table_name, row_count from {db}.information_schema.tables "
+            f"where table_schema = %s",
+            (sch,),
+        )
+        metadata = {r.get("table_name", ""): r.get("row_count", 0) for r in rows}
+
+        result: dict[str, int] = {}
+        for name in table_names:
+            upper_name = name.upper()
+            result[name] = metadata.get(upper_name, 0)
+        return result
+
     def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
         # Use block sampling for large tables (>10M rows). Block sampling
         # operates on whole micropartitions and is 5-10x faster because it

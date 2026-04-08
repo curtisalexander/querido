@@ -840,3 +840,30 @@ def print_frequencies(
                 f"{pct}%",
             )
         console.print(grid)
+
+
+# ---------------------------------------------------------------------------
+# Registry — maps command names to output functions for dispatch_output()
+# ---------------------------------------------------------------------------
+REGISTRY: dict[str, object] = {
+    "inspect": print_inspect,
+    "preview": print_preview,
+    "profile": print_profile,
+    "search": print_search,
+    "dist": print_dist,
+    "template": print_template,
+    "lineage": print_lineage,
+    "snowflake_lineage": print_snowflake_lineage,
+    "metadata": print_metadata,
+    "metadata_list": print_metadata_list,
+    "explain": print_explain,
+    "diff": print_diff,
+    "joins": print_joins,
+    "quality": print_quality,
+    "assert_check": print_assert_check,
+    "pivot": print_pivot,
+    "values": print_values,
+    "catalog": print_catalog,
+    "query": print_query,
+    "frequencies": print_frequencies,
+}
