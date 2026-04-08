@@ -1,3 +1,8 @@
+---
+layout: default
+title: CLI Reference
+---
+
 # qdo CLI Reference
 
 `qdo` is a CLI data-analysis toolkit for SQLite, DuckDB, and Snowflake databases.
