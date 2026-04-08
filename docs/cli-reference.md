@@ -82,7 +82,7 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | Command | Purpose |
 |---------|---------|
 | `qdo snowflake semantic -c CONN -t TABLE` | Cortex Analyst YAML |
-| `qdo snowflake lineage -c CONN --object NAME` | Snowflake lineage graph |
+| `qdo snowflake lineage -c CONN --object NAME` | Snowflake GET_LINEAGE graph |
 | `qdo sql task -c CONN -t TABLE` | Task template |
 | `qdo sql procedure -c CONN -t TABLE` | Stored procedure template |
 

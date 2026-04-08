@@ -144,8 +144,8 @@ qdo sql procedure -c <conn> -t <table>  # Stored procedure (Snowflake)
 ```bash
 qdo snowflake semantic -c <conn> -t <table>        # Generate Cortex Analyst semantic model YAML
 qdo snowflake semantic -c <conn> -t <table> -o out.yaml  # Write to file
-qdo snowflake lineage --object <fqn> -c <conn>     # Trace lineage via GET_LINEAGE
-qdo snowflake lineage --object <fqn> -c <conn> -d upstream --depth 3
+qdo snowflake lineage --object <fqn> -c <conn>     # Trace via Snowflake GET_LINEAGE
+qdo snowflake lineage --object <fqn> -c <conn> -d upstream --depth 3  # upstream, depth 3
 ```
 
 ### config — manage connections

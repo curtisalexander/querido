@@ -18,7 +18,7 @@ Systematic improvements to query speed, round-trip reduction, and caching across
 ### P0-2: Remove default `check_exists=True` — lazy existence checking
 - **Problem**: Every command calls `get_tables()` before doing anything. On Snowflake this queries `information_schema.tables` (1-3s) just to produce a nicer error message.
 - **Solution**: Changed `table_command()` default to `check_exists=False`. Added `_maybe_reraise_as_table_not_found()` in `_pipeline.py` to catch table-not-found errors while the connector is still open, re-raising as `typer.BadParameter` with fuzzy suggestions.
-- **Files**: `src/querido/cli/_pipeline.py`, `src/querido/cli/lineage.py`
+- **Files**: `src/querido/cli/_pipeline.py`, `src/querido/cli/view_def.py`
 - **Impact**: 1-3s saved per Snowflake command invocation
 - **Status**: [x] Done
 

@@ -173,7 +173,7 @@ qdo metadata refresh -c my-db -t orders       # re-profile, keep human fields
 
 ```bash
 qdo snowflake semantic -c prod -t my_table              # Cortex Analyst YAML
-qdo snowflake lineage -c prod --object DB.SCHEMA.TABLE  # GET_LINEAGE query
+qdo snowflake lineage -c prod --object DB.SCHEMA.TABLE  # Snowflake GET_LINEAGE
 qdo sql task -c prod -t my_table                        # task template
 qdo sql procedure -c prod -t my_table                   # stored procedure template
 ```

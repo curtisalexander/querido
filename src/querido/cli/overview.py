@@ -60,7 +60,7 @@ qdo sql ddl -c ./my.db -t users          # generate DDL
 | `profile -c CONN -t TABLE [--top N]` | Statistical profile |
 | `dist -c CONN -t TABLE -C COLUMN` | Column distribution |
 | `search -c CONN -p PATTERN` | Search tables/columns by name |
-| `lineage -c CONN -v VIEW` | View SQL definition |
+| `view-def -c CONN -v VIEW` | View SQL definition |
 | `template -c CONN -t TABLE` | Documentation template |
 | `query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL |
 | `catalog -c CONN [--tables-only] [--enrich]` | Full database catalog |
@@ -316,7 +316,7 @@ def _print_json() -> None:
             },
         },
         {
-            "name": "lineage",
+            "name": "view-def",
             "description": "Retrieve the SQL definition of a view.",
             "options": [
                 {
@@ -326,7 +326,7 @@ def _print_json() -> None:
                 },
                 {"flag": "-v, --view", "required": True, "help": "View name."},
             ],
-            "example": "qdo lineage -c ./my.db -v my_view",
+            "example": "qdo view-def -c ./my.db -v my_view",
             "output_shape": {"view": "string", "dialect": "string", "definition": "string"},
         },
         {

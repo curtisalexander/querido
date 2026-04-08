@@ -47,7 +47,7 @@ querido/
 │       │   ├── explore.py          # `qdo explore` — interactive TUI launcher
 │       │   ├── overview.py         # `qdo overview` — CLI reference markdown generation
 │       │   ├── serve.py            # `qdo serve` — FastAPI web UI launcher
-│       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
+│       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage via GET_LINEAGE)
 │       │   ├── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
 │       │   └── template.py         # `qdo template` — documentation template generation
 │       ├── connectors/
@@ -64,7 +64,7 @@ querido/
 │       │   ├── dist.py             # Distribution computation logic
 │       │   ├── context.py          # Context logic (schema + stats + sample values, single scan)
 │       │   ├── inspect.py          # Inspect metadata logic
-│       │   ├── lineage.py          # View definition retrieval logic
+│       │   ├── lineage.py          # View definition retrieval logic (used by view-def command)
 │       │   ├── pivot.py            # Pivot query builder and executor
 │       │   ├── preview.py          # Row preview logic
 │       │   ├── profile.py          # Data profiling logic (stats, frequencies, column classification)
@@ -153,7 +153,7 @@ querido/
     ├── test_tui.py                 # TUI widget and app tests (Textual pilot framework)
     ├── test_format.py              # Output format tests (markdown, JSON, CSV)
     ├── test_inspect.py             # Inspect command tests (SQLite + DuckDB)
-    ├── test_lineage.py             # View definition tests (SQLite + DuckDB)
+    ├── test_lineage.py             # View definition tests (view-def command, SQLite + DuckDB)
     ├── test_parquet.py             # Parquet file support tests
     ├── test_preview.py             # Preview command tests (SQLite + DuckDB)
     ├── test_profile.py             # Profile command tests (top-N, frequencies)
@@ -301,7 +301,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage`, `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The web UI (`web/`) serves the same data via FastAPI + Jinja2 templates + HTMX for interactive browsing.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage` (view-def), `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The web UI (`web/`) serves the same data via FastAPI + Jinja2 templates + HTMX for interactive browsing.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
