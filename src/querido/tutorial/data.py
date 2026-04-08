@@ -508,8 +508,8 @@ def _create_visitor_stats(conn: object, rng: random.Random) -> None:
     for park_idx, park in enumerate(PARKS):
         park_id = park_idx + 1
         region = park[2]
-        annual = park[7]
-        has_camping = park[8]
+        annual = park[6]
+        has_camping = park[7]
         base_monthly = annual / 12
 
         base_temp = REGION_TEMP_BASE.get(region, 50.0)
