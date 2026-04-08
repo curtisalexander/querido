@@ -411,6 +411,17 @@ Ruff config is in `pyproject.toml` (`[tool.ruff]`). Line length is 99. ty config
 
 There are no pre-commit hooks — just run these manually before committing.
 
+### Releasing / Retagging
+
+When the user says "retag", run the retag script to move the release tag to the current commit:
+
+```bash
+./scripts/retag.sh v0.1.0          # retag HEAD
+./scripts/retag.sh v0.1.0 abc1234  # retag a specific commit
+```
+
+This deletes the GitHub release and remote/local tag, then recreates the tag at the target commit and pushes it. Always commit and push first, then retag.
+
 ## Style Guide
 
 - Keep functions focused and small
