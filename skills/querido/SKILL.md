@@ -8,6 +8,23 @@ compatibility: Requires qdo CLI (pip install querido). DuckDB support requires q
 
 qdo is a CLI toolkit for data exploration and SQL generation. It speaks to SQLite, DuckDB, Snowflake, and Parquet files through a uniform interface. Use `--format json` (or `export QDO_FORMAT=json`) to get machine-readable output for every command.
 
+## Quick Setup
+
+Run this once per session (or add to your shell profile):
+
+```bash
+export QDO_FORMAT=json   # all commands output JSON — no --format flag on every call
+```
+
+**For a new database, start here:**
+
+```bash
+qdo catalog -c <connection>          # all tables and columns
+qdo context -c <connection> -t <table>   # full context for one table (use this first)
+```
+
+`context` returns schema + null rates + distinct counts + sample values for categoricals + min/max for numerics in one call. If metadata files exist (`.qdo/metadata/`), descriptions and valid values are merged in automatically. It is the most efficient starting point for understanding a table.
+
 ## Connection syntax
 
 ```bash
@@ -30,22 +47,25 @@ For any new database or table, follow this sequence:
 # 1. See all tables, column counts, and row counts
 qdo catalog -c <connection>
 
-# 2. Drill into a specific table — types, nullability, primary keys
+# 2. Full context for a table — schema + stats + sample values in one call
+qdo context -c <connection> -t <table>
+
+# 3. Drill into structure (if you need PK/nullable/default details)
 qdo inspect -c <connection> -t <table>
 
-# 3. See sample rows
+# 4. See sample rows
 qdo preview -c <connection> -t <table> -r 10
 
-# 4. Statistical summary — min/max/mean/null_count/distinct_count
+# 5. Statistical summary — min/max/mean/null_count/distinct_count
 qdo profile -c <connection> -t <table>
 
-# 5. Top values for specific categorical columns
+# 6. Top values for specific categorical columns
 qdo profile -c <connection> -t <table> --columns <col1>,<col2> --top 5
 
-# 6. Full value list with counts for an enum-like column
+# 7. Full value list with counts for an enum-like column
 qdo values -c <connection> -t <table> -C <column>
 
-# 7. Histogram for a numeric column
+# 8. Histogram for a numeric column
 qdo dist -c <connection> -t <table> -C <column>
 
 # 8. Data quality report — null rates, uniqueness, anomalies
@@ -57,6 +77,56 @@ qdo query -c <connection> --sql "select ..."
 # 10. GROUP BY aggregation without writing SQL
 qdo pivot -c <connection> -t <table> -g <group_col> -a "sum(<value_col>)"
 ```
+
+## context — everything about a table in one call
+
+`context` is the fastest way to understand a table. On DuckDB and Snowflake it
+uses a single SQL scan to compute stats **and** fetch sample values via
+`approx_top_k`. On SQLite it runs one profile scan plus sequential frequency
+queries. Stored metadata is loaded from disk concurrently.
+
+```bash
+qdo context -c <connection> -t <table>
+qdo context -c <connection> -t <table> -f json          # machine-readable
+qdo context -c <connection> -t <table> --sample-values 10   # more samples
+qdo context -c <connection> -t <table> --no-sample      # exact counts, no sampling
+```
+
+JSON output shape (trimmed):
+
+```json
+{
+  "table": "orders",
+  "dialect": "duckdb",
+  "row_count": 50000,
+  "table_description": "Customer orders",
+  "columns": [
+    {
+      "name": "status",
+      "type": "VARCHAR",
+      "nullable": true,
+      "null_pct": 0.5,
+      "distinct_count": 4,
+      "sample_values": ["pending", "shipped", "delivered", "cancelled"],
+      "description": "Fulfillment status",
+      "valid_values": ["pending", "shipped", "delivered", "cancelled"]
+    },
+    {
+      "name": "amount",
+      "type": "DOUBLE",
+      "null_pct": 1.2,
+      "distinct_count": 12543,
+      "min": 0.99,
+      "max": 9999.0,
+      "sample_values": null
+    }
+  ]
+}
+```
+
+Use `context` as the primary tool call when you need to understand a table
+before writing SQL. It replaces separate calls to `inspect`, `profile`, and
+`values` for most workflows.
 
 ## JSON output for programmatic use
 

@@ -180,42 +180,6 @@ def print_profile(
     console.print(f"\n  Total rows: [bold]{row_count:,}[/bold]{sample_note}")
 
 
-def print_search(
-    pattern: str,
-    results: list[dict],
-    console: Console | None = None,
-) -> None:
-    """Print search results as a Rich table."""
-    from rich.console import Console
-    from rich.table import Table
-
-    if console is None:
-        console = Console()
-
-    if not results:
-        console.print(f"[dim]No matches found for '{pattern}'.[/dim]")
-        return
-
-    grid = Table(title=f"Search: '{pattern}'", show_lines=True)
-    grid.add_column("Table", style="cyan bold")
-    grid.add_column("Type", style="green")
-    grid.add_column("Match", style="yellow")
-    grid.add_column("Column", style="cyan")
-    grid.add_column("Column Type", style="dim")
-
-    for r in results:
-        grid.add_row(
-            r["table_name"],
-            r["table_type"],
-            r["match_type"],
-            r["column_name"] or "",
-            r["column_type"] or "",
-        )
-
-    console.print(grid)
-    console.print(f"\n  [bold]{len(results)}[/bold] match(es)")
-
-
 def print_dist(
     dist_result: dict,
     console: Console | None = None,
@@ -842,6 +806,90 @@ def print_frequencies(
         console.print(grid)
 
 
+def print_context(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print rich table context as a structured Rich layout."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    row_count = result.get("row_count", 0)
+    dialect = result.get("dialect", "")
+    sampled = result.get("sampled", False)
+    sample_size = result.get("sample_size")
+    table_name = result.get("table", "")
+    table_desc = result.get("table_description") or result.get("table_comment") or ""
+    data_owner = result.get("data_owner")
+
+    # Header
+    count_str = f"{row_count:,}"
+    if sampled and sample_size:
+        count_str += f" ({sample_size:,} sampled)"
+    title_parts = [f"[bold cyan]{table_name}[/bold cyan]"]
+    if dialect:
+        title_parts.append(f"[dim]{dialect}[/dim]")
+    title_parts.append(f"[dim]{count_str} rows[/dim]")
+    console.print("  " + "  ·  ".join(title_parts))
+    if table_desc:
+        console.print(f"  [italic dim]{table_desc}[/italic dim]")
+    if data_owner:
+        console.print(f"  [dim]owner:[/dim] {data_owner}")
+    console.print()
+
+    # Columns table
+    grid = Table(show_lines=False, box=None, pad_edge=False, show_header=True)
+    grid.add_column("Column", style="cyan", no_wrap=True)
+    grid.add_column("Type", style="dim", no_wrap=True)
+    grid.add_column("Null%", justify="right", style="dim")
+    grid.add_column("Distinct", justify="right", style="dim")
+    grid.add_column("Range / Sample Values", style="dim")
+    grid.add_column("Notes", style="dim")
+
+    for col in result.get("columns", []):
+        null_pct = col.get("null_pct")
+        null_str = f"{null_pct}%" if null_pct is not None else "—"
+
+        distinct = col.get("distinct_count")
+        distinct_str = f"{distinct:,}" if distinct is not None else "—"
+
+        sample = col.get("sample_values")
+        min_v = col.get("min")
+        max_v = col.get("max")
+
+        if sample:
+            range_str = ", ".join(str(v) for v in sample[:5])
+            if len(sample) > 5:
+                range_str += " …"
+        elif min_v is not None and max_v is not None:
+            range_str = f"{min_v}  →  {max_v}"
+        else:
+            range_str = "—"
+
+        notes_parts = []
+        if col.get("primary_key"):
+            notes_parts.append("PK")
+        if col.get("pii"):
+            notes_parts.append("[red]PII[/red]")
+        if col.get("description"):
+            notes_parts.append(f"[italic]{col['description']}[/italic]")
+        notes_str = "  ".join(notes_parts)
+
+        grid.add_row(
+            col.get("name", ""),
+            col.get("type", ""),
+            null_str,
+            distinct_str,
+            range_str,
+            notes_str,
+        )
+
+    console.print(grid)
+
+
 # ---------------------------------------------------------------------------
 # Registry — maps command names to output functions for dispatch_output()
 # ---------------------------------------------------------------------------
@@ -849,7 +897,7 @@ REGISTRY: dict[str, object] = {
     "inspect": print_inspect,
     "preview": print_preview,
     "profile": print_profile,
-    "search": print_search,
+    "context": print_context,
     "dist": print_dist,
     "template": print_template,
     "lineage": print_lineage,

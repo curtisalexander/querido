@@ -96,6 +96,9 @@ def _build_query(
     parts = [f"select {col_list} from {_q(table)}"]
 
     if filter_expr:
+        # filter_expr is a user-supplied SQL fragment (e.g. "status = 'active'").
+        # It is intentionally inserted verbatim — callers own their WHERE clause.
+        # Table/column names above are validated; this expression is not.
         parts.append(f"where {filter_expr}")
 
     if limit:

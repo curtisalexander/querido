@@ -117,13 +117,17 @@ Interactive terminal UI for data exploration. Requires `uv pip install 'querido[
 ```bash
 qdo serve -c <connection> [--port 8888] [--host 127.0.0.1]
 ```
-Launches a local web server for interactive data exploration in the browser. Requires `uv pip install 'querido[web]'`. Features: table list with search, tabbed detail pages (inspect, preview, profile, template, lineage), distribution drill-down, pivot table builder. Uses HTMX for dynamic loading, keyboard shortcuts (`?` help, `/` search).
+Launches a local web server for interactive data exploration in the browser. Requires `uv pip install 'querido[web]'`. Features: table list with search, tabbed detail pages (inspect, preview, profile, template, view definition), distribution drill-down, pivot table builder. Uses HTMX for dynamic loading, keyboard shortcuts (`?` help, `/` search).
 
-### search — find tables and columns
+### catalog — full schema overview (also searches)
 ```bash
-qdo search -p <pattern> -c <connection> [--type {table,column,all}]
+qdo catalog -c <connection>
+qdo catalog -c <connection> --pattern users   # filter by table/column name
+qdo catalog -c <connection> --tables-only     # skip columns and row counts
+qdo catalog -c <connection> --enrich          # merge stored metadata descriptions
 ```
-Case-insensitive substring match across table and column names.
+Cache-first by default; use `--live` to bypass. `--pattern` does a case-insensitive substring
+match across both table and column names.
 
 ### sql — generate SQL statements
 ```bash

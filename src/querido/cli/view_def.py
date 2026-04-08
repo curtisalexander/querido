@@ -2,12 +2,12 @@ import typer
 
 from querido.cli._errors import friendly_errors
 
-app = typer.Typer(help="View definition and simple lineage.")
+app = typer.Typer(help="Show the SQL definition of a view.")
 
 
 @app.callback(invoke_without_command=True)
 @friendly_errors
-def lineage(
+def view_def(
     view: str = typer.Option(..., "--view", help="View name to retrieve definition for."),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
@@ -16,7 +16,7 @@ def lineage(
         None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
     ),
 ) -> None:
-    """Retrieve the SQL definition of a view."""
+    """Show the SQL definition of a view."""
     from querido.cli._context import maybe_show_sql
     from querido.cli._pipeline import dispatch_output, table_command
 

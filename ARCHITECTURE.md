@@ -39,11 +39,11 @@ querido/
 │       │   ├── completion.py       # `qdo completion show` — shell completion scripts (bash/zsh/fish/powershell)
 │       │   ├── config.py           # `qdo config add/list/clone/test` — connection management
 │       │   ├── dist.py             # `qdo dist` — column distribution visualization
+│       │   ├── context.py          # `qdo context` — schema + stats + sample values
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
-│       │   ├── lineage.py          # `qdo lineage` — view SQL definition retrieval
+│       │   ├── view_def.py         # `qdo view-def` — view SQL definition retrieval
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   ├── profile.py          # `qdo profile` — data profiling
-│       │   ├── search.py           # `qdo search` — metadata search across tables/columns (cache-aware)
 │       │   ├── explore.py          # `qdo explore` — interactive TUI launcher
 │       │   ├── overview.py         # `qdo overview` — CLI reference markdown generation
 │       │   ├── serve.py            # `qdo serve` — FastAPI web UI launcher
@@ -62,19 +62,22 @@ querido/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── _concurrent.py      # Parallel query execution helper (thread pool)
 │       │   ├── dist.py             # Distribution computation logic
+│       │   ├── context.py          # Context logic (schema + stats + sample values, single scan)
 │       │   ├── inspect.py          # Inspect metadata logic
 │       │   ├── lineage.py          # View definition retrieval logic
 │       │   ├── pivot.py            # Pivot query builder and executor
 │       │   ├── preview.py          # Row preview logic
 │       │   ├── profile.py          # Data profiling logic (stats, frequencies, column classification)
 │       │   ├── runner.py           # Query execution with cancellation support
-│       │   ├── search.py           # Metadata search logic
 │       │   ├── semantic.py         # Snowflake Cortex Analyst semantic model YAML builder
 │       │   └── template.py         # Documentation template generation logic
 │       ├── sql/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── renderer.py         # Jinja2 template loading and rendering
 │       │   └── templates/          # .sql files organized by command and dialect
+│       │       ├── context/
+│       │       │   ├── duckdb.sql      # stats + approx_top_k (one scan)
+│       │       │   └── snowflake.sql   # stats + APPROX_TOP_K (one scan)
 │       │       ├── count/
 │       │       │   └── common.sql
 │       │       ├── dist/
@@ -150,12 +153,11 @@ querido/
     ├── test_tui.py                 # TUI widget and app tests (Textual pilot framework)
     ├── test_format.py              # Output format tests (markdown, JSON, CSV)
     ├── test_inspect.py             # Inspect command tests (SQLite + DuckDB)
-    ├── test_lineage.py             # Lineage/view definition tests (SQLite + DuckDB)
+    ├── test_lineage.py             # View definition tests (SQLite + DuckDB)
     ├── test_parquet.py             # Parquet file support tests
     ├── test_preview.py             # Preview command tests (SQLite + DuckDB)
     ├── test_profile.py             # Profile command tests (top-N, frequencies)
     ├── test_renderer.py            # SQL template rendering tests
-    ├── test_search.py              # Search command tests (SQLite + DuckDB)
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
     ├── test_sql.py                 # SQL generation command tests
     ├── test_template.py            # Template command tests (all formats, SQLite + DuckDB)
@@ -299,7 +301,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_search`, `print_dist`, `print_lineage`, `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The web UI (`web/`) serves the same data via FastAPI + Jinja2 templates + HTMX for interactive browsing.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage`, `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The web UI (`web/`) serves the same data via FastAPI + Jinja2 templates + HTMX for interactive browsing.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 

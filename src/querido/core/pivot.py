@@ -65,6 +65,9 @@ def build_pivot_query(
     parts = [f"select {group_cols}, {agg_exprs} from {_q(table)}"]
 
     if filter_expr:
+        # filter_expr is a user-supplied SQL fragment (e.g. "region = 'US'").
+        # It is intentionally inserted verbatim — callers own their WHERE clause.
+        # Table/column names above are validated; this expression is not.
         parts.append(f"where {filter_expr}")
 
     parts.append(f"group by {group_cols}")

@@ -195,31 +195,21 @@ async def lineage_fragment(request: Request, table: str) -> HTMLResponse:
 
 @router.get("/search", response_class=HTMLResponse)
 async def search_fragment(request: Request, q: str = "") -> HTMLResponse:
-    """Search/filter table list."""
-    from querido.core.search import search_metadata
-
+    """Search/filter table list by name."""
     connector = request.app.state.connector
+    templates = request.app.state.templates
+    all_tables = connector.get_tables()
 
     if not q.strip():
-        tables = connector.get_tables()
-        templates = request.app.state.templates
         return templates.TemplateResponse(
             request,
             "partials/table_list.html",
-            {"tables": tables},
+            {"tables": all_tables},
         )
 
-    results, _elapsed = await _run_query(request, search_metadata, connector, q, "all")
+    pat = q.lower()
+    tables = [t for t in all_tables if pat in t.get("name", "").lower()]
 
-    # Deduplicate to unique table names while preserving match info
-    seen: set[str] = set()
-    tables = []
-    for r in results:
-        if r["table_name"] not in seen:
-            seen.add(r["table_name"])
-            tables.append({"name": r["table_name"], "type": r["table_type"]})
-
-    templates = request.app.state.templates
     return templates.TemplateResponse(
         request,
         "partials/table_list.html",

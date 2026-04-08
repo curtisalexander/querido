@@ -82,7 +82,9 @@ def _build_sample_source(
     if no_sample:
         return source, sampled, sample_size
 
-    auto_threshold = 1_000_000
+    import os
+
+    auto_threshold = int(os.environ.get("QDO_SAMPLE_THRESHOLD", "1000000"))
     if sample is not None:
         sample_size = sample
     elif row_count > auto_threshold:
@@ -200,7 +202,9 @@ def get_profile(
     # For wide tables on concurrent connectors, batch columns into groups
     # and run profile queries in parallel.  Each batch produces a single
     # wide row that we unpack and merge.
-    batch_size = 25
+    import os
+
+    batch_size = int(os.environ.get("QDO_PROFILE_BATCH_SIZE", "25"))
     if concurrent and len(col_info) > batch_size:
         stats = _profile_batched(connector, col_info, source, approx, batch_size=batch_size)
     else:

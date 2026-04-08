@@ -25,7 +25,10 @@ def catalog(
         False, "--live", help="Bypass cache and query the database directly."
     ),
     pattern: str | None = typer.Option(
-        None, "--pattern", "-p", help="Filter tables/columns by name pattern (substring match)."
+        None,
+        "--pattern",
+        "-p",
+        help="Filter by name pattern (substring match; searches table and column names).",
     ),
     schema: str | None = typer.Option(None, "--schema", help="Schema filter (Snowflake only)."),
     enrich: bool = typer.Option(
@@ -39,8 +42,9 @@ def catalog(
     Cache-first by default: uses cached metadata if fresh, falls back to live
     queries. Use --live to always query the database directly.
 
-    Use --enrich to merge business context from stored metadata files
-    (.qdo/metadata/) into the catalog output.
+    Use --pattern to search for tables or columns by name (replaces the
+    former ``search`` command). Use --enrich to merge business context from
+    stored metadata files (.qdo/metadata/) into the catalog output.
     """
     from querido.cli._pipeline import dispatch_output
     from querido.config import resolve_connection

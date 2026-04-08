@@ -243,53 +243,6 @@ def format_profile(
 # -- search --------------------------------------------------------------------
 
 
-def format_search(
-    pattern: str,
-    results: list[dict],
-    fmt: str,
-) -> str:
-    if not results:
-        if fmt == "csv":
-            return ""
-        if fmt == "json":
-            return json.dumps({"pattern": pattern, "results": []}, indent=2)
-        return f"No matches found for '{pattern}'."
-
-    if fmt == "json":
-        return json.dumps({"pattern": pattern, "results": results}, indent=2, default=str)
-
-    if fmt == "csv":
-        flat = [
-            {
-                "table_name": r["table_name"],
-                "table_type": r["table_type"],
-                "match_type": r["match_type"],
-                "column_name": r["column_name"] or "",
-                "column_type": r["column_type"] or "",
-            }
-            for r in results
-        ]
-        return dicts_to_csv(flat)
-
-    # markdown
-    lines = [f"## Search: '{pattern}'", ""]
-    headers = ["Table", "Type", "Match", "Column", "Column Type"]
-    rows = [
-        [
-            r["table_name"],
-            r["table_type"],
-            r["match_type"],
-            r["column_name"] or "",
-            r["column_type"] or "",
-        ]
-        for r in results
-    ]
-    lines.append(to_markdown_table(headers, rows))
-    lines.append("")
-    lines.append(f"{len(results)} match(es)")
-    return "\n".join(lines)
-
-
 # -- dist ----------------------------------------------------------------------
 
 
@@ -1207,6 +1160,86 @@ def format_query(
     return "\n".join(lines)
 
 
+def format_context(result: dict, fmt: str) -> str:
+    """Format table context as JSON, CSV, or Markdown."""
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    columns = result.get("columns", [])
+    table = result.get("table", "")
+    row_count = result.get("row_count", 0)
+    table_desc = result.get("table_description") or result.get("table_comment") or ""
+    dialect = result.get("dialect", "")
+
+    if fmt == "csv":
+        flat = [
+            {
+                "table": table,
+                "column": col.get("name", ""),
+                "type": col.get("type", ""),
+                "nullable": col.get("nullable", ""),
+                "primary_key": col.get("primary_key", ""),
+                "null_pct": col.get("null_pct", ""),
+                "distinct_count": col.get("distinct_count", ""),
+                "min": col.get("min", ""),
+                "max": col.get("max", ""),
+                "sample_values": "|".join(col["sample_values"])
+                if col.get("sample_values")
+                else "",
+                "description": col.get("description", ""),
+                "pii": col.get("pii", ""),
+            }
+            for col in columns
+        ]
+        return dicts_to_csv(flat) if flat else ""
+
+    # markdown
+    row_str = f"{row_count:,}"
+    sampled = result.get("sampled")
+    if sampled:
+        row_str += f" ({result['sample_size']:,} sampled)"
+    lines = [f"## Context: {table}  ({dialect}, {row_str} rows)", ""]
+    if table_desc:
+        lines += [table_desc, ""]
+
+    headers = ["Column", "Type", "Null%", "Distinct", "Range / Sample Values", "Notes"]
+    rows = []
+    for col in columns:
+        null_pct = col.get("null_pct")
+        null_str = f"{null_pct}%" if null_pct is not None else ""
+        distinct = col.get("distinct_count")
+        distinct_str = f"{distinct:,}" if distinct is not None else ""
+        sample = col.get("sample_values")
+        min_v = col.get("min")
+        max_v = col.get("max")
+        if sample:
+            range_str = ", ".join(str(v) for v in sample[:5])
+        elif min_v is not None and max_v is not None:
+            range_str = f"{min_v} → {max_v}"
+        else:
+            range_str = ""
+        notes = []
+        if col.get("primary_key"):
+            notes.append("PK")
+        if col.get("pii"):
+            notes.append("PII")
+        if col.get("description"):
+            notes.append(col["description"])
+        rows.append(
+            [
+                col.get("name", ""),
+                col.get("type", ""),
+                null_str,
+                distinct_str,
+                range_str,
+                "  ".join(notes),
+            ]
+        )
+
+    lines.append(to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Registry — maps command names to text format functions for dispatch_output()
 # ---------------------------------------------------------------------------
@@ -1214,7 +1247,7 @@ REGISTRY: dict[str, object] = {
     "inspect": format_inspect,
     "preview": format_preview,
     "profile": format_profile,
-    "search": format_search,
+    "context": format_context,
     "dist": format_dist,
     "template": format_template,
     "lineage": format_lineage,

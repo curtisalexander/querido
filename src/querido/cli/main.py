@@ -21,13 +21,13 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
     (
         "Explore",
         [
+            ("context", "querido.cli.context", "Rich table context for agents and humans."),
             ("inspect", "querido.cli.inspect", "Inspect table structure."),
             ("preview", "querido.cli.preview", "Preview rows from a table."),
             ("profile", "querido.cli.profile", "Profile table data."),
             ("dist", "querido.cli.dist", "Column distribution visualization."),
             ("values", "querido.cli.values", "Show distinct values for a column."),
             ("quality", "querido.cli.quality", "Data quality summary for a table."),
-            ("search", "querido.cli.search", "Search table and column metadata."),
             ("diff", "querido.cli.diff", "Compare schemas between two tables."),
             ("joins", "querido.cli.joins", "Discover likely join keys between tables."),
         ],
@@ -48,7 +48,7 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
         [
             ("sql", "querido.cli.sql", "Generate SQL statements for a table."),
             ("template", "querido.cli.template", "Generate documentation templates for tables."),
-            ("lineage", "querido.cli.lineage", "View definition and simple lineage."),
+            ("view-def", "querido.cli.view_def", "Show SQL definition of a view."),
         ],
     ),
     (

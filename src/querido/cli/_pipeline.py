@@ -170,20 +170,24 @@ def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
     - Otherwise: ``querido.output.formats.REGISTRY[command_name]``
     """
     from importlib import import_module
+    from typing import cast
 
     from querido.cli._context import get_output_format
 
     fmt = get_output_format()
     if fmt == "rich":
         mod = import_module("querido.output.console")
-        mod.REGISTRY[command_name](*args, **kwargs)
+        fn: Any = cast(Any, mod.REGISTRY)[command_name]
+        fn(*args, **kwargs)
     elif fmt == "html":
         from querido.cli._context import emit_html
 
         mod = import_module("querido.output.html")
-        html = mod.REGISTRY[command_name](*args, **kwargs)
+        fn = cast(Any, mod.REGISTRY)[command_name]
+        html = fn(*args, **kwargs)
         emit_html(html)
     else:
         mod = import_module("querido.output.formats")
-        text = mod.REGISTRY[command_name](*args, fmt, **kwargs)
+        fn = cast(Any, mod.REGISTRY)[command_name]
+        text = fn(*args, fmt, **kwargs)
         print(text)

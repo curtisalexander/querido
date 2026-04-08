@@ -92,13 +92,12 @@ def test_profile_html(sqlite_path: str) -> None:
     assert "<table>" in html
 
 
-# -- search --------------------------------------------------------------------
+# -- catalog --pattern ---------------------------------------------------------
 
 
-def test_search_html(sqlite_path: str) -> None:
-    code, html = _invoke_html(["search", "-c", sqlite_path, "-p", "user"])
+def test_catalog_pattern_html(sqlite_path: str) -> None:
+    code, html = _invoke_html(["catalog", "-c", sqlite_path, "-p", "user"])
     assert code == 0
-    assert "Search:" in html
     assert "users" in html
 
 

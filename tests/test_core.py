@@ -141,55 +141,6 @@ def test_is_numeric_type() -> None:
     assert not is_numeric_type("DATE")
 
 
-# --- core.search ---
-
-
-def test_search_metadata_tables(sqlite_path: str) -> None:
-    from querido.core.search import search_metadata
-
-    with create_connector({"type": "sqlite", "path": sqlite_path}) as conn:
-        results = search_metadata(conn, "user", "table")
-    assert len(results) == 1
-    assert results[0]["table_name"] == "users"
-    assert results[0]["match_type"] == "table"
-
-
-def test_search_metadata_columns(sqlite_path: str) -> None:
-    from querido.core.search import search_metadata
-
-    with create_connector({"type": "sqlite", "path": sqlite_path}) as conn:
-        results = search_metadata(conn, "name", "column")
-    assert len(results) == 1
-    assert results[0]["column_name"] == "name"
-    assert results[0]["match_type"] == "column"
-
-
-def test_search_metadata_all(sqlite_path: str) -> None:
-    from querido.core.search import search_metadata
-
-    with create_connector({"type": "sqlite", "path": sqlite_path}) as conn:
-        results = search_metadata(conn, "user", "all")
-    # Should match table "users" and possibly columns
-    table_matches = [r for r in results if r["match_type"] == "table"]
-    assert len(table_matches) >= 1
-
-
-def test_search_no_results(sqlite_path: str) -> None:
-    from querido.core.search import search_metadata
-
-    with create_connector({"type": "sqlite", "path": sqlite_path}) as conn:
-        results = search_metadata(conn, "zzzznonexistent", "all")
-    assert results == []
-
-
-def test_try_cached_search_no_cache() -> None:
-    from querido.core.search import try_cached_search
-
-    # No cache exists, should return None gracefully
-    result = try_cached_search("nonexistent_conn", "pattern", "all")
-    assert result is None
-
-
 # --- core.dist ---
 
 

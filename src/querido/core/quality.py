@@ -40,13 +40,8 @@ def get_quality(
         }
     """
     from querido.connectors.base import validate_table_name
-    from querido.sql.renderer import render_template
 
     validate_table_name(table)
-
-    # Get row count
-    count_sql = render_template("count", connector.dialect, table=table)
-    row_count = connector.execute(count_sql)[0].get("cnt", 0)
 
     # Get column metadata
     all_columns = connector.get_columns(table)
@@ -55,8 +50,8 @@ def get_quality(
         col_names_lower = {c.lower() for c in columns}
         all_columns = [c for c in all_columns if c.get("name", "").lower() in col_names_lower]
 
-    # Build per-column quality query
-    col_results = _compute_column_quality(connector, table, all_columns, row_count)
+    # Build per-column quality query — row count comes from the same scan
+    col_results, row_count = _compute_column_quality(connector, table, all_columns)
 
     # Optional duplicate row check
     duplicate_rows = None
@@ -75,31 +70,20 @@ def _compute_column_quality(
     connector: Connector,
     table: str,
     columns: list[dict],
-    row_count: int,
-) -> list[dict]:
-    """Compute quality metrics for each column via SQL."""
-    if not columns or row_count == 0:
-        return [
-            {
-                "name": c.get("name", ""),
-                "type": c.get("type", ""),
-                "null_count": 0,
-                "null_pct": 0.0,
-                "distinct_count": 0,
-                "uniqueness_pct": 0.0,
-                "min": None,
-                "max": None,
-                "status": "ok",
-                "issues": [],
-            }
-            for c in columns
-        ]
+) -> tuple[list[dict], int]:
+    """Compute quality metrics for each column via a single SQL scan.
+
+    Returns ``(col_results, row_count)``.  ``count(*)`` is included in the
+    same query as the per-column stats so the table is scanned only once.
+    """
+    if not columns:
+        return [], 0
 
     def _q(name: str) -> str:
         return '"' + name.replace('"', '""') + '"'
 
-    # Build a single query that computes stats for all columns at once
-    parts = []
+    # count(*) rides along with per-column stats — one scan total
+    parts = ["count(*) as _total_rows"]
     for col in columns:
         col_name = col.get("name", "")
         qn = _q(col_name)
@@ -110,6 +94,27 @@ def _compute_column_quality(
 
     sql = f'select {", ".join(parts)} from "{table}"'
     stats_row = connector.execute(sql)[0]
+    row_count = int(stats_row.get("_total_rows", 0) or 0)
+
+    if row_count == 0:
+        return (
+            [
+                {
+                    "name": c.get("name", ""),
+                    "type": c.get("type", ""),
+                    "null_count": 0,
+                    "null_pct": 0.0,
+                    "distinct_count": 0,
+                    "uniqueness_pct": 0.0,
+                    "min": None,
+                    "max": None,
+                    "status": "ok",
+                    "issues": [],
+                }
+                for c in columns
+            ],
+            0,
+        )
 
     results = []
     for col in columns:
@@ -139,7 +144,7 @@ def _compute_column_quality(
             }
         )
 
-    return results
+    return results, row_count
 
 
 def _classify(

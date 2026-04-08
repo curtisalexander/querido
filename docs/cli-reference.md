@@ -30,12 +30,13 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 
 | Command | Purpose |
 |---------|---------|
+| `qdo context -c CONN -t TABLE` | Schema + stats + sample values in one call |
 | `qdo inspect -c CONN -t TABLE` | Column metadata and row count |
 | `qdo preview -c CONN -t TABLE [-r ROWS]` | Preview rows (default 20) |
 | `qdo profile -c CONN -t TABLE [--top N]` | Statistical profile (min/max/mean/nulls/distinct) |
 | `qdo dist -c CONN -t TABLE -C COLUMN` | Column value distribution / histogram |
-| `qdo search -c CONN -p PATTERN` | Search tables/columns by name |
-| `qdo lineage -c CONN -v VIEW` | View SQL definition |
+| `qdo catalog -c CONN -p PATTERN` | Search tables/columns by name |
+| `qdo view-def -c CONN -v VIEW` | View SQL definition |
 | `qdo template -c CONN -t TABLE` | Generate documentation template |
 | `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
 | `qdo catalog -c CONN [--tables-only] [--enrich]` | Full database catalog (+ metadata with --enrich) |
@@ -159,8 +160,8 @@ qdo preview -c analytics.duckdb -t events -r 10
 # Profile with top-N frequent values
 qdo profile -c prod -t orders --top 5
 
-# Search for columns containing "email"
-qdo search -c prod -p email --type column
+# Search for tables or columns containing "email"
+qdo catalog -c prod --pattern email
 
 # Get JSON metadata for scripting
 qdo inspect -c mydb -t users -f json

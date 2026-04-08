@@ -257,29 +257,31 @@ def test_cli_cache_clear_specific(
 # -- Search with cache integration -------------------------------------------
 
 
-def test_search_uses_cache(cache_sqlite: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_catalog_pattern_uses_cache(
+    cache_sqlite: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setenv("QDO_CONFIG", str(tmp_path))
     # First sync the cache
     runner.invoke(app, ["cache", "sync", "-c", cache_sqlite])
-    # Search should use cache (won't error even if we search)
+    # catalog --pattern falls back gracefully (cache and live both work)
     result = runner.invoke(
         app,
-        ["--format", "json", "search", "-p", "user", "-c", cache_sqlite],
+        ["--format", "json", "catalog", "-p", "user", "-c", cache_sqlite],
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
-    assert len(data["results"]) > 0
+    assert data["table_count"] > 0
 
 
-def test_search_no_cache_flag(cache_sqlite: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_catalog_pattern_live(cache_sqlite: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("QDO_CONFIG", str(tmp_path))
     result = runner.invoke(
         app,
-        ["--format", "json", "search", "-p", "user", "-c", cache_sqlite, "--no-cache"],
+        ["--format", "json", "catalog", "-p", "user", "-c", cache_sqlite, "--live"],
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
-    assert len(data["results"]) > 0
+    assert data["table_count"] > 0
 
 
 # -- DuckDB cache tests -------------------------------------------------------

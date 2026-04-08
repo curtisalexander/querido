@@ -1,0 +1,31 @@
+-- Context query for DuckDB: stats + approx_top_k for non-numeric columns in one scan.
+-- For numeric columns, min/max/mean/median/stddev are computed instead of top values.
+select
+    count(*) as total_rows
+{% for col in columns %}
+    , count_if("{{ col.name }}" is null)::bigint as "{{ col.name }}__null_count"
+    , round(100.0 * count_if("{{ col.name }}" is null) / nullif(count(*), 0), 2) as "{{ col.name }}__null_pct"
+{% if approx %}
+    , approx_count_distinct("{{ col.name }}")::bigint as "{{ col.name }}__distinct_count"
+{% else %}
+    , count(distinct "{{ col.name }}")::bigint as "{{ col.name }}__distinct_count"
+{% endif %}
+{% if col.numeric %}
+    , min("{{ col.name }}") as "{{ col.name }}__min_val"
+    , max("{{ col.name }}") as "{{ col.name }}__max_val"
+    , round(avg("{{ col.name }}")::double, 4) as "{{ col.name }}__mean_val"
+{% if approx %}
+    , approx_quantile("{{ col.name }}", 0.5) as "{{ col.name }}__median_val"
+{% else %}
+    , median("{{ col.name }}") as "{{ col.name }}__median_val"
+{% endif %}
+    , round(stddev("{{ col.name }}")::double, 4) as "{{ col.name }}__stddev_val"
+{% else %}
+    , min(length("{{ col.name }}"::varchar))::bigint as "{{ col.name }}__min_length"
+    , max(length("{{ col.name }}"::varchar))::bigint as "{{ col.name }}__max_length"
+{% if sample_values > 0 %}
+    , approx_top_k("{{ col.name }}", {{ sample_values }}) as "{{ col.name }}__top_values"
+{% endif %}
+{% endif %}
+{% endfor %}
+from {{ source }}

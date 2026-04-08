@@ -38,10 +38,10 @@ class TestDataGeneration:
         create_tutorial_db(db_path)
 
         conn = duckdb.connect(str(db_path), read_only=True)
-        parks = conn.execute("select count(*) from parks").fetchone()[0]
-        trails = conn.execute("select count(*) from trails").fetchone()[0]
-        sightings = conn.execute("select count(*) from wildlife_sightings").fetchone()[0]
-        stats = conn.execute("select count(*) from visitor_stats").fetchone()[0]
+        parks = conn.execute("select count(*) from parks").fetchone()[0]  # type: ignore[index]
+        trails = conn.execute("select count(*) from trails").fetchone()[0]  # type: ignore[index]
+        sightings = conn.execute("select count(*) from wildlife_sightings").fetchone()[0]  # type: ignore[index]
+        stats = conn.execute("select count(*) from visitor_stats").fetchone()[0]  # type: ignore[index]
         conn.close()
 
         assert 55 <= parks <= 65
@@ -78,14 +78,14 @@ class TestDataGeneration:
         orphan_trails = conn.execute(
             "select count(*) from trails t "
             "where not exists (select 1 from parks p where p.park_id = t.park_id)"
-        ).fetchone()[0]
+        ).fetchone()[0]  # type: ignore[index]
         assert orphan_trails == 0
 
         # All sightings reference valid parks
         orphan_sightings = conn.execute(
             "select count(*) from wildlife_sightings ws "
             "where not exists (select 1 from parks p where p.park_id = ws.park_id)"
-        ).fetchone()[0]
+        ).fetchone()[0]  # type: ignore[index]
         assert orphan_sightings == 0
 
         # Non-null trail_ids in sightings reference valid trails
@@ -93,14 +93,14 @@ class TestDataGeneration:
             "select count(*) from wildlife_sightings ws "
             "where ws.trail_id is not null "
             "and not exists (select 1 from trails t where t.trail_id = ws.trail_id)"
-        ).fetchone()[0]
+        ).fetchone()[0]  # type: ignore[index]
         assert orphan_trail_refs == 0
 
         # Visitor stats reference valid parks
         orphan_stats = conn.execute(
             "select count(*) from visitor_stats vs "
             "where not exists (select 1 from parks p where p.park_id = vs.park_id)"
-        ).fetchone()[0]
+        ).fetchone()[0]  # type: ignore[index]
         assert orphan_stats == 0
 
         conn.close()
@@ -116,21 +116,21 @@ class TestDataGeneration:
         # Parks description: ~20% null
         desc_null = conn.execute(
             "select 100.0 * count(*) filter (where description is null) / count(*) from parks"
-        ).fetchone()[0]
+        ).fetchone()[0]  # type: ignore[index]
         assert 10 <= desc_null <= 35
 
         # Sighting notes: ~60% null
         notes_null = conn.execute(
             "select 100.0 * count(*) filter (where notes is null) / count(*) "
             "from wildlife_sightings"
-        ).fetchone()[0]
+        ).fetchone()[0]  # type: ignore[index]
         assert 45 <= notes_null <= 75
 
         # Sighting trail_id: ~30% null
         trail_null = conn.execute(
             "select 100.0 * count(*) filter (where trail_id is null) / count(*) "
             "from wildlife_sightings"
-        ).fetchone()[0]
+        ).fetchone()[0]  # type: ignore[index]
         assert 20 <= trail_null <= 45
 
         conn.close()
@@ -178,11 +178,10 @@ class TestTutorialCLI:
         assert "National Parks" in result.output
 
     def test_list(self) -> None:
-        result = runner.invoke(app, ["tutorial", "--list"])
+        result = runner.invoke(app, ["tutorial", "explore", "--list"])
         assert result.exit_code == 0
         assert "Welcome" in result.output
         assert "catalog" in result.output
-        assert "Tutorial Complete" in result.output
 
     def test_shows_in_help(self) -> None:
         result = runner.invoke(app, ["--help"])
