@@ -250,6 +250,42 @@ JSON output shape:
 }
 ```
 
+## Sampling and accuracy
+
+Commands that scan table data (`context`, `profile`, `quality`) automatically sample tables over 1M rows for speed. This is a deliberate trade-off: fast approximate results by default, exact results on request.
+
+**What sampling affects:**
+- Null counts and percentages (computed from the sample, not the full table)
+- Distinct counts (approximate algorithms on DuckDB/Snowflake: `APPROX_COUNT_DISTINCT`)
+- Min/max/mean/median/stddev (computed from the sample)
+- Sample values for categorical columns
+
+**What sampling does NOT affect:**
+- Column names, types, nullable flags (from metadata, not scanned)
+- Row counts (from `information_schema` on Snowflake, always exact)
+
+**How to tell if results are sampled:**
+- Rich (terminal) output shows `(sampled 100,000 rows)` in the header and a hint: `Sampled — use --no-sample for exact results (slower)`
+- JSON output includes `"sampled": true`, `"sample_size": 100000`, and a `"sampling_note"` field explaining the trade-off
+
+**How to get exact results:**
+
+```bash
+qdo profile -c my-db -t big_table --no-sample     # full scan, exact stats
+qdo context -c my-db -t big_table --no-sample      # full scan, exact context
+qdo quality -c my-db -t big_table --no-sample       # full scan, exact quality
+qdo profile -c my-db -t big_table --exact           # also use exact COUNT(DISTINCT)
+```
+
+**Tuning the threshold:**
+
+The auto-sample threshold (default 1M rows) can be adjusted via the `QDO_SAMPLE_THRESHOLD` environment variable:
+
+```bash
+export QDO_SAMPLE_THRESHOLD=5000000   # only sample tables over 5M rows
+export QDO_SAMPLE_THRESHOLD=0         # always sample (use for testing)
+```
+
 ## Using qdo with a coding agent
 
 qdo is designed to be useful at the keyboard for a human analyst, and equally useful as a tool for a coding agent writing SQL on your behalf.

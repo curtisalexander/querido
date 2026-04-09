@@ -135,6 +135,13 @@ def get_context(
         table_description = stored_metadata.get("table_description")
         data_owner = stored_metadata.get("data_owner")
 
+    sampling_note = None
+    if sampled and sample_size:
+        sampling_note = (
+            f"Results based on a sample of {sample_size:,} rows. "
+            "Use --no-sample for exact results (slower)."
+        )
+
     return {
         "table": table,
         "dialect": connector.dialect,
@@ -142,6 +149,7 @@ def get_context(
         "row_count": row_count,
         "sampled": sampled,
         "sample_size": sample_size,
+        "sampling_note": sampling_note,
         "table_comment": table_comment,
         "table_description": table_description,
         "data_owner": data_owner,

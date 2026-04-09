@@ -242,6 +242,19 @@ qdo --format jsonl query -c <connection> --sql "select ..."
 qdo export -c <connection> -t <table> --format csv
 ```
 
+## Sampling and accuracy
+
+Commands that scan table data (`context`, `profile`, `quality`) automatically
+sample tables over 1M rows for speed. **When results are sampled, the JSON
+output includes `"sampled": true` and a `"sampling_note"` field.** Check these
+fields before treating statistics as exact.
+
+- Null percentages, distinct counts, and min/max are approximate when sampled
+- Row counts are always exact (from database metadata, not scanned)
+- Use `--no-sample` for exact results: `qdo profile -c <conn> -t <table> --no-sample`
+- Use `--exact` to disable approximate count distinct: `qdo quality -c <conn> -t <table> --exact`
+- The threshold is configurable: `export QDO_SAMPLE_THRESHOLD=5000000`
+
 ## Gotchas
 
 - **Table names are case-insensitive** — qdo normalizes them internally; use whatever case feels natural.
@@ -249,7 +262,6 @@ qdo export -c <connection> -t <table> --format csv
 - **Snowflake** — requires a named connection set up via `qdo config add`. Use `qdo snowflake` for Cortex Analyst semantic model generation.
 - **Metadata location** — files go to `.qdo/metadata/<connection>/<table>.yaml` relative to your working directory. Override with the `QDO_METADATA_DIR` environment variable.
 - **metadata refresh vs init** — `init` creates a new file and will error if one already exists. `refresh` updates machine fields in an existing file. Use `init --force` to overwrite.
-- **profile on large tables** — uses sampling by default on Snowflake. Pass `--no-sample` to profile the full table (slower but exact).
 - **pivot aggregations** — the `-a` argument is a SQL aggregate expression: `"count(*)"`, `"avg(price)"`, `"sum(revenue)"`. Quote it to prevent shell interpretation.
 
 ## Discover all commands

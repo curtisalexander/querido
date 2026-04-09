@@ -178,6 +178,10 @@ def print_profile(
     if sampled and sample_size:
         sample_note = f" (sampled {sample_size:,} rows)"
     console.print(f"\n  Total rows: [bold]{row_count:,}[/bold]{sample_note}")
+    if sampled:
+        console.print(
+            "  [dim]Sampled — use --no-sample for exact results (slower)[/dim]"
+        )
 
 
 def print_dist(
@@ -585,8 +589,12 @@ def print_quality(
         console.print("[dim]No columns to check.[/dim]")
         return
 
+    row_str = f"{result['row_count']:,} rows"
+    if result.get("sampled") and result.get("sample_size"):
+        row_str += f" — sampled {result['sample_size']:,}"
+
     grid = Table(
-        title=f"Quality: {result['table']} ({result['row_count']:,} rows)",
+        title=f"Quality: {result['table']} ({row_str})",
         show_lines=True,
     )
     grid.add_column("Column", style="cyan bold")
@@ -617,6 +625,11 @@ def print_quality(
         )
 
     console.print(grid)
+
+    if result.get("sampled"):
+        console.print(
+            "\n  [dim]Sampled — use --no-sample for exact results (slower)[/dim]"
+        )
 
     if result["duplicate_rows"] is not None:
         dup = result["duplicate_rows"]
@@ -888,6 +901,10 @@ def print_context(
         )
 
     console.print(grid)
+    if sampled:
+        console.print(
+            "\n  [dim]Sampled — use --no-sample for exact results (slower)[/dim]"
+        )
 
 
 # ---------------------------------------------------------------------------

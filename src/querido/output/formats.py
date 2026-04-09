@@ -149,6 +149,10 @@ def format_profile(
         }
         if sampled and sample_size:
             payload["sample_size"] = sample_size
+            payload["sampling_note"] = (
+                f"Results based on a sample of {sample_size:,} rows. "
+                "Use --no-sample for exact results (slower)."
+            )
         return json.dumps(payload, indent=2, default=str)
 
     if fmt == "csv":
@@ -237,6 +241,9 @@ def format_profile(
     if sampled and sample_size:
         sample_note = f" (sampled {sample_size:,} rows)"
     lines.append(f"Total rows: {row_count:,}{sample_note}")
+    if sampled:
+        lines.append("")
+        lines.append("*Sampled — use --no-sample for exact results (slower)*")
     return "\n".join(lines)
 
 
@@ -927,8 +934,11 @@ def format_quality(
         return dicts_to_csv(flat)
 
     # markdown
+    row_str = f"{result['row_count']:,} rows"
+    if result.get("sampled") and result.get("sample_size"):
+        row_str += f", sampled {result['sample_size']:,}"
     lines = [
-        f"## Quality: {result['table']} ({result['row_count']:,} rows)",
+        f"## Quality: {result['table']} ({row_str})",
         "",
     ]
     headers = [
@@ -960,6 +970,9 @@ def format_quality(
         lines.append("")
         dup = result["duplicate_rows"]
         lines.append(f"Duplicate rows: {dup:,}" if dup > 0 else "No duplicate rows")
+
+    if result.get("sampling_note"):
+        lines += ["", f"*{result['sampling_note']}*"]
 
     return "\n".join(lines)
 

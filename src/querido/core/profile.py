@@ -94,11 +94,19 @@ def get_profile(
     if stats and stats[0].get("total_rows") is not None:
         row_count = stats[0].get("total_rows", 0)
 
+    sampling_note = None
+    if sampled and sample_size:
+        sampling_note = (
+            f"Results based on a sample of {sample_size:,} rows. "
+            "Use --no-sample for exact results (slower)."
+        )
+
     return {
         "stats": stats,
         "row_count": row_count,
         "sampled": sampled,
         "sample_size": sample_size,
+        "sampling_note": sampling_note,
         "source": source,
         "col_info": col_info,
     }

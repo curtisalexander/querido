@@ -14,32 +14,36 @@ def get_quality(
     *,
     columns: list[str] | None = None,
     check_duplicates: bool = False,
+    sample: int | None = None,
+    no_sample: bool = False,
+    exact: bool = False,
 ) -> dict:
     """Run quality checks on a table.
+
+    Parameters
+    ----------
+    sample:
+        Explicit sample size (rows).  ``None`` = auto-sample at >1M rows.
+    no_sample:
+        If ``True``, scan the full table (slower but exact).
+    exact:
+        If ``True``, use exact ``COUNT(DISTINCT)`` instead of
+        ``APPROX_COUNT_DISTINCT`` on Snowflake/DuckDB.
 
     Returns::
 
         {
             "table": str,
             "row_count": int,
+            "sampled": bool,
+            "sample_size": int | None,
+            "sampling_note": str | None,
             "duplicate_rows": int | None,
-            "columns": [
-                {
-                    "name": str,
-                    "type": str,
-                    "null_count": int,
-                    "null_pct": float,
-                    "distinct_count": int,
-                    "uniqueness_pct": float,
-                    "min": any,
-                    "max": any,
-                    "status": "ok" | "warn" | "fail",
-                    "issues": [str, ...],
-                }
-            ],
+            "columns": [...]
         }
     """
     from querido.connectors.base import validate_table_name
+    from querido.core._utils import build_sample_source
 
     validate_table_name(table)
 
@@ -50,17 +54,45 @@ def get_quality(
         col_names_lower = {c.lower() for c in columns}
         all_columns = [c for c in all_columns if c.get("name", "").lower() in col_names_lower]
 
-    # Build per-column quality query — row count comes from the same scan
-    col_results, row_count = _compute_column_quality(connector, table, all_columns)
+    # Determine sampling
+    needs_auto_sample = sample is None and not no_sample
+    if needs_auto_sample:
+        row_count_for_sample = connector.get_row_count(table)
+    elif sample is not None:
+        row_count_for_sample = sample + 1
+    else:
+        row_count_for_sample = 0
 
-    # Optional duplicate row check
+    source, sampled, sample_size = build_sample_source(
+        connector, table, row_count_for_sample, sample=sample, no_sample=no_sample
+    )
+
+    use_approx = not exact and connector.dialect in ("snowflake", "duckdb")
+
+    # Build per-column quality query — row count comes from the same scan
+    col_results, row_count = _compute_column_quality(
+        connector, source, all_columns, approx=use_approx
+    )
+
+    # Optional duplicate row check (always against the real table, not sample)
     duplicate_rows = None
     if check_duplicates:
         duplicate_rows = _check_duplicate_rows(connector, table, all_columns)
 
+    # Build sampling note for human / agent consumption
+    sampling_note = None
+    if sampled and sample_size:
+        sampling_note = (
+            f"Results based on a sample of {sample_size:,} rows. "
+            "Use --no-sample for exact results (slower)."
+        )
+
     return {
         "table": table,
         "row_count": row_count,
+        "sampled": sampled,
+        "sample_size": sample_size,
+        "sampling_note": sampling_note,
         "duplicate_rows": duplicate_rows,
         "columns": col_results,
     }
@@ -68,13 +100,18 @@ def get_quality(
 
 def _compute_column_quality(
     connector: Connector,
-    table: str,
+    source: str,
     columns: list[dict],
+    *,
+    approx: bool = False,
 ) -> tuple[list[dict], int]:
     """Compute quality metrics for each column via a single SQL scan.
 
     Returns ``(col_results, row_count)``.  ``count(*)`` is included in the
     same query as the per-column stats so the table is scanned only once.
+
+    When *approx* is ``True``, uses ``APPROX_COUNT_DISTINCT`` instead of
+    exact ``COUNT(DISTINCT)`` for faster execution on large tables.
     """
     if not columns:
         return [], 0
@@ -88,11 +125,14 @@ def _compute_column_quality(
         col_name = col.get("name", "")
         qn = _q(col_name)
         parts.append(f'count(*) - count({qn}) as "{col_name}_nulls"')
-        parts.append(f'count(distinct {qn}) as "{col_name}_distinct"')
+        if approx:
+            parts.append(f'approx_count_distinct({qn}) as "{col_name}_distinct"')
+        else:
+            parts.append(f'count(distinct {qn}) as "{col_name}_distinct"')
         parts.append(f'min({qn}) as "{col_name}_min"')
         parts.append(f'max({qn}) as "{col_name}_max"')
 
-    sql = f'select {", ".join(parts)} from "{table}"'
+    sql = f'select {", ".join(parts)} from {source}'
     stats_row = connector.execute(sql)[0]
     row_count = int(stats_row.get("_total_rows", 0) or 0)
 

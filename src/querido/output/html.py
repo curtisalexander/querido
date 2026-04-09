@@ -765,14 +765,20 @@ def format_quality_html(
     ]
 
     subtitle = f"{result['row_count']:,} rows"
+    if result.get("sampled") and result.get("sample_size"):
+        subtitle += f" (sampled {result['sample_size']:,})"
     if result["duplicate_rows"] is not None:
         subtitle += f", {result['duplicate_rows']:,} duplicate rows"
+
+    footer = f"qdo quality \u2014 {result['table']}"
+    if result.get("sampling_note"):
+        footer += f" | {result['sampling_note']}"
 
     return _html_page(
         title=f"Quality: {result['table']}",
         subtitle=subtitle,
         table_html=_build_table(headers, rows),
-        footer_text=f"qdo quality — {result['table']}",
+        footer_text=footer,
     )
 
 

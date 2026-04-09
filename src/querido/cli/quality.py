@@ -31,11 +31,32 @@ def quality(
         "--check-duplicates",
         help="Check for fully duplicate rows (can be slow).",
     ),
+    sample: int | None = typer.Option(
+        None,
+        "--sample",
+        "-s",
+        min=1,
+        help="Sample size (rows). Default: auto-sample at >1M rows.",
+    ),
+    no_sample: bool = typer.Option(
+        False,
+        "--no-sample",
+        help="Force full table scan — exact results, slower on large tables.",
+    ),
+    exact: bool = typer.Option(
+        False,
+        "--exact",
+        help="Use exact COUNT(DISTINCT) instead of approximate counts.",
+    ),
 ) -> None:
     """Show data quality summary — nulls, uniqueness, issues per column.
 
     Each column gets a status: ok, warn, or fail based on null rates
     and uniqueness thresholds.
+
+    By default, tables over 1M rows are automatically sampled for speed.
+    Distinct counts use approximate algorithms on DuckDB and Snowflake.
+    Use --no-sample and --exact for precise results on large tables.
     """
     from querido.cli._options import parse_column_list
     from querido.cli._pipeline import dispatch_output, table_command
@@ -51,6 +72,9 @@ def quality(
                 ctx.table,
                 columns=col_list,
                 check_duplicates=check_duplicates,
+                sample=sample,
+                no_sample=no_sample,
+                exact=exact,
             )
 
         dispatch_output("quality", result)
