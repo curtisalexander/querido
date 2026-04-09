@@ -397,15 +397,17 @@ Connections are stored in TOML. Location determined by `platformdirs`:
 - Windows: `%LOCALAPPDATA%\qdo\connections.toml`
 - Override: `QDO_CONFIG` env var
 
-## Code Quality
+## Code Quality — CI Gate
 
-Before committing any changes, ensure all three checks pass:
+**Run these three checks before every push.** CI runs them and will fail if any produce errors or formatting changes. Run in this order:
 
 ```bash
-uv run ruff check .        # lint — must pass with zero errors
-uv run ruff format .       # format — must produce no changes
-uv run ty check            # type check — must pass with zero errors
+uv run ruff format src/ tests/   # 1. format — may modify files, stage changes
+uv run ruff check src/ tests/    # 2. lint — must pass with zero errors
+uv run ty check                  # 3. type check — must pass with zero errors
 ```
+
+If `ruff format` modifies files, stage those changes before committing. Run `pytest` as well to catch regressions.
 
 Ruff config is in `pyproject.toml` (`[tool.ruff]`). Line length is 99. ty config is under `[tool.ty.environment]`.
 
