@@ -94,7 +94,7 @@ def _print_fallback() -> None:
         "```bash",
         "export QDO_FORMAT=json",
         "qdo catalog -c mydb              # JSON schema",
-        "qdo query -c mydb --sql \"...\"    # JSON results",
+        'qdo query -c mydb --sql "..."    # JSON results',
         "```",
         "",
         "Run `qdo <command> --help` for details on any command.",

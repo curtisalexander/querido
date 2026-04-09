@@ -911,14 +911,16 @@ def format_context_html(
             notes_parts.append("PII")
         if col.get("description"):
             notes_parts.append(col.get("description", ""))
-        rows.append([
-            col.get("name", ""),
-            col.get("type", ""),
-            null_str,
-            distinct_str,
-            range_str,
-            "  ".join(notes_parts),
-        ])
+        rows.append(
+            [
+                col.get("name", ""),
+                col.get("type", ""),
+                null_str,
+                distinct_str,
+                range_str,
+                "  ".join(notes_parts),
+            ]
+        )
 
     count_str = f"{row_count:,}"
     if sampled and sample_size:

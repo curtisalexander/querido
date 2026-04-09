@@ -179,9 +179,7 @@ def print_profile(
         sample_note = f" (sampled {sample_size:,} rows)"
     console.print(f"\n  Total rows: [bold]{row_count:,}[/bold]{sample_note}")
     if sampled:
-        console.print(
-            "  [dim]Sampled — use --no-sample for exact results (slower)[/dim]"
-        )
+        console.print("  [dim]Sampled — use --no-sample for exact results (slower)[/dim]")
 
 
 def print_dist(
@@ -627,9 +625,7 @@ def print_quality(
     console.print(grid)
 
     if result.get("sampled"):
-        console.print(
-            "\n  [dim]Sampled — use --no-sample for exact results (slower)[/dim]"
-        )
+        console.print("\n  [dim]Sampled — use --no-sample for exact results (slower)[/dim]")
 
     if result["duplicate_rows"] is not None:
         dup = result["duplicate_rows"]
@@ -902,9 +898,7 @@ def print_context(
 
     console.print(grid)
     if sampled:
-        console.print(
-            "\n  [dim]Sampled — use --no-sample for exact results (slower)[/dim]"
-        )
+        console.print("\n  [dim]Sampled — use --no-sample for exact results (slower)[/dim]")
 
 
 # ---------------------------------------------------------------------------

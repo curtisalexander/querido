@@ -132,7 +132,7 @@ def _compute_column_quality(
         parts.append(f'min({qn}) as "{col_name}_min"')
         parts.append(f'max({qn}) as "{col_name}_max"')
 
-    sql = f'select {", ".join(parts)} from {source}'
+    sql = f"select {', '.join(parts)} from {source}"
     stats_row = connector.execute(sql)[0]
     row_count = int(stats_row.get("_total_rows", 0) or 0)
 

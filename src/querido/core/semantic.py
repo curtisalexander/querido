@@ -82,7 +82,7 @@ def _fetch_batched(
     """Fetch sample values for all columns in a single UNION ALL query."""
     safe_limit = int(limit)
     parts = [
-        f'select \'{col_name}\' as col_name, '
+        f"select '{col_name}' as col_name, "
         f'cast("{col_name}" as varchar) as val '
         f'from "{table}" '
         f'where "{col_name}" is not null '
