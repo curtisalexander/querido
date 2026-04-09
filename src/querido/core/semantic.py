@@ -48,15 +48,69 @@ def get_sample_values(
 ) -> dict[str, list[str]]:
     """Fetch distinct non-null sample values for each column.
 
-    Returns ``{col_name: [val_str, ...]}``.  Uses concurrent execution
-    when the connector supports it.
+    Returns ``{col_name: [val_str, ...]}``.
+
+    Uses a single UNION ALL query to fetch sample values for all columns
+    in one round-trip, avoiding N separate queries.  Falls back to
+    per-column queries (with optional concurrency) if the batched query
+    fails.
     """
     from querido.connectors.base import validate_column_name, validate_table_name
 
     validate_table_name(table)
+    col_names = [c["name"] for c in columns]
+    for name in col_names:
+        validate_column_name(name)
+
+    # --- Batched path: single UNION ALL query --------------------------------
+    if col_names:
+        try:
+            return _fetch_batched(connector, table, col_names, limit)
+        except (ValueError, LookupError, OSError, RuntimeError):
+            pass  # fall through to per-column path
+
+    # --- Fallback: per-column queries ----------------------------------------
+    return _fetch_per_column(connector, table, col_names, limit)
+
+
+def _fetch_batched(
+    connector: Connector,
+    table: str,
+    col_names: list[str],
+    limit: int,
+) -> dict[str, list[str]]:
+    """Fetch sample values for all columns in a single UNION ALL query."""
+    safe_limit = int(limit)
+    parts = [
+        f'select \'{col_name}\' as col_name, '
+        f'cast("{col_name}" as varchar) as val '
+        f'from "{table}" '
+        f'where "{col_name}" is not null '
+        f'group by "{col_name}" '
+        f"limit {safe_limit}"
+        for col_name in col_names
+    ]
+    sql = " union all ".join(parts)
+    rows = connector.execute(sql)
+
+    result: dict[str, list[str]] = {name: [] for name in col_names}
+    for row in rows:
+        name = row.get("col_name", "")
+        val = row.get("val")
+        if name in result and val is not None:
+            result[name].append(str(val))
+    return result
+
+
+def _fetch_per_column(
+    connector: Connector,
+    table: str,
+    col_names: list[str],
+    limit: int,
+) -> dict[str, list[str]]:
+    """Fetch sample values one column at a time, with optional concurrency."""
 
     def _fetch_one(col_name: str) -> tuple[str, list[str]]:
-        validate_column_name(col_name)
         sql = (
             f'select distinct "{col_name}" as val '
             f'from "{table}" '
@@ -65,11 +119,10 @@ def get_sample_values(
         )
         try:
             rows = connector.execute(sql)
-            return col_name, [str(r["val"]) for r in rows if r.get("val") is not None]
+            return col_name, [str(r.get("val", "")) for r in rows if r.get("val") is not None]
         except (ValueError, LookupError, OSError, RuntimeError):
             return col_name, []
 
-    col_names = [c["name"] for c in columns]
     concurrent = getattr(connector, "supports_concurrent_queries", False)
 
     if concurrent and len(col_names) > 1:

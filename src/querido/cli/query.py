@@ -41,6 +41,10 @@ def query(
 
     query_sql = resolve_sql(sql, file, sys.stdin)
 
+    from querido.cli._validation import warn_if_destructive
+
+    warn_if_destructive(query_sql)
+
     with database_command(connection=connection, db_type=db_type) as ctx:
         maybe_show_sql(query_sql)
         set_last_sql(query_sql)

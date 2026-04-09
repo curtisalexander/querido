@@ -37,11 +37,10 @@ def quality(
     Each column gets a status: ok, warn, or fail based on null rates
     and uniqueness thresholds.
     """
+    from querido.cli._options import parse_column_list
     from querido.cli._pipeline import dispatch_output, table_command
 
-    col_list = None
-    if columns:
-        col_list = [c.strip() for c in columns.split(",") if c.strip()]
+    col_list = parse_column_list(columns)
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         with ctx.spin(f"Checking quality of [bold]{ctx.table}[/bold]"):

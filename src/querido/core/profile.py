@@ -37,7 +37,7 @@ def get_profile(
     col_meta = connector.get_columns(table)
 
     if columns:
-        filter_names = {c.strip().lower() for c in columns.split(",")}
+        filter_names = {c.strip().lower() for c in columns.split(",") if c.strip()}
         filtered = [c for c in col_meta if c["name"].lower() in filter_names]
         if not filtered:
             available = ", ".join(c["name"] for c in col_meta)

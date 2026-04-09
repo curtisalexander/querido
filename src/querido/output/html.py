@@ -858,6 +858,77 @@ def format_values_html(
     )
 
 
+def format_context_html(
+    result: dict,
+) -> str:
+    """Render table context as a standalone HTML page."""
+    columns = result.get("columns", [])
+    table_name = result.get("table", "")
+    row_count = result.get("row_count", 0)
+    dialect = result.get("dialect", "")
+    sampled = result.get("sampled", False)
+    sample_size = result.get("sample_size")
+    table_desc = result.get("table_description") or result.get("table_comment") or ""
+
+    if not columns:
+        return _html_page(
+            title=f"Context: {table_name}",
+            subtitle="No columns found.",
+            table_html="<p>No data.</p>",
+        )
+
+    headers = ["Column", "Type", "Null%", "Distinct", "Range / Sample Values", "Notes"]
+    rows: list[list[Any]] = []
+    for col in columns:
+        null_pct = col.get("null_pct")
+        null_str = f"{null_pct}%" if null_pct is not None else ""
+
+        distinct = col.get("distinct_count")
+        distinct_str = f"{distinct:,}" if distinct is not None else ""
+
+        sample = col.get("sample_values")
+        min_v = col.get("min")
+        max_v = col.get("max")
+        if sample:
+            range_str = ", ".join(str(v) for v in sample[:5])
+            if len(sample) > 5:
+                range_str += " ..."
+        elif min_v is not None and max_v is not None:
+            range_str = f"{min_v} \u2192 {max_v}"
+        else:
+            range_str = ""
+
+        notes_parts: list[str] = []
+        if col.get("primary_key"):
+            notes_parts.append("PK")
+        if col.get("pii"):
+            notes_parts.append("PII")
+        if col.get("description"):
+            notes_parts.append(col.get("description", ""))
+        rows.append([
+            col.get("name", ""),
+            col.get("type", ""),
+            null_str,
+            distinct_str,
+            range_str,
+            "  ".join(notes_parts),
+        ])
+
+    count_str = f"{row_count:,}"
+    if sampled and sample_size:
+        count_str += f" ({sample_size:,} sampled)"
+    subtitle = f"{dialect} \u2014 {count_str} rows"
+    if table_desc:
+        subtitle = f"{table_desc} \u2014 {subtitle}"
+
+    return _html_page(
+        title=f"Context: {table_name}",
+        subtitle=subtitle,
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo context \u2014 {len(columns)} columns, {row_count:,} rows",
+    )
+
+
 def format_catalog_html(
     catalog: dict,
 ) -> str:
@@ -920,6 +991,7 @@ REGISTRY: dict[str, object] = {
     "inspect": format_inspect_html,
     "preview": format_preview_html,
     "profile": format_profile_html,
+    "context": format_context_html,
     "dist": format_dist_html,
     "template": format_template_html,
     "lineage": format_lineage_html,

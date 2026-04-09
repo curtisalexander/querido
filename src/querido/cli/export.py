@@ -71,9 +71,9 @@ def export(
         export_format = "tsv"
         output = None
 
-    col_list = None
-    if columns:
-        col_list = [c.strip() for c in columns.split(",") if c.strip()]
+    from querido.cli._options import parse_column_list
+
+    col_list = parse_column_list(columns)
 
     with database_command(connection=connection, db_type=db_type) as ctx:
         from querido.core.export import export_data

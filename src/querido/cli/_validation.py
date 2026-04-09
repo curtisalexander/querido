@@ -8,6 +8,42 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
+_DESTRUCTIVE_KEYWORDS = frozenset({"drop", "delete", "truncate", "alter", "update"})
+
+
+def warn_if_destructive(sql: str) -> None:
+    """Prompt the user for confirmation if *sql* starts with a destructive keyword.
+
+    Skipped when output format is not ``rich`` (i.e. agent / piped workflows)
+    or when stdin is not a tty.
+    """
+    import re
+    import sys
+
+    # Strip SQL comments and leading whitespace to find the real first keyword
+    stripped = re.sub(r"--[^\n]*", "", sql).strip()
+    stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.DOTALL).strip()
+    first_word = stripped.split()[0].lower() if stripped.split() else ""
+
+    if first_word not in _DESTRUCTIVE_KEYWORDS:
+        return
+
+    # Only warn in interactive terminal sessions (rich format, tty)
+    from querido.cli._context import get_output_format
+
+    if get_output_format() != "rich":
+        return
+    if not sys.stderr.isatty():
+        return
+
+    import typer
+
+    typer.confirm(
+        f"This looks like a destructive operation ({first_word.upper()}). Continue?",
+        abort=True,
+    )
+
+
 def require_snowflake(dialect: str, command: str) -> None:
     """Raise typer.BadParameter if *dialect* is not ``snowflake``."""
     if dialect != "snowflake":

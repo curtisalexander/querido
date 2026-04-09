@@ -13,6 +13,17 @@ dbtype_opt = typer.Option(
 )
 
 
+def parse_column_list(columns: str | None) -> list[str] | None:
+    """Parse a comma-separated column list into a cleaned list of names.
+
+    Returns ``None`` if *columns* is ``None`` or empty.
+    """
+    if not columns:
+        return None
+    result = [c.strip() for c in columns.split(",") if c.strip()]
+    return result or None
+
+
 def resolve_sql(
     sql_option: str | None,
     file_option: str | None,

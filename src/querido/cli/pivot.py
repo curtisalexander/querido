@@ -79,11 +79,13 @@ def _parse_agg_spec(group_by: str, agg: str) -> tuple[list[str], list[str], str]
     """
     import re
 
-    rows_list = [col.strip() for col in group_by.split(",") if col.strip()]
+    from querido.cli._options import parse_column_list
+
+    rows_list = parse_column_list(group_by)
     if not rows_list:
         raise typer.BadParameter("--group-by must specify at least one column.")
 
-    agg_parts = [part.strip() for part in agg.split(",") if part.strip()]
+    agg_parts = parse_column_list(agg)
     if not agg_parts:
         raise typer.BadParameter("--agg must specify at least one aggregation.")
 
