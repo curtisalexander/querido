@@ -41,6 +41,9 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo inspect -c CONN -t TABLE` | Column metadata and row count |
 | `qdo preview -c CONN -t TABLE [-r ROWS]` | Preview rows (default 20) |
 | `qdo profile -c CONN -t TABLE [--top N]` | Statistical profile (min/max/mean/nulls/distinct) |
+| `qdo profile -c CONN -t TABLE --quick` | Quick mode: nulls + distinct only (auto at 50+ cols) |
+| `qdo profile -c CONN -t TABLE --classify` | Classify columns by category (implies --quick) |
+| `qdo profile -c CONN -t TABLE --column-set NAME` | Profile using a saved column set |
 | `qdo dist -c CONN -t TABLE -C COLUMN` | Column value distribution / histogram |
 | `qdo values -c CONN -t TABLE -C COL` | Distinct values for a column |
 | `qdo quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness, issues) |
@@ -75,6 +78,10 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo config add` | Add a named connection |
 | `qdo config clone -s SRC -n NAME` | Clone a connection with overrides |
 | `qdo config list` | List configured connections |
+| `qdo config column-set save` | Save a named column set |
+| `qdo config column-set list` | List saved column sets |
+| `qdo config column-set show` | Show columns in a set |
+| `qdo config column-set delete` | Delete a column set |
 | `qdo cache sync -c CONN` | Cache metadata locally |
 | `qdo metadata init -c CONN -t TABLE` | Generate metadata YAML template |
 | `qdo metadata show -c CONN -t TABLE` | Show stored metadata |
@@ -201,6 +208,12 @@ qdo preview -c analytics.duckdb -t events -r 10
 
 # Profile with top-N frequent values
 qdo profile -c prod -t orders --top 5
+
+# Wide table: classify columns, then profile a subset
+qdo profile -c prod -t wide_table --classify
+qdo profile -c prod -t wide_table --columns "col1,col2,col3"
+qdo config column-set save -c prod -t wide_table -n default --columns "col1,col2,col3"
+qdo profile -c prod -t wide_table --column-set default
 
 # Search for tables or columns containing "email"
 qdo catalog -c prod --pattern email

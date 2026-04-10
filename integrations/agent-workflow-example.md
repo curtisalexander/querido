@@ -312,6 +312,49 @@ and PII flags appear directly in `context` output. The separate
 
 ---
 
+## Wide Table Workflow
+
+When working with tables that have many columns (50+), use tiered profiling to avoid slow full-table scans:
+
+```bash
+# Step 1: Classify columns (fast — null counts + distinct counts only)
+qdo profile -c ./ecommerce.duckdb -t event_log --classify
+```
+
+```json
+{
+  "table": "event_log",
+  "row_count": 5000000,
+  "categories": {
+    "constant": ["_partition_date"],
+    "sparse": ["legacy_field_1", "legacy_field_2", "debug_payload"],
+    "high_cardinality": ["event_id", "session_id", "request_id"],
+    "time": ["created_at", "processed_at"],
+    "measure": ["duration_ms", "response_code"],
+    "low_cardinality": ["event_type", "platform", "country"],
+    "other": ["user_agent", "referrer_url"]
+  },
+  "column_category": {"event_id": "high_cardinality", "event_type": "low_cardinality", "...": "..."}
+}
+```
+
+**Agent reasoning:** The classification tells me which columns are useful vs noise.
+I only need `event_type`, `platform`, `country`, `duration_ms`, `created_at` for
+this analysis. I'll profile just those.
+
+```bash
+# Step 2: Full profile on selected columns
+qdo profile -c ./ecommerce.duckdb -t event_log --columns "event_type,platform,country,duration_ms,created_at" --top 5
+
+# Step 3: Save this selection for reuse
+qdo config column-set save -c ./ecommerce.duckdb -t event_log -n analysis --columns "event_type,platform,country,duration_ms,created_at"
+
+# Step 4: Reuse in future commands
+qdo profile -c ./ecommerce.duckdb -t event_log --column-set analysis --top 10
+```
+
+---
+
 ## Key Patterns
 
 1. **Start with `catalog`** to see all tables and their sizes.
@@ -349,3 +392,6 @@ and PII flags appear directly in `context` output. The separate
 | Check data quality | `qdo quality -c <conn> -t <table>` |
 | Aggregate without SQL | `qdo pivot -c <conn> -t <table> -g <col> -a "sum(<col>)"` |
 | Metadata completeness | `qdo metadata list -c <conn>` |
+| Classify wide table columns | `qdo profile -c <conn> -t <table> --classify` |
+| Save column selection | `qdo config column-set save -c <conn> -t <table> -n <name> --columns "..."` |
+| Reuse column selection | `qdo profile -c <conn> -t <table> --column-set <name>` |

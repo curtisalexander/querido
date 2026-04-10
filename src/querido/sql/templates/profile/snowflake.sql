@@ -8,6 +8,7 @@ select
 {% else %}
     , count(distinct "{{ col.name }}") as "{{ col.name }}__distinct_count"
 {% endif %}
+{% if not quick %}
 {% if col.numeric %}
     , min("{{ col.name }}") as "{{ col.name }}__min_val"
     , max("{{ col.name }}") as "{{ col.name }}__max_val"
@@ -21,6 +22,7 @@ select
 {% else %}
     , min(length("{{ col.name }}")) as "{{ col.name }}__min_length"
     , max(length("{{ col.name }}")) as "{{ col.name }}__max_length"
+{% endif %}
 {% endif %}
 {% endfor %}
 from {{ source }}

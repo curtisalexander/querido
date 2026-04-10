@@ -904,6 +904,86 @@ def print_context(
 # ---------------------------------------------------------------------------
 # Registry — maps command names to output functions for dispatch_output()
 # ---------------------------------------------------------------------------
+_CLASSIFY_CATEGORY_LABELS = {
+    "constant": ("Constant", "dim", "1 distinct value"),
+    "sparse": ("Sparse", "yellow", ">90% null"),
+    "high_cardinality": ("High Cardinality", "red", "likely IDs/unique keys"),
+    "time": ("Time", "magenta", "date/time columns"),
+    "measure": ("Measure", "green", "numeric columns"),
+    "low_cardinality": ("Low Cardinality", "cyan", "<50 distinct values"),
+    "other": ("Other", "dim", ""),
+}
+
+
+def print_classify(
+    table_name: str,
+    classification: dict,
+    stats: list[dict],
+    row_count: int,
+    sampled: bool = False,
+    sample_size: int | None = None,
+    console: Console | None = None,
+) -> None:
+    """Print column classification as grouped Rich tables."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    categories = classification.get("categories", {})
+
+    if not categories:
+        console.print(f"[dim]No columns to classify in {table_name}.[/dim]")
+        return
+
+    stats_by_name: dict[str, dict] = {}
+    for s in stats:
+        stats_by_name[s.get("column_name", "")] = s
+
+    sample_note = ""
+    if sampled and sample_size:
+        sample_note = f"  (sampled {sample_size:,})"
+    console.print(
+        f"\n[bold]Column Classification: {table_name}[/bold]  ({row_count:,} rows{sample_note})\n"
+    )
+
+    for cat_key in (
+        "constant",
+        "sparse",
+        "high_cardinality",
+        "time",
+        "measure",
+        "low_cardinality",
+        "other",
+    ):
+        col_names = categories.get(cat_key, [])
+        if not col_names:
+            continue
+
+        label, _style, hint = _CLASSIFY_CATEGORY_LABELS.get(cat_key, (cat_key, "dim", ""))
+        title = f"{label} ({len(col_names)} columns)"
+        if hint:
+            title += f" — {hint}"
+
+        grid = Table(title=title, show_lines=False)
+        grid.add_column("Column", style="cyan bold")
+        grid.add_column("Type", style="green")
+        grid.add_column("Null %", justify="right", style="yellow")
+        grid.add_column("Distinct", justify="right")
+
+        for name in col_names:
+            s = stats_by_name.get(name, {})
+            grid.add_row(
+                name,
+                str(s.get("column_type", "")),
+                fmt_value(s.get("null_pct")),
+                fmt_value(s.get("distinct_count")),
+            )
+        console.print(grid)
+        console.print()
+
+
 REGISTRY: dict[str, object] = {
     "inspect": print_inspect,
     "preview": print_preview,
@@ -925,4 +1005,5 @@ REGISTRY: dict[str, object] = {
     "catalog": print_catalog,
     "query": print_query,
     "frequencies": print_frequencies,
+    "classify": print_classify,
 }

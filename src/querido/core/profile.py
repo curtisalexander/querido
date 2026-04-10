@@ -16,6 +16,7 @@ def get_profile(
     sample: int | None = None,
     no_sample: bool = False,
     exact: bool = False,
+    quick: bool = False,
 ) -> dict:
     """Profile table columns and return statistics.
 
@@ -76,10 +77,17 @@ def get_profile(
 
     batch_size = int(os.environ.get("QDO_PROFILE_BATCH_SIZE", "25"))
     if concurrent and len(col_info) > batch_size:
-        stats = _profile_batched(connector, col_info, source, approx, batch_size=batch_size)
+        stats = _profile_batched(
+            connector, col_info, source, approx, batch_size=batch_size, quick=quick
+        )
     else:
         sql = render_template(
-            "profile", connector.dialect, columns=col_info, source=source, approx=approx
+            "profile",
+            connector.dialect,
+            columns=col_info,
+            source=source,
+            approx=approx,
+            quick=quick,
         )
         raw = connector.execute(sql)
 
@@ -109,6 +117,7 @@ def get_profile(
         "sampling_note": sampling_note,
         "source": source,
         "col_info": col_info,
+        "quick": quick,
     }
 
 
@@ -119,6 +128,7 @@ def _profile_batched(
     approx: bool,
     *,
     batch_size: int = 25,
+    quick: bool = False,
 ) -> list[dict]:
     """Run profile queries in parallel batches for wide tables.
 
@@ -132,7 +142,7 @@ def _profile_batched(
 
     def _run_batch(batch: list[dict]) -> list[dict]:
         sql = render_template(
-            "profile", connector.dialect, columns=batch, source=source, approx=approx
+            "profile", connector.dialect, columns=batch, source=source, approx=approx, quick=quick
         )
         raw = connector.execute(sql)
         if raw and len(raw) == 1 and "total_rows" in raw[0]:

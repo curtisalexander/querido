@@ -60,6 +60,12 @@ qdo preview -c <connection> -t <table> -r 10
 # 5. Statistical summary — min/max/mean/null_count/distinct_count
 qdo profile -c <connection> -t <table>
 
+# 5b. Wide tables (50+ cols): classify first, then profile a subset
+qdo profile -c <connection> -t <table> --classify          # categorize columns
+qdo profile -c <connection> -t <table> --columns <cols>    # full stats on selected
+qdo config column-set save -c <conn> -t <table> -n default --columns "<cols>"  # persist
+qdo profile -c <connection> -t <table> --column-set default  # reuse
+
 # 6. Top values for specific categorical columns
 qdo profile -c <connection> -t <table> --columns <col1>,<col2> --top 5
 
@@ -263,6 +269,7 @@ fields before treating statistics as exact.
 - **Metadata location** — files go to `.qdo/metadata/<connection>/<table>.yaml` relative to your working directory. Override with the `QDO_METADATA_DIR` environment variable.
 - **metadata refresh vs init** — `init` creates a new file and will error if one already exists. `refresh` updates machine fields in an existing file. Use `init --force` to overwrite.
 - **pivot aggregations** — the `-a` argument is a SQL aggregate expression: `"count(*)"`, `"avg(price)"`, `"sum(revenue)"`. Quote it to prevent shell interpretation.
+- **Wide tables** — `--quick` auto-engages at 50+ columns (only null counts + distinct counts). Use `--classify` for a category breakdown. Use `--column-set` to reuse a saved selection. Configurable threshold: `export QDO_QUICK_THRESHOLD=100`.
 
 ## Discover all commands
 

@@ -86,11 +86,13 @@ class ExploreApp(App):
         connector: Connector,
         table: str,
         max_rows: int = 1000,
+        connection_name: str = "",
     ) -> None:
         super().__init__()
         self.connector = connector
         self.table = table
         self.max_rows = max_rows
+        self.connection_name = connection_name
         self._columns: list[dict] = []
         self._rows: list[dict] = []
         self._filter_sql: str | None = None
@@ -254,7 +256,13 @@ class ExploreApp(App):
     def action_profile(self) -> None:
         from querido.tui.screens.profile import ProfileScreen
 
-        self.push_screen(ProfileScreen(self.connector, self.table))
+        self.push_screen(
+            ProfileScreen(
+                self.connector,
+                self.table,
+                connection_name=self.connection_name,
+            )
+        )
 
     def action_distribution(self) -> None:
         from querido.tui.screens.column_picker import ColumnPickerScreen

@@ -92,8 +92,13 @@ Default 20 rows. Use `-r` to change.
 ### profile — data profiling
 ```bash
 qdo profile -c <connection> -t <table> [--columns col1,col2] [--sample N] [--no-sample] [--top N]
+qdo profile -c <connection> -t <table> --quick          # fast: nulls + distinct only
+qdo profile -c <connection> -t <table> --classify       # classify columns by category
+qdo profile -c <connection> -t <table> --column-set default  # use saved column set
 ```
 Numeric: min, max, mean, median, stddev, null count/%, distinct. String: min/max length, null count/%, distinct. Auto-samples at >1M rows (100k sample). `--top N` shows most frequent values.
+
+**Wide tables (50+ columns):** `--quick` auto-engages at 50+ columns, computing only null counts and distinct counts. Use `--classify` (implies `--quick`) to group columns into categories: constant, sparse, high_cardinality, time, measure, low_cardinality, other. Use `--column-set` to reuse a saved set of columns across commands.
 
 ### dist — column distribution
 ```bash
@@ -148,10 +153,14 @@ qdo snowflake lineage --object <fqn> -c <conn>     # Trace via Snowflake GET_LIN
 qdo snowflake lineage --object <fqn> -c <conn> -d upstream --depth 3  # upstream, depth 3
 ```
 
-### config — manage connections
+### config — manage connections and column sets
 ```bash
 qdo config add --name mydb --type sqlite --path ./data.db
 qdo config list
+qdo config column-set save -c CONN -t TABLE -n NAME --columns "col1,col2"
+qdo config column-set list [-c CONN] [-t TABLE]
+qdo config column-set show -c CONN -t TABLE -n NAME
+qdo config column-set delete -c CONN -t TABLE -n NAME
 ```
 
 ### Global flags
@@ -208,6 +217,22 @@ Start broad, then narrow.
    qdo profile -c ./my.db -t orders --top 3
    ```
    Returns: `{"table", "row_count", "sampled", "columns": [{"column_name", "min_val", "max_val", "null_count", "distinct_count", ...}]}`
+
+   **For wide tables (50+ columns)**, use the tiered workflow:
+   ```bash
+   # Step 1: Classify columns (fast — only null counts + distinct counts)
+   qdo profile -c ./my.db -t wide_table --classify
+   # Returns: {"categories": {"measure": [...], "sparse": [...], ...}, "column_category": {...}}
+
+   # Step 2: Profile only the columns you need (full stats)
+   qdo profile -c ./my.db -t wide_table --columns "col1,col2,col3"
+
+   # Step 3: Save the selection for reuse
+   qdo config column-set save -c ./my.db -t wide_table -n default --columns "col1,col2,col3"
+
+   # Step 4: Reuse in future commands
+   qdo profile -c ./my.db -t wide_table --column-set default
+   ```
 
 6. **Distinct values** — enumerate valid values for a column:
    ```bash

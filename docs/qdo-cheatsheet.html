@@ -305,10 +305,13 @@
       <div class="row"><span class="k">qdo profile ... --top 10</span><span class="d">Top 10 frequent values</span></div>
       <div class="row"><span class="k">qdo profile ... --sample 100000</span><span class="d">Sample N rows</span></div>
       <div class="row"><span class="k">qdo profile ... --no-sample</span><span class="d">Full scan (no sampling)</span></div>
+      <div class="row"><span class="k">qdo profile ... --quick</span><span class="d">Nulls + distinct only (auto at 50+ cols)</span></div>
+      <div class="row"><span class="k">qdo profile ... --classify</span><span class="d">Classify columns by category</span></div>
+      <div class="row"><span class="k">qdo profile ... --column-set NAME</span><span class="d">Use saved column set</span></div>
       <div class="row"><span class="k">qdo dist -t TABLE -col COL -c CONN</span><span class="d">Distribution analysis</span></div>
       <div class="row"><span class="k">qdo dist ... --buckets 10</span><span class="d">Histogram bucket count</span></div>
       <div class="row"><span class="k">qdo dist ... --top 20</span><span class="d">Categorical top N</span></div>
-      <div class="tip"><strong>Auto-sampling:</strong> Tables over 1M rows are automatically sampled (100k). Use <span class="cmd">--no-sample</span> to force a full scan.</div>
+      <div class="tip"><strong>Wide tables:</strong> <span class="cmd">--quick</span> auto-engages at 50+ columns. Use <span class="cmd">--classify</span> to see categories (constant, sparse, measure, etc.), then <span class="cmd">--column-set</span> to reuse saved selections.</div>
     </section>
 
     <!-- ── Catalog & Views ── -->
@@ -343,6 +346,9 @@
       <div class="row"><span class="k">qdo cache sync -c CONN</span><span class="d">Cache metadata locally</span></div>
       <div class="row"><span class="k">qdo cache status</span><span class="d">Cache age / freshness</span></div>
       <div class="row"><span class="k">qdo cache clear</span><span class="d">Clear cached metadata</span></div>
+      <div class="row"><span class="k">qdo config column-set save -c C -t T -n NAME --columns &quot;a,b&quot;</span><span class="d">Save column set</span></div>
+      <div class="row"><span class="k">qdo config column-set list</span><span class="d">List saved column sets</span></div>
+      <div class="row"><span class="k">qdo config column-set delete -c C -t T -n NAME</span><span class="d">Delete column set</span></div>
       <div class="tip"><strong>Config path:</strong> macOS <span class="cmd">~/Library/Application Support/qdo/</span>, Linux <span class="cmd">~/.config/qdo/</span>. Override with <span class="cmd">QDO_CONFIG</span> env var.</div>
     </section>
 
@@ -359,8 +365,10 @@
           <div class="row"><span class="k">m</span><span class="d">Metadata sidebar</span></div>
           <div class="row"><span class="k">/</span><span class="d">Filter bar (SQL WHERE)</span></div>
           <div class="row"><span class="k">Esc</span><span class="d">Clear filter / close overlay</span></div>
+          <div class="row"><span class="k">p</span><span class="d">Profile (column selector for wide tables)</span></div>
+          <div class="row"><span class="k">d</span><span class="d">Distribution for a column</span></div>
           <div class="row"><span class="k">r</span><span class="d">Refresh data</span></div>
-          <div class="tip">Requires <span class="cmd">querido[tui]</span>. Sortable columns &mdash; click header to cycle asc/desc/none.</div>
+          <div class="tip">Requires <span class="cmd">querido[tui]</span>. On wide tables (50+ cols), <span class="k">p</span> shows a column selector with checkboxes and classification. Press <span class="k">s</span> in the selector to save as a column set.</div>
         </div>
         <div>
           <div class="sub-heading">Web UI &mdash; qdo serve</div>

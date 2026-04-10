@@ -44,7 +44,12 @@ def explore(
 
         from querido.tui.app import ExploreApp
 
-        tui_app = ExploreApp(connector=connector, table=resolved, max_rows=rows)
+        tui_app = ExploreApp(
+            connector=connector,
+            table=resolved,
+            max_rows=rows,
+            connection_name=connection,
+        )
         tui_app.run()
     finally:
         connector.close()

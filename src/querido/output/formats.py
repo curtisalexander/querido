@@ -1250,6 +1250,60 @@ def format_context(result: dict, fmt: str) -> str:
     return "\n".join(lines)
 
 
+def format_classify(
+    table_name: str,
+    classification: dict,
+    stats: list[dict],
+    row_count: int,
+    sampled: bool,
+    sample_size: int | None,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        payload: dict = {
+            "table": table_name,
+            "row_count": row_count,
+            "sampled": sampled,
+            "categories": classification.get("categories", {}),
+            "column_category": classification.get("column_category", {}),
+        }
+        if sampled and sample_size:
+            payload["sample_size"] = sample_size
+        return json.dumps(payload, indent=2, default=str)
+
+    if fmt == "csv":
+        rows = [
+            {"column": name, "category": cat}
+            for cat, col_names in classification.get("categories", {}).items()
+            for name in col_names
+        ]
+        return dicts_to_csv(rows) if rows else ""
+
+    # markdown
+    stats_by_name: dict[str, dict] = {}
+    for s in stats:
+        stats_by_name[s.get("column_name", "")] = s
+
+    lines = [f"## Column Classification: {table_name} ({row_count:,} rows)\n"]
+    for cat, col_names in classification.get("categories", {}).items():
+        lines.append(f"### {cat} ({len(col_names)} columns)\n")
+        headers = ["Column", "Type", "Null %", "Distinct"]
+        rows = []
+        for name in col_names:
+            s = stats_by_name.get(name, {})
+            rows.append(
+                [
+                    name,
+                    str(s.get("column_type", "")),
+                    str(s.get("null_pct", "")),
+                    str(s.get("distinct_count", "")),
+                ]
+            )
+        lines.append(to_markdown_table(headers, rows))
+        lines.append("")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Registry — maps command names to text format functions for dispatch_output()
 # ---------------------------------------------------------------------------
@@ -1274,4 +1328,5 @@ REGISTRY: dict[str, object] = {
     "catalog": format_catalog,
     "query": format_query,
     "frequencies": format_frequencies,
+    "classify": format_classify,
 }

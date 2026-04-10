@@ -25,7 +25,7 @@ querido/
 │       ├── __init__.py             # Version string (__version__)
 │       ├── py.typed                # PEP 561 marker for typed package
 │       ├── cache.py                # Local metadata cache (SQLite-backed)
-│       ├── config.py               # TOML config loading, connection resolution
+│       ├── config.py               # TOML config loading, connection resolution, column sets
 │       ├── cli/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── _context.py         # Output format, SQL display, HTML emission
@@ -37,7 +37,7 @@ querido/
 │       │   ├── main.py             # Entry point, Typer app, registers subcommands
 │       │   ├── cache.py            # `qdo cache sync/status/clear` — metadata cache management
 │       │   ├── completion.py       # `qdo completion show` — shell completion scripts (bash/zsh/fish/powershell)
-│       │   ├── config.py           # `qdo config add/list/clone/test` — connection management
+│       │   ├── config.py           # `qdo config add/list/clone/test/column-set` — connection + column set management
 │       │   ├── dist.py             # `qdo dist` — column distribution visualization
 │       │   ├── context.py          # `qdo context` — schema + stats + sample values
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
@@ -67,7 +67,7 @@ querido/
 │       │   ├── lineage.py          # View definition retrieval logic (used by view-def command)
 │       │   ├── pivot.py            # Pivot query builder and executor
 │       │   ├── preview.py          # Row preview logic
-│       │   ├── profile.py          # Data profiling logic (stats, frequencies, column classification)
+│       │   ├── profile.py          # Data profiling logic (stats, frequencies, quick mode, batching)
 │       │   ├── runner.py           # Query execution with cancellation support
 │       │   ├── semantic.py         # Snowflake Cortex Analyst semantic model YAML builder
 │       │   └── template.py         # Documentation template generation logic
@@ -113,8 +113,12 @@ querido/
 │       │   ├── app.py              # ExploreApp — main Textual TUI application
 │       │   ├── screens/
 │       │   │   ├── __init__.py
-│       │   │   ├── help.py         # HelpScreen — key binding reference overlay
-│       │   │   └── inspect.py      # InspectScreen — column metadata modal
+│       │   │   ├── column_picker.py    # ColumnPickerScreen — single-select column modal
+│       │   │   ├── column_selector.py  # ColumnSelectorScreen — multi-select with classification
+│       │   │   ├── dist.py             # DistScreen — column distribution modal
+│       │   │   ├── help.py             # HelpScreen — key binding reference overlay
+│       │   │   ├── inspect.py          # InspectScreen — column metadata modal
+│       │   │   └── profile.py          # ProfileScreen — tiered profiling (quick → select → full)
 │       │   └── widgets/
 │       │       ├── __init__.py
 │       │       ├── filter_bar.py   # FilterBar — SQL WHERE expression input
@@ -291,6 +295,18 @@ auth = "externalbrowser"
 ```
 
 Connections can be managed via CLI (`qdo config add` / `qdo config list`) or by editing the file directly.
+
+Column sets are stored alongside connections in `column_sets.toml`:
+
+```toml
+["mydb.orders.default"]
+columns = ["id", "status", "amount", "created_at"]
+
+["mydb.orders.audit"]
+columns = ["id", "status", "amount", "created_at", "updated_by"]
+```
+
+Keys are `connection.table.set_name`. Managed via `qdo config column-set {save,list,show,delete}` and consumed by `qdo profile --column-set`.
 
 CLI resolves `--connection` by:
 1. Looking up as a named connection in the config file

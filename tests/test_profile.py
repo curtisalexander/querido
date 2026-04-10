@@ -6,6 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from querido.cli.main import app
+from querido.core._utils import classify_columns
 from querido.core._utils import unpack_single_row as _unpack_single_row
 
 runner = CliRunner()
@@ -378,3 +379,347 @@ def test_explicit_sample_size_duckdb(big_duckdb: str):
     data = json.loads(result.output)
     assert data["sampled"] is True
     assert data["sample_size"] == 500
+
+
+# ---------------------------------------------------------------------------
+# Quick profile (Tier 1) tests
+# ---------------------------------------------------------------------------
+
+
+def test_quick_profile_sqlite(sqlite_path: str):
+    """--quick should produce output without min/max/mean columns."""
+    result = runner.invoke(
+        app,
+        ["--format", "json", "profile", "-c", sqlite_path, "-t", "users", "--quick"],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    # All columns should have null_count and distinct_count
+    for col in data["columns"]:
+        assert "null_count" in col
+        assert "distinct_count" in col
+        # Quick mode should not compute expensive stats
+        assert col.get("min_val") is None
+        assert col.get("max_val") is None
+        assert col.get("mean_val") is None
+
+
+def test_no_quick_override(sqlite_path: str):
+    """--no-quick should force full profile even on wide tables."""
+    result = runner.invoke(
+        app,
+        ["--format", "json", "profile", "-c", sqlite_path, "-t", "users", "--no-quick"],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    # Should have numeric stats for numeric columns
+    numeric_cols = [c for c in data["columns"] if c.get("min_val") is not None]
+    assert len(numeric_cols) > 0
+
+
+def test_quick_profile_duckdb(duckdb_path: str):
+    """--quick should work on DuckDB too."""
+    result = runner.invoke(
+        app,
+        ["--format", "json", "profile", "-c", duckdb_path, "-t", "users", "--quick"],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    for col in data["columns"]:
+        assert col.get("min_val") is None
+        assert col.get("mean_val") is None
+
+
+# ---------------------------------------------------------------------------
+# Auto-classification tests
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyColumns:
+    def test_constant_column(self):
+        stats = [
+            {
+                "column_name": "status",
+                "column_type": "VARCHAR",
+                "distinct_count": 1,
+                "null_pct": 0,
+            }
+        ]
+        col_info = [{"name": "status", "type": "VARCHAR", "numeric": False}]
+        result = classify_columns(stats, col_info, row_count=100)
+        assert result["column_category"]["status"] == "constant"
+
+    def test_sparse_column(self):
+        stats = [
+            {
+                "column_name": "legacy",
+                "column_type": "VARCHAR",
+                "distinct_count": 5,
+                "null_pct": 95,
+            }
+        ]
+        col_info = [{"name": "legacy", "type": "VARCHAR", "numeric": False}]
+        result = classify_columns(stats, col_info, row_count=100)
+        assert result["column_category"]["legacy"] == "sparse"
+
+    def test_high_cardinality_column(self):
+        stats = [
+            {
+                "column_name": "user_id",
+                "column_type": "VARCHAR",
+                "distinct_count": 98,
+                "null_pct": 0,
+            }
+        ]
+        col_info = [{"name": "user_id", "type": "VARCHAR", "numeric": False}]
+        result = classify_columns(stats, col_info, row_count=100)
+        assert result["column_category"]["user_id"] == "high_cardinality"
+
+    def test_time_column(self):
+        stats = [
+            {
+                "column_name": "created_at",
+                "column_type": "TIMESTAMP",
+                "distinct_count": 80,
+                "null_pct": 0,
+            }
+        ]
+        col_info = [{"name": "created_at", "type": "TIMESTAMP", "numeric": False}]
+        result = classify_columns(stats, col_info, row_count=100)
+        assert result["column_category"]["created_at"] == "time"
+
+    def test_measure_column(self):
+        stats = [
+            {
+                "column_name": "amount",
+                "column_type": "FLOAT",
+                "distinct_count": 80,
+                "null_pct": 0,
+            }
+        ]
+        col_info = [{"name": "amount", "type": "FLOAT", "numeric": True}]
+        result = classify_columns(stats, col_info, row_count=100)
+        assert result["column_category"]["amount"] == "measure"
+
+    def test_low_cardinality_column(self):
+        stats = [
+            {
+                "column_name": "country",
+                "column_type": "VARCHAR",
+                "distinct_count": 10,
+                "null_pct": 5,
+            }
+        ]
+        col_info = [{"name": "country", "type": "VARCHAR", "numeric": False}]
+        result = classify_columns(stats, col_info, row_count=100)
+        assert result["column_category"]["country"] == "low_cardinality"
+
+    def test_mixed_columns(self):
+        stats = [
+            {
+                "column_name": "id",
+                "column_type": "INTEGER",
+                "distinct_count": 1000,
+                "null_pct": 0,
+            },
+            {
+                "column_name": "status",
+                "column_type": "VARCHAR",
+                "distinct_count": 1,
+                "null_pct": 0,
+            },
+            {
+                "column_name": "amount",
+                "column_type": "FLOAT",
+                "distinct_count": 500,
+                "null_pct": 2,
+            },
+            {
+                "column_name": "old_field",
+                "column_type": "VARCHAR",
+                "distinct_count": 3,
+                "null_pct": 99,
+            },
+        ]
+        col_info = [
+            {"name": "id", "type": "INTEGER", "numeric": True},
+            {"name": "status", "type": "VARCHAR", "numeric": False},
+            {"name": "amount", "type": "FLOAT", "numeric": True},
+            {"name": "old_field", "type": "VARCHAR", "numeric": False},
+        ]
+        result = classify_columns(stats, col_info, row_count=1000)
+        assert result["column_category"]["status"] == "constant"
+        assert result["column_category"]["old_field"] == "sparse"
+        assert result["column_category"]["amount"] == "measure"
+
+    def test_empty_categories_excluded(self):
+        stats = [
+            {
+                "column_name": "x",
+                "column_type": "VARCHAR",
+                "distinct_count": 5,
+                "null_pct": 0,
+            }
+        ]
+        col_info = [{"name": "x", "type": "VARCHAR", "numeric": False}]
+        result = classify_columns(stats, col_info, row_count=100)
+        # Only low_cardinality should be present
+        assert "constant" not in result["categories"]
+        assert "sparse" not in result["categories"]
+        assert "low_cardinality" in result["categories"]
+
+
+def test_classify_cli_sqlite(sqlite_path: str):
+    """--classify should produce classification output."""
+    result = runner.invoke(
+        app,
+        ["profile", "-c", sqlite_path, "-t", "users", "--classify"],
+    )
+    assert result.exit_code == 0
+    # Should have category labels in output
+    assert "columns)" in result.output
+
+
+def test_classify_cli_json(sqlite_path: str):
+    """--classify --format json should produce structured JSON."""
+    result = runner.invoke(
+        app,
+        ["--format", "json", "profile", "-c", sqlite_path, "-t", "users", "--classify"],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "categories" in data
+    assert "column_category" in data
+    assert data["table"] == "users"
+
+
+# ---------------------------------------------------------------------------
+# Column sets persistence tests
+# ---------------------------------------------------------------------------
+
+
+def test_column_set_save_load_delete(tmp_path: Path):
+    from querido.config import delete_column_set, load_column_set, save_column_set
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    save_column_set("myconn", "orders", "default", ["id", "amount", "status"], config_dir)
+    cols = load_column_set("myconn", "orders", "default", config_dir)
+    assert cols == ["id", "amount", "status"]
+
+    # Overwrite
+    save_column_set("myconn", "orders", "default", ["id", "amount"], config_dir)
+    cols = load_column_set("myconn", "orders", "default", config_dir)
+    assert cols == ["id", "amount"]
+
+    # Delete
+    assert delete_column_set("myconn", "orders", "default", config_dir) is True
+    assert load_column_set("myconn", "orders", "default", config_dir) is None
+    assert delete_column_set("myconn", "orders", "default", config_dir) is False
+
+
+def test_column_set_list(tmp_path: Path):
+    from querido.config import list_column_sets, save_column_set
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    save_column_set("conn1", "t1", "s1", ["a", "b"], config_dir)
+    save_column_set("conn1", "t2", "s1", ["c"], config_dir)
+    save_column_set("conn2", "t1", "s1", ["d"], config_dir)
+
+    # All
+    all_sets = list_column_sets(config_dir=config_dir)
+    assert len(all_sets) == 3
+
+    # Filter by connection
+    conn1_sets = list_column_sets(connection="conn1", config_dir=config_dir)
+    assert len(conn1_sets) == 2
+
+    # Filter by table
+    t1_sets = list_column_sets(table="t1", config_dir=config_dir)
+    assert len(t1_sets) == 2
+
+    # Filter by both
+    specific = list_column_sets(connection="conn1", table="t1", config_dir=config_dir)
+    assert len(specific) == 1
+
+
+def test_column_set_cli_save_and_list(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """CLI column-set save + list round-trip."""
+    monkeypatch.setenv("QDO_CONFIG", str(tmp_path))
+
+    result = runner.invoke(
+        app,
+        [
+            "config",
+            "column-set",
+            "save",
+            "-c",
+            "test_conn",
+            "-t",
+            "orders",
+            "-n",
+            "default",
+            "--columns",
+            "id,amount,status",
+        ],
+    )
+    assert result.exit_code == 0
+
+    result = runner.invoke(app, ["config", "column-set", "list"])
+    assert result.exit_code == 0
+    assert "test_conn" in result.output
+    assert "orders" in result.output
+
+
+def test_profile_column_set_flag(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """--column-set should resolve to saved columns."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    monkeypatch.setenv("QDO_CONFIG", str(config_dir))
+
+    from querido.config import save_column_set
+
+    save_column_set(sqlite_path, "users", "names_only", ["name"], config_dir)
+
+    result = runner.invoke(
+        app,
+        [
+            "--format",
+            "json",
+            "profile",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--column-set",
+            "names_only",
+        ],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    col_names = [c["column_name"] for c in data["columns"]]
+    assert col_names == ["name"]
+
+
+def test_columns_and_column_set_mutually_exclusive(sqlite_path: str):
+    """Using both --columns and --column-set should fail."""
+    result = runner.invoke(
+        app,
+        [
+            "profile",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--columns",
+            "name",
+            "--column-set",
+            "default",
+        ],
+    )
+    assert result.exit_code != 0

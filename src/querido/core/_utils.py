@@ -55,6 +55,72 @@ def classify_column_kind(col: dict) -> str:
     return "dimension"
 
 
+def classify_columns(
+    stats: list[dict],
+    col_info: list[dict],
+    row_count: int,
+) -> dict:
+    """Classify profiled columns into categories based on Tier 1 stats.
+
+    Returns a dict with:
+    - ``categories``: ``{category_name: [col_name, ...]}``
+    - ``column_category``: ``{col_name: category_name}``
+
+    Categories (evaluated in priority order, first match wins):
+    constant, sparse, high_cardinality, time, measure, low_cardinality, other.
+    """
+    # Build lookup: col_name -> stats row
+    stats_by_name: dict[str, dict] = {}
+    for s in stats:
+        stats_by_name[s.get("column_name", "")] = s
+
+    # Build lookup: col_name -> col_info entry
+    info_by_name: dict[str, dict] = {}
+    for c in col_info:
+        info_by_name[c.get("name", "")] = c
+
+    categories: dict[str, list[str]] = {
+        "constant": [],
+        "sparse": [],
+        "high_cardinality": [],
+        "time": [],
+        "measure": [],
+        "low_cardinality": [],
+        "other": [],
+    }
+    column_category: dict[str, str] = {}
+
+    for col in col_info:
+        name = col.get("name", "")
+        s = stats_by_name.get(name, {})
+        distinct = s.get("distinct_count") or 0
+        null_pct = s.get("null_pct") or 0
+
+        # Priority order: first match wins
+        if distinct == 1:
+            cat = "constant"
+        elif null_pct > 90:
+            cat = "sparse"
+        elif row_count > 0 and distinct / row_count > 0.95:
+            cat = "high_cardinality"
+        elif classify_column_kind(col) == "time_dimension":
+            cat = "time"
+        elif classify_column_kind(col) == "measure":
+            cat = "measure"
+        elif distinct < 50:
+            cat = "low_cardinality"
+        else:
+            cat = "other"
+
+        categories[cat].append(name)
+        column_category[name] = cat
+
+    # Remove empty categories
+    categories = {k: v for k, v in categories.items() if v}
+
+    return {"categories": categories, "column_category": column_category}
+
+
 def build_col_info(columns: list[dict]) -> list[dict]:
     """Build the column info list used by profile SQL templates."""
     from querido.connectors.base import validate_column_name

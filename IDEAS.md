@@ -53,6 +53,8 @@ Use an open-weight local LLM to generate SQL from natural language, informed by 
 - Pivot/group-by mode
 - Plot panel
 - Multi-table joins
+- Column selector: pattern filtering (glob/regex) in addition to checkbox selection
+- Column selector: persist default pre-selection per table
 
 ## Fuzzy matching improvements
 

@@ -243,28 +243,118 @@ def test(
                 console.print(f"  {key}: {val}")
 
 
+# ---------------------------------------------------------------------------
+# Column set management
+# ---------------------------------------------------------------------------
+
+column_set_app = typer.Typer(help="Manage saved column sets.")
+app.add_typer(column_set_app, name="column-set")
+
+
+@column_set_app.command("save")
+def column_set_save(
+    connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    name: str = typer.Option(..., "--name", "-n", help="Column set name."),
+    columns: str = typer.Option(..., "--columns", help="Comma-separated column names."),
+) -> None:
+    """Save a named column set for a connection + table."""
+    from rich.console import Console
+
+    from querido.config import save_column_set
+
+    col_list = [c.strip() for c in columns.split(",") if c.strip()]
+    if not col_list:
+        raise typer.BadParameter("No columns provided.")
+
+    save_column_set(connection, table, name, col_list)
+    Console(stderr=True).print(
+        f"[green]Saved column set '[bold]{name}[/bold]' "
+        f"({len(col_list)} columns) for {connection}.{table}[/green]"
+    )
+
+
+@column_set_app.command("list")
+def column_set_list(
+    connection: str | None = typer.Option(
+        None, "--connection", "-c", help="Filter by connection."
+    ),
+    table: str | None = typer.Option(None, "--table", "-t", help="Filter by table."),
+) -> None:
+    """List saved column sets."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from querido.config import list_column_sets
+
+    console = Console()
+    sets = list_column_sets(connection=connection, table=table)
+
+    if not sets:
+        console.print("[dim]No column sets found.[/dim]")
+        return
+
+    grid = Table(title="Saved Column Sets", show_lines=True)
+    grid.add_column("Connection", style="cyan bold")
+    grid.add_column("Table", style="green")
+    grid.add_column("Set Name", style="yellow")
+    grid.add_column("Columns", style="dim")
+
+    for key, cols in sets.items():
+        parts = key.split(".", 2)
+        if len(parts) != 3:
+            continue
+        k_conn, k_table, k_name = parts
+        grid.add_row(k_conn, k_table, k_name, ", ".join(cols))
+
+    console.print(grid)
+
+
+@column_set_app.command("show")
+def column_set_show(
+    connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    name: str = typer.Option(..., "--name", "-n", help="Column set name."),
+) -> None:
+    """Show columns in a saved column set."""
+    from rich.console import Console
+
+    from querido.config import load_column_set
+
+    cols = load_column_set(connection, table, name)
+    console = Console()
+    if cols is None:
+        console.print(f"[red]Column set '{name}' not found for {connection}.{table}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[bold]{name}[/bold] ({connection}.{table}): {len(cols)} columns")
+    for col in cols:
+        console.print(f"  {col}")
+
+
+@column_set_app.command("delete")
+def column_set_delete(
+    connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    name: str = typer.Option(..., "--name", "-n", help="Column set name."),
+) -> None:
+    """Delete a saved column set."""
+    from rich.console import Console
+
+    from querido.config import delete_column_set
+
+    deleted = delete_column_set(connection, table, name)
+    console = Console(stderr=True)
+    if deleted:
+        console.print(
+            f"[green]Deleted column set '[bold]{name}[/bold]' for {connection}.{table}[/green]"
+        )
+    else:
+        console.print(f"[red]Column set '{name}' not found for {connection}.{table}[/red]")
+        raise typer.Exit(1)
+
+
 def _write_connections(config_file: Path | str, connections: dict) -> None:
-    """Write connections dict back to TOML format using tomli-w.
+    """Write connections dict back to TOML format using tomli-w."""
+    from querido.config import _write_toml_atomic
 
-    Uses a temp file + atomic rename so a crash mid-write can't corrupt the config.
-    """
-    import os
-    import tempfile
-
-    import tomli_w
-
-    config_file = Path(config_file)
-    data = tomli_w.dumps({"connections": connections}).encode()
-    fd, tmp = tempfile.mkstemp(dir=config_file.parent, suffix=".tmp")
-    closed = False
-    try:
-        os.write(fd, data)
-        os.close(fd)
-        closed = True
-        Path(tmp).replace(config_file)
-        config_file.chmod(0o600)
-    except Exception:
-        if not closed:
-            os.close(fd)
-        Path(tmp).unlink(missing_ok=True)
-        raise
+    _write_toml_atomic(Path(config_file), {"connections": connections})

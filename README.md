@@ -123,6 +123,8 @@ qdo context   -c my-db -t orders              # schema + stats + sample values i
 qdo inspect   -c my-db -t orders              # column types, nullable, PK, row count
 qdo preview   -c my-db -t orders -r 20        # see rows
 qdo profile   -c my-db -t orders --top 10     # stats + top frequent values
+qdo profile   -c my-db -t orders --quick      # fast: nulls + distinct only (auto for 50+ cols)
+qdo profile   -c my-db -t orders --classify   # classify columns by category (implies --quick)
 qdo dist      -c my-db -t orders -C amount    # histogram or value frequencies
 qdo values    -c my-db -t orders -C status    # all distinct values for a column
 qdo quality   -c my-db -t orders              # null rates, uniqueness, anomalies
@@ -158,6 +160,9 @@ qdo view-def     -c my-db --view my_view      # SQL definition of a view
 qdo config add  --name mydb --type duckdb --path ./my.duckdb
 qdo config list
 qdo config clone --source sf-base --name sf-finance --database FINANCE_DB
+qdo config column-set save -c mydb -t orders -n default --columns "id,status,amount"
+qdo config column-set list
+qdo profile -c mydb -t orders --column-set default  # reuse saved selection
 qdo cache sync  -c my-db
 qdo completion show fish > ~/.config/fish/completions/qdo.fish
 
@@ -285,6 +290,35 @@ The auto-sample threshold (default 1M rows) can be adjusted via the `QDO_SAMPLE_
 export QDO_SAMPLE_THRESHOLD=5000000   # only sample tables over 5M rows
 export QDO_SAMPLE_THRESHOLD=0         # always sample (use for testing)
 ```
+
+## Wide tables (50+ columns)
+
+Profiling tables with many columns can be slow. qdo has a tiered profiling system designed for wide tables:
+
+```bash
+# Quick mode: only null counts + distinct counts (auto-engages at 50+ columns)
+qdo profile -c my-db -t wide_table --quick
+
+# Classify columns into categories (constant, sparse, high cardinality, time, etc.)
+qdo profile -c my-db -t wide_table --classify
+qdo profile -c my-db -t wide_table --classify -f json   # machine-readable for agents
+
+# Profile specific columns (full stats)
+qdo profile -c my-db -t wide_table --columns "col1,col2,col3"
+
+# Save a column set for reuse across commands
+qdo config column-set save -c my-db -t wide_table -n default --columns "col1,col2,col3"
+qdo profile -c my-db -t wide_table --column-set default
+
+# Manage saved column sets
+qdo config column-set list
+qdo config column-set show -c my-db -t wide_table -n default
+qdo config column-set delete -c my-db -t wide_table -n default
+```
+
+**How quick mode works:** At 50+ columns (configurable via `QDO_QUICK_THRESHOLD`), `profile` automatically switches to quick mode, computing only null counts, null percentages, and distinct counts. Use `--no-quick` to force full stats. Use `--classify` to see columns grouped by type (constant, sparse, high cardinality, time dimensions, measures, low cardinality).
+
+**TUI workflow:** In `qdo explore`, press `p` on a wide table to see a column selector with checkboxes, grouped by classification. Select the columns you care about, optionally save the selection, then get full stats for just those columns.
 
 ## Using qdo with a coding agent
 
