@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from querido.core._utils import build_col_info, build_sample_source, unpack_single_row
+from querido.core._utils import (
+    build_col_info,
+    build_sample_source,
+    resolve_row_count_for_sampling,
+    unpack_single_row,
+)
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
@@ -49,20 +54,9 @@ def get_profile(
 
     col_info = build_col_info(col_meta)
 
-    # Only run a separate count query when we need it for auto-sampling.
-    # When sample is explicit or no_sample is set, skip the extra table scan;
-    # the real row count will be extracted from the profile query result.
-    needs_auto_sample = sample is None and not no_sample
-    if needs_auto_sample:
-        row_count = connector.get_row_count(table)
-    elif sample is not None:
-        # Explicit sample requested — use a large sentinel so
-        # _build_sample_source always enables sampling.
-        row_count = sample + 1
-    else:
-        # no_sample is True — row_count is unused for sampling decisions.
-        row_count = 0
-
+    row_count = resolve_row_count_for_sampling(
+        connector, table, sample=sample, no_sample=no_sample
+    )
     source, sampled, sample_size = build_sample_source(
         connector, table, row_count, sample=sample, no_sample=no_sample
     )

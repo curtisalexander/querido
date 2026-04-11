@@ -185,7 +185,7 @@ def _recovery_hint(exc: Exception) -> str | None:
     if _is_db_error(exc):
         msg_lower = str(exc).lower()
         if "no such table" in msg_lower or "does not exist" in msg_lower:
-            return "Try: qdo search -c <connection> -p <pattern> to find available tables"
+            return "Try: qdo catalog -c <connection> --pattern <name> to find available tables"
         if "no such column" in msg_lower:
             return "Try: qdo inspect -c <connection> -t <table> to see available columns"
         if "database is locked" in msg_lower:

@@ -31,7 +31,11 @@ def get_distribution(
     threshold as ``profile``).  Use *sample* to set an explicit sample
     size, or *no_sample* to force a full scan.
     """
-    from querido.core._utils import build_sample_source, is_numeric_type
+    from querido.core._utils import (
+        build_sample_source,
+        is_numeric_type,
+        resolve_row_count_for_sampling,
+    )
     from querido.sql.renderer import render_template
 
     col_type = column_type
@@ -46,14 +50,9 @@ def get_distribution(
     is_num = is_numeric_type(col_type)
 
     # Determine source (raw table or sampled subquery).
-    needs_auto_sample = sample is None and not no_sample
-    if needs_auto_sample:
-        row_count = connector.get_row_count(table)
-    elif sample is not None:
-        row_count = sample + 1
-    else:
-        row_count = 0
-
+    row_count = resolve_row_count_for_sampling(
+        connector, table, sample=sample, no_sample=no_sample
+    )
     source, sampled, sample_size = build_sample_source(
         connector, table, row_count, sample=sample, no_sample=no_sample
     )
