@@ -68,7 +68,7 @@ Table names are validated at the CLI boundary using `validate_table_name()` from
 
 Read `ARCHITECTURE.md` for the full structure. Key locations:
 
-- `src/querido/cli/` — CLI commands (one file per subcommand, plus `_util.py` for shared helpers)
+- `src/querido/cli/` — CLI commands (one file per subcommand, plus `_pipeline.py`, `_context.py`, `_errors.py`, `_options.py`, `_progress.py`, `_validation.py` for shared helpers)
 - `src/querido/connectors/` — Database connectors (one file per backend; DuckDB also handles Parquet)
 - `src/querido/sql/templates/` — SQL templates (organized by command, then dialect)
 - `src/querido/output/` — Output formatting (Rich tables, HTML pages, Markdown, JSON, CSV)
@@ -331,7 +331,7 @@ columns:
 
 When `--format json` is active, errors are emitted as structured JSON to stderr:
 ```json
-{"error": true, "code": "TABLE_NOT_FOUND", "message": "Table not found: ...", "hint": "Try: qdo search -c <connection> -p <pattern>"}
+{"error": true, "code": "TABLE_NOT_FOUND", "message": "Table not found: ...", "hint": "Try: qdo catalog -c <connection> --pattern <name>"}
 ```
 
 Error codes: `TABLE_NOT_FOUND`, `COLUMN_NOT_FOUND`, `DATABASE_LOCKED`, `DATABASE_OPEN_FAILED`, `AUTH_FAILED`, `DATABASE_ERROR`, `FILE_NOT_FOUND`, `VALIDATION_ERROR`, `MISSING_DEPENDENCY`, `PERMISSION_DENIED`.
@@ -389,10 +389,6 @@ uv run python scripts/init_test_data.py   # creates data/test.db and data/test.d
 **products**: name, description, brand, category, price, currency, stock, ean, color, size, availability, internal_id
 
 **datatypes**: mixed types for edge-case testing (blobs, JSON, nulls, negatives, large ints)
-
-## Build Plan
-
-See `PLAN.md` for the phased build plan. Work through phases in order. Each phase has concrete deliverables and tests.
 
 ## Dependency Management
 

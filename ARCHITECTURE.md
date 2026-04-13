@@ -10,16 +10,23 @@ qdo is a CLI data analysis toolkit for running common analytics tasks against da
 querido/
 ├── pyproject.toml                  # All dependencies, build config, ruff/ty config
 ├── LICENSE                         # MIT license
-├── PLAN.md                         # Incremental build plan with phases
 ├── AGENTS.md                       # Agent onboarding guide
 ├── ARCHITECTURE.md                 # This file
+├── IDEAS.md                        # Unimplemented feature ideas
 ├── README.md
+├── docs/
+│   ├── cli-reference.md            # Auto-generated CLI reference
+│   └── qdo-cheatsheet.html         # Visual cheatsheet
+├── integrations/
+│   ├── agent-workflow-example.md    # Example agent workflow with metadata
+│   ├── skills/SKILL.md             # Claude Code skill file
+│   └── continue/qdo.md             # Continue.dev rule
 ├── scripts/
 │   ├── init_test_data.py           # Generate synthetic data → data/test.db + data/test.duckdb
-│   ├── tutorial.py                 # Interactive step-by-step tutorial
-│   ├── demo.py                     # Modular feature demo (zero-setup, auto-generates temp DB)
+│   ├── init_tutorial_data.py       # Generate tutorial National Parks DB
 │   ├── check_deps.py              # Dependency checker with supply-chain quarantine
-│   └── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
+│   ├── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
+│   └── retag.sh                   # Move release tag to current commit
 ├── src/
 │   └── querido/
 │       ├── __init__.py             # Version string (__version__)
@@ -30,29 +37,41 @@ querido/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── _context.py         # Output format, SQL display, HTML emission
 │       │   ├── _errors.py          # friendly_errors decorator, error classification
-│       │   ├── _pipeline.py        # table_command context manager, dispatch_output helper
+│       │   ├── _pipeline.py        # table_command/database_command context managers, dispatch_output
 │       │   ├── _progress.py        # Elapsed-time query spinner with cancellation
-│       │   ├── _options.py          # Shared Typer option definitions (--connection, --db-type, etc.)
-│       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, require_snowflake
-│       │   ├── main.py             # Entry point, Typer app, registers subcommands
+│       │   ├── _options.py         # Shared Typer option definitions (--connection, --db-type, etc.)
+│       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, destructive SQL guard
+│       │   ├── main.py             # Entry point, Typer app, lazy subcommand loading
+│       │   ├── assert_cmd.py       # `qdo assert` — assert conditions on query results (CI-friendly)
 │       │   ├── cache.py            # `qdo cache sync/status/clear` — metadata cache management
-│       │   ├── completion.py       # `qdo completion show` — shell completion scripts (bash/zsh/fish/powershell)
-│       │   ├── config.py           # `qdo config add/list/clone/test/column-set` — connection + column set management
+│       │   ├── catalog.py          # `qdo catalog` — full database catalog (tables, columns, row counts)
+│       │   ├── completion.py       # `qdo completion show` — shell completion scripts
+│       │   ├── config.py           # `qdo config add/list/clone/test/column-set` — connection management
+│       │   ├── context.py          # `qdo context` — schema + stats + sample values in one call
+│       │   ├── diff.py             # `qdo diff` — compare schemas between two tables
 │       │   ├── dist.py             # `qdo dist` — column distribution visualization
-│       │   ├── context.py          # `qdo context` — schema + stats + sample values
-│       │   ├── inspect.py          # `qdo inspect` — table metadata
-│       │   ├── view_def.py         # `qdo view-def` — view SQL definition retrieval
-│       │   ├── preview.py          # `qdo preview` — row preview
-│       │   ├── profile.py          # `qdo profile` — data profiling
+│       │   ├── explain.py          # `qdo explain` — query execution plan (EXPLAIN)
 │       │   ├── explore.py          # `qdo explore` — interactive TUI launcher
+│       │   ├── export.py           # `qdo export` — export data to file (csv, tsv, json, jsonl)
+│       │   ├── inspect.py          # `qdo inspect` — table metadata
+│       │   ├── joins.py            # `qdo joins` — discover likely join keys
+│       │   ├── metadata.py         # `qdo metadata init/edit/show/list/refresh` — enriched metadata
 │       │   ├── overview.py         # `qdo overview` — CLI reference markdown generation
+│       │   ├── pivot.py            # `qdo pivot` — pivot / aggregate table data
+│       │   ├── preview.py          # `qdo preview` — row preview
+│       │   ├── profile.py          # `qdo profile` — data profiling (quick, classify, column sets)
+│       │   ├── quality.py          # `qdo quality` — data quality summary (nulls, uniqueness, anomalies)
+│       │   ├── query.py            # `qdo query` — execute ad-hoc SQL
 │       │   ├── serve.py            # `qdo serve` — FastAPI web UI launcher
-│       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage via GET_LINEAGE)
-│       │   ├── sql.py              # `qdo sql` — SQL statement generation (select, insert, ddl, task, udf, procedure)
-│       │   └── template.py         # `qdo template` — documentation template generation
+│       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
+│       │   ├── sql.py              # `qdo sql` — SQL generation (select, insert, ddl, scratch, task, udf, procedure)
+│       │   ├── template.py         # `qdo template` — documentation template generation
+│       │   ├── tutorial.py         # `qdo tutorial` — interactive tutorial launcher
+│       │   ├── values.py           # `qdo values` — distinct values for a column
+│       │   └── view_def.py         # `qdo view-def` — view SQL definition retrieval
 │       ├── connectors/
 │       │   ├── __init__.py         # Package marker
-│       │   ├── base.py             # Connector Protocol, table name validation
+│       │   ├── base.py             # Connector Protocol, table name validation, error hierarchy
 │       │   ├── arrow_util.py       # Arrow-aware execution helpers (execute_arrow_or_dicts)
 │       │   ├── factory.py          # Creates connector from config/args
 │       │   ├── sqlite.py           # SQLite connector (stdlib, always available)
@@ -61,16 +80,27 @@ querido/
 │       ├── core/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── _concurrent.py      # Parallel query execution helper (thread pool)
-│       │   ├── dist.py             # Distribution computation logic
+│       │   ├── _utils.py           # Shared helpers: type detection, classification, sampling
+│       │   ├── assert_check.py     # Assert condition checking logic
+│       │   ├── catalog.py          # Full database catalog logic (live, cached, enriched, filtered)
 │       │   ├── context.py          # Context logic (schema + stats + sample values, single scan)
+│       │   ├── diff.py             # Schema diff logic
+│       │   ├── dist.py             # Distribution computation logic
+│       │   ├── explain.py          # Query plan logic
+│       │   ├── export.py           # Data export logic
 │       │   ├── inspect.py          # Inspect metadata logic
+│       │   ├── joins.py            # Join key discovery logic
 │       │   ├── lineage.py          # View definition retrieval logic (used by view-def command)
+│       │   ├── metadata.py         # Enriched metadata (init, show, list, refresh)
 │       │   ├── pivot.py            # Pivot query builder and executor
 │       │   ├── preview.py          # Row preview logic
-│       │   ├── profile.py          # Data profiling logic (stats, frequencies, quick mode, batching)
-│       │   ├── runner.py           # Query execution with cancellation support
+│       │   ├── profile.py          # Data profiling (stats, frequencies, quick mode, batching)
+│       │   ├── quality.py          # Data quality analysis logic
+│       │   ├── query.py            # Ad-hoc SQL execution with limit wrapping
+│       │   ├── runner.py           # Threaded query execution with cancellation support
 │       │   ├── semantic.py         # Snowflake Cortex Analyst semantic model YAML builder
-│       │   └── template.py         # Documentation template generation logic
+│       │   ├── template.py         # Documentation template generation logic
+│       │   └── values.py           # Distinct values logic
 │       ├── sql/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── renderer.py         # Jinja2 template loading and rendering
@@ -124,10 +154,17 @@ querido/
 │       │       ├── filter_bar.py   # FilterBar — SQL WHERE expression input
 │       │       ├── sidebar.py      # MetadataSidebar — column stats panel
 │       │       └── status_bar.py   # StatusBar — table info, row count, filter/sort status
+│       ├── tutorial/
+│       │   ├── __init__.py         # Package marker
+│       │   ├── _helpers.py         # Shared tutorial step helpers
+│       │   ├── data.py             # National Parks sample data
+│       │   ├── metadata_fixtures.py # Metadata examples for agent tutorial
+│       │   ├── runner.py           # Core exploration tutorial (15 lessons)
+│       │   └── runner_agent.py     # Metadata + agent workflow tutorial (13 lessons)
 │       ├── output/
 │       │   ├── __init__.py         # Package marker, shared helpers (fmt_value)
 │       │   ├── console.py          # Rich terminal output (tables, panels, frequencies)
-│       │   ├── formats.py          # Machine-readable output (markdown, JSON, CSV)
+│       │   ├── formats.py          # Machine-readable output (markdown, JSON, CSV, YAML)
 │       │   └── html.py             # Standalone HTML pages with interactive tables
 │       └── web/
 │           ├── __init__.py         # FastAPI app factory (create_app)
@@ -147,26 +184,49 @@ querido/
 │               └── partials/       # HTMX fragments (inspect, preview, profile, dist, etc.)
 └── tests/
     ├── conftest.py                 # Shared fixtures (temp databases, test tables)
+    ├── test_agent_mode.py          # Agent mode (QDO_FORMAT=json) tests
+    ├── test_assert.py              # Assert command tests
+    ├── test_cache.py               # Metadata cache tests (sync, status, clear)
+    ├── test_cancellation.py        # Query cancellation tests
+    ├── test_catalog.py             # Catalog command tests (listing, filtering, caching)
     ├── test_cli.py                 # CLI help/version/show-sql tests
+    ├── test_completion.py          # Shell completion tests
     ├── test_config.py              # Config loading and connection resolution tests
-    ├── test_config_cmd.py          # Config add/list command tests
+    ├── test_config_cmd.py          # Config add/list/clone command tests
     ├── test_connectors.py          # SQLite + DuckDB connector unit tests
-    ├── test_cache.py               # Metadata cache tests (sync, status, clear, search integration)
+    ├── test_context.py             # Context command tests
+    ├── test_core.py                # Core utility tests
+    ├── test_diff.py                # Schema diff tests
     ├── test_dist.py                # Distribution command tests (numeric + categorical)
+    ├── test_errors.py              # Error handling and classification tests
+    ├── test_explain.py             # Explain (query plan) tests
     ├── test_explore.py             # Explore CLI entry point tests
-    ├── test_tui.py                 # TUI widget and app tests (Textual pilot framework)
+    ├── test_export.py              # Export command tests
     ├── test_format.py              # Output format tests (markdown, JSON, CSV)
+    ├── test_html_format.py         # HTML output tests
     ├── test_inspect.py             # Inspect command tests (SQLite + DuckDB)
-    ├── test_lineage.py             # View definition tests (view-def command, SQLite + DuckDB)
+    ├── test_joins.py               # Join discovery tests
+    ├── test_lineage.py             # View definition tests (view-def command)
+    ├── test_metadata.py            # Enriched metadata tests (init/show/list/refresh)
+    ├── test_overview.py            # Overview command tests
     ├── test_parquet.py             # Parquet file support tests
+    ├── test_pivot_cmd.py           # Pivot command tests
     ├── test_preview.py             # Preview command tests (SQLite + DuckDB)
-    ├── test_profile.py             # Profile command tests (top-N, frequencies)
+    ├── test_profile.py             # Profile command tests (top-N, frequencies, quick, classify)
+    ├── test_quality.py             # Data quality tests
+    ├── test_query.py               # Query command tests
     ├── test_renderer.py            # SQL template rendering tests
+    ├── test_serve_cli.py           # Serve command CLI tests
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
+    ├── test_snowflake_commands.py  # Snowflake-specific command tests
     ├── test_sql.py                 # SQL generation command tests
     ├── test_template.py            # Template command tests (all formats, SQLite + DuckDB)
+    ├── test_tui.py                 # TUI widget and app tests (Textual pilot framework)
+    ├── test_tutorial.py            # Tutorial tests
+    ├── test_values.py              # Values command tests
     ├── test_web.py                 # Web UI tests (FastAPI TestClient, all endpoints)
     └── integration/
+        ├── conftest.py             # Integration test fixtures
         ├── test_connectors.py      # Connector tests against real data
         ├── test_inspect.py         # Inspect tests against real data
         ├── test_preview.py         # Preview tests against real data

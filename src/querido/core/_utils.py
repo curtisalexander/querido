@@ -97,15 +97,16 @@ def classify_columns(
         null_pct = s.get("null_pct") or 0
 
         # Priority order: first match wins
+        kind = classify_column_kind(col)
         if distinct == 1:
             cat = "constant"
         elif null_pct > 90:
             cat = "sparse"
         elif row_count > 0 and distinct / row_count > 0.95:
             cat = "high_cardinality"
-        elif classify_column_kind(col) == "time_dimension":
+        elif kind == "time_dimension":
             cat = "time"
-        elif classify_column_kind(col) == "measure":
+        elif kind == "measure":
             cat = "measure"
         elif distinct < 50:
             cat = "low_cardinality"
@@ -133,6 +134,27 @@ def build_col_info(columns: list[dict]) -> list[dict]:
         }
         for c in columns
     ]
+
+
+def resolve_row_count_for_sampling(
+    connector: Connector,
+    table: str,
+    *,
+    sample: int | None = None,
+    no_sample: bool = False,
+) -> int:
+    """Determine the row count needed for sampling decisions.
+
+    Only queries the database when auto-sampling might apply.  Returns a
+    sentinel value when the caller has already decided on sampling behavior.
+    """
+    if sample is None and not no_sample:
+        return connector.get_row_count(table)
+    if sample is not None:
+        # Explicit sample — sentinel ensures build_sample_source enables sampling.
+        return sample + 1
+    # no_sample — row_count is unused for sampling decisions.
+    return 0
 
 
 def build_sample_source(

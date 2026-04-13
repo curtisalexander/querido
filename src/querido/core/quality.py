@@ -43,7 +43,7 @@ def get_quality(
         }
     """
     from querido.connectors.base import validate_table_name
-    from querido.core._utils import build_sample_source
+    from querido.core._utils import build_sample_source, resolve_row_count_for_sampling
 
     validate_table_name(table)
 
@@ -55,14 +55,9 @@ def get_quality(
         all_columns = [c for c in all_columns if c.get("name", "").lower() in col_names_lower]
 
     # Determine sampling
-    needs_auto_sample = sample is None and not no_sample
-    if needs_auto_sample:
-        row_count_for_sample = connector.get_row_count(table)
-    elif sample is not None:
-        row_count_for_sample = sample + 1
-    else:
-        row_count_for_sample = 0
-
+    row_count_for_sample = resolve_row_count_for_sampling(
+        connector, table, sample=sample, no_sample=no_sample
+    )
     source, sampled, sample_size = build_sample_source(
         connector, table, row_count_for_sample, sample=sample, no_sample=no_sample
     )
