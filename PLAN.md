@@ -52,9 +52,9 @@ The four items that together create the "tool gets better the more it's used" co
 
 ### 1.4 — Metadata scoring and suggestions
 
-- [ ] `qdo metadata score -c <conn>` — per-table completeness score (% of columns with description, % with valid_values where cardinality is low, freshness of profile stats)
-- [ ] `qdo metadata suggest -c <conn> -t <table>` — proposes additions as a diff from recent profile/values/quality runs; `--apply` writes them
-- [ ] Output includes a pointer in `next_steps` from commands that scan tables with low scores
+- [x] `qdo metadata score -c <conn>` — per-table completeness score (% of columns with description, % with valid_values where cardinality is low, freshness of profile stats)
+- [x] `qdo metadata suggest -c <conn> -t <table>` — proposes additions as a diff from recent profile/values/quality runs; `--apply` writes them
+- [x] Output includes a pointer in `next_steps` from commands that scan tables with low scores
 
 **Why:** gives agents a measurable target and a non-preachy nudge toward improving metadata.
 

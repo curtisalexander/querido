@@ -22,6 +22,23 @@ def _step(argv: list[str], why: str) -> dict:
     return {"cmd": cmd(argv), "why": why}
 
 
+def _maybe_suggest_metadata(connection: str, table: str) -> dict | None:
+    """If *table* has a low stored metadata score, propose ``metadata suggest``.
+
+    Returns ``None`` when no metadata file exists (other rules handle init)
+    or when the score is already healthy.
+    """
+    from querido.core.metadata_score import LOW_SCORE_THRESHOLD, peek_score
+
+    score = peek_score(connection, table)
+    if score is None or score >= LOW_SCORE_THRESHOLD:
+        return None
+    return _step(
+        ["qdo", "metadata", "suggest", "-c", connection, "-t", table],
+        f"Stored metadata score is {score:.2f} — propose additions from fresh scans.",
+    )
+
+
 # -- scanning commands --------------------------------------------------------
 
 
@@ -83,6 +100,10 @@ def for_inspect(
                 "No table description found — scaffold a metadata YAML.",
             )
         )
+
+    pointer = _maybe_suggest_metadata(connection, table)
+    if pointer:
+        steps.append(pointer)
 
     return steps
 
@@ -204,6 +225,10 @@ def for_context(
             )
         )
 
+    pointer = _maybe_suggest_metadata(connection, table)
+    if pointer:
+        steps.append(pointer)
+
     return steps
 
 
@@ -314,6 +339,10 @@ def for_profile(
                 "Results were sampled — re-run exact (slower).",
             )
         )
+
+    pointer = _maybe_suggest_metadata(connection, table)
+    if pointer:
+        steps.append(pointer)
 
     return steps
 
@@ -457,6 +486,10 @@ def for_quality(
                 "Results were sampled — re-run exact.",
             )
         )
+
+    pointer = _maybe_suggest_metadata(connection, table)
+    if pointer:
+        steps.append(pointer)
 
     return steps
 

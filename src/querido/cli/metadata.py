@@ -192,3 +192,205 @@ def refresh(
 
     path = metadata_path(connection, table)
     print(f"Refreshed: {path}", file=sys.stderr)
+
+
+# -- score --------------------------------------------------------------------
+
+score_app = typer.Typer(help="Score metadata completeness across a connection.")
+app.add_typer(score_app, name="score")
+
+
+@score_app.callback(invoke_without_command=True)
+@friendly_errors
+def score(
+    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+) -> None:
+    """Per-table metadata completeness ranking (worst first)."""
+    from querido.cli._context import get_output_format
+    from querido.core.metadata_score import score_connection
+    from querido.output.envelope import emit_envelope
+
+    report = score_connection(connection)
+
+    if get_output_format() == "json":
+        emit_envelope(
+            command="metadata score",
+            data=report,
+            next_steps=_score_next_steps(report, connection),
+            connection=connection,
+        )
+        return
+
+    _print_score_report(report)
+
+
+# -- suggest ------------------------------------------------------------------
+
+suggest_app = typer.Typer(help="Propose metadata additions from fresh scans.")
+app.add_typer(suggest_app, name="suggest")
+
+
+@suggest_app.callback(invoke_without_command=True)
+@friendly_errors
+def suggest(
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
+    db_type: str | None = typer.Option(
+        None,
+        "--db-type",
+        help="Database type (sqlite/duckdb). Inferred from path if omitted.",
+    ),
+    apply_flag: bool = typer.Option(
+        False,
+        "--apply",
+        help="Write the suggested additions to the metadata YAML.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="With --apply: overwrite human-authored fields (confidence 1.0).",
+    ),
+) -> None:
+    """Propose metadata additions for a table as a diff from fresh scans.
+
+    Without ``--apply``, prints what would change.  With ``--apply``, writes
+    the additions to ``.qdo/metadata/<connection>/<table>.yaml`` with
+    provenance tags identical to ``--write-metadata``.
+    """
+    from querido.cli._context import get_output_format
+    from querido.cli._pipeline import table_command
+    from querido.core.metadata import init_metadata, metadata_path
+    from querido.core.metadata_score import (
+        apply_suggestions,
+        build_suggestions,
+        suggestions_to_dicts,
+    )
+    from querido.output.envelope import emit_envelope
+
+    with table_command(table=table, connection=connection, db_type=db_type) as ctx:
+        # Ensure a YAML exists so the diff has something to compare against.
+        path = metadata_path(connection, ctx.table)
+        if not path.exists():
+            init_metadata(ctx.connector, connection, ctx.table)
+
+        with ctx.spin(f"Scanning [bold]{ctx.table}[/bold] for suggestions"):
+            updates = build_suggestions(ctx.connector, connection, ctx.table, force=force)
+
+        applied: dict | None = None
+        if apply_flag and updates:
+            applied = apply_suggestions(ctx.connector, connection, ctx.table, updates, force=force)
+
+    payload = {
+        "table": ctx.table,
+        "suggestions": suggestions_to_dicts(updates),
+        "applied": applied,
+    }
+
+    if get_output_format() == "json":
+        emit_envelope(
+            command="metadata suggest",
+            data=payload,
+            next_steps=[],
+            connection=connection,
+            table=ctx.table,
+        )
+        return
+
+    _print_suggestions(payload, path=str(path), applied=bool(applied))
+
+
+def _score_next_steps(report: dict, connection: str) -> list[dict]:
+    """Suggest suggest-runs for the lowest-scoring tables."""
+    from querido.core.metadata_score import LOW_SCORE_THRESHOLD
+    from querido.output.envelope import cmd
+
+    steps: list[dict] = []
+    for row in report.get("tables", [])[:3]:
+        score_val = row.get("score")
+        table = row.get("table")
+        if not table or score_val is None:
+            continue
+        if score_val >= LOW_SCORE_THRESHOLD:
+            break
+        steps.append(
+            {
+                "cmd": cmd(["qdo", "metadata", "suggest", "-c", connection, "-t", table]),
+                "why": f"'{table}' scores {score_val:.2f} — propose additions.",
+            }
+        )
+    return steps
+
+
+def _print_score_report(report: dict) -> None:
+    from rich.console import Console
+    from rich.table import Table as RichTable
+
+    tables = report.get("tables") or []
+    avg = report.get("average_score")
+    console = Console()
+    if not tables:
+        console.print(
+            "[yellow]No metadata files found.[/yellow] "
+            "Run 'qdo metadata init -c <conn> -t <table>' to create one."
+        )
+        return
+
+    t = RichTable(title=f"Metadata score — {report.get('connection')}")
+    t.add_column("Table", style="cyan")
+    t.add_column("Score", justify="right")
+    t.add_column("Desc %", justify="right")
+    t.add_column("Valid values %", justify="right")
+    t.add_column("Freshness", justify="right")
+
+    for row in tables:
+        fresh = row.get("freshness_days")
+        fresh_str = f"{fresh:.0f}d" if isinstance(fresh, (int, float)) else "—"
+        t.add_row(
+            str(row.get("table", "")),
+            f"{row.get('score', 0):.2f}",
+            f"{row.get('column_description_pct', 0):.0f}",
+            f"{row.get('valid_values_coverage_pct', 0):.0f}",
+            fresh_str,
+        )
+    console.print(t)
+    if avg is not None:
+        console.print(f"Average score: [bold]{avg:.2f}[/bold]")
+
+
+def _print_suggestions(payload: dict, *, path: str, applied: bool) -> None:
+    from rich.console import Console
+    from rich.table import Table as RichTable
+
+    console = Console()
+    suggestions = payload.get("suggestions") or []
+    if not suggestions:
+        console.print("[green]No novel suggestions.[/green] Metadata is up to date.")
+        return
+
+    t = RichTable(
+        title=("Applied additions" if applied else "Suggested additions")
+        + f" — {payload.get('table', '')}"
+    )
+    t.add_column("Column", style="cyan")
+    t.add_column("Field")
+    t.add_column("Value", overflow="fold")
+    t.add_column("Source")
+    t.add_column("Conf.", justify="right")
+
+    for s in suggestions:
+        val = s.get("value")
+        val_str = ", ".join(str(v) for v in val) if isinstance(val, list) else str(val)
+        t.add_row(
+            str(s.get("column") or "(table)"),
+            str(s.get("field", "")),
+            val_str,
+            str(s.get("source", "")),
+            f"{s.get('confidence', 0):.2f}",
+        )
+    console.print(t)
+    if applied:
+        console.print(f"Wrote {len(suggestions)} field(s) to {path}")
+    else:
+        console.print(f"\nRe-run with --apply to write these to {path}")
