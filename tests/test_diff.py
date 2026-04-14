@@ -41,7 +41,7 @@ def test_diff_added_column(diff_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     added_names = [c["name"] for c in payload["added"]]
     assert "email" in added_names
 
@@ -55,7 +55,7 @@ def test_diff_removed_column(diff_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     removed_names = [c["name"] for c in payload["removed"]]
     assert "email" in removed_names
 
@@ -69,7 +69,7 @@ def test_diff_changed_type(diff_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     # age or name may have changed (type or nullable)
     assert len(payload["changed"]) >= 1
 
@@ -82,7 +82,7 @@ def test_diff_unchanged_count(diff_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["unchanged_count"] >= 0
 
 
@@ -160,6 +160,6 @@ def test_diff_cross_connection(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     added_names = [c["name"] for c in payload["added"]]
     assert "extra" in added_names

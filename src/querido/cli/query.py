@@ -54,6 +54,26 @@ def query(
 
             result = run_query(ctx.connector, query_sql, limit=limit)
 
+        from querido.cli._context import get_output_format
+
+        if get_output_format() == "json":
+            from querido.core.next_steps import for_query
+            from querido.output.envelope import emit_envelope
+
+            emit_envelope(
+                command="query",
+                data={
+                    "columns": result.get("columns", []),
+                    "row_count": result.get("row_count", 0),
+                    "limited": result.get("limited", False),
+                    "rows": result.get("rows", []),
+                    "sql": query_sql,
+                },
+                next_steps=for_query(result, connection=connection),
+                connection=connection,
+            )
+            return
+
         dispatch_output(
             "query",
             result.get("columns", []),

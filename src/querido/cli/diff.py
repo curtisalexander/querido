@@ -61,4 +61,26 @@ def diff(
             right_cols = conn.get_columns(target)
 
     result = schema_diff(table, left_cols, target, right_cols)
+
+    from querido.cli._context import get_output_format
+
+    if get_output_format() == "json":
+        from querido.core.next_steps import for_diff
+        from querido.output.envelope import emit_envelope
+
+        emit_envelope(
+            command="diff",
+            data=result,
+            next_steps=for_diff(
+                result,
+                connection=connection,
+                left_table=table,
+                right_table=target,
+                target_connection=target_connection,
+            ),
+            connection=connection,
+            table=table,
+        )
+        return
+
     dispatch_output("diff", result)

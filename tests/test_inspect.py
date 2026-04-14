@@ -55,7 +55,7 @@ def test_inspect_verbose_json_includes_comments(duckdb_with_comments_path: str):
         app, ["--format", "json", "inspect", "-c", duckdb_with_comments_path, "-t", "users", "-v"]
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["table_comment"] == "Application user accounts"
     comments = {c["name"]: c["comment"] for c in data["columns"]}
     assert comments["name"] == "Full legal name"

@@ -75,6 +75,7 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
             msg = _classify_error(exc)
             code = _error_code(exc)
             hint = _recovery_hint(exc)
+            try_next = _try_next_for(code)
 
             with _last_sql_lock:
                 last = _last_sql
@@ -82,16 +83,16 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
             from querido.cli._context import get_output_format
 
             if get_output_format() == "json":
-                _emit_json_error(msg, code, hint, last if _is_db_error(exc) else None)
+                _emit_json_error(msg, code, hint, last if _is_db_error(exc) else None, try_next)
             else:
-                _emit_rich_error(msg, exc, last)
+                _emit_rich_error(msg, exc, last, try_next)
 
             raise typer.Exit(code=1) from None
 
     return wrapper
 
 
-def _emit_rich_error(msg: str, exc: Exception, last_sql: str | None) -> None:
+def _emit_rich_error(msg: str, exc: Exception, last_sql: str | None, try_next: list[dict]) -> None:
     """Print a human-readable error to stderr with Rich markup."""
     from rich.console import Console
 
@@ -102,6 +103,9 @@ def _emit_rich_error(msg: str, exc: Exception, last_sql: str | None) -> None:
     if hint:
         console.print(f"[dim]Hint: {hint}[/dim]")
 
+    for step in try_next:
+        console.print(f"[dim]Try:[/dim] {step['cmd']}  [dim]— {step['why']}[/dim]")
+
     if last_sql is not None and _is_db_error(exc):
         from querido.cli._context import print_sql
 
@@ -109,7 +113,13 @@ def _emit_rich_error(msg: str, exc: Exception, last_sql: str | None) -> None:
         print_sql(last_sql)
 
 
-def _emit_json_error(msg: str, code: str, hint: str | None, sql: str | None) -> None:
+def _emit_json_error(
+    msg: str,
+    code: str,
+    hint: str | None,
+    sql: str | None,
+    try_next: list[dict],
+) -> None:
     """Print a structured JSON error object to stderr."""
     import json
     import sys
@@ -119,7 +129,30 @@ def _emit_json_error(msg: str, code: str, hint: str | None, sql: str | None) -> 
         payload["hint"] = hint
     if sql:
         payload["sql"] = sql
+    if try_next:
+        payload["try_next"] = try_next
     print(json.dumps(payload, indent=2), file=sys.stderr)
+
+
+def _try_next_for(code: str) -> list[dict]:
+    """Build ``try_next`` entries from the active CLI params (best-effort)."""
+    import click
+
+    from querido.core.next_steps import for_error
+
+    connection: str | None = None
+    table: str | None = None
+    try:
+        ctx = click.get_current_context(silent=True)
+        while ctx is not None:
+            params = ctx.params or {}
+            connection = connection or params.get("connection")
+            table = table or params.get("table")
+            ctx = ctx.parent
+    except Exception:
+        pass
+
+    return for_error(code, connection=connection, table=table)
 
 
 def _is_db_error(exc: Exception) -> bool:

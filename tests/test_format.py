@@ -15,10 +15,13 @@ runner = CliRunner()
 def test_inspect_json(sqlite_path: str):
     result = runner.invoke(app, ["--format", "json", "inspect", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    payload = json.loads(result.output)
+    assert payload["command"] == "inspect"
+    data = payload["data"]
     assert data["table"] == "users"
     assert data["row_count"] == 2
     assert len(data["columns"]) == 3
+    assert isinstance(payload["next_steps"], list)
 
 
 def test_inspect_csv(sqlite_path: str):
@@ -45,7 +48,7 @@ def test_inspect_markdown(sqlite_path: str):
 def test_preview_json(sqlite_path: str):
     result = runner.invoke(app, ["--format", "json", "preview", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["table"] == "users"
     assert data["limit"] == 20
     assert data["row_count"] == 2
@@ -76,7 +79,7 @@ def test_preview_markdown(sqlite_path: str):
 def test_profile_json(sqlite_path: str):
     result = runner.invoke(app, ["--format", "json", "profile", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["table"] == "users"
     assert data["row_count"] == 2
     assert len(data["columns"]) > 0

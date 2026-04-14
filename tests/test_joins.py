@@ -58,7 +58,7 @@ def test_joins_discovers_convention_match(relational_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert len(payload["candidates"]) == 1
     keys = payload["candidates"][0]["join_keys"]
     # Should find customer_id → id convention match
@@ -86,7 +86,7 @@ def test_joins_discovers_exact_name_match(relational_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert len(payload["candidates"]) == 1
     keys = payload["candidates"][0]["join_keys"]
     exact = [k for k in keys if k["match_type"] == "exact_name"]
@@ -102,7 +102,7 @@ def test_joins_scan_all_tables(relational_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     # Should find candidates in multiple tables
     target_names = {c["target_table"] for c in payload["candidates"]}
     assert len(target_names) >= 1
@@ -126,7 +126,7 @@ def test_joins_no_candidates(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["candidates"] == []
 
 
@@ -197,7 +197,7 @@ def test_joins_reverse_convention(relational_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert len(payload["candidates"]) == 1
     keys = payload["candidates"][0]["join_keys"]
     # Should find id → customer_id via reverse convention
@@ -214,7 +214,7 @@ def test_joins_confidence_scoring(relational_db: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     for cand in payload["candidates"]:
         for key in cand["join_keys"]:
             assert 0.0 <= key["confidence"] <= 1.0
@@ -238,7 +238,7 @@ def test_joins_duckdb(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert len(payload["candidates"]) == 1
     keys = payload["candidates"][0]["join_keys"]
     convention = [k for k in keys if k["source_col"] == "user_id"]

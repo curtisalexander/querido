@@ -76,7 +76,7 @@ def test_context_sqlite_rich(sqlite_path: str) -> None:
 def test_context_sqlite_json(sqlite_path: str) -> None:
     result = runner.invoke(app, ["--format", "json", "context", "-c", sqlite_path, "-t", "orders"])
     assert result.exit_code == 0, result.output
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["table"] == "orders"
     assert data["dialect"] == "sqlite"
     assert data["row_count"] == 4
@@ -98,7 +98,7 @@ def test_context_sqlite_json_no_sample_values(sqlite_path: str) -> None:
         ["--format", "json", "context", "-c", sqlite_path, "-t", "orders", "--sample-values", "0"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     for col in data["columns"]:
         assert col["sample_values"] is None
 
@@ -134,7 +134,7 @@ def test_context_duckdb_rich(duckdb_path: str) -> None:
 def test_context_duckdb_json(duckdb_path: str) -> None:
     result = runner.invoke(app, ["--format", "json", "context", "-c", duckdb_path, "-t", "orders"])
     assert result.exit_code == 0, result.output
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["table"] == "orders"
     assert data["dialect"] == "duckdb"
     assert data["row_count"] == 4
@@ -164,7 +164,7 @@ def test_context_duckdb_json_no_sample_values(duckdb_path: str) -> None:
         ],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     # When sample_values=0, no top_values computed but stats still present
     cols = {c["name"]: c for c in data["columns"]}
     assert cols["status"]["sample_values"] is None

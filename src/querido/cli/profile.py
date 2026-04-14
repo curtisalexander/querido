@@ -121,12 +121,60 @@ def profile(
             maybe_show_sql(profile_sql)
             set_last_sql(profile_sql)
 
+        from querido.cli._context import get_output_format
+
+        classification = None
         if classify:
             from querido.core._utils import classify_columns
 
             classification = classify_columns(
                 result["stats"], result["col_info"], result["row_count"]
             )
+
+        freq_data = None
+        if top > 0:
+            with ctx.spin(f"Computing top {top} values"):
+                from querido.core.profile import get_frequencies
+
+                freq_data = get_frequencies(
+                    ctx.connector,
+                    result["source"],
+                    result["col_info"],
+                    top,
+                )
+
+        if get_output_format() == "json":
+            from querido.core.next_steps import for_profile
+            from querido.output.envelope import emit_envelope
+
+            data: dict = {
+                "table": ctx.table,
+                "row_count": result["row_count"],
+                "sampled": result["sampled"],
+                "columns": result["stats"],
+            }
+            if result["sampled"] and result["sample_size"]:
+                data["sample_size"] = result["sample_size"]
+                data["sampling_note"] = (
+                    f"Results based on a sample of {result['sample_size']:,} rows. "
+                    "Use --no-sample for exact results (slower)."
+                )
+            if classification is not None:
+                data["categories"] = classification.get("categories", {})
+                data["column_category"] = classification.get("column_category", {})
+            if freq_data is not None:
+                data["frequencies"] = freq_data
+
+            emit_envelope(
+                command="profile",
+                data=data,
+                next_steps=for_profile(data, connection=connection, table=ctx.table, top=top),
+                connection=connection,
+                table=ctx.table,
+            )
+            return
+
+        if classification is not None:
             dispatch_output(
                 "classify",
                 ctx.table,
@@ -146,15 +194,5 @@ def profile(
                 result["sample_size"],
             )
 
-        if top > 0:
-            with ctx.spin(f"Computing top {top} values"):
-                from querido.core.profile import get_frequencies
-
-                freq_data = get_frequencies(
-                    ctx.connector,
-                    result["source"],
-                    result["col_info"],
-                    top,
-                )
-
+        if freq_data is not None:
             dispatch_output("frequencies", ctx.table, freq_data, result["row_count"])

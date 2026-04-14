@@ -29,7 +29,7 @@ def test_values_format_json(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["column"] == "name"
     assert payload["distinct_count"] == 2
     assert payload["truncated"] is False
@@ -77,7 +77,7 @@ def test_values_sort_frequency(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     # Both have count 1, so order doesn't matter much
     assert len(payload["values"]) == 2
 
@@ -99,7 +99,7 @@ def test_values_truncated(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["distinct_count"] == 50
     assert payload["truncated"] is True
     assert len(payload["values"]) == 10
@@ -120,7 +120,7 @@ def test_values_with_nulls(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["null_count"] == 2
     assert payload["distinct_count"] == 2
     # Values should not include NULLs (they're counted separately)
@@ -151,7 +151,7 @@ def test_values_numeric_column(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     vals = [v["value"] for v in payload["values"]]
     assert 25 in vals
     assert 30 in vals

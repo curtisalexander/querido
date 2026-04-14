@@ -72,4 +72,18 @@ def catalog(
 
         result = filter_catalog(result, pattern)
 
+    from querido.cli._context import get_output_format
+
+    if get_output_format() == "json":
+        from querido.core.next_steps import for_catalog
+        from querido.output.envelope import emit_envelope
+
+        emit_envelope(
+            command="catalog",
+            data=result,
+            next_steps=for_catalog(result or {}, connection=connection, enriched=enrich),
+            connection=connection,
+        )
+        return
+
     dispatch_output("catalog", result)

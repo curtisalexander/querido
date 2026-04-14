@@ -102,7 +102,7 @@ def test_dist_numeric_buckets_count(dist_sqlite: str):
         ],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["mode"] == "numeric"
     assert len(data["buckets"]) <= 5
     assert data["null_count"] == 2
@@ -125,7 +125,7 @@ def test_dist_categorical_json(dist_sqlite: str):
         ["--format", "json", "dist", "-t", "sales", "-C", "category", "-c", dist_sqlite],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["mode"] == "categorical"
     assert len(data["values"]) > 0
     assert data["values"][0]["value"] == "electronics"
@@ -214,7 +214,7 @@ def test_dist_single_value_numeric(single_value_sqlite: str):
         ["--format", "json", "dist", "-t", "mono", "-C", "val", "-c", single_value_sqlite],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["mode"] == "numeric"
 
 
@@ -224,7 +224,7 @@ def test_dist_single_value_categorical(single_value_sqlite: str):
         ["--format", "json", "dist", "-t", "mono", "-C", "label", "-c", single_value_sqlite],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["mode"] == "categorical"
     assert len(data["values"]) == 1
     assert data["values"][0]["value"] == "same"
@@ -251,7 +251,7 @@ def test_dist_categorical_top_1(dist_sqlite: str):
         ],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["mode"] == "categorical"
     assert len(data["values"]) == 1
     assert data["values"][0]["value"] == "electronics"

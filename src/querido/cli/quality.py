@@ -77,4 +77,19 @@ def quality(
                 exact=exact,
             )
 
+        from querido.cli._context import get_output_format
+
+        if get_output_format() == "json":
+            from querido.core.next_steps import for_quality
+            from querido.output.envelope import emit_envelope
+
+            emit_envelope(
+                command="quality",
+                data=result,
+                next_steps=for_quality(result, connection=connection, table=ctx.table),
+                connection=connection,
+                table=ctx.table,
+            )
+            return
+
         dispatch_output("quality", result)

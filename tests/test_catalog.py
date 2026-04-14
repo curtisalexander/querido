@@ -32,7 +32,7 @@ def test_catalog_format_json(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["table_count"] == 1
     assert payload["tables"][0]["name"] == "users"
     assert payload["tables"][0]["row_count"] == 2
@@ -44,7 +44,7 @@ def test_catalog_format_json_tables_only(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["table_count"] == 1
     assert payload["tables"][0]["columns"] is None
     assert payload["tables"][0]["row_count"] is None
@@ -87,7 +87,7 @@ def test_catalog_multiple_tables(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["table_count"] == 2
     names = {t["name"] for t in payload["tables"]}
     assert names == {"orders", "products"}
@@ -106,7 +106,7 @@ def test_catalog_includes_views(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     types = {t["name"]: t["type"] for t in payload["tables"]}
     assert types["users"] == "table"
     assert types["active_users"] == "view"
@@ -118,7 +118,7 @@ def test_catalog_live_flag(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["table_count"] == 1
 
 
@@ -128,7 +128,7 @@ def test_catalog_column_details(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     cols = payload["tables"][0]["columns"]
     col_names = [c["name"] for c in cols]
     assert "id" in col_names
@@ -168,7 +168,7 @@ def test_catalog_enrich(sqlite_path: str, tmp_path: Path, monkeypatch):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     users_table = payload["tables"][0]
     assert users_table.get("table_description") == "Application user accounts"
     assert users_table.get("data_owner") == "Identity team"
@@ -188,7 +188,7 @@ def test_catalog_enrich_no_metadata(sqlite_path: str, tmp_path: Path, monkeypatc
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     # Should work fine, just no enrichment
     assert payload["table_count"] == 1
     assert "table_description" not in payload["tables"][0]

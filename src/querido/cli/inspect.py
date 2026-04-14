@@ -20,7 +20,7 @@ def inspect(
     ),
 ) -> None:
     """Show column metadata and row count for a table."""
-    from querido.cli._context import maybe_show_sql
+    from querido.cli._context import get_output_format, maybe_show_sql
     from querido.cli._errors import set_last_sql
     from querido.cli._pipeline import dispatch_output, table_command
 
@@ -33,6 +33,29 @@ def inspect(
             maybe_show_sql(count_sql)
             set_last_sql(count_sql)
             result = get_inspect(ctx.connector, ctx.table, verbose=verbose)
+
+        if get_output_format() == "json":
+            from querido.core.next_steps import for_inspect
+            from querido.output.envelope import emit_envelope
+
+            data = {
+                "table": ctx.table,
+                "row_count": result["row_count"],
+                "columns": result["columns"],
+            }
+            if verbose and result["table_comment"]:
+                data["table_comment"] = result["table_comment"]
+
+            emit_envelope(
+                command="inspect",
+                data=data,
+                next_steps=for_inspect(
+                    result, connection=connection, table=ctx.table, verbose=verbose
+                ),
+                connection=connection,
+                table=ctx.table,
+            )
+            return
 
         dispatch_output(
             "inspect",

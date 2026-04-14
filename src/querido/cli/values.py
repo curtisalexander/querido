@@ -54,4 +54,19 @@ def values(
                 sort=sort,
             )
 
+        from querido.cli._context import get_output_format
+
+        if get_output_format() == "json":
+            from querido.core.next_steps import for_values
+            from querido.output.envelope import emit_envelope
+
+            emit_envelope(
+                command="values",
+                data=result,
+                next_steps=for_values(result, connection=connection, table=ctx.table),
+                connection=connection,
+                table=ctx.table,
+            )
+            return
+
         dispatch_output("values", result)

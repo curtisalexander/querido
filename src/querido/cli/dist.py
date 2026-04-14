@@ -56,4 +56,19 @@ def dist(
                 no_sample=no_sample,
             )
 
+        from querido.cli._context import get_output_format
+
+        if get_output_format() == "json":
+            from querido.core.next_steps import for_dist
+            from querido.output.envelope import emit_envelope
+
+            emit_envelope(
+                command="dist",
+                data=dist_result,
+                next_steps=for_dist(dist_result, connection=connection, table=ctx.table),
+                connection=connection,
+                table=ctx.table,
+            )
+            return
+
         dispatch_output("dist", dist_result)

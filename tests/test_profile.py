@@ -194,7 +194,7 @@ def test_profile_columns_filter(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     col_names = [c["column_name"] for c in data["columns"]]
     assert "name" in col_names
     assert "id" not in col_names
@@ -305,7 +305,7 @@ def test_auto_sampling_sqlite(big_sqlite: str):
         ["--format", "json", "profile", "-c", big_sqlite, "-t", "big"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["sampled"] is True
 
 
@@ -315,7 +315,7 @@ def test_no_sample_sqlite(big_sqlite: str):
         ["--format", "json", "profile", "-c", big_sqlite, "-t", "big", "--no-sample"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["sampled"] is False
 
 
@@ -335,7 +335,7 @@ def test_explicit_sample_size_sqlite(big_sqlite: str):
         ],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["sampled"] is True
     assert data["sample_size"] == 500
 
@@ -346,7 +346,7 @@ def test_auto_sampling_duckdb(big_duckdb: str):
         ["--format", "json", "profile", "-c", big_duckdb, "-t", "big"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["sampled"] is True
 
 
@@ -356,7 +356,7 @@ def test_no_sample_duckdb(big_duckdb: str):
         ["--format", "json", "profile", "-c", big_duckdb, "-t", "big", "--no-sample"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["sampled"] is False
 
 
@@ -376,7 +376,7 @@ def test_explicit_sample_size_duckdb(big_duckdb: str):
         ],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["sampled"] is True
     assert data["sample_size"] == 500
 
@@ -393,7 +393,7 @@ def test_quick_profile_sqlite(sqlite_path: str):
         ["--format", "json", "profile", "-c", sqlite_path, "-t", "users", "--quick"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     # All columns should have null_count and distinct_count
     for col in data["columns"]:
         assert "null_count" in col
@@ -411,7 +411,7 @@ def test_no_quick_override(sqlite_path: str):
         ["--format", "json", "profile", "-c", sqlite_path, "-t", "users", "--no-quick"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     # Should have numeric stats for numeric columns
     numeric_cols = [c for c in data["columns"] if c.get("min_val") is not None]
     assert len(numeric_cols) > 0
@@ -424,7 +424,7 @@ def test_quick_profile_duckdb(duckdb_path: str):
         ["--format", "json", "profile", "-c", duckdb_path, "-t", "users", "--quick"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     for col in data["columns"]:
         assert col.get("min_val") is None
         assert col.get("mean_val") is None
@@ -587,7 +587,7 @@ def test_classify_cli_json(sqlite_path: str):
         ["--format", "json", "profile", "-c", sqlite_path, "-t", "users", "--classify"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert "categories" in data
     assert "column_category" in data
     assert data["table"] == "users"
@@ -701,7 +701,7 @@ def test_profile_column_set_flag(
         ],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     col_names = [c["column_name"] for c in data["columns"]]
     assert col_names == ["name"]
 

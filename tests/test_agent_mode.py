@@ -20,7 +20,7 @@ def test_qdo_format_env_sets_default(sqlite_path: str):
     )
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert "rows" in payload
+    assert "rows" in payload["data"]
 
 
 def test_qdo_format_explicit_flag_overrides_env(sqlite_path: str):
@@ -85,7 +85,7 @@ def test_qdo_format_env_case_insensitive(sqlite_path: str):
     )
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert "rows" in payload
+    assert "rows" in payload["data"]
 
 
 def test_json_error_on_bad_table(sqlite_path: str):

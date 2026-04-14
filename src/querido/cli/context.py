@@ -62,6 +62,7 @@ def context(
         qdo context -c ./my.duckdb -t orders --no-sample
         qdo --format json context -c mydb -t orders
     """
+    from querido.cli._context import get_output_format
     from querido.cli._pipeline import dispatch_output, table_command
 
     with (
@@ -79,5 +80,18 @@ def context(
             sample=sample,
             exact=exact,
         )
+
+    if get_output_format() == "json":
+        from querido.core.next_steps import for_context
+        from querido.output.envelope import emit_envelope
+
+        emit_envelope(
+            command="context",
+            data=result,
+            next_steps=for_context(result, connection=connection, table=result.get("table", "")),
+            connection=connection,
+            table=result.get("table"),
+        )
+        return
 
     dispatch_output("context", result)

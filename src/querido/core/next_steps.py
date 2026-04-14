@@ -1,0 +1,737 @@
+"""Deterministic ``next_steps`` rules.
+
+Each rule inspects the shape of a command's output (row counts, null rates,
+distinct counts, metadata presence, etc.) and returns a list of suggested
+follow-up ``qdo`` invocations as ``{"cmd": str, "why": str}`` dicts.
+
+Rules must be deterministic — no LLM calls, no network, no randomness.
+They exist to turn every command into a node in a traversable graph for
+agents. Human users also see them via the ``-f rich`` path (eventually).
+
+Each ``cmd`` string is a shell-ready ``qdo ...`` invocation so agents can
+re-exec it directly. Use :func:`querido.output.envelope.cmd` to build
+them — it handles quoting for identifiers with special characters.
+"""
+
+from __future__ import annotations
+
+from querido.output.envelope import cmd
+
+
+def _step(argv: list[str], why: str) -> dict:
+    return {"cmd": cmd(argv), "why": why}
+
+
+# -- scanning commands --------------------------------------------------------
+
+
+def for_inspect(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+    verbose: bool,
+) -> list[dict]:
+    """Rules for ``qdo inspect``.
+
+    Inspect shows column metadata and row count. Natural next moves:
+    - peek at rows (``preview``)
+    - get richer stats + sample values (``context``)
+    - profile columns in depth (``profile``)
+    - if a non-trivial column list and no table comment, nudge toward
+      metadata authoring
+    """
+    steps: list[dict] = []
+    row_count = result.get("row_count") or 0
+    columns = result.get("columns") or []
+    has_table_comment = bool(result.get("table_comment"))
+
+    if row_count > 0:
+        steps.append(
+            _step(
+                ["qdo", "preview", "-c", connection, "-t", table],
+                "See a handful of actual rows.",
+            )
+        )
+        steps.append(
+            _step(
+                ["qdo", "context", "-c", connection, "-t", table],
+                "Get column stats and sample values in one call.",
+            )
+        )
+
+    if len(columns) >= 3 and row_count > 0:
+        steps.append(
+            _step(
+                ["qdo", "profile", "-c", connection, "-t", table, "--quick"],
+                "Profile all columns in one scan (quick mode).",
+            )
+        )
+
+    if not verbose and (columns or has_table_comment is False):
+        steps.append(
+            _step(
+                ["qdo", "inspect", "-c", connection, "-t", table, "--verbose"],
+                "Show table and column comments.",
+            )
+        )
+
+    if not has_table_comment and columns:
+        steps.append(
+            _step(
+                ["qdo", "metadata", "init", "-c", connection, "-t", table],
+                "No table description found — scaffold a metadata YAML.",
+            )
+        )
+
+    return steps
+
+
+def for_catalog(
+    result: dict,
+    *,
+    connection: str,
+    enriched: bool,
+) -> list[dict]:
+    """Rules for ``qdo catalog``.
+
+    Catalog lists all tables. Natural next moves:
+    - drill into a specific table via ``context`` / ``inspect``
+    - discover joins across the catalog
+    - enrich with stored metadata if not already
+    - if empty, pivot the user to check their connection
+    """
+    steps: list[dict] = []
+    tables = result.get("tables") or []
+
+    if not tables:
+        steps.append(
+            _step(
+                ["qdo", "config", "test", "-c", connection],
+                "No tables visible — verify the connection works.",
+            )
+        )
+        return steps
+
+    largest = _pick_largest_table(tables)
+    if largest:
+        steps.append(
+            _step(
+                ["qdo", "context", "-c", connection, "-t", largest],
+                f"Deep-dive on '{largest}' (largest table by row count).",
+            )
+        )
+
+    if len(tables) >= 2:
+        steps.append(
+            _step(
+                ["qdo", "joins", "-c", connection],
+                "Discover likely join keys across tables.",
+            )
+        )
+
+    if not enriched:
+        steps.append(
+            _step(
+                ["qdo", "catalog", "-c", connection, "--enrich"],
+                "Merge stored metadata (descriptions, owners) into the catalog.",
+            )
+        )
+
+    return steps
+
+
+def for_context(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo context``.
+
+    Context is the densest single call: schema + stats + sample values.
+    Natural next moves are derived from what the stats reveal:
+    - high null_pct column → run ``quality``
+    - low-cardinality string column → run ``values`` or ``dist``
+    - temporal column → encourage freshness/filter scoping (future)
+    - no stored metadata yet → nudge toward metadata init
+    """
+    steps: list[dict] = []
+    columns = result.get("columns") or []
+    row_count = result.get("row_count") or 0
+    has_metadata = bool(result.get("metadata"))
+
+    high_null = _first_high_null_column(columns, threshold=50.0)
+    if high_null:
+        steps.append(
+            _step(
+                ["qdo", "quality", "-c", connection, "-t", table],
+                f"'{high_null}' has high null rate — run a quality pass.",
+            )
+        )
+
+    low_card_col = _first_low_cardinality_string(columns, max_distinct=20)
+    if low_card_col:
+        steps.append(
+            _step(
+                ["qdo", "values", "-c", connection, "-t", table, "--column", low_card_col],
+                f"'{low_card_col}' is low-cardinality — list distinct values.",
+            )
+        )
+
+    numeric_col = _first_numeric_column(columns)
+    if numeric_col and row_count > 0:
+        steps.append(
+            _step(
+                ["qdo", "dist", "-c", connection, "-t", table, "--column", numeric_col],
+                f"Visualize distribution of numeric column '{numeric_col}'.",
+            )
+        )
+
+    if not has_metadata and columns:
+        steps.append(
+            _step(
+                ["qdo", "metadata", "init", "-c", connection, "-t", table],
+                "No stored metadata — scaffold a YAML so future runs are richer.",
+            )
+        )
+
+    if row_count > 0:
+        steps.append(
+            _step(
+                ["qdo", "preview", "-c", connection, "-t", table],
+                "See actual rows to sanity-check the stats.",
+            )
+        )
+
+    return steps
+
+
+def for_preview(
+    rows: list[dict],
+    *,
+    connection: str,
+    table: str,
+    limit: int,
+) -> list[dict]:
+    """Rules for ``qdo preview``.
+
+    Preview is a peek at raw rows. It rarely is the final stop — natural next
+    moves are schema (``inspect``), rich context, or further exploration.
+    """
+    steps: list[dict] = []
+    row_count = len(rows)
+
+    if row_count == 0:
+        steps.append(
+            _step(
+                ["qdo", "inspect", "-c", connection, "-t", table],
+                "No rows returned — check that the table has data / your connection.",
+            )
+        )
+        return steps
+
+    steps.append(
+        _step(
+            ["qdo", "context", "-c", connection, "-t", table],
+            "Get column stats and sample values in one call.",
+        )
+    )
+    steps.append(
+        _step(
+            ["qdo", "inspect", "-c", connection, "-t", table],
+            "See schema (types, nullability, primary keys).",
+        )
+    )
+
+    if row_count >= limit:
+        steps.append(
+            _step(
+                ["qdo", "preview", "-c", connection, "-t", table, "--rows", str(limit * 5)],
+                f"Preview hit the limit ({limit}) — fetch more rows.",
+            )
+        )
+
+    return steps
+
+
+def for_profile(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+    top: int,
+) -> list[dict]:
+    """Rules for ``qdo profile``.
+
+    Profile is the heaviest scan we do — make sure follow-ups are focused.
+    Target columns with high null rates (quality), low cardinality (values),
+    or numeric skew (dist). Suggest top-N if not requested and row count
+    makes it useful.
+    """
+    steps: list[dict] = []
+    stats = result.get("columns") or result.get("stats") or []
+
+    high_null = _first_high_null_column(stats, threshold=50.0, null_key="null_pct")
+    if high_null:
+        steps.append(
+            _step(
+                ["qdo", "quality", "-c", connection, "-t", table],
+                f"'{high_null}' has high null rate — run a quality pass.",
+            )
+        )
+
+    low_card = _first_low_cardinality_by_profile(stats, max_distinct=20)
+    if low_card:
+        steps.append(
+            _step(
+                ["qdo", "values", "-c", connection, "-t", table, "--column", low_card],
+                f"'{low_card}' is low-cardinality — list distinct values.",
+            )
+        )
+
+    numeric = _first_numeric_by_profile(stats)
+    if numeric:
+        steps.append(
+            _step(
+                ["qdo", "dist", "-c", connection, "-t", table, "--column", numeric],
+                f"Visualize distribution of numeric column '{numeric}'.",
+            )
+        )
+
+    if top == 0 and stats:
+        steps.append(
+            _step(
+                ["qdo", "profile", "-c", connection, "-t", table, "--top", "10"],
+                "Re-run with top-N to see the most frequent values per column.",
+            )
+        )
+
+    if result.get("sampled"):
+        steps.append(
+            _step(
+                ["qdo", "profile", "-c", connection, "-t", table, "--no-sample"],
+                "Results were sampled — re-run exact (slower).",
+            )
+        )
+
+    return steps
+
+
+def for_dist(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo dist``.
+
+    Numeric histograms and categorical frequency — drill further into the
+    column (values), widen to full quality, or step back to context.
+    """
+    steps: list[dict] = []
+    column = result.get("column") or ""
+    mode = result.get("mode")
+
+    if mode == "categorical":
+        values = result.get("values") or []
+        if values and len(values) >= 20:
+            steps.append(
+                _step(
+                    ["qdo", "values", "-c", connection, "-t", table, "--column", column],
+                    f"'{column}' has many distinct values — enumerate them all.",
+                )
+            )
+
+    if result.get("null_count"):
+        steps.append(
+            _step(
+                ["qdo", "quality", "-c", connection, "-t", table, "--columns", column],
+                f"'{column}' has nulls — run a quality check.",
+            )
+        )
+
+    steps.append(
+        _step(
+            ["qdo", "context", "-c", connection, "-t", table],
+            "Step back to full table context.",
+        )
+    )
+    return steps
+
+
+def for_values(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo values``.
+
+    If truncated, suggest widening. Always offer dist for a visual cut and
+    metadata authoring (valid_values can be captured from this output).
+    """
+    steps: list[dict] = []
+    column = result.get("column") or ""
+    truncated = bool(result.get("truncated"))
+    distinct = result.get("distinct_count") or 0
+
+    if truncated:
+        steps.append(
+            _step(
+                [
+                    "qdo",
+                    "values",
+                    "-c",
+                    connection,
+                    "-t",
+                    table,
+                    "--column",
+                    column,
+                    "--max",
+                    str(max(distinct, 1000) * 2),
+                ],
+                "Result was truncated — raise --max to see all distinct values.",
+            )
+        )
+
+    steps.append(
+        _step(
+            ["qdo", "dist", "-c", connection, "-t", table, "--column", column],
+            f"Visualize '{column}' as a frequency distribution.",
+        )
+    )
+
+    if 1 < distinct <= 20:
+        steps.append(
+            _step(
+                ["qdo", "metadata", "edit", "-c", connection, "-t", table],
+                f"'{column}' looks enumerable — capture as valid_values in metadata.",
+            )
+        )
+    return steps
+
+
+def for_quality(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo quality``.
+
+    Surface columns the quality check flagged, and offer a duplicate-row
+    check if it wasn't done.
+    """
+    steps: list[dict] = []
+    columns = result.get("columns") or []
+
+    failing = next((c for c in columns if c.get("status") in ("fail", "warn")), None)
+    if failing:
+        name = failing.get("name") or ""
+        steps.append(
+            _step(
+                ["qdo", "dist", "-c", connection, "-t", table, "--column", name],
+                f"'{name}' flagged {failing.get('status')} — inspect its distribution.",
+            )
+        )
+        steps.append(
+            _step(
+                ["qdo", "values", "-c", connection, "-t", table, "--column", name],
+                f"See distinct values for flagged column '{name}'.",
+            )
+        )
+
+    if result.get("duplicate_rows") is None and columns:
+        steps.append(
+            _step(
+                ["qdo", "quality", "-c", connection, "-t", table, "--check-duplicates"],
+                "Also check for fully duplicate rows (slower).",
+            )
+        )
+
+    if result.get("sampled"):
+        steps.append(
+            _step(
+                ["qdo", "quality", "-c", connection, "-t", table, "--no-sample"],
+                "Results were sampled — re-run exact.",
+            )
+        )
+
+    return steps
+
+
+def for_diff(
+    result: dict,
+    *,
+    connection: str,
+    left_table: str,
+    right_table: str,
+    target_connection: str | None = None,
+) -> list[dict]:
+    """Rules for ``qdo diff``.
+
+    If schemas match, encourage data-level checks. Otherwise, offer context
+    on each side so the agent can reason about why they diverged.
+    """
+    steps: list[dict] = []
+    added = result.get("added") or []
+    removed = result.get("removed") or []
+    changed = result.get("changed") or []
+    right_conn = target_connection or connection
+
+    if not added and not removed and not changed:
+        steps.append(
+            _step(
+                ["qdo", "context", "-c", connection, "-t", left_table],
+                "Schemas match — compare data shape instead via context.",
+            )
+        )
+        return steps
+
+    steps.append(
+        _step(
+            ["qdo", "inspect", "-c", connection, "-t", left_table],
+            f"Full schema for left side ('{left_table}').",
+        )
+    )
+    steps.append(
+        _step(
+            ["qdo", "inspect", "-c", right_conn, "-t", right_table],
+            f"Full schema for right side ('{right_table}').",
+        )
+    )
+    return steps
+
+
+def for_joins(
+    result: dict,
+    *,
+    connection: str,
+    source_table: str,
+) -> list[dict]:
+    """Rules for ``qdo joins``.
+
+    If candidates are found, encourage running a test join via ``query``.
+    Otherwise, step out to catalog to rethink the graph.
+    """
+    steps: list[dict] = []
+    candidates = result.get("candidates") or []
+
+    if not candidates:
+        steps.append(
+            _step(
+                ["qdo", "catalog", "-c", connection],
+                "No join candidates — review all tables in this connection.",
+            )
+        )
+        return steps
+
+    best = candidates[0]
+    target = best.get("target_table") or ""
+    keys = best.get("join_keys") or []
+    if target and keys:
+        key = keys[0]
+        sql = (
+            f"select l.*, r.* from {source_table} l "
+            f"join {target} r on l.{key['source_col']} = r.{key['target_col']} limit 10"
+        )
+        steps.append(
+            _step(
+                ["qdo", "query", "-c", connection, "--sql", sql],
+                f"Try the top candidate join on '{target}'.",
+            )
+        )
+
+    if target:
+        steps.append(
+            _step(
+                ["qdo", "context", "-c", connection, "-t", target],
+                f"Inspect the likely join target '{target}'.",
+            )
+        )
+    return steps
+
+
+def for_query(
+    result: dict,
+    *,
+    connection: str,
+) -> list[dict]:
+    """Rules for ``qdo query``.
+
+    Limited results → nudge toward raising the limit or exporting. No rows
+    → suggest a schema check. Rows with recognizable table-like output →
+    (no action; the agent already has what it needs).
+    """
+    steps: list[dict] = []
+    rows = result.get("rows") or []
+    row_count = len(rows)
+    limited = bool(result.get("limited"))
+
+    if row_count == 0:
+        steps.append(
+            _step(
+                ["qdo", "catalog", "-c", connection],
+                "Query returned no rows — confirm the referenced tables exist.",
+            )
+        )
+        return steps
+
+    if limited:
+        steps.append(
+            _step(
+                ["qdo", "export", "-c", connection, "--format", "csv"],
+                "Results were limit-capped — use export to stream everything.",
+            )
+        )
+
+    return steps
+
+
+# -- errors -------------------------------------------------------------------
+
+
+def for_error(
+    code: str,
+    *,
+    connection: str | None = None,
+    table: str | None = None,
+) -> list[dict]:
+    """Rules for ``try_next`` on structured errors.
+
+    Connection/table may be unknown at error time (e.g. validation failed
+    before they were resolved) — rules skip suggestions that need missing
+    context.
+    """
+    steps: list[dict] = []
+
+    if code == "TABLE_NOT_FOUND" and connection:
+        argv = ["qdo", "catalog", "-c", connection]
+        if table:
+            argv += ["--pattern", table]
+        steps.append(_step(argv, "List visible tables (optionally filtered)."))
+        steps.append(
+            _step(
+                ["qdo", "cache", "sync", "-c", connection],
+                "Refresh the metadata cache if the table was just created.",
+            )
+        )
+
+    elif code == "COLUMN_NOT_FOUND" and connection and table:
+        steps.append(
+            _step(
+                ["qdo", "inspect", "-c", connection, "-t", table],
+                "See the available columns on the target table.",
+            )
+        )
+
+    elif code == "DATABASE_LOCKED":
+        steps.append(
+            _step(
+                ["qdo", "config", "list"],
+                "Check which connections might be holding a lock.",
+            )
+        )
+
+    elif code == "DATABASE_OPEN_FAILED" and connection:
+        steps.append(
+            _step(
+                ["qdo", "config", "test", "-c", connection],
+                "Verify the connection's path or credentials.",
+            )
+        )
+
+    elif code == "AUTH_FAILED" and connection:
+        steps.append(
+            _step(
+                ["qdo", "config", "test", "-c", connection],
+                "Re-authenticate and verify the connection.",
+            )
+        )
+
+    elif code == "MISSING_DEPENDENCY":
+        steps.append(
+            {
+                "cmd": "uv pip install 'querido[duckdb]'",
+                "why": "Install the DuckDB + Parquet extra.",
+            }
+        )
+        steps.append(
+            {
+                "cmd": "uv pip install 'querido[snowflake]'",
+                "why": "Install the Snowflake extra.",
+            }
+        )
+
+    elif code == "FILE_NOT_FOUND":
+        steps.append(
+            _step(["qdo", "config", "list"], "List configured connections to find the right path.")
+        )
+
+    return steps
+
+
+# -- helpers ------------------------------------------------------------------
+
+
+def _pick_largest_table(tables: list[dict]) -> str | None:
+    """Return the name of the table with the highest row_count (or None)."""
+    best_name: str | None = None
+    best_count = -1
+    for t in tables:
+        rc = t.get("row_count")
+        if rc is None:
+            continue
+        if rc > best_count:
+            best_count = rc
+            best_name = t.get("name")
+    return best_name
+
+
+def _first_high_null_column(
+    columns: list[dict], *, threshold: float, null_key: str = "null_pct"
+) -> str | None:
+    for col in columns:
+        pct = col.get(null_key)
+        if pct is not None and pct >= threshold:
+            # Profile and context use different name keys.
+            return col.get("name") or col.get("column_name")
+    return None
+
+
+def _first_low_cardinality_by_profile(columns: list[dict], *, max_distinct: int) -> str | None:
+    """``profile`` uses ``column_name``/``column_type`` and ``min_length`` to mark
+    strings."""
+    for col in columns:
+        distinct = col.get("distinct_count")
+        is_stringy = col.get("min_length") is not None
+        if is_stringy and distinct is not None and 1 < distinct <= max_distinct:
+            return col.get("column_name")
+    return None
+
+
+def _first_numeric_by_profile(columns: list[dict]) -> str | None:
+    for col in columns:
+        if col.get("min_val") is not None or col.get("mean_val") is not None:
+            return col.get("column_name")
+    return None
+
+
+def _first_low_cardinality_string(columns: list[dict], *, max_distinct: int) -> str | None:
+    for col in columns:
+        distinct = col.get("distinct_count")
+        col_type = (col.get("type") or "").upper()
+        is_stringy = any(tok in col_type for tok in ("CHAR", "TEXT", "STRING", "VARCHAR"))
+        if is_stringy and distinct is not None and 1 < distinct <= max_distinct:
+            return col.get("name")
+    return None
+
+
+def _first_numeric_column(columns: list[dict]) -> str | None:
+    numeric_tokens = ("INT", "DEC", "NUM", "FLOAT", "DOUBLE", "REAL")
+    for col in columns:
+        col_type = (col.get("type") or "").upper()
+        if any(tok in col_type for tok in numeric_tokens):
+            return col.get("name")
+    return None

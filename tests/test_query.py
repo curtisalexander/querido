@@ -116,7 +116,7 @@ def test_query_format_json(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["row_count"] == 2
     assert payload["columns"] == ["id", "name", "age"]
     assert len(payload["rows"]) == 2
@@ -168,5 +168,5 @@ def test_query_aggregate(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["rows"][0]["cnt"] == 2

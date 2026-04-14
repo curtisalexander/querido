@@ -269,7 +269,7 @@ def test_catalog_pattern_uses_cache(
         ["--format", "json", "catalog", "-p", "user", "-c", cache_sqlite],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["table_count"] > 0
 
 
@@ -280,7 +280,7 @@ def test_catalog_pattern_live(cache_sqlite: str, tmp_path: Path, monkeypatch: py
         ["--format", "json", "catalog", "-p", "user", "-c", cache_sqlite, "--live"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["table_count"] > 0
 
 

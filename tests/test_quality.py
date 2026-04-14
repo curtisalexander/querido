@@ -27,7 +27,7 @@ def test_quality_format_json(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["table"] == "users"
     assert payload["row_count"] == 2
     assert len(payload["columns"]) == 3
@@ -65,7 +65,7 @@ def test_quality_with_nulls(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     by_name = {c["name"]: c for c in payload["columns"]}
 
     # notes is 100% null → fail
@@ -88,7 +88,7 @@ def test_quality_column_filter(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     col_names = [c["name"] for c in payload["columns"]]
     assert "name" in col_names
     assert "age" in col_names
@@ -113,7 +113,7 @@ def test_quality_check_duplicates_none(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["duplicate_rows"] == 0
 
 
@@ -135,7 +135,7 @@ def test_quality_check_duplicates_found(tmp_path: Path):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["duplicate_rows"] == 2  # 3 copies - 1 = 2 extra
 
 
@@ -145,7 +145,7 @@ def test_quality_no_duplicates_flag_means_null(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     assert payload["duplicate_rows"] is None
 
 
@@ -155,7 +155,7 @@ def test_quality_uniqueness(sqlite_path: str):
     assert result.exit_code == 0
     import json
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.output)["data"]
     by_name = {c["name"]: c for c in payload["columns"]}
     assert by_name["id"]["uniqueness_pct"] == 100.0
     assert by_name["name"]["uniqueness_pct"] == 100.0
