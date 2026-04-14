@@ -29,6 +29,138 @@ STEPS_FILE = "steps.jsonl"
 STDOUT_FILE = "stdout"
 
 
+# Short, memorable word lists for generated session names. Picked to be
+# pronounceable, non-offensive, and distinguishable at a glance
+# (no plurals, no near-homophones). ~40 words each => ~64k combinations.
+_ADJECTIVES = (
+    "amber",
+    "brave",
+    "brisk",
+    "bronze",
+    "calm",
+    "cheerful",
+    "clever",
+    "cobalt",
+    "crimson",
+    "crisp",
+    "eager",
+    "fierce",
+    "gentle",
+    "golden",
+    "happy",
+    "hardy",
+    "jolly",
+    "keen",
+    "lively",
+    "loyal",
+    "lucid",
+    "mellow",
+    "merry",
+    "mighty",
+    "nimble",
+    "olive",
+    "plucky",
+    "polite",
+    "proud",
+    "quiet",
+    "quick",
+    "rapid",
+    "rustic",
+    "silver",
+    "spry",
+    "sunny",
+    "swift",
+    "tender",
+    "velvet",
+    "witty",
+)
+_NOUNS = (
+    "badger",
+    "beacon",
+    "canyon",
+    "cedar",
+    "comet",
+    "coral",
+    "delta",
+    "ember",
+    "falcon",
+    "forest",
+    "glacier",
+    "harbor",
+    "hawk",
+    "heron",
+    "island",
+    "juniper",
+    "lagoon",
+    "lantern",
+    "marble",
+    "meadow",
+    "orchid",
+    "otter",
+    "parrot",
+    "pebble",
+    "pine",
+    "puffin",
+    "quail",
+    "raven",
+    "reef",
+    "ridge",
+    "river",
+    "robin",
+    "sparrow",
+    "tundra",
+    "valley",
+    "willow",
+)
+_NOUNS2 = (
+    "arcade",
+    "bridge",
+    "cabin",
+    "canoe",
+    "compass",
+    "cottage",
+    "drift",
+    "festival",
+    "harvest",
+    "journey",
+    "lantern",
+    "legend",
+    "map",
+    "market",
+    "monsoon",
+    "orbit",
+    "outpost",
+    "parade",
+    "pavilion",
+    "picnic",
+    "quest",
+    "ramble",
+    "rhythm",
+    "safari",
+    "summit",
+    "sunrise",
+    "temple",
+    "thicket",
+    "trek",
+    "trellis",
+    "vacation",
+    "voyage",
+    "wander",
+    "whisper",
+)
+
+
+def generate_session_name() -> str:
+    """Return a random ``adjective-noun-noun`` identifier.
+
+    Example: ``amber-falcon-voyage``. Uses :mod:`secrets` for picking so
+    repeated suggestions in the same second don't collide.
+    """
+    import secrets
+
+    return "-".join((secrets.choice(_ADJECTIVES), secrets.choice(_NOUNS), secrets.choice(_NOUNS2)))
+
+
 def sessions_root(cwd: Path | None = None) -> Path:
     """Return the sessions root directory (``.qdo/sessions``) for *cwd*."""
     return (cwd or Path.cwd()) / SESSIONS_ROOT

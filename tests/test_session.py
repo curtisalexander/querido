@@ -166,6 +166,22 @@ def test_session_start_rejects_invalid_name(tmp_path: Path) -> None:
     assert result.exit_code != 0
 
 
+def test_session_start_suggests_name_when_omitted(tmp_path: Path) -> None:
+    result = _run(["session", "start", "--yes"], cwd=tmp_path)
+    assert result.exit_code == 0
+    created = list((tmp_path / ".qdo" / "sessions").iterdir())
+    assert len(created) == 1
+    # Generated names have the shape adjective-noun-noun.
+    assert created[0].name.count("-") == 2
+
+
+def test_generate_session_name_format() -> None:
+    name = session.generate_session_name()
+    parts = name.split("-")
+    assert len(parts) == 3
+    assert all(p.isalpha() and p.islower() for p in parts)
+
+
 def test_session_list_empty(tmp_path: Path) -> None:
     result = _run(["session", "list"], cwd=tmp_path)
     assert result.exit_code == 0

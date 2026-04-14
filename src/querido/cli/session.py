@@ -14,7 +14,16 @@ app = typer.Typer(help="Manage agent-workflow sessions.")
 
 @app.command()
 def start(
-    name: str = typer.Argument(..., help="Session name (used as directory under .qdo/sessions/)."),
+    name: str | None = typer.Argument(
+        None,
+        help="Session name. If omitted, a memorable name is suggested (adjective-noun-noun).",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Accept the suggested name without prompting.",
+    ),
 ) -> None:
     """Create a new session directory and print the ``export QDO_SESSION`` hint.
 
@@ -25,10 +34,21 @@ def start(
     \b
     Example:
         qdo session start my-investigation
+        qdo session start                       # prompts with a suggestion
+        qdo session start --yes                 # accept the suggestion
         export QDO_SESSION=my-investigation
         qdo profile -c mydb -t orders
     """
-    from querido.core.session import session_dir
+    from querido.core.session import generate_session_name, session_dir
+
+    if name is None:
+        suggestion = generate_session_name()
+        if yes:
+            name = suggestion
+        else:
+            name = typer.prompt("Session name", default=suggestion).strip()
+            if not name:
+                name = suggestion
 
     try:
         dir_ = session_dir(name)
