@@ -57,6 +57,7 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
             ("config", "querido.cli.config", "Manage connections."),
             ("cache", "querido.cli.cache", "Manage local metadata cache."),
             ("metadata", "querido.cli.metadata", "Manage enriched table metadata."),
+            ("session", "querido.cli.session", "Manage agent-workflow sessions."),
             ("completion", "querido.cli.completion", "Generate shell completion scripts."),
         ],
     ),
@@ -114,6 +115,18 @@ class LazyGroup(TyperGroup):
         base = super().list_commands(ctx)
         lazy = list(self._lazy_subcommands.keys())
         return sorted(set(base + lazy))
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        """Record the raw subcommand argv on the context before dispatch.
+
+        The session recorder (installed by the root callback) reads this in
+        its finalizer to persist the exact invocation to ``steps.jsonl``.
+        """
+        ctx.ensure_object(dict)
+        ctx.obj["_raw_argv"] = list(args)
+        return super().resolve_command(ctx, args)
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
         # Try eagerly-registered commands first (the @app.callback, etc.)
@@ -204,6 +217,53 @@ def _patched_get_group(typer_app: typer.Typer, **kwargs: Any) -> click.Group:
 typer.main.get_group = _patched_get_group  # type: ignore[assignment]
 
 
+def _maybe_start_session(ctx: typer.Context) -> None:
+    """If ``QDO_SESSION`` is set, install a stdout tee and register a finalizer.
+
+    The session records one JSONL step per CLI invocation into
+    ``.qdo/sessions/<name>/``. The finalizer runs during context teardown so
+    the step is recorded whether the command succeeds or fails.
+    """
+    import sys
+
+    from querido.core.session import SessionRecorder, active_session_name
+
+    name = active_session_name()
+    if not name:
+        return
+
+    # argv is captured by LazyGroup.resolve_command() into ctx.obj before the
+    # subcommand dispatches. Kick off the recorder here (pre-subcommand) so
+    # stdout capture is active from the start.
+    ctx.ensure_object(dict)
+
+    recorder = SessionRecorder(name=name, argv=[])
+    recorder.start()
+
+    def _finalize() -> None:
+        raw_argv = ctx.obj.get("_raw_argv") or sys.argv[1:]
+        # Skip for ``qdo session ...`` meta-commands — recording a
+        # ``session show`` into its own session is confusing.
+        if raw_argv and raw_argv[0] == "session":
+            recorder.cancel()
+            return
+        recorder.argv = list(raw_argv)
+        exc_info = sys.exc_info()
+        exit_code = 0
+        if exc_info[0] is not None:
+            exc = exc_info[1]
+            if isinstance(exc, SystemExit):
+                code = exc.code
+                exit_code = int(code) if isinstance(code, int) else 1
+            elif isinstance(exc, (typer.Exit,)):
+                exit_code = int(getattr(exc, "exit_code", 1) or 0)
+            else:
+                exit_code = 1
+        recorder.stop(exit_code=exit_code)
+
+    ctx.call_on_close(_finalize)
+
+
 def version_callback(value: bool) -> None:
     if value:
         from querido import __version__
@@ -242,6 +302,8 @@ def main(
 ) -> None:
     """qdo — query, do. Data analysis from your terminal."""
     import os
+
+    _maybe_start_session(ctx)
 
     valid = {"rich", "markdown", "json", "csv", "html", "yaml"}
 

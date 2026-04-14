@@ -63,6 +63,7 @@ querido/
 │       │   ├── quality.py          # `qdo quality` — data quality summary (nulls, uniqueness, anomalies)
 │       │   ├── query.py            # `qdo query` — execute ad-hoc SQL
 │       │   ├── serve.py            # `qdo serve` — FastAPI web UI launcher
+│       │   ├── session.py          # `qdo session start/list/show` — agent-workflow session logs
 │       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
 │       │   ├── sql.py              # `qdo sql` — SQL generation (select, insert, ddl, scratch, task, udf, procedure)
 │       │   ├── template.py         # `qdo template` — documentation template generation
@@ -99,6 +100,8 @@ querido/
 │       │   ├── query.py            # Ad-hoc SQL execution with limit wrapping
 │       │   ├── runner.py           # Threaded query execution with cancellation support
 │       │   ├── semantic.py         # Snowflake Cortex Analyst semantic model YAML builder
+│       │   ├── session.py          # Session recorder (QDO_SESSION) — JSONL step log
+│       │   ├── next_steps.py       # Deterministic next_steps/try_next suggestions
 │       │   ├── template.py         # Documentation template generation logic
 │       │   └── values.py           # Distinct values logic
 │       ├── sql/
@@ -164,6 +167,7 @@ querido/
 │       ├── output/
 │       │   ├── __init__.py         # Package marker, shared helpers (fmt_value)
 │       │   ├── console.py          # Rich terminal output (tables, panels, frequencies)
+│       │   ├── envelope.py         # Agent-facing JSON envelope (command/data/next_steps/meta)
 │       │   ├── formats.py          # Machine-readable output (markdown, JSON, CSV, YAML)
 │       │   └── html.py             # Standalone HTML pages with interactive tables
 │       └── web/
@@ -381,7 +385,21 @@ Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
-### 7. Global Flags
+### 7. Sessions
+
+When `QDO_SESSION=<name>` is set in the environment, every `qdo` invocation
+appends a record to `.qdo/sessions/<name>/steps.jsonl` and saves that step's
+stdout to `.qdo/sessions/<name>/step_<n>/stdout`. The step record contains
+`timestamp`, `cmd`, `args`, `duration`, `exit_code`, `row_count`, and
+`stdout_path`. No daemon, no DB — just append-only files scoped to the cwd.
+
+The recorder is installed in `cli/main.py:_maybe_start_session()` which tees
+stdout into a buffer and registers a `ctx.call_on_close()` finalizer so the
+step is recorded whether the command succeeds or fails. `LazyGroup.resolve_command()`
+stashes the raw subcommand argv on `ctx.obj` so the finalizer can persist the
+exact invocation. `qdo session start/list/show` manage session directories.
+
+### 8. Global Flags
 
 - `--version` / `-V`: Show version and exit
 - `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_context.py:maybe_show_sql()`.
