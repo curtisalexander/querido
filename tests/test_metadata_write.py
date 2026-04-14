@@ -227,7 +227,7 @@ def test_quality_write_metadata_writes_likely_sparse(tmp_path: Path, monkeypatch
     db = tmp_path / "shop.db"
     conn = sqlite3.connect(db)
     conn.execute("CREATE TABLE t (id INTEGER, notes TEXT)")
-    rows = [(i, None) for i in range(99)]
+    rows: list[tuple[int, str | None]] = [(i, None) for i in range(99)]
     rows.append((99, "only one note"))
     conn.executemany("INSERT INTO t VALUES (?, ?)", rows)
     conn.commit()

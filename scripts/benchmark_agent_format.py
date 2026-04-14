@@ -50,7 +50,7 @@ def _token_counter(disable: bool):
     if disable:
         return None
     try:
-        import tiktoken
+        import tiktoken  # ty: ignore[unresolved-import]
     except ImportError:
         print(
             "note: tiktoken not installed, showing bytes only. "

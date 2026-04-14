@@ -32,8 +32,9 @@ def main() -> None:
 
     conn = duckdb.connect(str(output), read_only=True)
     for table in ["parks", "trails", "wildlife_sightings", "visitor_stats"]:
-        count = conn.execute(f"select count(*) from {table}").fetchone()[0]  # type: ignore[index]
-        print(f"  {table}: {count:,} rows")
+        row = conn.execute(f"select count(*) from {table}").fetchone()
+        assert row is not None
+        print(f"  {table}: {row[0]:,} rows")
     conn.close()
     print("Done.")
 

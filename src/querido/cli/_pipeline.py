@@ -81,7 +81,7 @@ def table_command(
             raise
 
 
-def _maybe_warm_cache(connection: str, config: dict, connector: object) -> None:
+def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> None:
     """Kick off a background cache warm if the cache is empty or stale.
 
     Only warms for named connections (not file paths) to avoid polluting
@@ -117,7 +117,7 @@ def _maybe_warm_cache(connection: str, config: dict, connector: object) -> None:
 
         def _warm() -> None:
             try:
-                cache.sync_tables_only(connection, connector)  # type: ignore[arg-type]
+                cache.sync_tables_only(connection, connector)
             except Exception:
                 log.debug("Background cache warm failed", exc_info=True)
             finally:
@@ -129,7 +129,7 @@ def _maybe_warm_cache(connection: str, config: dict, connector: object) -> None:
         log.debug("Failed to start cache warm", exc_info=True)
 
 
-def _maybe_reraise_as_table_not_found(exc: Exception, connector: object, table: str) -> None:
+def _maybe_reraise_as_table_not_found(exc: Exception, connector: Connector, table: str) -> None:
     """If *exc* is a 'table not found' error, re-raise as BadParameter with suggestions."""
     from querido.connectors.base import TableNotFoundError
 
@@ -145,7 +145,7 @@ def _maybe_reraise_as_table_not_found(exc: Exception, connector: object, table: 
     try:
         from querido.cli._validation import _format_not_found
 
-        tables = connector.get_tables()  # type: ignore[union-attr]
+        tables = connector.get_tables()
         names = [t["name"] for t in tables]
         raise typer.BadParameter(_format_not_found("Table", table, names)) from exc
     except typer.BadParameter:

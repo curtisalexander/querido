@@ -68,6 +68,18 @@ def sqlite_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
+def make_sqlite_db():
+    """Return the ``create_sqlite_db`` factory as a fixture.
+
+    Lets test modules create additional SQLite databases (e.g. a second
+    connection for bundle import tests) without importing private helpers
+    from conftest.py — the import path isn't uniformly resolvable across
+    pytest rootdir configurations and ty's module resolver.
+    """
+    return create_sqlite_db
+
+
+@pytest.fixture
 def duckdb_path(tmp_path: Path) -> str:
     return create_duckdb_db(str(tmp_path / "test.duckdb"))
 

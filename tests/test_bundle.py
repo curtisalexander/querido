@@ -42,7 +42,7 @@ def _seed_metadata(
     table: str,
     *,
     table_description: str = "users of the system",
-    col_description: str = "full legal name",
+    col_description: str | dict = "full legal name",
     extra_col_fields: dict | None = None,
 ) -> Path:
     """Write a metadata YAML for *table* under .qdo/metadata/<conn>/."""
@@ -153,7 +153,7 @@ def test_export_redact_drops_sample_values_for_pii(sqlite_path: str, tmp_path: P
 
 
 def test_import_into_fresh_connection_writes_metadata(
-    sqlite_path: str, tmp_path: Path, monkeypatch
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
 ):
     monkeypatch.chdir(tmp_path)
     _seed_metadata(sqlite_path, "users", table_description="exported desc")
@@ -162,9 +162,8 @@ def test_import_into_fresh_connection_writes_metadata(
     export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
 
     # Create a second identical SQLite DB to import into.
-    from tests.conftest import create_sqlite_db
 
-    other = create_sqlite_db(str(tmp_path / "other.db"))
+    other = make_sqlite_db(str(tmp_path / "other.db"))
 
     report = import_bundle(out, other, apply=True)
     assert report["tables"][0]["fingerprint_status"] == "match"
@@ -177,15 +176,15 @@ def test_import_into_fresh_connection_writes_metadata(
     assert imported["table_description"] == "exported desc"
 
 
-def test_import_dry_run_does_not_write(sqlite_path: str, tmp_path: Path, monkeypatch):
+def test_import_dry_run_does_not_write(
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
+):
     monkeypatch.chdir(tmp_path)
     _seed_metadata(sqlite_path, "users")
     out = tmp_path / "src.qdobundle"
     export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
 
-    from tests.conftest import create_sqlite_db
-
-    other = create_sqlite_db(str(tmp_path / "other.db"))
+    other = make_sqlite_db(str(tmp_path / "other.db"))
 
     report = import_bundle(out, other, apply=False)
     assert report["tables"][0]["field_actions"]
@@ -197,7 +196,7 @@ def test_import_dry_run_does_not_write(sqlite_path: str, tmp_path: Path, monkeyp
 
 
 def test_import_keep_higher_confidence_preserves_human(
-    sqlite_path: str, tmp_path: Path, monkeypatch
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
 ):
     """Local human description (confidence 1.0) beats an incoming auto-written one (0.8)."""
     monkeypatch.chdir(tmp_path)
@@ -218,9 +217,8 @@ def test_import_keep_higher_confidence_preserves_human(
     export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
 
     # Target has a human-authored description (plain string = confidence 1.0).
-    from tests.conftest import create_sqlite_db
 
-    other = create_sqlite_db(str(tmp_path / "other.db"))
+    other = make_sqlite_db(str(tmp_path / "other.db"))
     _seed_metadata(other, "users", col_description="local human desc")
 
     report = import_bundle(out, other, strategy="keep-higher-confidence", apply=True)
@@ -228,6 +226,7 @@ def test_import_keep_higher_confidence_preserves_human(
     from querido.core.metadata import show_metadata
 
     meta = show_metadata(other, "users")
+    assert meta is not None
     name_col = next(c for c in meta["columns"] if c["name"] == "name")
     assert name_col["description"] == "local human desc"
 
@@ -236,35 +235,33 @@ def test_import_keep_higher_confidence_preserves_human(
     assert desc_actions and desc_actions[0]["action"] == "skip"
 
 
-def test_import_theirs_overrides(sqlite_path: str, tmp_path: Path, monkeypatch):
+def test_import_theirs_overrides(sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db):
     monkeypatch.chdir(tmp_path)
     _seed_metadata(sqlite_path, "users", col_description="from-bundle")
     out = tmp_path / "src.qdobundle"
     export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
 
-    from tests.conftest import create_sqlite_db
-
-    other = create_sqlite_db(str(tmp_path / "other.db"))
+    other = make_sqlite_db(str(tmp_path / "other.db"))
     _seed_metadata(other, "users", col_description="local-desc")
 
     import_bundle(out, other, strategy="theirs", apply=True)
     from querido.core.metadata import show_metadata
 
     meta = show_metadata(other, "users")
+    assert meta is not None
     name_col = next(c for c in meta["columns"] if c["name"] == "name")
     assert name_col["description"] == "from-bundle"
 
 
-def test_import_map_renames_table(sqlite_path: str, tmp_path: Path, monkeypatch):
+def test_import_map_renames_table(sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db):
     monkeypatch.chdir(tmp_path)
     _seed_metadata(sqlite_path, "users", table_description="orig")
     out = tmp_path / "src.qdobundle"
     export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
 
     # Target has a table named "accounts" with an identical schema.
-    from tests.conftest import create_sqlite_db
 
-    other = create_sqlite_db(
+    other = make_sqlite_db(
         str(tmp_path / "other.db"),
         tables={
             "CREATE TABLE accounts (id INTEGER PRIMARY KEY, name TEXT NOT NULL, age INTEGER)": [
@@ -281,20 +278,22 @@ def test_import_map_renames_table(sqlite_path: str, tmp_path: Path, monkeypatch)
 
     assert metadata_path(other, "accounts").exists()
     meta = show_metadata(other, "accounts")
+    assert meta is not None
     assert meta["table"] == "accounts"
     assert meta["table_description"] == "orig"
 
 
-def test_import_schema_drift_skips_unknown_columns(sqlite_path: str, tmp_path: Path, monkeypatch):
+def test_import_schema_drift_skips_unknown_columns(
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
+):
     monkeypatch.chdir(tmp_path)
     _seed_metadata(sqlite_path, "users", col_description="from-bundle")
     out = tmp_path / "src.qdobundle"
     export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
 
     # Different schema on the target.
-    from tests.conftest import create_sqlite_db
 
-    other = create_sqlite_db(
+    other = make_sqlite_db(
         str(tmp_path / "other.db"),
         tables={
             "CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)": [
@@ -311,12 +310,12 @@ def test_import_schema_drift_skips_unknown_columns(sqlite_path: str, tmp_path: P
     assert skipped
 
 
-def test_import_column_sets_round_trip(sqlite_path: str, tmp_path: Path, monkeypatch):
+def test_import_column_sets_round_trip(
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
+):
     monkeypatch.chdir(tmp_path)
 
-    from tests.conftest import create_sqlite_db
-
-    other_path = create_sqlite_db(str(tmp_path / "other.db"))
+    other_path = make_sqlite_db(str(tmp_path / "other.db"))
 
     # Single shared config with two named connections so column-set TOML keys
     # don't collide with file-path dots.
@@ -393,16 +392,16 @@ def test_cli_export_and_inspect(sqlite_path: str, tmp_path: Path, monkeypatch):
     assert "users" in result.output
 
 
-def test_cli_import_dry_run_and_apply(sqlite_path: str, tmp_path: Path, monkeypatch):
+def test_cli_import_dry_run_and_apply(
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
+):
     monkeypatch.chdir(tmp_path)
     _seed_metadata(sqlite_path, "users", table_description="source-desc")
 
     out = str(tmp_path / "src.qdobundle")
     export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
 
-    from tests.conftest import create_sqlite_db
-
-    other = create_sqlite_db(str(tmp_path / "other.db"))
+    other = make_sqlite_db(str(tmp_path / "other.db"))
 
     # Dry-run
     result = runner.invoke(app, ["bundle", "import", out, "--into", other])
@@ -417,15 +416,13 @@ def test_cli_import_dry_run_and_apply(sqlite_path: str, tmp_path: Path, monkeypa
     assert metadata_path(other, "users").exists()
 
 
-def test_cli_bad_map_value(sqlite_path: str, tmp_path: Path, monkeypatch):
+def test_cli_bad_map_value(sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db):
     monkeypatch.chdir(tmp_path)
     _seed_metadata(sqlite_path, "users")
     out = str(tmp_path / "src.qdobundle")
     export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
 
-    from tests.conftest import create_sqlite_db
-
-    other = create_sqlite_db(str(tmp_path / "other.db"))
+    other = make_sqlite_db(str(tmp_path / "other.db"))
 
     result = runner.invoke(app, ["bundle", "import", out, "--into", other, "--map", "bogus"])
     assert result.exit_code != 0

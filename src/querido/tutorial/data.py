@@ -9,6 +9,7 @@ from __future__ import annotations
 import random
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 SEED = 42
 
@@ -317,7 +318,7 @@ def create_tutorial_db(db_path: Path) -> Path:
     return db_path
 
 
-def _create_parks(conn: object) -> None:
+def _create_parks(conn: Any) -> None:
     """Create and populate the parks table from curated data."""
     conn.execute("""
         create table parks (
@@ -333,16 +334,16 @@ def _create_parks(conn: object) -> None:
             has_lodging boolean,
             description varchar
         )
-    """)  # type: ignore[union-attr]
+    """)
     for i, p in enumerate(PARKS, 1):
         name, state, region, area, est, elev, visitors, camp, lodge, desc = p
-        conn.execute(  # type: ignore[union-attr]
+        conn.execute(
             "insert into parks values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [i, name, state, region, area, est, elev, visitors, camp, lodge, desc],
         )
 
 
-def _create_trails(conn: object, rng: random.Random) -> None:
+def _create_trails(conn: Any, rng: random.Random) -> None:
     """Create and populate the trails table with generated data."""
     conn.execute("""
         create table trails (
@@ -357,7 +358,7 @@ def _create_trails(conn: object, rng: random.Random) -> None:
             dog_friendly boolean,
             estimated_hours double
         )
-    """)  # type: ignore[union-attr]
+    """)
 
     trail_id = 0
     for park_id in range(1, len(PARKS) + 1):
@@ -382,7 +383,7 @@ def _create_trails(conn: object, rng: random.Random) -> None:
                 speed = rng.uniform(1.5, 3.0)
                 est_hours = round(distance / speed, 1)
 
-            conn.execute(  # type: ignore[union-attr]
+            conn.execute(
                 "insert into trails values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     trail_id,
@@ -399,7 +400,7 @@ def _create_trails(conn: object, rng: random.Random) -> None:
             )
 
 
-def _create_wildlife_sightings(conn: object, rng: random.Random) -> None:
+def _create_wildlife_sightings(conn: Any, rng: random.Random) -> None:
     """Create and populate the wildlife_sightings table."""
     conn.execute("""
         create table wildlife_sightings (
@@ -415,7 +416,7 @@ def _create_wildlife_sightings(conn: object, rng: random.Random) -> None:
             verified boolean,
             notes varchar
         )
-    """)  # type: ignore[union-attr]
+    """)
 
     # Build lookup: park_id → list of trail_ids for that park
     n_parks = len(PARKS)
@@ -469,7 +470,7 @@ def _create_wildlife_sightings(conn: object, rng: random.Random) -> None:
         verified = rng.random() < 0.80
         notes = rng.choice(SIGHTING_NOTES) if rng.random() < 0.40 else None
 
-        conn.execute(  # type: ignore[union-attr]
+        conn.execute(
             "insert into wildlife_sightings values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 sid,
@@ -487,7 +488,7 @@ def _create_wildlife_sightings(conn: object, rng: random.Random) -> None:
         )
 
 
-def _create_visitor_stats(conn: object, rng: random.Random) -> None:
+def _create_visitor_stats(conn: Any, rng: random.Random) -> None:
     """Create and populate the visitor_stats table."""
     conn.execute("""
         create table visitor_stats (
@@ -500,7 +501,7 @@ def _create_visitor_stats(conn: object, rng: random.Random) -> None:
             trail_conditions varchar,
             avg_temp_f double
         )
-    """)  # type: ignore[union-attr]
+    """)
 
     stat_id = 0
     sar_weights = [60, 25, 10, 3, 1, 1]
@@ -549,7 +550,7 @@ def _create_visitor_stats(conn: object, rng: random.Random) -> None:
                 temp_offset = MONTH_TEMP_OFFSET[month_num - 1]
                 temp = round(base_temp + temp_offset + rng.gauss(0, 3), 1)
 
-                conn.execute(  # type: ignore[union-attr]
+                conn.execute(
                     "insert into visitor_stats values (?, ?, ?, ?, ?, ?, ?, ?)",
                     [stat_id, park_id, month_str, visitors, camping, sar, cond, temp],
                 )

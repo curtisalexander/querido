@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import duckdb
 from typer.testing import CliRunner
@@ -10,6 +11,17 @@ from typer.testing import CliRunner
 from querido.cli.main import app
 
 runner = CliRunner()
+
+
+def _scalar(conn: Any, sql: str) -> Any:
+    """Run a single-column, single-row query and return the scalar.
+
+    Centralizes the ``fetchone() is not None`` assertion so individual
+    tests don't each carry a type-ignore for the subscript.
+    """
+    row = conn.execute(sql).fetchone()
+    assert row is not None, f"query returned no rows: {sql}"
+    return row[0]
 
 
 # ---------------------------------------------------------------------------
@@ -38,10 +50,10 @@ class TestDataGeneration:
         create_tutorial_db(db_path)
 
         conn = duckdb.connect(str(db_path), read_only=True)
-        parks = conn.execute("select count(*) from parks").fetchone()[0]  # type: ignore[index]
-        trails = conn.execute("select count(*) from trails").fetchone()[0]  # type: ignore[index]
-        sightings = conn.execute("select count(*) from wildlife_sightings").fetchone()[0]  # type: ignore[index]
-        stats = conn.execute("select count(*) from visitor_stats").fetchone()[0]  # type: ignore[index]
+        parks = _scalar(conn, "select count(*) from parks")
+        trails = _scalar(conn, "select count(*) from trails")
+        sightings = _scalar(conn, "select count(*) from wildlife_sightings")
+        stats = _scalar(conn, "select count(*) from visitor_stats")
         conn.close()
 
         assert 55 <= parks <= 65
@@ -75,32 +87,36 @@ class TestDataGeneration:
         conn = duckdb.connect(str(db_path), read_only=True)
 
         # All trails reference valid parks
-        orphan_trails = conn.execute(
+        orphan_trails = _scalar(
+            conn,
             "select count(*) from trails t "
-            "where not exists (select 1 from parks p where p.park_id = t.park_id)"
-        ).fetchone()[0]  # type: ignore[index]
+            "where not exists (select 1 from parks p where p.park_id = t.park_id)",
+        )
         assert orphan_trails == 0
 
         # All sightings reference valid parks
-        orphan_sightings = conn.execute(
+        orphan_sightings = _scalar(
+            conn,
             "select count(*) from wildlife_sightings ws "
-            "where not exists (select 1 from parks p where p.park_id = ws.park_id)"
-        ).fetchone()[0]  # type: ignore[index]
+            "where not exists (select 1 from parks p where p.park_id = ws.park_id)",
+        )
         assert orphan_sightings == 0
 
         # Non-null trail_ids in sightings reference valid trails
-        orphan_trail_refs = conn.execute(
+        orphan_trail_refs = _scalar(
+            conn,
             "select count(*) from wildlife_sightings ws "
             "where ws.trail_id is not null "
-            "and not exists (select 1 from trails t where t.trail_id = ws.trail_id)"
-        ).fetchone()[0]  # type: ignore[index]
+            "and not exists (select 1 from trails t where t.trail_id = ws.trail_id)",
+        )
         assert orphan_trail_refs == 0
 
         # Visitor stats reference valid parks
-        orphan_stats = conn.execute(
+        orphan_stats = _scalar(
+            conn,
             "select count(*) from visitor_stats vs "
-            "where not exists (select 1 from parks p where p.park_id = vs.park_id)"
-        ).fetchone()[0]  # type: ignore[index]
+            "where not exists (select 1 from parks p where p.park_id = vs.park_id)",
+        )
         assert orphan_stats == 0
 
         conn.close()
@@ -114,23 +130,26 @@ class TestDataGeneration:
         conn = duckdb.connect(str(db_path), read_only=True)
 
         # Parks description: ~20% null
-        desc_null = conn.execute(
-            "select 100.0 * count(*) filter (where description is null) / count(*) from parks"
-        ).fetchone()[0]  # type: ignore[index]
+        desc_null = _scalar(
+            conn,
+            "select 100.0 * count(*) filter (where description is null) / count(*) from parks",
+        )
         assert 10 <= desc_null <= 35
 
         # Sighting notes: ~60% null
-        notes_null = conn.execute(
+        notes_null = _scalar(
+            conn,
             "select 100.0 * count(*) filter (where notes is null) / count(*) "
-            "from wildlife_sightings"
-        ).fetchone()[0]  # type: ignore[index]
+            "from wildlife_sightings",
+        )
         assert 45 <= notes_null <= 75
 
         # Sighting trail_id: ~30% null
-        trail_null = conn.execute(
+        trail_null = _scalar(
+            conn,
             "select 100.0 * count(*) filter (where trail_id is null) / count(*) "
-            "from wildlife_sightings"
-        ).fetchone()[0]  # type: ignore[index]
+            "from wildlife_sightings",
+        )
         assert 20 <= trail_null <= 45
 
         conn.close()
