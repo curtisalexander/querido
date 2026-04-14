@@ -123,10 +123,10 @@ The biggest feature in the plan and the most prone to scope creep. Do Phase 1–
 
 ### 4.1 — Workflow spec (JSON Schema)
 
-- [ ] Draft spec for YAML workflow files: `name`, `description`, `version`, `inputs` (typed), `steps` (with `run`, `capture`, `when`, conditional), `outputs`
-- [ ] `qdo workflow spec -f json` emits the JSON Schema
-- [ ] `qdo workflow spec --examples` emits bundled example workflows
-- [ ] Declarative only — no embedded code, no shell escape
+- [x] Draft spec for YAML workflow files: `name`, `description`, `version`, `inputs` (typed), `steps` (with `run`, `capture`, `when`, conditional), `outputs`
+- [x] `qdo workflow spec -f json` emits the JSON Schema
+- [x] `qdo workflow spec --examples` emits bundled example workflows
+- [x] Declarative only — no embedded code, no shell escape
 
 **Acceptance:** spec is complete enough to express all conversions in Phase 5. Draft is reviewed before runner implementation begins.
 

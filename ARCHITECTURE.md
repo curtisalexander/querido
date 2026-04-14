@@ -71,7 +71,8 @@ querido/
 │       │   ├── template.py         # `qdo template` — documentation template generation
 │       │   ├── tutorial.py         # `qdo tutorial` — interactive tutorial launcher
 │       │   ├── values.py           # `qdo values` — distinct values for a column
-│       │   └── view_def.py         # `qdo view-def` — view SQL definition retrieval
+│       │   ├── view_def.py         # `qdo view-def` — view SQL definition retrieval
+│       │   └── workflow.py         # `qdo workflow spec` — declarative workflow schema + examples
 │       ├── connectors/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── base.py             # Connector Protocol, table name validation, error hierarchy
@@ -107,7 +108,11 @@ querido/
 │       │   ├── session.py          # Session recorder (QDO_SESSION) — JSONL step log
 │       │   ├── next_steps.py       # Deterministic next_steps/try_next suggestions
 │       │   ├── template.py         # Documentation template generation logic
-│       │   └── values.py           # Distinct values logic
+│       │   ├── values.py           # Distinct values logic
+│       │   └── workflow/
+│       │       ├── __init__.py       # load_examples helper + re-exports
+│       │       ├── spec.py           # Authoritative workflow JSON Schema
+│       │       └── examples/         # Bundled example workflow YAMLs
 │       ├── sql/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── renderer.py         # Jinja2 template loading and rendering
@@ -197,6 +202,7 @@ querido/
     ├── test_agent_mode.py          # Agent mode (QDO_FORMAT=json) tests
     ├── test_assert.py              # Assert command tests
     ├── test_bundle.py              # Knowledge bundle tests (export/import/inspect/diff)
+    ├── test_workflow_spec.py       # Workflow JSON Schema + bundled examples tests
     ├── test_cache.py               # Metadata cache tests (sync, status, clear)
     ├── test_cancellation.py        # Query cancellation tests
     ├── test_catalog.py             # Catalog command tests (listing, filtering, caching)

@@ -1,0 +1,30 @@
+# why: teaches the conditional step pattern. Steps 2 and 3 only run when
+# the schemas actually differ, so an agent reading this sees both
+# composition (diff then joins) and flow control (`when:`).
+name: schema-compare
+description: Compare two tables' schemas and, if they differ, discover join keys.
+version: 1
+inputs:
+  connection:
+    type: connection
+    required: true
+  left:
+    type: table
+    required: true
+    description: First table.
+  right:
+    type: table
+    required: true
+    description: Second table.
+steps:
+  - id: diff
+    run: qdo diff -c ${connection} -t ${left} --other ${right} -f json
+    capture: diff
+  - id: joins
+    when: ${diff.data.differs}
+    run: qdo joins -c ${connection} -t ${left} --other ${right} -f json
+    capture: joins
+outputs:
+  differs: ${diff.data.differs}
+  shared_columns: ${diff.data.shared_columns}
+  candidate_join_keys: ${joins.data.candidates}

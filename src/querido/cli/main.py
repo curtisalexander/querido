@@ -58,7 +58,12 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
             ("config", "querido.cli.config", "Manage connections."),
             ("cache", "querido.cli.cache", "Manage local metadata cache."),
             ("metadata", "querido.cli.metadata", "Manage enriched table metadata."),
-            ("bundle", "querido.cli.bundle", "Export, import, inspect, or diff knowledge bundles."),
+            (
+                "bundle",
+                "querido.cli.bundle",
+                "Export, import, inspect, or diff knowledge bundles.",
+            ),
+            ("workflow", "querido.cli.workflow", "Declarative workflows (spec, run, lint)."),
             ("session", "querido.cli.session", "Manage agent-workflow sessions."),
             ("completion", "querido.cli.completion", "Generate shell completion scripts."),
         ],

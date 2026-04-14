@@ -1,0 +1,29 @@
+# why: the three scans below are the core "know this table" primitives.
+# A coding agent reading this file learns the composition:
+# inspect (schema) → profile (row counts + basics) → quality (callouts).
+name: table-summary
+description: Inspect a table, profile it, and surface quality callouts.
+version: 1
+inputs:
+  connection:
+    type: connection
+    required: true
+    description: Target connection (named or file path).
+  table:
+    type: table
+    required: true
+    description: Table to summarize.
+steps:
+  - id: inspect
+    run: qdo inspect -c ${connection} -t ${table} -f json
+    capture: schema
+  - id: profile
+    run: qdo profile -c ${connection} -t ${table} --quick -f json
+    capture: stats
+  - id: quality
+    run: qdo quality -c ${connection} -t ${table} -f json
+    capture: quality
+outputs:
+  column_count: ${schema.data.column_count}
+  row_count: ${stats.data.row_count}
+  failing_checks: ${quality.data.failing_checks}
