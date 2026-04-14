@@ -82,8 +82,11 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
 
             from querido.cli._context import get_output_format
 
-            if get_output_format() == "json":
-                _emit_json_error(msg, code, hint, last if _is_db_error(exc) else None, try_next)
+            fmt = get_output_format()
+            if fmt in ("json", "agent"):
+                _emit_structured_error(
+                    msg, code, hint, last if _is_db_error(exc) else None, try_next, fmt
+                )
             else:
                 _emit_rich_error(msg, exc, last, try_next)
 
@@ -113,15 +116,15 @@ def _emit_rich_error(msg: str, exc: Exception, last_sql: str | None, try_next: l
         print_sql(last_sql)
 
 
-def _emit_json_error(
+def _emit_structured_error(
     msg: str,
     code: str,
     hint: str | None,
     sql: str | None,
     try_next: list[dict],
+    fmt: str,
 ) -> None:
-    """Print a structured JSON error object to stderr."""
-    import json
+    """Print a structured error object to stderr in JSON or agent format."""
     import sys
 
     payload: dict = {"error": True, "code": code, "message": msg}
@@ -131,7 +134,15 @@ def _emit_json_error(
         payload["sql"] = sql
     if try_next:
         payload["try_next"] = try_next
-    print(json.dumps(payload, indent=2), file=sys.stderr)
+
+    if fmt == "agent":
+        from querido.output.envelope import render_agent
+
+        print(render_agent(payload), file=sys.stderr)
+    else:
+        import json
+
+        print(json.dumps(payload, indent=2), file=sys.stderr)
 
 
 def _try_next_for(code: str) -> list[dict]:

@@ -62,6 +62,7 @@ querido/
 │       │   ├── profile.py          # `qdo profile` — data profiling (quick, classify, column sets)
 │       │   ├── quality.py          # `qdo quality` — data quality summary (nulls, uniqueness, anomalies)
 │       │   ├── query.py            # `qdo query` — execute ad-hoc SQL
+│       │   ├── report.py           # `qdo report table` — single-file HTML report
 │       │   ├── serve.py            # `qdo serve` — FastAPI web UI launcher
 │       │   ├── session.py          # `qdo session start/list/show` — agent-workflow session logs
 │       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
@@ -98,6 +99,7 @@ querido/
 │       │   ├── profile.py          # Data profiling (stats, frequencies, quick mode, batching)
 │       │   ├── quality.py          # Data quality analysis logic
 │       │   ├── query.py            # Ad-hoc SQL execution with limit wrapping
+│       │   ├── report.py           # Table report data builder (fans out to context/quality/joins/metadata)
 │       │   ├── runner.py           # Threaded query execution with cancellation support
 │       │   ├── semantic.py         # Snowflake Cortex Analyst semantic model YAML builder
 │       │   ├── session.py          # Session recorder (QDO_SESSION) — JSONL step log
@@ -167,9 +169,11 @@ querido/
 │       ├── output/
 │       │   ├── __init__.py         # Package marker, shared helpers (fmt_value)
 │       │   ├── console.py          # Rich terminal output (tables, panels, frequencies)
-│       │   ├── envelope.py         # Agent-facing JSON envelope (command/data/next_steps/meta)
+│       │   ├── envelope.py         # Agent-facing envelope (command/data/next_steps/meta); dispatches json vs agent rendering
 │       │   ├── formats.py          # Machine-readable output (markdown, JSON, CSV, YAML)
-│       │   └── html.py             # Standalone HTML pages with interactive tables
+│       │   ├── toon.py             # TOON v3.0 encoder (in-tree); primitives, objects, tabular + primitive arrays
+│       │   ├── html.py             # Standalone HTML pages with interactive tables
+│       │   └── report_html.py      # Single-file report renderer (cheatsheet aesthetic, inline SVG)
 │       └── web/
 │           ├── __init__.py         # FastAPI app factory (create_app)
 │           ├── routes/
@@ -403,7 +407,7 @@ exact invocation. `qdo session start/list/show` manage session directories.
 
 - `--version` / `-V`: Show version and exit
 - `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_context.py:maybe_show_sql()`.
-- `--format {rich,markdown,json,csv,html,yaml}` / `-f`: Output format. Default is `rich` (Rich terminal tables). `html` opens results in the default browser. `yaml` is used for Snowflake semantic model output. Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_context.py:get_output_format()`.
+- `--format {rich,markdown,json,csv,html,yaml,agent}` / `-f`: Output format. Default is `rich` (Rich terminal tables). `html` opens results in the default browser. `yaml` is used for Snowflake semantic model output. `agent` renders the same envelope as `json` but in TOON (tabular) + YAML (nested) — tuned for LLM consumption, typically 30–70% fewer tokens than `json`. Other formats write plain text to stdout for piping. Stored in Click context, accessed by `cli/_context.py:get_output_format()`. Commands that build an envelope gate on `envelope.is_structured_format()` to cover both `json` and `agent`.
 - `--debug`: Enable debug logging to stderr. Logs connection details, query timing, table resolution, and cache status. Uses Python `logging` module with `querido` logger hierarchy.
 
 Command-specific flags:

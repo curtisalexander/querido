@@ -49,6 +49,7 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
             ("sql", "querido.cli.sql", "Generate SQL statements for a table."),
             ("template", "querido.cli.template", "Generate documentation templates for tables."),
             ("view-def", "querido.cli.view_def", "Show SQL definition of a view."),
+            ("report", "querido.cli.report", "Generate a single-file HTML report."),
         ],
     ),
     (
@@ -292,7 +293,7 @@ def main(
         None,
         "--format",
         "-f",
-        help="Output format: rich, markdown, json, csv, html, yaml.",
+        help="Output format: rich, markdown, json, csv, html, yaml, agent.",
     ),
     debug: bool = typer.Option(
         False,
@@ -305,7 +306,7 @@ def main(
 
     _maybe_start_session(ctx)
 
-    valid = {"rich", "markdown", "json", "csv", "html", "yaml"}
+    valid = {"rich", "markdown", "json", "csv", "html", "yaml", "agent"}
 
     # Resolve format: explicit --format > QDO_FORMAT env var > "rich"
     if output_format is None:

@@ -14,9 +14,9 @@ The four items that together create the "tool gets better the more it's used" co
 
 ### 1.1 — `next_steps` field in every JSON output
 
-- [ ] Add a `next_steps: [{cmd, why}]` field to the JSON output of every scanning command (`catalog`, `context`, `inspect`, `preview`, `profile`, `dist`, `values`, `quality`, `diff`, `joins`, `query`)
-- [ ] Add `try_next: [{cmd, why}]` to structured error objects
-- [ ] Rules are deterministic (no LLM), based on output shape: row counts, null rates, distinct counts, metadata presence
+- [x] Add a `next_steps: [{cmd, why}]` field to the JSON output of every scanning command (`catalog`, `context`, `inspect`, `preview`, `profile`, `dist`, `values`, `quality`, `diff`, `joins`, `query`)
+- [x] Add `try_next: [{cmd, why}]` to structured error objects
+- [x] Rules are deterministic (no LLM), based on output shape: row counts, null rates, distinct counts, metadata presence
 
 **Why:** every command becomes a node in a traversable graph. Biggest single UX lever for agent workflows.
 
@@ -26,10 +26,10 @@ The four items that together create the "tool gets better the more it's used" co
 
 ### 1.2 — Session MVP
 
-- [ ] `QDO_SESSION=<name>` env var — when set, every command appends a JSONL record to `.qdo/sessions/<name>/steps.jsonl` with: timestamp, cmd, args, duration, exit_code, row_count, stdout_path
-- [ ] Each step's full stdout saved to `.qdo/sessions/<name>/step_<n>/stdout`
-- [ ] `qdo session start <name>` / `qdo session list` / `qdo session show <name>`
-- [ ] No daemon, no DB, no server. Append-only files
+- [x] `QDO_SESSION=<name>` env var — when set, every command appends a JSONL record to `.qdo/sessions/<name>/steps.jsonl` with: timestamp, cmd, args, duration, exit_code, row_count, stdout_path
+- [x] Each step's full stdout saved to `.qdo/sessions/<name>/step_<n>/stdout`
+- [x] `qdo session start <name>` / `qdo session list` / `qdo session show <name>`
+- [x] No daemon, no DB, no server. Append-only files
 
 **Why:** substrate for reports, bundles, workflow authoring, audit trail, and the `--from` patterns later. Collapses the separate audit-log and sql-history ideas into one feature.
 
@@ -68,12 +68,12 @@ The four items that together create the "tool gets better the more it's used" co
 
 ### 2.1 — `-f agent` output format
 
-- [ ] New `AgentFormatter` alongside JSON/rich/csv formatters
-- [ ] Tabular results → TOON (row-oriented, explicit row count, column header once)
-- [ ] Nested results (`context`, `metadata show`) → YAML
-- [ ] Scalar results → single-line `key=value key=value`
-- [ ] Errors → single-line `ERR CODE key=value message="..."`
-- [ ] `QDO_FORMAT=agent` environment variable sets default
+- [x] New agent renderer alongside JSON/rich/csv formatters (via `querido.output.envelope.render_agent` + the shared `emit_envelope` dispatch; no separate `AgentFormatter` class needed)
+- [x] Tabular results → TOON (row-oriented, explicit row count, column header once; spec v3.0, in-tree encoder with vendored conformance fixtures)
+- [x] Nested results (`context`, `metadata show`, `catalog`) → YAML fallback when TOON's v1 shape coverage doesn't fit
+- [ ] Scalar results → single-line `key=value key=value` (deferred — everything has an envelope today; scalars roll up into nested object rendering)
+- [x] Errors → structured payload rendered through the same TOON/YAML dispatch (includes `try_next` as a tabular array)
+- [x] `QDO_FORMAT=agent` environment variable sets default
 
 **Why:** TOON wins ~40% tokens on tabular data with equal-or-better accuracy; YAML wins on nested. Matching format to shape is the actual accuracy driver.
 
@@ -83,10 +83,10 @@ The four items that together create the "tool gets better the more it's used" co
 
 ### 2.2 — `qdo report table` HTML
 
-- [ ] `qdo report table -c <conn> -t <table> -o <file.html>` — single self-contained HTML file
-- [ ] Inline CSS, inline SVG, no CDN, no JS required
-- [ ] Content: header (name, conn, row count, generated_at), metadata summary, schema table, quality callouts, related tables from `joins`, collapsed "Generated with qdo" footer with the exact command that produced it
-- [ ] Dark mode via `prefers-color-scheme`; print-friendly CSS
+- [x] `qdo report table -c <conn> -t <table> -o <file.html>` — single self-contained HTML file (no `-o` opens in browser)
+- [x] Inline CSS, inline SVG (null-rate bars), no JS required. Google Fonts via `@import` with system-font fallback
+- [x] Content: header, metadata summary, schema table (PK/NOT NULL badges, null-rate bars, distinct counts, samples), quality callouts (fail/warn lists + emerald "all passed" panel), related tables from `joins`, collapsed "Generated with qdo" footer with the exact invocation
+- [x] Dark mode via `prefers-color-scheme`; print-friendly CSS (`@media print`)
 
 **Why:** gives users a polished artifact to hand to a PM or exec without asking them to install qdo. Strictly better than `serve` for the "share with a non-user" use case.
 

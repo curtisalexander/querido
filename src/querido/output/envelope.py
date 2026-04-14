@@ -62,7 +62,17 @@ def emit_envelope(
     table: str | None = None,
     extra_meta: dict | None = None,
 ) -> None:
-    """Build an envelope and print it as pretty JSON to stdout."""
+    """Build an envelope and print it in the active structured format.
+
+    Serialization follows ``--format``:
+
+    - ``json``: pretty JSON (the canonical machine-readable form).
+    - ``agent``: TOON where the envelope's shape allows it, YAML otherwise.
+      Tuned for LLM consumption; see :mod:`querido.output.toon`.
+
+    For any other format the envelope is rendered as JSON — the caller is
+    expected to gate on :func:`is_structured_format` before calling.
+    """
     envelope = build_envelope(
         command=command,
         data=data,
@@ -71,7 +81,54 @@ def emit_envelope(
         table=table,
         extra_meta=extra_meta,
     )
-    print(json.dumps(envelope, indent=2, default=str))
+
+    from querido.cli._context import get_output_format
+
+    if get_output_format() == "agent":
+        print(render_agent(envelope))
+    else:
+        print(json.dumps(envelope, indent=2, default=str))
+
+
+def is_structured_format() -> bool:
+    """Return True when the active ``--format`` wants the envelope (json or agent)."""
+    from querido.cli._context import get_output_format
+
+    return get_output_format() in ("json", "agent")
+
+
+def render_agent(value: Any) -> str:
+    """Render a JSON-like value as a TOON document, falling back to YAML.
+
+    The TOON encoder covers the shapes we emit most often (tabular arrays,
+    nested objects, primitive arrays); non-uniform arrays and arrays-of-arrays
+    aren't in its v1 scope (see :mod:`querido.output.toon`). In those cases we
+    fall back to YAML, which TOON's own authors note wins on nested data.
+    """
+    from querido.output.toon import ToonUnsupportedShape, encode
+
+    normalized = _normalize_for_structured(value)
+    try:
+        return encode(normalized)
+    except ToonUnsupportedShape:
+        import yaml
+
+        return yaml.safe_dump(normalized, sort_keys=False, default_flow_style=False).rstrip()
+
+
+def _normalize_for_structured(value: Any) -> Any:
+    """Coerce values the TOON/YAML path can't handle into strings.
+
+    Mirrors what ``json.dumps(..., default=str)`` does for us on the JSON path:
+    datetime, Decimal, bytes, etc. round-trip through ``str()``.
+    """
+    if isinstance(value, dict):
+        return {k: _normalize_for_structured(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_normalize_for_structured(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def shell_quote_value(value: str) -> str:

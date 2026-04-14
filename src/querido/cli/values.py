@@ -72,11 +72,10 @@ def values(
                 ctx.connector, connection, ctx.table, result, force=force
             )
 
-        from querido.cli._context import get_output_format
+        from querido.output.envelope import emit_envelope, is_structured_format
 
-        if get_output_format() == "json":
+        if is_structured_format():
             from querido.core.next_steps import for_values
-            from querido.output.envelope import emit_envelope
 
             if metadata_write_summary is not None:
                 result = dict(result)

@@ -54,11 +54,10 @@ def query(
 
             result = run_query(ctx.connector, query_sql, limit=limit)
 
-        from querido.cli._context import get_output_format
+        from querido.output.envelope import emit_envelope, is_structured_format
 
-        if get_output_format() == "json":
+        if is_structured_format():
             from querido.core.next_steps import for_query
-            from querido.output.envelope import emit_envelope
 
             emit_envelope(
                 command="query",

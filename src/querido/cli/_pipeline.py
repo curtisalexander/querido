@@ -226,7 +226,13 @@ def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
         html = fn(*args, **kwargs)
         emit_html(html)
     else:
+        # Commands that go straight through dispatch_output (assert, pivot,
+        # explain, template, lineage, …) don't build an agent envelope
+        # themselves. Degrade agent → json so the output is at least
+        # structured/parseable; true agent rendering lives on the
+        # envelope-emitting commands (see querido.output.envelope).
+        effective_fmt = "json" if fmt == "agent" else fmt
         mod = import_module("querido.output.formats")
         fn = cast(Any, mod.REGISTRY)[command_name]
-        text = fn(*args, fmt, **kwargs)
+        text = fn(*args, effective_fmt, **kwargs)
         print(text)

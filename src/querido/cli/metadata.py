@@ -206,13 +206,12 @@ def score(
     connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
 ) -> None:
     """Per-table metadata completeness ranking (worst first)."""
-    from querido.cli._context import get_output_format
     from querido.core.metadata_score import score_connection
-    from querido.output.envelope import emit_envelope
+    from querido.output.envelope import emit_envelope, is_structured_format
 
     report = score_connection(connection)
 
-    if get_output_format() == "json":
+    if is_structured_format():
         emit_envelope(
             command="metadata score",
             data=report,
@@ -259,7 +258,6 @@ def suggest(
     the additions to ``.qdo/metadata/<connection>/<table>.yaml`` with
     provenance tags identical to ``--write-metadata``.
     """
-    from querido.cli._context import get_output_format
     from querido.cli._pipeline import table_command
     from querido.core.metadata import init_metadata, metadata_path
     from querido.core.metadata_score import (
@@ -267,7 +265,7 @@ def suggest(
         build_suggestions,
         suggestions_to_dicts,
     )
-    from querido.output.envelope import emit_envelope
+    from querido.output.envelope import emit_envelope, is_structured_format
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         # Ensure a YAML exists so the diff has something to compare against.
@@ -288,7 +286,7 @@ def suggest(
         "applied": applied,
     }
 
-    if get_output_format() == "json":
+    if is_structured_format():
         emit_envelope(
             command="metadata suggest",
             data=payload,

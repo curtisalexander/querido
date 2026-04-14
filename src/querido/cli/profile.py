@@ -131,8 +131,6 @@ def profile(
             maybe_show_sql(profile_sql)
             set_last_sql(profile_sql)
 
-        from querido.cli._context import get_output_format
-
         classification = None
         if classify:
             from querido.core._utils import classify_columns
@@ -166,9 +164,10 @@ def profile(
                     top,
                 )
 
-        if get_output_format() == "json":
+        from querido.output.envelope import emit_envelope, is_structured_format
+
+        if is_structured_format():
             from querido.core.next_steps import for_profile
-            from querido.output.envelope import emit_envelope
 
             data: dict = {
                 "table": ctx.table,

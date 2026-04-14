@@ -18,7 +18,7 @@ def preview(
     ),
 ) -> None:
     """Show a preview of rows from a table."""
-    from querido.cli._context import get_output_format, maybe_show_sql
+    from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
     from querido.cli._pipeline import dispatch_output, table_command
 
@@ -32,9 +32,10 @@ def preview(
             set_last_sql(sql)
             data = get_preview(ctx.connector, ctx.table, limit=rows)
 
-        if get_output_format() == "json":
+        from querido.output.envelope import emit_envelope, is_structured_format
+
+        if is_structured_format():
             from querido.core.next_steps import for_preview
-            from querido.output.envelope import emit_envelope
 
             emit_envelope(
                 command="preview",
