@@ -48,6 +48,16 @@ def quality(
         "--exact",
         help="Use exact COUNT(DISTINCT) instead of approximate counts.",
     ),
+    write_metadata: bool = typer.Option(
+        False,
+        "--write-metadata",
+        help="Write likely_sparse (null rate >95%) to the table's metadata YAML.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="With --write-metadata: overwrite human-authored fields (confidence 1.0).",
+    ),
 ) -> None:
     """Show data quality summary — nulls, uniqueness, issues per column.
 
@@ -77,11 +87,23 @@ def quality(
                 exact=exact,
             )
 
+        metadata_write_summary = None
+        if write_metadata:
+            from querido.core.metadata_write import write_from_quality
+
+            metadata_write_summary = write_from_quality(
+                ctx.connector, connection, ctx.table, result, force=force
+            )
+
         from querido.cli._context import get_output_format
 
         if get_output_format() == "json":
             from querido.core.next_steps import for_quality
             from querido.output.envelope import emit_envelope
+
+            if metadata_write_summary is not None:
+                result = dict(result)
+                result["metadata_write"] = metadata_write_summary
 
             emit_envelope(
                 command="quality",
@@ -93,3 +115,10 @@ def quality(
             return
 
         dispatch_output("quality", result)
+
+        if metadata_write_summary is not None:
+            import sys
+
+            from querido.core.metadata_write import format_write_note
+
+            print(format_write_note(metadata_write_summary), file=sys.stderr)

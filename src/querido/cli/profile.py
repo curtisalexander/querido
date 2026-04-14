@@ -49,6 +49,16 @@ def profile(
         "--db-type",
         help="Database type (sqlite/duckdb/snowflake). Inferred from path if omitted.",
     ),
+    write_metadata: bool = typer.Option(
+        False,
+        "--write-metadata",
+        help="Write deterministic inferences (temporal, etc.) to the table's metadata YAML.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="With --write-metadata: overwrite human-authored fields (confidence 1.0).",
+    ),
 ) -> None:
     """Statistical profile of table columns."""
     from querido.cli._context import maybe_show_sql
@@ -131,6 +141,19 @@ def profile(
                 result["stats"], result["col_info"], result["row_count"]
             )
 
+        metadata_write_summary = None
+        if write_metadata:
+            from querido.core.metadata_write import write_from_profile
+
+            metadata_write_summary = write_from_profile(
+                ctx.connector,
+                connection,
+                ctx.table,
+                result["stats"],
+                result["col_info"],
+                force=force,
+            )
+
         freq_data = None
         if top > 0:
             with ctx.spin(f"Computing top {top} values"):
@@ -164,6 +187,8 @@ def profile(
                 data["column_category"] = classification.get("column_category", {})
             if freq_data is not None:
                 data["frequencies"] = freq_data
+            if metadata_write_summary is not None:
+                data["metadata_write"] = metadata_write_summary
 
             emit_envelope(
                 command="profile",
@@ -196,3 +221,10 @@ def profile(
 
         if freq_data is not None:
             dispatch_output("frequencies", ctx.table, freq_data, result["row_count"])
+
+        if metadata_write_summary is not None:
+            import sys
+
+            from querido.core.metadata_write import format_write_note
+
+            print(format_write_note(metadata_write_summary), file=sys.stderr)

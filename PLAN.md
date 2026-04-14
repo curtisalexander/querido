@@ -39,10 +39,10 @@ The four items that together create the "tool gets better the more it's used" co
 
 ### 1.3 — `--write-metadata` on scanning commands
 
-- [ ] Add `--write-metadata` flag to `profile`, `values`, `quality`
-- [ ] Flag writes computed stats to the table's metadata YAML with provenance fields per value: `source: profile|values|quality|human`, `confidence: 0.0–1.0`, `written_at: <session_id|timestamp>`, `author: $QDO_AUTHOR|git user`
-- [ ] Deterministic auto-fill rules: low-cardinality (<20) string → candidate `valid_values` (0.8); null_rate >95% → `likely_sparse: true`; column name matches `*_at/*_date` + timestamp type → `temporal: true`
-- [ ] Never overwrite a field with `confidence: 1.0` (human-authored) without `--force`
+- [x] Add `--write-metadata` flag to `profile`, `values`, `quality`
+- [x] Flag writes computed stats to the table's metadata YAML with provenance fields per value: `source: profile|values|quality|human`, `confidence: 0.0–1.0`, `written_at: <session_id|timestamp>`, `author: $QDO_AUTHOR|git user`
+- [x] Deterministic auto-fill rules: low-cardinality (<20) string → candidate `valid_values` (0.8); null_rate >95% → `likely_sparse: true`; column name matches `*_at/*_date` + timestamp type → `temporal: true`
+- [x] Never overwrite a field with `confidence: 1.0` (human-authored) without `--force`
 
 **Why:** turns metadata into a byproduct of normal exploration. Starts the compounding loop.
 
