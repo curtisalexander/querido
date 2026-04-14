@@ -328,8 +328,10 @@ def test_import_column_sets_round_trip(
     cfg_dir.mkdir()
     monkeypatch.setenv("QDO_CONFIG", str(cfg_dir))
     (cfg_dir / "connections.toml").write_text(
-        f'[connections.src]\ntype = "sqlite"\npath = "{sqlite_path}"\n'
-        f'[connections.dst]\ntype = "sqlite"\npath = "{other_path}"\n'
+        # Literal strings (single-quoted) so Windows backslashes survive
+        # round-trip — basic strings interpret ``\U`` as a Unicode escape.
+        f"[connections.src]\ntype = \"sqlite\"\npath = '{sqlite_path}'\n"
+        f"[connections.dst]\ntype = \"sqlite\"\npath = '{other_path}'\n"
     )
 
     _seed_metadata("src", "users")
