@@ -20,7 +20,7 @@ def test_report_table_writes_html(sqlite_path: str, tmp_path: Path):
     assert result.exit_code == 0, result.output
     assert out.exists()
 
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     # Page shell + title
     assert "<!DOCTYPE html>" in html
     assert "users — qdo report" in html
@@ -44,7 +44,7 @@ def test_report_table_empty_metadata_panel(sqlite_path: str, tmp_path: Path):
     """Tables without metadata get an explicit empty-state, not a silent omission."""
     out = tmp_path / "report.html"
     runner.invoke(app, ["report", "table", "-c", sqlite_path, "-t", "users", "-o", str(out)])
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     assert "No metadata recorded yet" in html
     assert "qdo metadata init" in html
 
@@ -63,7 +63,7 @@ def test_report_table_no_joins_panel_on_single_table_db(tmp_path: Path):
     out = tmp_path / "report.html"
     result = runner.invoke(app, ["report", "table", "-c", str(db), "-t", "lonely", "-o", str(out)])
     assert result.exit_code == 0, result.output
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     assert ">related tables<" in html
     assert "No candidate join keys" in html
 
@@ -72,7 +72,7 @@ def test_report_table_quality_all_ok_shows_emerald_panel(sqlite_path: str, tmp_p
     """Clean tables should get the emerald 'all passed' panel."""
     out = tmp_path / "report.html"
     runner.invoke(app, ["report", "table", "-c", sqlite_path, "-t", "users", "-o", str(out)])
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     # users has 2 rows, no nulls — quality should be ok.
     assert "All " in html and "columns passed" in html
 
@@ -80,7 +80,7 @@ def test_report_table_quality_all_ok_shows_emerald_panel(sqlite_path: str, tmp_p
 def test_report_table_footer_includes_command(sqlite_path: str, tmp_path: Path):
     out = tmp_path / "report.html"
     runner.invoke(app, ["report", "table", "-c", sqlite_path, "-t", "users", "-o", str(out)])
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     # Footer carries the invocation the user ran.
     assert "qdo" in html and "report" in html and "table" in html
 
@@ -88,6 +88,6 @@ def test_report_table_footer_includes_command(sqlite_path: str, tmp_path: Path):
 def test_report_table_print_friendly_css(sqlite_path: str, tmp_path: Path):
     out = tmp_path / "report.html"
     runner.invoke(app, ["report", "table", "-c", sqlite_path, "-t", "users", "-o", str(out)])
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     assert "@media print" in html
     assert "prefers-color-scheme: dark" in html

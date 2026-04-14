@@ -224,13 +224,22 @@ def run_workflow(
         raw_run = str(step.get("run") or "")
         capture = step.get("capture")
         has_capture = isinstance(capture, str) and bool(capture)
+        # Tokenize the template first, then interpolate each token — doing it
+        # the other way around would feed interpolated values (e.g. Windows
+        # paths like C:\Users\...) through shlex, which treats ``\`` as an
+        # escape and silently eats path separators.
         try:
-            rendered = interpolate(raw_run, context)
+            template_tokens = shlex.split(raw_run)
+        except ValueError as exc:
+            raise WorkflowError(
+                f"step {step_id!r}: run is not a valid command line: {exc}"
+            ) from exc
+        if not template_tokens or template_tokens[0] != "qdo":
+            raise WorkflowError(f"step {step_id!r}: run must begin with 'qdo' (got {raw_run!r})")
+        try:
+            tokens = [interpolate(t, context) for t in template_tokens]
         except UnresolvedReference as exc:
             raise WorkflowError(f"step {step_id!r}: {exc}") from exc
-        tokens = shlex.split(rendered)
-        if not tokens or tokens[0] != "qdo":
-            raise WorkflowError(f"step {step_id!r}: run must begin with 'qdo' (got {rendered!r})")
         tokens = _hoist_format_flag(tokens, has_capture)
         rendered = " ".join(shlex.quote(t) if any(c.isspace() for c in t) else t for t in tokens)
         argv = qdo + tokens[1:]

@@ -109,12 +109,17 @@ def test_export_zip(sqlite_path: str, tmp_path: Path, monkeypatch):
 
 
 def _setup_named_conn(tmp_path: Path, monkeypatch, name: str, db_path: str) -> None:
-    """Register a named sqlite connection pointing at *db_path*."""
+    """Register a named sqlite connection pointing at *db_path*.
+
+    Writes the path as a TOML *literal* string (single-quoted) so Windows
+    backslashes survive round-tripping — basic strings interpret ``\\U``
+    sequences as Unicode escapes and fail to parse drive-letter paths.
+    """
     cfg_dir = tmp_path / f"qdo-config-{name}"
     cfg_dir.mkdir(exist_ok=True)
     monkeypatch.setenv("QDO_CONFIG", str(cfg_dir))
     (cfg_dir / "connections.toml").write_text(
-        f'[connections.{name}]\ntype = "sqlite"\npath = "{db_path}"\n'
+        f"[connections.{name}]\ntype = \"sqlite\"\npath = '{db_path}'\n"
     )
 
 
