@@ -20,12 +20,15 @@ querido/
 ├── integrations/
 │   ├── agent-workflow-example.md    # Example agent workflow with metadata
 │   ├── skills/SKILL.md             # Claude Code skill file
+│   ├── skills/WORKFLOW_AUTHORING.md # Agent-authoring guide for qdo workflows
+│   ├── skills/WORKFLOW_EXAMPLES.md  # Annotated reference to bundled workflow examples
 │   └── continue/qdo.md             # Continue.dev rule
 ├── scripts/
 │   ├── init_test_data.py           # Generate synthetic data → data/test.db + data/test.duckdb
 │   ├── init_tutorial_data.py       # Generate tutorial National Parks DB
 │   ├── check_deps.py              # Dependency checker with supply-chain quarantine
 │   ├── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
+│   ├── eval_workflow_authoring.py # Self-hosting eval: claude -p round-trips WORKFLOW_AUTHORING.md (Phase 4.6)
 │   └── retag.sh                   # Move release tag to current commit
 ├── src/
 │   └── querido/
@@ -72,7 +75,7 @@ querido/
 │       │   ├── tutorial.py         # `qdo tutorial` — interactive tutorial launcher
 │       │   ├── values.py           # `qdo values` — distinct values for a column
 │       │   ├── view_def.py         # `qdo view-def` — view SQL definition retrieval
-│       │   └── workflow.py         # `qdo workflow spec` — declarative workflow schema + examples
+│       │   └── workflow.py         # `qdo workflow spec/run/lint/list/show/from-session` — declarative workflows
 │       ├── connectors/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── base.py             # Connector Protocol, table name validation, error hierarchy
@@ -112,6 +115,11 @@ querido/
 │       │   └── workflow/
 │       │       ├── __init__.py       # load_examples helper + re-exports
 │       │       ├── spec.py           # Authoritative workflow JSON Schema
+│       │       ├── expr.py           # Tiny restricted ${ref} / when evaluator
+│       │       ├── loader.py         # Workflow file discovery (project/user/bundled)
+│       │       ├── lint.py           # Structural + semantic lint
+│       │       ├── runner.py         # Subprocess-based workflow runner
+│       │       ├── from_session.py   # Draft workflow synthesis from a session log
 │       │       └── examples/         # Bundled example workflow YAMLs
 │       ├── sql/
 │       │   ├── __init__.py         # Package marker
@@ -203,6 +211,7 @@ querido/
     ├── test_assert.py              # Assert command tests
     ├── test_bundle.py              # Knowledge bundle tests (export/import/inspect/diff)
     ├── test_workflow_spec.py       # Workflow JSON Schema + bundled examples tests
+    ├── test_workflow_runner.py     # Workflow runner, lint, list, show tests
     ├── test_cache.py               # Metadata cache tests (sync, status, clear)
     ├── test_cancellation.py        # Query cancellation tests
     ├── test_catalog.py             # Catalog command tests (listing, filtering, caching)

@@ -1,0 +1,86 @@
+# why: data-science starter — the first pass a data scientist does after
+# sitting down with a new table that has "feature" columns and one
+# "target" column they intend to model.
+#
+# This workflow uses only existing qdo primitives. The full DS
+# starter needs statistical primitives that don't exist yet (see the
+# "# gap:" comments below). Think of this file as the spec for what
+# those primitives should slot into, not as the finished article.
+#
+# See IDEAS.md ("Data-science primitives") for the full discussion of
+# scope, SQL-first feasibility, and the `querido[stats]` extra.
+name: feature-target-exploration
+description: Data-science starter — profile features, explore target distribution, and flag follow-ups. Uses existing primitives; marks gaps where statistical primitives are needed.
+version: 1
+inputs:
+  connection:
+    type: connection
+    required: true
+    description: Target connection.
+  table:
+    type: table
+    required: true
+    description: Table containing both features and the target.
+  target:
+    type: string
+    required: true
+    description: Name of the target column (what you plan to model).
+steps:
+  # why: schema first — an agent or human needs to see column names and
+  # types before deciding which features are numeric vs categorical.
+  - id: schema
+    run: qdo -f json inspect -c ${connection} -t ${table}
+    capture: schema
+  # why: full profile (not --quick) so per-column distinct counts and
+  # min/max/mean/median/stddev are available for every feature at once.
+  # This is the backbone of univariate exploration.
+  - id: profile
+    run: qdo -f json profile -c ${connection} -t ${table}
+    capture: profile
+  # why: quality surfaces high-null-rate columns (candidate leakage
+  # indicators) and constant columns (useless features). Both are the
+  # first things a DS wants to drop from the feature set.
+  - id: quality
+    run: qdo -f json quality -c ${connection} -t ${table}
+    capture: quality
+  # why: the target's own distribution matters — class balance for
+  # classification, shape/skew for regression. `dist` auto-detects
+  # numeric vs categorical.
+  - id: target_dist
+    run: qdo -f json dist -c ${connection} -t ${table} -C ${target}
+    capture: target_dist
+  # gap: outlier detection per numeric feature. Would be a new
+  # `qdo outliers -c <conn> -t <table> -C <col>` primitive using
+  # IQR (q1, q3, iqr*1.5 bounds) via PERCENTILE_CONT. One SQL query per
+  # column; matrix form does all columns in one scan. No new deps.
+  #
+  # gap: feature-feature correlation matrix. Would be a new
+  # `qdo correlate --matrix --columns A,B,C` primitive. DuckDB and
+  # Snowflake both have `CORR(x, y)` built in; SQLite would need manual
+  # formulas. One SQL scan returns N² sums; Python assembles the matrix.
+  # No new deps for Pearson; Spearman needs ranked windows (supported).
+  #
+  # gap: target-aware feature ranking. Would be a new
+  # `qdo feature-rank --target <col>` primitive that dispatches per
+  # (target_type × feature_type): Pearson/point-biserial for continuous,
+  # Cramér's V for categorical-categorical, ANOVA F for continuous
+  # features against multiclass targets, Information Value for
+  # categorical features against binary targets. Per-group aggregates
+  # in SQL; final math and p-values in Python. Needs `querido[stats]`
+  # extra (numpy + scipy) for distribution functions.
+  #
+  # gap: group-stats with multiple aggregates. Extends pivot: for a
+  # categorical feature split by target, show count + mean(target) +
+  # std(target) + confidence bounds per group. Pure SQL, no new deps.
+outputs:
+  # Surface what we have today — downstream consumers can join this
+  # against future primitives' outputs once they exist.
+  schema: ${schema.data.columns}
+  univariate: ${profile.data.columns}
+  quality_flags: ${quality.data.columns}
+  target_column: ${target}
+  target_type: ${target_dist.data.column_type}
+  target_distribution_mode: ${target_dist.data.mode}
+  target_null_count: ${target_dist.data.null_count}
+  target_distribution: ${target_dist.data.buckets}
+  target_distribution_categorical: ${target_dist.data.values}

@@ -134,12 +134,12 @@ The biggest feature in the plan and the most prone to scope creep. Do Phase 1–
 
 ### 4.2 — Workflow runner and introspection
 
-- [ ] `qdo workflow run <name> [inputs...]` — execute, capture outputs, bind `${captures}`
-- [ ] `qdo workflow lint <file>` — structured errors with `{code, message, fix}` per issue
-- [ ] `qdo workflow list` — bundled + user + project workflows
-- [ ] `qdo workflow show <name>` — print the YAML
-- [ ] Every run auto-creates a session (auto-created if none)
-- [ ] Search paths: `./.qdo/workflows/` → `$XDG_CONFIG_HOME/qdo/workflows/` → bundled
+- [x] `qdo workflow run <name> [inputs...]` — execute, capture outputs, bind `${captures}`
+- [x] `qdo workflow lint <file>` — structured errors with `{code, message, fix}` per issue
+- [x] `qdo workflow list` — bundled + user + project workflows
+- [x] `qdo workflow show <name>` — print the YAML
+- [x] Every run auto-creates a session (auto-created if none)
+- [x] Search paths: `./.qdo/workflows/` → `$XDG_CONFIG_HOME/qdo/workflows/` → bundled
 
 **Acceptance:** `workflow run` executes a non-trivial example end-to-end; `lint` catches malformed YAML, unknown captures, and unsafe steps.
 
@@ -147,8 +147,8 @@ The biggest feature in the plan and the most prone to scope creep. Do Phase 1–
 
 ### 4.3 — `qdo workflow from-session`
 
-- [ ] Generate a draft workflow YAML from the last N steps of a session, parameterizing obvious inputs (connection, table)
-- [ ] Output passes `lint` on happy paths
+- [x] Generate a draft workflow YAML from the last N steps of a session, parameterizing obvious inputs (connection, table)
+- [x] Output passes `lint` on happy paths
 
 **Why:** this is the agent-authoring bootstrap. Agents edit a draft instead of authoring from cold.
 
@@ -156,65 +156,63 @@ The biggest feature in the plan and the most prone to scope creep. Do Phase 1–
 
 **Effort:** 2 days.
 
-### 4.4 — CLI sugar shim
+### 4.4 — CLI sugar shim — **dropped**
 
-- [ ] Typer dispatcher: if no Python handler is registered for `<cmd>`, fall back to `qdo workflow run <cmd>`
-- [ ] `qdo <any-workflow-name> [args]` works identically to `qdo workflow run <any-workflow-name> [args]`
-- [ ] `qdo --help` surfaces workflows alongside primitives
+**Decision (2026-04-14):** `qdo workflow run <name>` stays the canonical invocation. No top-level aliasing of workflows as `qdo <name>`.
 
-**Why:** enables Phase 5 conversions without removing user-visible commands.
+**Rationale:**
+- **Namespace collisions.** A user workflow at `./.qdo/workflows/profile.yaml` would either shadow `qdo profile` (confusing) or be shadowed by it (invisible). Either failure mode is silent.
+- **Trust signal.** `qdo profile` today is a vetted, versioned, documented primitive. Sugar that lets any local YAML occupy the top-level namespace dilutes that signal.
+- **Help bloat.** Mixing contract-stable commands with ad-hoc files in `qdo --help` hurts discoverability of the things we actually maintain.
+- **Verbosity is a feature.** `qdo workflow run foo` tells the reader "this is a composition of primitives" — exactly what a workflow *is*. Hiding that in `qdo foo` obscures a useful distinction.
 
-**Acceptance:** bundled workflows are invokable as `qdo <name>` and as `qdo workflow run <name>` with identical behavior.
-
-**Effort:** 1 day.
+**Implications for Phase 5.** Conversions (see below) now each retain a thin Python entry point that delegates to the runner. The bounded boilerplate is acceptable and actually gives us a place to hang command-specific help text. If Phase 5 proves painful without the shim, revisit — but only for *bundled* workflows, never for user workflows.
 
 ### 4.5 — Agent-authoring documentation
 
-- [ ] `integrations/skills/WORKFLOW_AUTHORING.md` (new) — spec reference, worked examples, common patterns, anti-patterns, lint-error catalog
-- [ ] `integrations/skills/SKILL.md` — add "Writing workflows" section linking to the above
-- [ ] `integrations/continue/qdo.md` — mirror the additions for Continue
-- [ ] `integrations/playbooks/agent-recipes.md` (new) — include "recipe: author a workflow from a recent investigation"
-- [ ] `AGENTS.md` at repo root — document the agent-authoring loop, point at `WORKFLOW_AUTHORING.md`
-- [ ] Bundled workflows get inline `# why:` comments aimed at agents
+- [x] `integrations/skills/WORKFLOW_AUTHORING.md` (new) — spec reference, worked examples, common patterns, anti-patterns, lint-error catalog
+- [x] `integrations/skills/SKILL.md` — add "Writing workflows" section linking to the above
+- [x] `integrations/continue/qdo.md` — mirror the additions for Continue
+- [~] `integrations/playbooks/agent-recipes.md` — **dropped**; the "author from a recent investigation" recipe is in `WORKFLOW_AUTHORING.md`'s authoring loop instead. Avoids creating a directory for a single file.
+- [x] `AGENTS.md` at repo root — document the agent-authoring loop, point at `WORKFLOW_AUTHORING.md`
+- [x] Bundled workflows get inline `# why:` comments aimed at agents
 
 **Why:** without these, agents produce plausible-looking YAML that doesn't run. This is on the critical path, not after it.
 
 **Acceptance:** see Phase 4.6's self-hosting eval.
 
-**Effort:** 2–3 days, parallel to 4.1–4.4.
+**Effort:** 2–3 days, parallel to 4.1–4.3.
 
 ### 4.6 — Self-hosting eval (Option 1, `claude -p`)
 
-- [ ] CI script that feeds `WORKFLOW_AUTHORING.md` + `qdo workflow spec -f json` + `qdo workflow spec --examples` + a task prompt to `claude -p --model claude-opus-4-6`
-- [ ] Writes result to scratch, runs `qdo workflow lint` + `qdo workflow run` against fixture DB
-- [ ] Pass = lint 0 + run 0 + output matches golden file or schema check
-- [ ] 3 target tasks the model has not seen
-- [ ] Billing note: uses Max subscription via `claude -p`; `unset ANTHROPIC_API_KEY` in CI to avoid silent API billing
+- [x] Script (`scripts/eval_workflow_authoring.py`) that feeds `WORKFLOW_AUTHORING.md` + `qdo workflow spec` + `qdo workflow spec --examples` + a task prompt to `claude -p --model claude-opus-4-6`
+- [x] Writes result to scratch, runs `qdo workflow lint` + `qdo workflow run` against fixture DB (`data/test.duckdb`)
+- [x] Pass = lint 0 + run 0 + shape assertion on the run envelope (golden files would flake on LLM nondeterminism; per-task shape check instead)
+- [x] 3 target tasks the model has not seen (basic composition, conditional follow-up, diff→joins)
+- [x] Billing guardrails: refuses to run if `ANTHROPIC_API_KEY` is set; 120s timeout per model call, 60s per workflow run
+- [~] CI integration: **deliberately deferred.** `claude -p` needs a Max subscription and the eval isn't cheap. Documented in the script's module docstring; rerun locally after any docs/implementation revision. If we later automate, use `workflow_dispatch`-only GitHub Actions.
 
 **Why:** the only objective signal that our agent docs are sufficient.
 
 **Acceptance:** ≥2 of 3 tasks pass on frontier model; any failure drives a docs revision, not a model change.
 
+**First run (2026-04-14, opus-4-6):** 2/3 passed. T1 and T3 passed cleanly. T2 (conditional `quality → context`) produced a lint-clean workflow that `qdo context` then crashed on (`TypeError: 'datetime.date' object is not subscriptable`). That's a qdo bug, not a docs issue — exactly the kind of signal the eval is meant to surface. File a tracking item; docs pass.
+
 **Effort:** 1 day.
 
 ---
 
-## Phase 5 — Subcommand conversions to workflows (~1 week)
+## Phase 5 — Subcommand conversions to workflows — **skipped**
 
-Use the CLI sugar shim; aliases preserve every current command name. Snapshot-test output shape before/after each conversion.
+**Decision (2026-04-14):** skip Phase 5 entirely.
 
-- [ ] **5.1 Pilot: convert `template`** — end-to-end with snapshot tests. Validates spec + shim + eval path
-- [ ] **5.2** Convert `sql scratch`
-- [ ] **5.3** Convert `pivot`
-- [ ] **5.4** Convert `joins`
-- [ ] **5.5** Convert `sql task`, `sql procedure`
-- [ ] **5.6** Convert `snowflake semantic`
-- [ ] **5.7** Convert `view-def` (if it's a thin SQL-function wrapper)
-- [ ] **5.8** Revisit: externalize `profile --classify` rules to a readable YAML (keep the scan primitive)
+**Rationale.** After Phase 4 landed, we looked hard at the conversion candidates (`template`, `sql scratch`, `pivot`, `joins`, `sql task/procedure`, `snowflake semantic`, `view-def`) and found none of them are natural compositions of existing qdo primitives. Every one is "fetch metadata, render it a specific way" — and the *rendering* is the differentiator, which workflows can't express. Converting them would require either adding a `qdo render` primitive (speculative, big design lift) or inserting a workflow layer that gathers data only to re-inject it into the existing Python rendering (performance regression, no ergonomic gain).
 
-**Acceptance per conversion:** JSON output byte-identical to pre-conversion version (modulo `generated_at`-style fields). Perf regression ≤50ms on fixture tables.
+Workflows are better understood as a **composition layer for user investigations layered on top of primitives**, not as a replacement for renderer commands. The Phase 5 premise was wrong; we're closing the phase instead of forcing conversions through.
 
-**Stay as primitives** (do not convert): `catalog`, `inspect`, `preview`, `profile`, `context`, `quality`, `dist`, `values`, `query`, `explain`, `assert`, `export`, `config/cache/metadata *`, `explore`, `snowflake lineage`.
+**What we did instead.** Authored four additional bundled workflows that showcase genuine composition patterns: `column-deep-dive`, `wide-table-triage`, `table-handoff`, `feature-target-exploration`. Each teaches a pattern not covered by the original two examples. See `src/querido/core/workflow/examples/` and `integrations/skills/WORKFLOW_EXAMPLES.md`.
+
+**Related:** `feature-target-exploration` contains `# gap:` comments pointing at missing statistical primitives (outliers, correlate, feature-rank, etc.). The feasibility analysis lives in IDEAS.md → "Data-science primitives". **Decision deferred** — revisit based on real user demand.
 
 ---
 
@@ -265,6 +263,7 @@ Use the CLI sugar shim; aliases preserve every current command name. Snapshot-te
 - Snowflake RESULT_SCAN reuse for chained queries
 - Pyodide `querido-lite` browser demo (only if concrete adoption use case pulls for it)
 - MCP thin wrapper (defer; keep CLI surface MCP-ready)
+- **Bug: `qdo context` on date/datetime columns.** Surfaced by the 4.6 self-hosting eval (2026-04-14, T2): running `qdo -f json context -c data/test.duckdb -t customers` raises `TypeError: 'datetime.date' object is not subscriptable`. Reproduce via the `customers` fixture.
 
 ---
 
@@ -280,6 +279,6 @@ Use the CLI sugar shim; aliases preserve every current command name. Snapshot-te
 ## Sequencing invariants
 
 - Phase 1 before Phase 2, 3, 4 (sessions enable everything downstream)
-- Phase 4.5 (docs) in parallel with 4.1–4.4, not after
-- Phase 5 after Phase 4 lands and is internally stable
+- Phase 4.5 (docs) in parallel with 4.1–4.3, not after
+- Phase 5 skipped (see phase header for rationale)
 - Phase 6.1 depends on 4.2 (sessions must exist); 6.2–6.3 independent

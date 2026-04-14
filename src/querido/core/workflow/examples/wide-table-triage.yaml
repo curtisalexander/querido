@@ -1,0 +1,40 @@
+# why: triage pattern for tables with many columns. An agent reading this
+# learns the "same primitive, different flags" idiom (two `profile` steps
+# with distinct step ids) and the tiered-profiling workflow: quick scan
+# first, then classify to decide where to focus. Follow-up:
+# `qdo config column-set save` persists the chosen subset for repeat runs.
+name: wide-table-triage
+description: Fast triage for wide tables — quick profile for row/null counts, then classify columns so you know where to focus.
+version: 1
+inputs:
+  connection:
+    type: connection
+    required: true
+    description: Target connection (named or file path).
+  table:
+    type: table
+    required: true
+    description: Table to triage (best when column count > 50).
+steps:
+  # why: --quick skips per-column frequency queries, returning only null
+  # counts and distinct counts. Fast even on very wide tables, and
+  # enough to spot "this column is all null" or "this column is the PK".
+  - id: quick
+    run: qdo -f json profile -c ${connection} -t ${table} --quick
+    capture: quick
+  # why: --classify categorizes columns (numeric / categorical / temporal
+  # / high-cardinality / identifier). The result plus the quick-scan
+  # stats is usually enough to pick a focused column-set for the next
+  # full profile run. Second `profile` step uses a different id; ids
+  # must be unique even when the subcommand repeats.
+  - id: classified
+    run: qdo -f json profile -c ${connection} -t ${table} --classify
+    capture: classified
+outputs:
+  row_count: ${quick.data.row_count}
+  column_count_by_category: ${classified.data.categories}
+  column_category: ${classified.data.column_category}
+  quick_scan: ${quick.data.columns}
+  # Follow-up hint for agents: after reviewing the classification, pick a
+  # subset and run `qdo profile --columns ...` or save the selection
+  # with `qdo config column-set save -n <name> --columns ...`.

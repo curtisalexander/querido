@@ -1,0 +1,51 @@
+# why: single-column investigation pattern. A coding agent reading this
+# learns that `dist` handles both numeric and categorical columns — no
+# `when:` type check is needed. Also teaches a one-input focus (column)
+# alongside the usual connection+table pair.
+name: column-deep-dive
+description: Single-column focus — inspect the table, list distinct values, and show the column's distribution.
+version: 1
+inputs:
+  connection:
+    type: connection
+    required: true
+    description: Target connection (named or file path).
+  table:
+    type: table
+    required: true
+    description: Table containing the column.
+  column:
+    type: string
+    required: true
+    description: Column to investigate.
+  top_n:
+    type: integer
+    default: 20
+    description: Maximum distinct values to list (ignored for high-cardinality columns).
+steps:
+  # why: inspect gives the authoritative column list so downstream tools
+  # can check existence and type. Captured so outputs can echo the column
+  # list for context.
+  - id: schema
+    run: qdo -f json inspect -c ${connection} -t ${table}
+    capture: schema
+  # why: values returns distinct-value counts; useful for categorical
+  # columns and for understanding cardinality. Safe to run on numerics
+  # too — it'll truncate at the top_n limit.
+  - id: values
+    run: qdo -f json values -c ${connection} -t ${table} -C ${column} --max ${top_n}
+    capture: values
+  # why: dist auto-detects numeric vs categorical (mode in the output).
+  # Running it unconditionally is simpler than gating on type and works
+  # for both shapes — no `when:` needed.
+  - id: dist
+    run: qdo -f json dist -c ${connection} -t ${table} -C ${column}
+    capture: dist
+outputs:
+  column: ${column}
+  distinct_count: ${values.data.distinct_count}
+  null_count: ${values.data.null_count}
+  column_type: ${dist.data.column_type}
+  distribution_mode: ${dist.data.mode}
+  top_values: ${values.data.values}
+  buckets: ${dist.data.buckets}

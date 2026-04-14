@@ -1,0 +1,52 @@
+# why: "handoff" pattern — compose inspect/profile/quality into a single
+# structured output suitable for pasting into a PR description, a
+# ticket, or an agent prompt. Teaches optional inputs with defaults
+# and rich fan-in output composition.
+name: table-handoff
+description: Prepare a one-shot table summary (schema, stats, quality) ready to paste into a PR or ticket.
+version: 1
+inputs:
+  connection:
+    type: connection
+    required: true
+    description: Target connection (named or file path).
+  table:
+    type: table
+    required: true
+    description: Table to summarize.
+  sample_values:
+    type: integer
+    default: 10
+    description: How many sample values per column to surface (passed through to inspect via context-style inputs in future).
+steps:
+  # why: inspect is the cheapest way to get the authoritative column list
+  # and PK/nullable/comment metadata. Captured so the handoff can
+  # surface schema shape directly.
+  - id: schema
+    run: qdo -f json inspect -c ${connection} -t ${table}
+    capture: schema
+  # why: --quick avoids per-column frequency queries. For a handoff
+  # document the caller wants the *shape* of the data (null rates,
+  # distinct counts), not top-value lists, which would clutter the
+  # summary. If the reader wants more depth, point them at
+  # `qdo context` or `qdo values`.
+  - id: stats
+    run: qdo -f json profile -c ${connection} -t ${table} --quick
+    capture: stats
+  # why: quality flags null-rate anomalies and uniqueness surprises.
+  # Including this in the handoff lets the reader decide whether the
+  # table is ready to use without re-running the investigation.
+  - id: quality
+    run: qdo -f json quality -c ${connection} -t ${table}
+    capture: quality
+outputs:
+  # Shape deliberately matches what an agent would paste into a
+  # markdown-friendly summary: top-level facts, then nested lists.
+  # Uses inspect's row_count rather than profile's to minimize
+  # reliance on the slower step.
+  table: ${table}
+  row_count: ${schema.data.row_count}
+  schema: ${schema.data.columns}
+  profile: ${stats.data.columns}
+  quality: ${quality.data.columns}
+  requested_sample_values: ${sample_values}

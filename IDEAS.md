@@ -849,3 +849,35 @@ The earlier "Web UI polish" wishlist (CodeMirror editor, WebSockets, bookmarks, 
 - Background cache refresh
 - Incremental sync via `information_schema.tables.last_altered`
 - Use DuckDB instead of SQLite for cache to enable analytics on cached metadata
+
+## Data-science primitives
+
+Notes drafted while authoring the bundled `feature-target-exploration` workflow (2026-04-14). The workflow ships today with `# gap:` comments pointing at missing statistical primitives; this section captures the feasibility analysis if we decide to fill those gaps.
+
+**Use case.** A data scientist sits down with a table containing candidate features and a target column they plan to model. Before touching a notebook or a trainer, they want: univariate distributions per feature, outlier counts, feature-feature correlations, feature-target relationship ranking, and group-wise target statistics for categorical features. Today qdo covers univariate (via `profile`/`quality`/`dist`) but nothing downstream.
+
+### Gap primitives
+
+| Primitive | What it does | SQL feasibility | New deps |
+|---|---|---|---|
+| `qdo outliers -C <col>` | IQR flags per numeric column (Q1, Q3, bounds, flagged-row count) | DuckDB/Snowflake: `PERCENTILE_CONT`. SQLite: unsupported — declare and error clearly. | None |
+| `qdo correlate --x A --y B` | Pearson / Spearman correlation between two columns | `CORR()` built-in on DuckDB/Snowflake; Spearman via ranked window. SQLite: manual formula. | None |
+| `qdo correlate --matrix --columns A,B,...` | N×N correlation matrix | One SQL scan returns N² pairwise sums; Python assembles the matrix from aggregates (no row materialization). | None (numpy optional for matrix ops) |
+| `qdo groupby-stats -g <col> -a <col>` | Per-group count, mean, stddev, percentiles (extends `pivot` to multi-aggregate) | Pure SQL. | None |
+| `qdo feature-rank --target T` | Per-feature score vs target, sorted; dispatches by (target_type × feature_type) | Per-group stats in SQL; F-stat / chi² / IV math in Python from O(k) rows. | `querido[stats]` (numpy + scipy) for distribution functions (`scipy.stats.f.sf`, `scipy.stats.chi2.sf`) |
+| `qdo info-value -t T --target Y --feature F` | Information Value (IV) and Weight of Evidence (WoE) for a feature against a binary target | SQL (binning + aggregates). | None |
+| `qdo cramer-v --columns A,B,...` | Cramér's V matrix over categoricals | Contingency table per pair in SQL; ratio math in Python. | `querido[stats]` (chi² critical values) |
+
+### Feasibility summary
+
+- **Tier 1 (zero-dep, SQL-only):** `correlate` (pairs + matrix), `outliers`, `groupby-stats`, `info-value` for binary-target/categorical-feature case. ~3–4 days. Defensible as "qdo speaks basic statistics against live DBs" without crossing into scipy territory.
+- **Tier 2 (`querido[stats]`):** `feature-rank` with full type-aware dispatch, `cramer-v` matrix, ANOVA F-tests, KS tests. ~1–2 weeks. Adds numpy + scipy (~35 MB). Real differentiator — nobody currently owns "feature ranking against a live Snowflake/DuckDB without materializing rows."
+- **Tier 3 (`querido[viz]`):** correlation heatmaps, feature-importance bars as inline HTML/PNG. Speculative; qdo is text-first.
+
+### Alignment with qdo's identity
+
+**Fits:** deterministic (no ML-in-the-loop), SQL-first, file-based output, agent-readable. Unique position vs. pandas-profiling / ydata-profiling (those require DataFrames; qdo would operate on warehouse-scale data with only aggregate round-trips).
+
+**Tension:** adds a new persona (data scientist). Partial commitment is worse than no commitment — a DS who uses `feature-rank` will immediately want train/test splits, target encoding preview, and feature engineering, none of which fit qdo's "exploration" frame. If we pursue this, be intentional about where we stop.
+
+**Decision deferred.** The `feature-target-exploration` workflow with `# gap:` comments is the MVP: costs nothing, surfaces demand, gives future contributors a clear spec. Revisit in 2–3 months based on whether anyone reaches for the workflow and hits the gaps.

@@ -14,16 +14,23 @@ inputs:
     required: true
     description: Table to summarize.
 steps:
+  # why: inspect gives the authoritative column list, PK/nullable flags, and
+  # comments. Captured as ${schema} so downstream could gate on column shape.
   - id: inspect
-    run: qdo inspect -c ${connection} -t ${table} -f json
+    run: qdo -f json inspect -c ${connection} -t ${table}
     capture: schema
+  # why: --quick is the right profile mode for a generic summary — one scan,
+  # no per-column frequency queries. Use the non-quick form only when the
+  # workflow is scoped to a known-narrow table.
   - id: profile
-    run: qdo profile -c ${connection} -t ${table} --quick -f json
+    run: qdo -f json profile -c ${connection} -t ${table} --quick
     capture: stats
+  # why: quality surfaces null-rate and uniqueness anomalies that profile
+  # alone won't flag. Captured so callers can drive follow-up decisions.
   - id: quality
-    run: qdo quality -c ${connection} -t ${table} -f json
+    run: qdo -f json quality -c ${connection} -t ${table}
     capture: quality
 outputs:
-  column_count: ${schema.data.column_count}
   row_count: ${stats.data.row_count}
-  failing_checks: ${quality.data.failing_checks}
+  columns: ${schema.data.columns}
+  quality_columns: ${quality.data.columns}

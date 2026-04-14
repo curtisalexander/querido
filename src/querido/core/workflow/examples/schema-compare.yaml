@@ -17,14 +17,20 @@ inputs:
     required: true
     description: Second table.
 steps:
+  # why: diff returns three lists (added/removed/changed). Capturing it lets
+  # the next step gate on non-empty diffs without rescanning either table.
   - id: diff
-    run: qdo diff -c ${connection} -t ${left} --other ${right} -f json
+    run: qdo -f json diff -c ${connection} -t ${left} --target ${right}
     capture: diff
   - id: joins
-    when: ${diff.data.differs}
-    run: qdo joins -c ${connection} -t ${left} --other ${right} -f json
+    # why: only bother discovering join keys when the schemas actually differ.
+    # A non-empty `changed` list is the simplest signal without needing
+    # helper functions in the expression grammar.
+    when: ${diff.data.changed} or ${diff.data.added} or ${diff.data.removed}
+    run: qdo -f json joins -c ${connection} -t ${left} --target ${right}
     capture: joins
 outputs:
-  differs: ${diff.data.differs}
-  shared_columns: ${diff.data.shared_columns}
+  changed_columns: ${diff.data.changed}
+  added_columns: ${diff.data.added}
+  removed_columns: ${diff.data.removed}
   candidate_join_keys: ${joins.data.candidates}

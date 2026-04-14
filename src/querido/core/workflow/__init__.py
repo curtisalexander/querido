@@ -1,8 +1,13 @@
-"""Workflow spec and (future) runner.
+"""Workflow spec, loader, runner, and lint.
 
-Phase 4.1 ships only the spec and bundled examples; runner/lint land in
-later phases.  See :mod:`querido.core.workflow.spec` for the authoritative
-JSON Schema and :func:`load_examples` for the bundled example YAML files.
+Phase 4.1 shipped the spec + bundled examples; Phase 4.2 added the
+runner, lint, list, and show.  See sibling modules for implementation:
+
+- :mod:`~querido.core.workflow.spec` — authoritative JSON Schema
+- :mod:`~querido.core.workflow.loader` — file discovery and parsing
+- :mod:`~querido.core.workflow.lint` — structural + semantic checks
+- :mod:`~querido.core.workflow.runner` — end-to-end execution
+- :mod:`~querido.core.workflow.expr` — tiny expression evaluator
 """
 
 from __future__ import annotations

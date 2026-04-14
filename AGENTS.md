@@ -354,6 +354,33 @@ qdo cache sync -c my-snowflake-conn --cache-ttl 0  # force re-sync
 qdo -f json cache status                           # check cache freshness
 ```
 
+## Authoring workflows
+
+A **workflow** is a YAML file that composes `qdo` subcommands into a parameterized, repeatable investigation. Workflows are declarative — only `qdo` invocations, typed inputs, captured step outputs, and simple conditionals. No shell escape, no embedded Python.
+
+Canonical invocation: `qdo workflow run <name> key=value key=value`. There is **no** top-level `qdo <workflow-name>` alias — that was considered and dropped for namespace-clarity reasons.
+
+**Agent-authoring loop** (investigate → codify → lint → run):
+
+```bash
+QDO_SESSION=scratch qdo catalog -c mydb
+QDO_SESSION=scratch qdo context -c mydb -t orders
+QDO_SESSION=scratch qdo quality -c mydb -t orders
+qdo workflow from-session scratch --name orders-summary \
+  -o .qdo/workflows/orders-summary.yaml
+qdo workflow lint .qdo/workflows/orders-summary.yaml
+qdo workflow run orders-summary connection=mydb table=orders
+```
+
+Files:
+
+- `src/querido/core/workflow/spec.py` — authoritative JSON Schema
+- `src/querido/core/workflow/examples/` — bundled reference workflows
+- `src/querido/core/workflow/{loader,lint,runner,from_session,expr}.py` — implementation
+- `integrations/skills/WORKFLOW_AUTHORING.md` — full authoring guide (grammar, lint-error catalog, patterns, anti-patterns). This is the doc an agent should load when asked to write a workflow.
+
+See `integrations/skills/WORKFLOW_AUTHORING.md` for the complete authoring guide.
+
 ## Interactive Tutorials
 
 ```bash

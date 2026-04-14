@@ -271,6 +271,37 @@ fields before treating statistics as exact.
 - **pivot aggregations** — the `-a` argument is a SQL aggregate expression: `"count(*)"`, `"avg(price)"`, `"sum(revenue)"`. Quote it to prevent shell interpretation.
 - **Wide tables** — `--quick` auto-engages at 50+ columns (only null counts + distinct counts). Use `--classify` for a category breakdown. Use `--column-set` to reuse a saved selection. Configurable threshold: `export QDO_QUICK_THRESHOLD=100`.
 
+## Workflows — author, run, share
+
+A **workflow** is a YAML file that composes `qdo` commands into a parameterized, repeatable investigation. Use workflows when the same 3+ step pattern repeats against different tables or connections.
+
+```bash
+qdo workflow list                   # bundled + user + project workflows
+qdo workflow spec                   # JSON Schema (authoritative contract)
+qdo workflow spec --examples        # bundled example YAMLs
+qdo workflow show <name>            # print the YAML
+qdo workflow lint <name-or-path>    # structured issues with fix hints
+qdo workflow run <name> key=value key=value
+```
+
+**Canonical invocation is `qdo workflow run <name>`.** There is no top-level `qdo <workflow-name>` alias.
+
+**Authoring loop** (investigate interactively, then codify):
+
+```bash
+QDO_SESSION=scratch qdo catalog -c mydb
+QDO_SESSION=scratch qdo context -c mydb -t orders
+QDO_SESSION=scratch qdo quality -c mydb -t orders
+qdo workflow from-session scratch --name orders-summary \
+  -o .qdo/workflows/orders-summary.yaml
+qdo workflow lint .qdo/workflows/orders-summary.yaml
+qdo workflow run orders-summary connection=mydb table=orders
+```
+
+Full guides (in the qdo repo):
+- `integrations/skills/WORKFLOW_AUTHORING.md` — grammar, lint-error catalog, patterns, anti-patterns.
+- `integrations/skills/WORKFLOW_EXAMPLES.md` — annotated walkthrough of the six bundled examples.
+
 ## Discover all commands
 
 ```bash

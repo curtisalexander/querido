@@ -38,7 +38,15 @@ def test_spec_examples_flag_emits_bundled_yaml() -> None:
 
 def test_load_examples_returns_nonempty_yaml() -> None:
     examples = load_examples()
-    assert set(examples) == {"schema-compare.yaml", "table-summary.yaml"}
+    expected = {
+        "column-deep-dive.yaml",
+        "feature-target-exploration.yaml",
+        "schema-compare.yaml",
+        "table-handoff.yaml",
+        "table-summary.yaml",
+        "wide-table-triage.yaml",
+    }
+    assert set(examples) == expected
     for text in examples.values():
         assert text.strip().startswith("#") or text.startswith("name:")
 

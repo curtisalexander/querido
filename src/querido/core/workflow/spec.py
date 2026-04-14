@@ -115,8 +115,7 @@ WORKFLOW_SCHEMA: dict[str, Any] = {
                     "type": "string",
                     "pattern": _IDENTIFIER,
                     "description": (
-                        "Unique step identifier "
-                        "(used as capture name if no capture given)."
+                        "Unique step identifier (used as capture name if no capture given)."
                     ),
                 },
                 "run": {
