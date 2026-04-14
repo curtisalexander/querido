@@ -43,6 +43,7 @@ querido/
 │       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, destructive SQL guard
 │       │   ├── main.py             # Entry point, Typer app, lazy subcommand loading
 │       │   ├── assert_cmd.py       # `qdo assert` — assert conditions on query results (CI-friendly)
+│       │   ├── bundle.py           # `qdo bundle export/import/inspect/diff` — portable knowledge bundles
 │       │   ├── cache.py            # `qdo cache sync/status/clear` — metadata cache management
 │       │   ├── catalog.py          # `qdo catalog` — full database catalog (tables, columns, row counts)
 │       │   ├── completion.py       # `qdo completion show` — shell completion scripts
@@ -84,6 +85,7 @@ querido/
 │       │   ├── _concurrent.py      # Parallel query execution helper (thread pool)
 │       │   ├── _utils.py           # Shared helpers: type detection, classification, sampling
 │       │   ├── assert_check.py     # Assert condition checking logic
+│       │   ├── bundle.py           # Knowledge bundle export/import/diff logic + schema fingerprint
 │       │   ├── catalog.py          # Full database catalog logic (live, cached, enriched, filtered)
 │       │   ├── context.py          # Context logic (schema + stats + sample values, single scan)
 │       │   ├── diff.py             # Schema diff logic
@@ -194,6 +196,7 @@ querido/
     ├── conftest.py                 # Shared fixtures (temp databases, test tables)
     ├── test_agent_mode.py          # Agent mode (QDO_FORMAT=json) tests
     ├── test_assert.py              # Assert command tests
+    ├── test_bundle.py              # Knowledge bundle tests (export/import/inspect/diff)
     ├── test_cache.py               # Metadata cache tests (sync, status, clear)
     ├── test_cancellation.py        # Query cancellation tests
     ├── test_catalog.py             # Catalog command tests (listing, filtering, caching)

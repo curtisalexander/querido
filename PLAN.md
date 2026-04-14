@@ -100,12 +100,14 @@ The four items that together create the "tool gets better the more it's used" co
 
 ### 3.1 — Knowledge bundle export/import MVP
 
-- [ ] `.qdobundle` format: directory or zip containing `manifest.yaml`, `metadata/*.yaml`, optionally `column-sets/*.yaml`
-- [ ] `qdo bundle export -c <conn> -t <tables> -o <file>` — package metadata with `schema_fingerprint` per table (hash of columns+types)
-- [ ] `qdo bundle import <file> --into <conn>` — preview diff by default, `--apply` writes; `--strategy keep-higher-confidence|theirs|mine|ask`
-- [ ] `qdo bundle diff a.qdobundle b.qdobundle`
-- [ ] `qdo bundle inspect <file>` — summary
-- [ ] `--redact` drops fields from PII-flagged columns
+- [x] `.qdobundle` format: directory or zip containing `manifest.yaml`, `metadata/*.yaml`, optionally `column-sets/*.yaml`
+- [x] `qdo bundle export -c <conn> -t <tables> -o <file>` — package metadata with `schema_fingerprint` per table (hash of columns+types)
+- [x] `qdo bundle import <file> --into <conn>` — preview diff by default, `--apply` writes; `--strategy keep-higher-confidence|theirs|mine|ask`
+- [x] `qdo bundle diff a.qdobundle b.qdobundle`
+- [x] `qdo bundle inspect <file>` — summary
+- [x] `--redact` drops fields from PII-flagged columns
+
+> Future: sessions in bundles.  IDEAS.md proposes shipping a session log alongside metadata so the "how we learned this" narrative travels with the facts.  Deferred — the `core/bundle.py` layout leaves a `sessions/` slot open for a follow-up phase.
 
 **Why:** unlocks team-level compounding. One person's investigation makes the next person's agent smarter.
 
