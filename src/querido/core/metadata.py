@@ -348,5 +348,5 @@ def _read_yaml(path: Path) -> dict | None:
     try:
         with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f)
-    except Exception:
+    except (OSError, yaml.YAMLError):
         return None

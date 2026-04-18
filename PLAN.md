@@ -222,9 +222,9 @@ Critical + tactical review conducted before starting Phase 6. One item (R.1) is 
 
 ### Resume point
 
-R.1–R.21 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
+R.1–R.22 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
 
-Remaining review work: **R.22 through R.26 (traditional code quality)** — all small, none blocking. See the section of the same name below. Pick any of them up independently; they don't depend on each other except that R.22 and R.23 naturally go together (R.22 narrows bare `except Exception`, R.23 routes connector errors through `ConnectorError` — once R.23 lands, some R.22 fixes get cleaner).
+Remaining review work: **R.23 through R.26 (traditional code quality)** — all small, none blocking. See the section of the same name below. Pick any of them up independently; R.23 will clean up the `except Exception` rationale comments R.22 left behind in `core/catalog.py` and `core/bundle.py`.
 
 Outside the R-series: **Phase 6.1** (`qdo report session` HTML) is the next planned work after review items settle.
 
@@ -441,14 +441,14 @@ Extended the existing `qdo workflow lint` with optional schema-aware checks rath
 - [x] Updated `ARCHITECTURE.md` project-structure block to drop the `null_count/` subsection.
 - [x] No tests touched the template path (grep clean); `ruff format`, `ruff check`, `ty check`, `pytest` all green.
 
-#### R.22 — Narrow broad `except Exception:` handlers
+#### R.22 — Narrow broad `except Exception:` handlers — **done (2026-04-18)**
 
-- [ ] CLI: `cli/report.py:91`, `cli/overview.py:329,373`, `cli/_errors.py:163`, `config.py:50`
-- [ ] Core: `core/metadata.py:279`, `core/catalog.py:57,224`, `core/bundle.py:102,428`
-- [ ] Connectors: `connectors/factory.py:37`
-- [ ] Replace each with specific exception types; leave a one-line comment where the fallback is intentional
+Narrowed 6 handlers to specific exception types; kept 5 broad with inline comments explaining the intentional fallback. All 11 sites listed in the original audit addressed:
 
-**Effort:** half day.
+- [x] Narrowed: `cli/report.py` + `cli/_errors.py` Click-context defensive reads → `(AttributeError, LookupError)`; `cli/overview.py` Click `list_commands` → `(AttributeError, TypeError)`; `config.py` atomic-write rollback → `OSError`; `core/metadata.py:_read_yaml` → `(OSError, yaml.YAMLError)`.
+- [x] Kept broad with one-line rationale comment: `cli/overview.py:_print_json` introspection fallback (Typer/Click internals can fail in many ways), `core/catalog.py` bulk + per-table row-count fallbacks, `core/bundle.py:_fingerprint_for_table` + diff target-DB probe (driver errors vary by connector — R.23 will normalize through `ConnectorError`), `connectors/factory.py` parquet registration (close-and-reraise, untouched propagation).
+- [x] Out-of-scope sites intentionally left for R.23 / R.11's friendly_errors decorator / TUI error display (`cli/_errors.py:74`, `cli/_pipeline.py:{79,121,128,153}`, `cli/config.py:237`, `tui/*`, `cache.py`, `core/context.py`, `core/workflow/loader.py`). These either already classify exceptions via `_classify_error`, surface them via the TUI, or intentionally swallow in best-effort background work.
+- [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 894 passing, 24 skipped — no behavioral change.
 
 #### R.23 — Use connector error hierarchy consistently
 

@@ -35,6 +35,9 @@ def create_connector(config: dict) -> Connector:
             try:
                 connector.register_parquet(config["parquet_path"])
             except Exception:
+                # register_parquet can fail with duckdb.Error, OSError, or
+                # anything the driver raises for a bad path. Close the
+                # connector to release the handle, then re-raise untouched.
                 connector.close()
                 raise
         return connector

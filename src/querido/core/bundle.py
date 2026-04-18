@@ -100,6 +100,9 @@ def _fingerprint_for_table(connector: Connector, table: str) -> str | None:
     try:
         cols = connector.get_columns(table)
     except Exception:
+        # Best-effort — missing table or any driver-layer failure
+        # short-circuits to an absent fingerprint; R.23 will route these
+        # through ConnectorError.
         return None
     return compute_schema_fingerprint(cols)
 
@@ -426,6 +429,9 @@ def import_bundle(
                     else:
                         target_fps[tgt] = None
         except Exception:
+            # Best-effort: if we can't reach the target DB, diff still runs
+            # without drift checks. Connection-resolution, import, or driver
+            # errors all fall through here (R.23 will normalize driver errors).
             pass
 
         table_diffs: list[dict] = []

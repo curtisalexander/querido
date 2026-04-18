@@ -160,7 +160,7 @@ def _try_next_for(code: str) -> list[dict]:
             connection = connection or params.get("connection")
             table = table or params.get("table")
             ctx = ctx.parent
-    except Exception:
+    except (AttributeError, LookupError):
         pass
 
     return for_error(code, connection=connection, table=table)

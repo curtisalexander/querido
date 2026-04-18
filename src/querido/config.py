@@ -47,7 +47,7 @@ def _write_toml_atomic(path: Path, data: dict) -> None:
         closed = True
         Path(tmp).replace(path)
         path.chmod(0o600)
-    except Exception:
+    except OSError:
         if not closed:
             os.close(fd)
         Path(tmp).unlink(missing_ok=True)

@@ -88,7 +88,7 @@ def _reconstruct_command(*, table: str, connection: str, output: str | None) -> 
                 from querido.output.envelope import cmd
 
                 return cmd(["qdo", *raw])
-    except Exception:
+    except (AttributeError, LookupError):
         pass
 
     parts = ["qdo", "report", "table", "-c", connection, "-t", table]

@@ -55,6 +55,9 @@ def get_catalog(
     try:
         row_counts = connector.get_table_row_counts(table_names)
     except Exception:
+        # Driver errors vary by connector (sqlite3.Error, duckdb.Error,
+        # snowflake.Error); R.23 will normalize through ConnectorError.
+        # Any failure falls through to per-table counts below.
         row_counts = {}
 
     concurrent = getattr(connector, "supports_concurrent_queries", False)
@@ -222,6 +225,8 @@ def _fetch_table_detail(
         try:
             row_count = connector.get_row_count(name)
         except Exception:
+            # Same rationale as the bulk path above — tolerate any
+            # driver-layer failure and report row_count=None.
             row_count = None
 
     return {

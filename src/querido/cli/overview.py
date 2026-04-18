@@ -329,7 +329,7 @@ def _introspect_command(name: str, module_path: str) -> dict:
             sub_names = click_group.list_commands(ctx)
             if sub_names:
                 subcommands = sorted(sub_names)
-        except Exception:
+        except (AttributeError, TypeError):
             pass
 
     # Extract options from the main callback command
@@ -374,7 +374,8 @@ def _print_json() -> None:
                 cmd = _introspect_command(name, module_path)
                 cmd["category"] = category
             except Exception:
-                # Fallback: minimal entry from category metadata
+                # Introspection can fail for many reasons (import errors,
+                # Typer/Click internals changing shape); fall back silently.
                 cmd = {
                     "name": name,
                     "description": help_text,
