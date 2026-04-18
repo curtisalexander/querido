@@ -784,6 +784,111 @@ Wave 2 findings + cleanups landed 2026-04-18. Judgment calls resolved:
 
 Wave 3 (eval-design proposal) is next.
 
+### Eval-design proposal findings (EV.x)
+
+Wave 3 codified Wave 1's cold-start simulation into a design for a repeatable self-hosting evaluation. Builds on the existing `scripts/eval_workflow_authoring.py` (Phase 4.6) but broadens scope from "author a workflow" to "answer realistic data questions using only the skill files." Intended name: `scripts/eval_skill_files.py`.
+
+Proposed for `scripts/eval_skill_files.py` (or adjacent). Nothing built this round — design is green-lit pending one user ruling at the bottom.
+
+#### EV.1 — Scope and task taxonomy
+
+**11 tasks across 4 categories.** Each carries a natural-language prompt, an expected envelope fragment, a minimum-commands count (sanity check — 10 steps for a 1-command problem is a failure mode), and the Wave 1 gotcha it surfaces.
+
+- **A. Database discovery (3):** list all tables (A1 — `catalog`), find join keys (A2 — `joins`; CS.7 gotcha), summarize a table (A3 — composition or bundled workflow).
+- **B. Column-level exploration (3):** enumerate an enum (B1 — `values`; CS.6), profile a numeric column (B2 — `profile -C` or `dist`), find null rates (B3 — `profile` vs `quality`; CS.10).
+- **C. Data quality & invariants (3):** check data quality (C1 — `quality`; CS.1 gotcha pre-fix), detect schema drift (C2 — `diff`; CA.4 gotcha pre-fix), validate an invariant (C3 — `assert`; CA.3 discoverability).
+- **D. Metadata & SQL generation (2):** read stored metadata (D1 — `metadata show`; CS.3 gotcha pre-fix), generate SQL scaffold (D2 — `sql select`).
+
+Full prompts, pass shapes, and gotcha citations live in the design doc; summarized here for PLAN-level visibility.
+
+#### EV.2 — Harness design
+
+**CLI:** `uv run python scripts/eval_skill_files.py [--models haiku,sonnet,opus] [--tasks A1,A2,...] [--budget 2.00] [--keep-artifacts]`. Default: Haiku only, 11 tasks, $2 budget cap.
+
+**Per-task flow:**
+1. Fetch fixture structure (`qdo catalog -f json data/test.duckdb`)
+2. Assemble prompt: system = SKILL.md + AGENTS.md + `WORKFLOW_EXAMPLES.md`; user = task prompt
+3. Invoke `claude -p --model <X> --append-system-prompt <...>`
+4. Capture every `qdo` subprocess the agent fires (stdout/stderr/exit code)
+5. Pass/fail the envelope and qdo-command trail against the expected shape
+
+**Per-task JSON log:** `{task_id, prompt, model, status, reason, commands_used, expected_commands, path_ok, model_output_snippet, qdo_commands[{cmd, exit, duration_ms}], duration_ms, tokens_approx}`.
+
+**Guardrails** (following Phase 4.6's convention): refuses to run if `ANTHROPIC_API_KEY` is set; per-task timeout 180s; per-`qdo`-command timeout 30s; preflight cost estimate with `--confirm-spend` gate; abort if projected spend > `--budget`.
+
+#### EV.3 — Pass criteria
+
+Three tiers, graded strictness:
+
+- **Shape (tight, binary):** envelope has `{command, data, next_steps, meta}`; exit code 0; no stray `"error": true`.
+- **Content (regex + tolerance):** per-task expected keys (e.g., `data.tables[]` has ≥3 entries; `data.values[]` is non-empty; `data.null_pct` within ±5% of truth). Sampling variance is allowed on sampled paths.
+- **Path (optional, recorded):** preferred-command check (e.g., `values` over raw `query`; built-in workflow over hand-composed sequence). Logged as `path_ok: true|false` but does not fail the task. Path mismatches are **data for skill-file tightening**, not failures.
+
+#### EV.4 — Failure disambiguation
+
+Every failure gets a category:
+
+- **qdo-bug** — a `qdo` subprocess exited non-zero or traceback'd. → file a ticket; do not blame the model. (The Phase 4.6 run caught CS.1 this way; now fixed.)
+- **model-mistake** — model picked the wrong command or produced invalid SQL/YAML. → docs ambiguity; tighten SKILL.md or AGENTS.md.
+- **timeout** — 180s per-task or 30s per-command hit. → usually noise on first run; track as "flaky" if it repeats.
+- **envelope-mismatch** — correct answer in prose, wrong shape in `data`. → AGENTS.md needs an example envelope for that command.
+
+Summary report groups by category. Clean separation keeps "docs need work" from "code needs work."
+
+#### EV.5 — CI integration
+
+- **Local-only by default.** Module docstring says so. Script refuses to run with `ANTHROPIC_API_KEY` set. Same policy as Phase 4.6.
+- **Optional `workflow_dispatch`-only GitHub Action** (not `on: push`) — sketch in the design doc; build if demand materializes. A manual trigger runs the eval, uploads per-task JSON as an artifact, and optionally opens a PR with the snapshot.
+- **Snapshot-diff review pattern.** Commit `scripts/eval_baseline_<model>.json` per target model. Re-runs diff against the snapshot — a pass that becomes a fail is a regression surfaced to code review. Flaky tasks (pass once, fail once) get logged as "inherent variance" after 2–3 runs and drop weight.
+- **Preflight cost estimate.** Script prints projected spend before any API call: `tasks × models × ~1600 tokens × model price`. Require explicit `--confirm-spend` or interactive y/n.
+
+#### EV.6 — Sharpening feedback loop
+
+The eval is a *machine for finding docs bugs*. For every `model-mistake` failure:
+
+1. Capture what the model cited from SKILL.md / AGENTS.md (parse cited lines or log the visible context).
+2. Compare the instruction with the model's actual choice.
+3. If the instruction was ambiguous, file a `DC.x` docs-consistency issue and tighten.
+4. **Ambiguity metric:** per task, count commands that could plausibly answer the prompt. If >1, the prompt is under-specified — either tighten the prompt or accept multiple valid paths.
+
+This closes the loop: the eval surfaces exactly where skill files fail to guide an agent; each failure becomes a concrete docs edit.
+
+#### EV.7 — Open questions / risks
+
+1. **Fixture coverage.** Current `data/test.duckdb` (customers, products, orders, datatypes) exercises most of the command surface. Add Snowflake-specific or time-series fixtures only when eval tasks demand them.
+2. **Nondeterminism.** LLMs vary run-to-run. No golden files; shape + regex content instead. Per-model pass-rate targets (Haiku ≥70%, Sonnet ≥85%, Opus ≥95%) — treat miss-the-target as a docs or code issue, not a model issue.
+3. **Cost control.** Haiku-only 11-task run is ~$0.10–0.20 today; full matrix is a few dollars. `--budget` flag caps it.
+4. **Task-prompt ambiguity.** Some prompts ("summarize the table") admit multiple valid answers (`context` vs. `inspect+profile+quality` vs. workflow). The design records path but doesn't fail — this is intentional and can be tightened later.
+
+### Judgment call Wave 3 surfaced (need your ruling)
+
+**EV.Build — implement `scripts/eval_skill_files.py` now, or stop at the design?**
+
+The design is self-contained and could sit in PLAN.md as a spec waiting for a rainy day. Implementing it is ~1–2 days of focused work (harness + 11 tasks + snapshot baselines). Worth building now because:
+
+- The eval *will* catch the next CS.1-class bug before it lands in a release.
+- It'll pressure-test the Wave 1 + Wave 2 SKILL.md edits (did we actually fix discoverability?).
+- It gives us a directional readout on Haiku 4.5 / Sonnet 4.6 / Opus 4.7 relative performance on qdo tasks — useful grounding data.
+
+Worth deferring because:
+
+- Cost: ~1 day dev + $0.50–$2.00 per run ongoing.
+- Subscription requirement (`claude -p` needs Claude Code Max).
+
+My recommendation: **build it**, Haiku-only in the MVP. Snapshot, commit the baseline, then revisit whether Sonnet/Opus runs add enough signal for their cost.
+
+### Resume point (post-Wave 3)
+
+All three waves of the Sharpening pass complete.
+
+- **Wave 1** (cold-start + command-surface): 10 CS + 10 CA findings; 7 inline cleanups; 3 judgment calls resolved (orders fixture, bundle-portability note, migration-safety workflow).
+- **Wave 2** (docs + code): 5 DC + 12 CC findings; 8 inline cleanups; 5 judgment calls resolved (CC.6 + CC.10 landed; CC.5 scheduled; CC.2 + CC.9 deferred).
+- **Wave 3** (eval design): 7 EV entries; 1 judgment call open (build vs. defer).
+
+Test count: 921 → 939 (+18 across CC.6 and CC.10). CI green throughout. `TODO`/`FIXME`-free. No security smells surfaced.
+
+**Next open item:** EV.Build ruling from the user, plus the scheduled Scan-result TypedDicts phase (from CC.5).
+
 ### Scheduled follow-up: Scan-result TypedDicts (from CC.5)
 
 Add one TypedDict per scan result so the shape contract is enforced at type-check time rather than discovered through tests or runtime `KeyError`.
