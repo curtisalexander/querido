@@ -148,6 +148,35 @@ def test_context_duckdb_json(duckdb_path: str) -> None:
     assert cols["amount"]["sample_values"] is None
 
 
+def test_context_honors_show_sql_sqlite(sqlite_path: str) -> None:
+    """R.12: ``context`` should print rendered SQL to stderr under ``--show-sql``."""
+    result = runner.invoke(app, ["--show-sql", "context", "-c", sqlite_path, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    # The SQLite context path uses the profile template, which does null_count /
+    # min / max aggregations — distinctive enough to prove SQL was emitted.
+    blob = result.output.lower()
+    assert "select" in blob
+    assert "from " in blob
+
+
+def test_context_honors_show_sql_duckdb(duckdb_path: str) -> None:
+    """R.12: same contract on the DuckDB approx_top_k single-scan path."""
+    result = runner.invoke(app, ["--show-sql", "context", "-c", duckdb_path, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    blob = result.output.lower()
+    assert "approx_top_k" in blob or "select" in blob
+
+
+def test_context_envelope_carries_sql_field(sqlite_path: str) -> None:
+    """The rendered SQL is threaded through the envelope's ``data`` for
+    agents that want to understand what ran (consistent with ``pivot``)."""
+    result = runner.invoke(app, ["-f", "json", "context", "-c", sqlite_path, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)["data"]
+    assert data["sql"]
+    assert "select" in data["sql"].lower()
+
+
 def test_context_duckdb_json_no_sample_values(duckdb_path: str) -> None:
     result = runner.invoke(
         app,

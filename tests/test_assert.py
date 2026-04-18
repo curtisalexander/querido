@@ -204,10 +204,12 @@ def test_assert_format_json(sqlite_path: str):
     import json
 
     payload = json.loads(result.output)
-    assert payload["passed"] is True
-    assert payload["actual"] == 2.0
-    assert payload["expected"] == 2.0
-    assert payload["operator"] == "eq"
+    assert payload["command"] == "assert"
+    data = payload["data"]
+    assert data["passed"] is True
+    assert data["actual"] == 2.0
+    assert data["expected"] == 2.0
+    assert data["operator"] == "eq"
 
 
 def test_assert_format_json_fail(sqlite_path: str):
@@ -229,8 +231,11 @@ def test_assert_format_json_fail(sqlite_path: str):
     import json
 
     payload = json.loads(result.output)
-    assert payload["passed"] is False
-    assert payload["actual"] == 2.0
+    data = payload["data"]
+    assert data["passed"] is False
+    assert data["actual"] == 2.0
+    # A failing assert should point the agent at the underlying query.
+    assert any("qdo query" in s["cmd"] for s in payload["next_steps"])
 
 
 def test_assert_format_csv(sqlite_path: str):

@@ -9,6 +9,7 @@ import types
 from unittest.mock import MagicMock
 
 import pyarrow as pa
+import pytest
 
 # ---------------------------------------------------------------------------
 # Fake snowflake module — injected into sys.modules so the connector can
@@ -396,8 +397,22 @@ class TestResolveTable:
 
 
 class TestGetColumnsQualified:
-    def test_get_columns_uses_qualified_parts(self):
-        """get_columns with schema.table queries the right database and schema."""
+    @pytest.mark.parametrize(
+        ("table_ref", "expected_db_in_sql", "expected_params"),
+        [
+            ("analytics.events", "TEST_DB.information_schema.columns", ("ANALYTICS", "EVENTS")),
+            (
+                "other_db.staging.metrics",
+                "OTHER_DB.information_schema.columns",
+                ("STAGING", "METRICS"),
+            ),
+        ],
+        ids=["schema_qualified", "fully_qualified"],
+    )
+    def test_get_columns_routes_to_correct_db_and_schema(
+        self, table_ref: str, expected_db_in_sql: str, expected_params: tuple[str, ...]
+    ) -> None:
+        """get_columns uses the qualified parts to route the catalog query."""
         connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
 
         col_batch = pa.RecordBatch.from_pydict(
@@ -415,40 +430,11 @@ class TestGetColumnsQualified:
         )
         mock_conn.cursor.return_value = cursor
 
-        connector.get_columns("analytics.events")
-
-        # Verify the SQL used the correct database and the params used the
-        # overridden schema.
-        sql_arg = cursor.execute.call_args[0][0]
-        assert "TEST_DB.information_schema.columns" in sql_arg
-        params = cursor.execute.call_args[0][1]
-        assert params == ("ANALYTICS", "EVENTS")
-
-    def test_get_columns_fully_qualified(self):
-        """get_columns with db.schema.table queries the specified database."""
-        connector, mock_conn, _ = _make_connector(type="snowflake", account="x")
-
-        col_batch = pa.RecordBatch.from_pydict(
-            {
-                "COLUMN_NAME": ["VAL"],
-                "DATA_TYPE": ["FLOAT"],
-                "IS_NULLABLE": ["YES"],
-                "COLUMN_DEFAULT": [None],
-                "COMMENT": [None],
-            }
-        )
-        cursor = _make_mock_cursor(
-            arrow_batches=[pa.Table.from_batches([col_batch])],
-            columns=["COLUMN_NAME", "DATA_TYPE", "IS_NULLABLE", "COLUMN_DEFAULT", "COMMENT"],
-        )
-        mock_conn.cursor.return_value = cursor
-
-        connector.get_columns("other_db.staging.metrics")
+        connector.get_columns(table_ref)
 
         sql_arg = cursor.execute.call_args[0][0]
-        assert "OTHER_DB.information_schema.columns" in sql_arg
-        params = cursor.execute.call_args[0][1]
-        assert params == ("STAGING", "METRICS")
+        assert expected_db_in_sql in sql_arg
+        assert cursor.execute.call_args[0][1] == expected_params
 
 
 # ---------------------------------------------------------------------------
@@ -599,20 +585,6 @@ class TestSnowflakeTemplates:
         )
         assert "process_orders()" in sql
         assert "from MY_DB.STAGING.ORDERS" in sql
-
-
-# ---------------------------------------------------------------------------
-# Sampling syntax
-# ---------------------------------------------------------------------------
-
-
-class TestSnowflakeSampling:
-    def test_snowflake_sample_syntax(self):
-        """Snowflake uses SAMPLE (n ROWS) syntax."""
-        table = "big_table"
-        sample_size = 100_000
-        source = f"(SELECT * FROM {table} SAMPLE ({sample_size} ROWS)) AS _sample"
-        assert "SAMPLE (100000 ROWS)" in source
 
 
 # ---------------------------------------------------------------------------
@@ -778,20 +750,19 @@ class TestCheckTableExistsQualified:
 
 
 class TestTableShortName:
-    def test_bare_name(self):
+    @pytest.mark.parametrize(
+        ("table_ref", "expected"),
+        [
+            ("orders", "orders"),
+            ("analytics.events", "events"),
+            ("my_db.staging.raw_data", "raw_data"),
+        ],
+        ids=["bare", "schema_qualified", "fully_qualified"],
+    )
+    def test_returns_last_segment(self, table_ref: str, expected: str) -> None:
         from querido.cli.sql import _table_short_name
 
-        assert _table_short_name("orders") == "orders"
-
-    def test_schema_qualified(self):
-        from querido.cli.sql import _table_short_name
-
-        assert _table_short_name("analytics.events") == "events"
-
-    def test_fully_qualified(self):
-        from querido.cli.sql import _table_short_name
-
-        assert _table_short_name("my_db.staging.raw_data") == "raw_data"
+        assert _table_short_name(table_ref) == expected
 
 
 # ---------------------------------------------------------------------------

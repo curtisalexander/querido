@@ -25,19 +25,11 @@ snowflake = [
 tui = [
     "textual>=0.50",
 ]
-web = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-    "python-multipart>=0.0.20",
-]
 all = [
     "duckdb>=1.0",
     "snowflake-connector-python>=3.6",
     "pyarrow>=14",
     "textual>=0.50",
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-    "python-multipart>=0.0.20",
 ]
 
 [project.scripts]
@@ -78,10 +70,6 @@ dev = [
     "ty>=0.0.1a7",
     "textual>=0.50",
     "textual-dev>=1",
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-    "python-multipart>=0.0.20",
-    "httpx>=0.27",
     "cryptography>=43",
     "jsonschema>=4.21",
 ]

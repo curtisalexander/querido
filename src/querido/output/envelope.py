@@ -31,7 +31,20 @@ def build_envelope(
     table: str | None = None,
     extra_meta: dict | None = None,
 ) -> dict:
-    """Assemble the envelope dict. Serialization is a separate step."""
+    """Assemble the envelope dict. Serialization is a separate step.
+
+    **Convention for ``command``** (R.10): the value must match the argv
+    shape — agents re-exec the invocation by reading ``command`` back.
+    Examples:
+
+    - Leaf commands: ``"inspect"`` for ``qdo inspect``
+    - Multi-word (nested) commands: ``"bundle export"`` for ``qdo bundle
+      export``, ``"workflow list"`` for ``qdo workflow list``
+    - Hyphenated commands: ``"view-def"`` for ``qdo view-def``
+
+    Never use underscores or slashes to join parts. A single space between
+    the group and the action mirrors argv exactly.
+    """
     from querido import __version__
 
     meta: dict[str, Any] = {
@@ -68,7 +81,9 @@ def emit_envelope(
 
     - ``json``: pretty JSON (the canonical machine-readable form).
     - ``agent``: TOON where the envelope's shape allows it, YAML otherwise.
-      Tuned for LLM consumption; see :mod:`querido.output.toon`.
+      Tuned for LLM consumption; see :mod:`querido.output.toon`.  The
+      chosen encoding is stamped into ``meta.serialization`` (``"toon"`` or
+      ``"yaml"``) so agents can pick the right parser without probing.
 
     For any other format the envelope is rendered as JSON — the caller is
     expected to gate on :func:`is_structured_format` before calling.
@@ -85,7 +100,17 @@ def emit_envelope(
     from querido.cli._context import get_output_format
 
     if get_output_format() == "agent":
-        print(render_agent(envelope))
+        # Optimistically tag as TOON; fall back to YAML if the encoder can't
+        # handle the shape.  The tentative field has no effect on shape
+        # support (it's a plain string in ``meta``) so one retry is enough.
+        envelope["meta"]["serialization"] = "toon"
+        from querido.output.toon import ToonUnsupportedShape
+
+        try:
+            print(_encode_toon(envelope))
+        except ToonUnsupportedShape:
+            envelope["meta"]["serialization"] = "yaml"
+            print(_encode_yaml(envelope))
     else:
         print(json.dumps(envelope, indent=2, default=str))
 
@@ -104,16 +129,31 @@ def render_agent(value: Any) -> str:
     nested objects, primitive arrays); non-uniform arrays and arrays-of-arrays
     aren't in its v1 scope (see :mod:`querido.output.toon`). In those cases we
     fall back to YAML, which TOON's own authors note wins on nested data.
+
+    Used for payloads that don't go through :func:`emit_envelope` (error
+    objects in :mod:`querido.cli._errors`).  Envelope callers should prefer
+    ``emit_envelope`` so ``meta.serialization`` is filled in.
     """
-    from querido.output.toon import ToonUnsupportedShape, encode
+    from querido.output.toon import ToonUnsupportedShape
 
-    normalized = _normalize_for_structured(value)
     try:
-        return encode(normalized)
+        return _encode_toon(value)
     except ToonUnsupportedShape:
-        import yaml
+        return _encode_yaml(value)
 
-        return yaml.safe_dump(normalized, sort_keys=False, default_flow_style=False).rstrip()
+
+def _encode_toon(value: Any) -> str:
+    from querido.output.toon import encode
+
+    return encode(_normalize_for_structured(value))
+
+
+def _encode_yaml(value: Any) -> str:
+    import yaml
+
+    return yaml.safe_dump(
+        _normalize_for_structured(value), sort_keys=False, default_flow_style=False
+    ).rstrip()
 
 
 def _normalize_for_structured(value: Any) -> Any:

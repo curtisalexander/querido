@@ -69,16 +69,21 @@ def get_context(
     )
 
     # --- Start metadata load in background -----------------------------------
+    # Loaded twice: the raw YAML for table-level fields, and the per-column
+    # surfaceable map that unwraps provenance to plain values.
     meta_future = None
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    col_meta_future = None
+    with ThreadPoolExecutor(max_workers=2) as executor:
         meta_future = executor.submit(_load_metadata, connection, table)
+        col_meta_future = executor.submit(_load_column_metadata, connection, table)
 
         # --- Fetch stats (and optionally top-K) from DB ----------------------
-        stats_by_col, row_count, top_values_by_col = _fetch_stats(
+        stats_by_col, row_count, top_values_by_col, primary_sql = _fetch_stats(
             connector, col_info, source, sample_values=sample_values, approx=not exact
         )
 
         stored_metadata = meta_future.result()
+        stored_column_metadata = col_meta_future.result()
 
     # --- Load table comment --------------------------------------------------
     table_comment = connector.get_table_comment(table)
@@ -115,15 +120,11 @@ def get_context(
             col_entry["max"] = stats.get("max_val")
             col_entry["sample_values"] = top_vals
 
-        # Merge human-authored metadata fields if available
-        if stored_metadata:
-            col_docs = stored_metadata.get("columns", {}).get(name, {})
-            if col_docs.get("description"):
-                col_entry["description"] = col_docs["description"]
-            if col_docs.get("valid_values"):
-                col_entry["valid_values"] = col_docs["valid_values"]
-            if col_docs.get("pii"):
-                col_entry["pii"] = col_docs["pii"]
+        # Merge stored metadata (human-authored + auto-written with
+        # provenance unwrapped) if available.
+        col_docs = stored_column_metadata.get(name)
+        if col_docs:
+            col_entry.update(col_docs)
 
         columns.append(col_entry)
 
@@ -154,6 +155,7 @@ def get_context(
         "data_owner": data_owner,
         "columns": columns,
         "metadata": stored_metadata,
+        "sql": primary_sql,
     }
 
 
@@ -164,10 +166,14 @@ def _fetch_stats(
     *,
     sample_values: int,
     approx: bool,
-) -> tuple[dict[str, dict], int, dict[str, list[str] | None]]:
+) -> tuple[dict[str, dict], int, dict[str, list[str] | None], str]:
     """Run the stats query and return per-column stats and sample values.
 
-    Returns ``(stats_by_col, row_count, top_values_by_col)``.
+    Returns ``(stats_by_col, row_count, top_values_by_col, primary_sql)``.
+    ``primary_sql`` is the main scan template — the one worth surfacing via
+    ``--show-sql``. On SQLite, per-column frequency queries also run but
+    they're repetitive boilerplate; showing the profile scan is the useful
+    signal.
 
     For dialects with approx_top_k, everything is fetched in one scan.
     For SQLite, runs profile + sequential frequency queries.
@@ -246,7 +252,7 @@ def _fetch_stats(
         else:
             top_values_by_col = {c["name"]: None for c in col_info}
 
-    return stats_by_col, row_count, top_values_by_col
+    return stats_by_col, row_count, top_values_by_col, sql
 
 
 def _extract_top_k_values(raw_top: list) -> list[str]:
@@ -279,3 +285,13 @@ def _load_metadata(connection: str, table: str) -> dict | None:
         return yaml.safe_load(meta_path.read_text(encoding="utf-8")) or None
     except Exception:
         return None
+
+
+def _load_column_metadata(connection: str, table: str) -> dict[str, dict]:
+    """Load the per-column surfaceable metadata map.  Returns ``{}`` if none."""
+    try:
+        from querido.core.metadata import load_column_metadata
+
+        return load_column_metadata(connection, table)
+    except Exception:
+        return {}

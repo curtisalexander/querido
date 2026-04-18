@@ -265,3 +265,18 @@ def test_dist_empty_table(tmp_path: Path):
     conn.close()
     result = runner.invoke(app, ["dist", "-c", db_path, "-t", "empty_t", "-C", "score"])
     assert result.exit_code == 0
+
+
+def test_dist_long_flag_works(dist_sqlite: str):
+    """``--columns`` (long form) is the canonical name post-R.8."""
+    result = runner.invoke(app, ["dist", "-c", dist_sqlite, "-t", "sales", "--columns", "amount"])
+    assert result.exit_code == 0
+
+
+def test_dist_rejects_multi_column_list(dist_sqlite: str):
+    """``qdo dist`` visualizes one column; a CSV of length > 1 is a clear error."""
+    result = runner.invoke(
+        app, ["dist", "-c", dist_sqlite, "-t", "sales", "--columns", "amount,category"]
+    )
+    assert result.exit_code != 0
+    assert "exactly one column" in result.output

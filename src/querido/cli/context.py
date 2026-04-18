@@ -62,6 +62,8 @@ def context(
         qdo context -c ./my.duckdb -t orders --no-sample
         qdo --format json context -c mydb -t orders
     """
+    from querido.cli._context import maybe_show_sql
+    from querido.cli._errors import set_last_sql
     from querido.cli._pipeline import dispatch_output, table_command
 
     with (
@@ -79,6 +81,11 @@ def context(
             sample=sample,
             exact=exact,
         )
+
+    rendered_sql = result.get("sql") or ""
+    if rendered_sql:
+        maybe_show_sql(rendered_sql)
+        set_last_sql(rendered_sql)
 
     from querido.output.envelope import emit_envelope, is_structured_format
 

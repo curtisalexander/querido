@@ -97,15 +97,60 @@ def show(name: str = typer.Argument(..., help="Workflow name or path to a .yaml 
 @friendly_errors
 def lint(
     target: str = typer.Argument(..., help="Workflow name or path to a .yaml file."),
+    connection: str | None = typer.Option(
+        None,
+        "--connection",
+        "-c",
+        help=("Optional target connection for schema-aware checks. Must be paired with --table."),
+    ),
+    table: str | None = typer.Option(
+        None,
+        "--table",
+        "-t",
+        help=(
+            "Optional target table for schema-aware checks. When paired "
+            "with --connection, every --columns/-C value in the workflow "
+            "is checked against the table's actual columns."
+        ),
+    ),
+    db_type: str | None = typer.Option(
+        None,
+        "--db-type",
+        help="Database type for --connection (sqlite/duckdb). Inferred from path if omitted.",
+    ),
 ) -> None:
-    """Lint a workflow. Exits 1 if any issue is found."""
+    """Lint a workflow. Exits 1 if any issue is found.
+
+    Pass ``--connection`` and ``--table`` together to enable schema-aware
+    checks: every ``--columns`` / ``-C`` value referenced by a step is
+    validated against the target table's real columns. Useful after
+    ``qdo workflow from-session`` when the draft was captured against a
+    different target than you're about to run it on.
+    """
     from querido.cli._context import get_output_format
     from querido.core.workflow.lint import lint as run_lint
     from querido.core.workflow.loader import load_workflow_doc, resolve_workflow
 
+    if (connection is None) != (table is None):
+        raise typer.BadParameter(
+            "--connection and --table must be used together (or neither) for schema-aware lint."
+        )
+
+    valid_columns: set[str] | None = None
+    if connection is not None and table is not None:
+        from querido.config import resolve_connection
+        from querido.connectors.base import validate_table_name
+        from querido.connectors.factory import create_connector
+
+        validate_table_name(table)
+        config = resolve_connection(connection, db_type)
+        with create_connector(config) as connector:
+            col_dicts = connector.get_columns(table)
+            valid_columns = {c["name"] for c in col_dicts}
+
     entry = resolve_workflow(target)
     doc = load_workflow_doc(entry.path)
-    result = run_lint(doc)
+    result = run_lint(doc, valid_columns=valid_columns)
 
     fmt = get_output_format()
     if fmt in ("json", "agent"):
@@ -148,6 +193,16 @@ def run(
         "-v",
         help="Stream each step's stdout to stderr as it runs.",
     ),
+    step_timeout: int | None = typer.Option(
+        None,
+        "--step-timeout",
+        min=0,
+        help=(
+            "Per-step timeout in seconds. Overrides the workflow's "
+            "step_timeout/timeout fields and the QDO_WORKFLOW_STEP_TIMEOUT "
+            "env var. 0 = no limit."
+        ),
+    ),
 ) -> None:
     """Execute a workflow end-to-end."""
     from querido.cli._context import get_output_format
@@ -168,8 +223,20 @@ def run(
     parsed_inputs = _parse_kv_inputs(inputs or [])
 
     try:
-        result = run_workflow(doc, parsed_inputs, cwd=Path.cwd(), verbose=verbose)
+        result = run_workflow(
+            doc,
+            parsed_inputs,
+            cwd=Path.cwd(),
+            verbose=verbose,
+            step_timeout=step_timeout,
+        )
     except StepFailed as exc:
+        fmt = get_output_format()
+        if fmt in ("json", "agent"):
+            _emit_step_failure_envelope(exc, workflow=entry.name, fmt=fmt)
+            raise typer.Exit(code=1) from exc
+        # Non-structured path: dump stderr verbatim and re-raise so
+        # friendly_errors renders a human-readable message.
         if exc.stderr:
             sys.stderr.write(exc.stderr)
             if not exc.stderr.endswith("\n"):
@@ -186,6 +253,10 @@ def run(
             "steps": [
                 {
                     "id": s.id,
+                    # ``run`` is the fully-interpolated, shell-quoted command
+                    # that actually executed — agents can copy it verbatim to
+                    # reproduce the step outside the workflow (R.17).
+                    "run": s.run,
                     "skipped": s.skipped,
                     "exit_code": s.exit_code,
                     "duration": s.duration,
@@ -258,3 +329,56 @@ def _parse_kv_inputs(items: list[str]) -> dict[str, str]:
             raise ValueError(f"input has empty key: {item!r}")
         parsed[key] = value
     return parsed
+
+
+#: Cap the stderr tail copied into the step-failure envelope. Real driver
+#: errors are a few hundred bytes; this is generous enough to preserve a
+#: Python traceback without blowing an agent's context on a runaway log.
+_STDERR_TAIL_BYTES = 4096
+
+
+def _emit_step_failure_envelope(exc, *, workflow: str, fmt: str) -> None:
+    """Print a structured step-failure error to stderr.
+
+    Matches the shape of other error payloads (``{error, code, message,
+    try_next}``) so agents parsing ``-f json`` / ``-f agent`` can act on
+    the failure without scraping stderr. See R.7 in PLAN.md.
+    """
+    from querido.core.next_steps import for_workflow_step_failed
+    from querido.output.envelope import render_agent
+
+    stderr = exc.stderr or ""
+    if len(stderr) > _STDERR_TAIL_BYTES:
+        stderr = "…(truncated)…\n" + stderr[-_STDERR_TAIL_BYTES:]
+
+    code = "WORKFLOW_STEP_TIMEOUT" if exc.timed_out else "WORKFLOW_STEP_FAILED"
+    payload: dict = {
+        "error": True,
+        "code": code,
+        "message": str(exc),
+        "workflow": workflow,
+        "step_id": exc.step_id,
+        "step_cmd": exc.cmd,
+        "exit_code": exc.exit_code,
+        "stderr": stderr,
+    }
+    if exc.timed_out:
+        payload["timed_out"] = True
+        if exc.timeout is not None:
+            payload["timeout"] = exc.timeout
+
+    session = exc.session or ""
+    if session:
+        payload["session"] = session
+    payload["try_next"] = for_workflow_step_failed(
+        workflow=workflow,
+        step_id=exc.step_id,
+        step_cmd=exc.cmd,
+        session=session,
+        timed_out=bool(exc.timed_out),
+    )
+
+    if fmt == "agent":
+        print(render_agent(payload), file=sys.stderr)
+    else:
+        print(json.dumps(payload, indent=2), file=sys.stderr)

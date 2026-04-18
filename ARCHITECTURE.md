@@ -67,7 +67,6 @@ querido/
 │       │   ├── quality.py          # `qdo quality` — data quality summary (nulls, uniqueness, anomalies)
 │       │   ├── query.py            # `qdo query` — execute ad-hoc SQL
 │       │   ├── report.py           # `qdo report table` — single-file HTML report
-│       │   ├── serve.py            # `qdo serve` — FastAPI web UI launcher
 │       │   ├── session.py          # `qdo session start/list/show` — agent-workflow session logs
 │       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
 │       │   ├── sql.py              # `qdo sql` — SQL generation (select, insert, ddl, scratch, task, udf, procedure)
@@ -189,22 +188,6 @@ querido/
 │       │   ├── toon.py             # TOON v3.0 encoder (in-tree); primitives, objects, tabular + primitive arrays
 │       │   ├── html.py             # Standalone HTML pages with interactive tables
 │       │   └── report_html.py      # Single-file report renderer (cheatsheet aesthetic, inline SVG)
-│       └── web/
-│           ├── __init__.py         # FastAPI app factory (create_app)
-│           ├── routes/
-│           │   ├── __init__.py
-│           │   ├── pages.py        # Full-page routes (landing, table detail)
-│           │   ├── fragments.py    # HTMX partial endpoints (inspect, preview, profile, etc.)
-│           │   └── pivot.py        # Pivot builder endpoints
-│           ├── static/
-│           │   ├── style.css       # Shared CSS (light/dark mode, nav, tabs, cards)
-│           │   └── app.js          # Shared JS (sort, filter, copy, export, keyboard shortcuts)
-│           └── templates/
-│               ├── base.html       # Layout shell: nav, sidebar, HTMX/Alpine script tags
-│               ├── landing.html    # Connection info + table card grid
-│               ├── table.html      # Table detail page with tab navigation
-│               ├── pivot.html      # Pivot builder form
-│               └── partials/       # HTMX fragments (inspect, preview, profile, dist, etc.)
 └── tests/
     ├── conftest.py                 # Shared fixtures (temp databases, test tables)
     ├── test_agent_mode.py          # Agent mode (QDO_FORMAT=json) tests
@@ -242,7 +225,6 @@ querido/
     ├── test_quality.py             # Data quality tests
     ├── test_query.py               # Query command tests
     ├── test_renderer.py            # SQL template rendering tests
-    ├── test_serve_cli.py           # Serve command CLI tests
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
     ├── test_snowflake_commands.py  # Snowflake-specific command tests
     ├── test_sql.py                 # SQL generation command tests
@@ -250,7 +232,6 @@ querido/
     ├── test_tui.py                 # TUI widget and app tests (Textual pilot framework)
     ├── test_tutorial.py            # Tutorial tests
     ├── test_values.py              # Values command tests
-    ├── test_web.py                 # Web UI tests (FastAPI TestClient, all endpoints)
     └── integration/
         ├── conftest.py             # Integration test fixtures
         ├── test_connectors.py      # Connector tests against real data
@@ -403,7 +384,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage` (view-def), `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The web UI (`web/`) serves the same data via FastAPI + Jinja2 templates + HTMX for interactive browsing.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage` (view-def), `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The report renderer (`output/report_html.py`) produces a single-file shareable report for `qdo report table`.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
@@ -421,7 +402,16 @@ step is recorded whether the command succeeds or fails. `LazyGroup.resolve_comma
 stashes the raw subcommand argv on `ctx.obj` so the finalizer can persist the
 exact invocation. `qdo session start/list/show` manage session directories.
 
-### 8. Global Flags
+### 8. CLI Command Grouping
+
+Multi-action command groups like `bundle`, `workflow`, `config`, `metadata`, `session`, `sql`, and `snowflake` are each a sub-`Typer` mounted on the root app via `add_typer()` in `cli/main.py`. Inside a group, the convention is:
+
+- **Leaf actions use `@app.command()`** — e.g. `qdo bundle export`, `qdo workflow run`, `qdo metadata show`. One decorator per action, one command-function per file section. This is the default and covers the overwhelming majority of actions.
+- **Nest a further sub-`Typer` only for a real sub-domain** — a sub-domain is a coherent set of CRUD verbs against a distinct resource. The only legitimate instance today is `config column-set save/list/show/delete`: `column-set` is a separate resource from connection config, and the four verbs are CRUD on that resource. Nesting earns its keep here.
+
+Anti-pattern: wrapping every leaf action in its own sub-`Typer` just to get a per-action `--help` screen. `@app.command()` already provides that for free — the nested pattern adds ~8 lines per action with no user-visible benefit.
+
+### 9. Global Flags
 
 - `--version` / `-V`: Show version and exit
 - `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_context.py:maybe_show_sql()`.
@@ -458,8 +448,6 @@ CLI (Typer)
 | pyarrow | Arrow columnar format | `uv pip install 'querido[snowflake]'` | In connectors/snowflake.py, arrow_util.py |
 | snowflake-connector-python | Snowflake connector | `uv pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
 | textual | Interactive TUI | `uv pip install 'querido[tui]'` | In tui/ only |
-| fastapi | Web UI backend | `uv pip install 'querido[web]'` | In web/ only |
-| uvicorn | ASGI server | `uv pip install 'querido[web]'` | In cli/serve.py only |
 
 Note: `sqlite3` is stdlib — no extra dependency needed, always available.
 

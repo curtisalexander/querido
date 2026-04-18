@@ -13,7 +13,7 @@ def profile(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
     columns: str | None = typer.Option(
-        None, "--columns", help="Comma-separated column names to profile."
+        None, "--columns", "-C", help="Comma-separated column names to profile."
     ),
     column_set: str | None = typer.Option(
         None, "--column-set", help="Use a saved column set (see: qdo config column-set list)."
@@ -116,6 +116,7 @@ def profile(
                     no_sample=no_sample,
                     exact=exact,
                     quick=resolved_quick,
+                    connection=connection,
                 )
             except ValueError as exc:
                 raise typer.BadParameter(str(exc)) from exc

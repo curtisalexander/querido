@@ -30,4 +30,19 @@ def view_def(
                 raise typer.BadParameter(str(exc)) from exc
 
         maybe_show_sql(result["definition"])
+
+        from querido.output.envelope import emit_envelope, is_structured_format
+
+        if is_structured_format():
+            from querido.core.next_steps import for_view_def
+
+            emit_envelope(
+                command="view-def",
+                data=result,
+                next_steps=for_view_def(result, connection=connection, view=ctx.table),
+                connection=connection,
+                table=ctx.table,
+            )
+            return
+
         dispatch_output("lineage", result)

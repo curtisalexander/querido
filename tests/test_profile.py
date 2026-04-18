@@ -18,51 +18,9 @@ runner = CliRunner()
 
 
 class TestUnpackSingleRow:
-    def test_numeric_column(self):
-        row = {
-            "total_rows": 100,
-            "price__null_count": 5,
-            "price__null_pct": 5.0,
-            "price__distinct_count": 80,
-            "price__min_val": 1.0,
-            "price__max_val": 99.0,
-            "price__mean_val": 50.0,
-            "price__median_val": 48.0,
-            "price__stddev_val": 25.0,
-        }
-        col_info = [{"name": "PRICE", "type": "FLOAT", "numeric": True}]
-        result = _unpack_single_row(row, col_info)
-
-        assert len(result) == 1
-        r = result[0]
-        assert r["column_name"] == "PRICE"
-        assert r["column_type"] == "FLOAT"
-        assert r["total_rows"] == 100
-        assert r["distinct_count"] == 80
-        assert r["min_val"] == 1.0
-        assert r["max_val"] == 99.0
-        assert r["min_length"] is None
-        assert r["max_length"] is None
-
-    def test_string_column(self):
-        row = {
-            "total_rows": 50,
-            "email__null_count": 2,
-            "email__null_pct": 4.0,
-            "email__distinct_count": 48,
-            "email__min_length": 5,
-            "email__max_length": 30,
-        }
-        col_info = [{"name": "EMAIL", "type": "VARCHAR", "numeric": False}]
-        result = _unpack_single_row(row, col_info)
-
-        assert len(result) == 1
-        r = result[0]
-        assert r["column_name"] == "EMAIL"
-        assert r["min_length"] == 5
-        assert r["max_length"] == 30
-        assert r["min_val"] is None
-        assert r["max_val"] is None
+    # Single-column numeric/string tests were dropped (2026-04-17) — the
+    # ``test_multiple_columns`` case below exercises both code paths in one
+    # shot (numeric + string side-by-side), so they were redundant.
 
     def test_multiple_columns(self):
         row = {
@@ -200,6 +158,20 @@ def test_profile_columns_filter(sqlite_path: str):
     assert "id" not in col_names
 
 
+def test_profile_short_C_flag(sqlite_path: str):
+    """``-C`` is the short form of ``--columns`` — parity with values/dist (R.8)."""
+    result = runner.invoke(
+        app,
+        ["-f", "json", "profile", "-c", sqlite_path, "-t", "users", "-C", "name"],
+    )
+    assert result.exit_code == 0
+    import json
+
+    data = json.loads(result.output)["data"]
+    col_names = [c["column_name"] for c in data["columns"]]
+    assert col_names == ["name"]
+
+
 @pytest.fixture
 def string_only_sqlite(tmp_path: Path) -> str:
     db_path = str(tmp_path / "strings.db")
@@ -221,10 +193,9 @@ def test_profile_string_only_columns(string_only_sqlite: str):
     assert "String Columns" in result.output
 
 
-def test_profile_duckdb(duckdb_path: str):
-    result = runner.invoke(app, ["profile", "--connection", duckdb_path, "--table", "users"])
-    assert result.exit_code == 0
-    assert "Numeric Columns" in result.output
+# ``test_profile_duckdb`` dropped (2026-04-17) — output rendering is
+# dialect-agnostic; sampling / classification tests below still exercise
+# the DuckDB path where it actually diverges.
 
 
 def test_profile_top_with_columns(sqlite_path: str):
@@ -417,17 +388,9 @@ def test_no_quick_override(sqlite_path: str):
     assert len(numeric_cols) > 0
 
 
-def test_quick_profile_duckdb(duckdb_path: str):
-    """--quick should work on DuckDB too."""
-    result = runner.invoke(
-        app,
-        ["--format", "json", "profile", "-c", duckdb_path, "-t", "users", "--quick"],
-    )
-    assert result.exit_code == 0
-    data = json.loads(result.output)["data"]
-    for col in data["columns"]:
-        assert col.get("min_val") is None
-        assert col.get("mean_val") is None
+# ``test_quick_profile_duckdb`` dropped (2026-04-17) — ``--quick`` changes
+# the Jinja template used, not dialect-specific SQL.  The SQLite-backed
+# test above proves the behavior.
 
 
 # ---------------------------------------------------------------------------
@@ -436,83 +399,38 @@ def test_quick_profile_duckdb(duckdb_path: str):
 
 
 class TestClassifyColumns:
-    def test_constant_column(self):
+    @pytest.mark.parametrize(
+        ("name", "col_type", "numeric", "distinct", "null_pct", "expected_category"),
+        [
+            ("status", "VARCHAR", False, 1, 0, "constant"),
+            ("legacy", "VARCHAR", False, 5, 95, "sparse"),
+            ("user_id", "VARCHAR", False, 98, 0, "high_cardinality"),
+            ("created_at", "TIMESTAMP", False, 80, 0, "time"),
+            ("amount", "FLOAT", True, 80, 0, "measure"),
+            ("country", "VARCHAR", False, 10, 5, "low_cardinality"),
+        ],
+        ids=["constant", "sparse", "high_cardinality", "time", "measure", "low_cardinality"],
+    )
+    def test_single_rule_category(
+        self,
+        name: str,
+        col_type: str,
+        numeric: bool,
+        distinct: int,
+        null_pct: float,
+        expected_category: str,
+    ) -> None:
         stats = [
             {
-                "column_name": "status",
-                "column_type": "VARCHAR",
-                "distinct_count": 1,
-                "null_pct": 0,
+                "column_name": name,
+                "column_type": col_type,
+                "distinct_count": distinct,
+                "null_pct": null_pct,
             }
         ]
-        col_info = [{"name": "status", "type": "VARCHAR", "numeric": False}]
+        col_info = [{"name": name, "type": col_type, "numeric": numeric}]
         result = classify_columns(stats, col_info, row_count=100)
-        assert result["column_category"]["status"] == "constant"
-
-    def test_sparse_column(self):
-        stats = [
-            {
-                "column_name": "legacy",
-                "column_type": "VARCHAR",
-                "distinct_count": 5,
-                "null_pct": 95,
-            }
-        ]
-        col_info = [{"name": "legacy", "type": "VARCHAR", "numeric": False}]
-        result = classify_columns(stats, col_info, row_count=100)
-        assert result["column_category"]["legacy"] == "sparse"
-
-    def test_high_cardinality_column(self):
-        stats = [
-            {
-                "column_name": "user_id",
-                "column_type": "VARCHAR",
-                "distinct_count": 98,
-                "null_pct": 0,
-            }
-        ]
-        col_info = [{"name": "user_id", "type": "VARCHAR", "numeric": False}]
-        result = classify_columns(stats, col_info, row_count=100)
-        assert result["column_category"]["user_id"] == "high_cardinality"
-
-    def test_time_column(self):
-        stats = [
-            {
-                "column_name": "created_at",
-                "column_type": "TIMESTAMP",
-                "distinct_count": 80,
-                "null_pct": 0,
-            }
-        ]
-        col_info = [{"name": "created_at", "type": "TIMESTAMP", "numeric": False}]
-        result = classify_columns(stats, col_info, row_count=100)
-        assert result["column_category"]["created_at"] == "time"
-
-    def test_measure_column(self):
-        stats = [
-            {
-                "column_name": "amount",
-                "column_type": "FLOAT",
-                "distinct_count": 80,
-                "null_pct": 0,
-            }
-        ]
-        col_info = [{"name": "amount", "type": "FLOAT", "numeric": True}]
-        result = classify_columns(stats, col_info, row_count=100)
-        assert result["column_category"]["amount"] == "measure"
-
-    def test_low_cardinality_column(self):
-        stats = [
-            {
-                "column_name": "country",
-                "column_type": "VARCHAR",
-                "distinct_count": 10,
-                "null_pct": 5,
-            }
-        ]
-        col_info = [{"name": "country", "type": "VARCHAR", "numeric": False}]
-        result = classify_columns(stats, col_info, row_count=100)
-        assert result["column_category"]["country"] == "low_cardinality"
+        assert result["column_category"][name] == expected_category
 
     def test_mixed_columns(self):
         stats = [

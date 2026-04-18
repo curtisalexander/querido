@@ -2,9 +2,7 @@
 
 Each ``format_*_html()`` function returns a complete HTML document string with
 embedded CSS and JavaScript for sorting, filtering, and export (copy / CSV
-download).  The shared ``_html_page()`` helper produces the page shell so that
-Phase B (``qdo serve``) can re-use the same table markup and JS inside a web
-app layout.
+download).  ``qdo -f html`` opens the result in the default browser.
 """
 
 from __future__ import annotations
@@ -207,8 +205,6 @@ def _html_page(title: str, subtitle: str, table_html: str, footer_text: str = ""
     """Build a complete standalone HTML page wrapping *table_html*.
 
     The page includes embedded CSS/JS for sorting, filtering, copy/export.
-    This function is the shared shell that Phase B (``qdo serve``) can also
-    use when rendering inside a web-app layout.
     """
     return f"""\
 <!DOCTYPE html>

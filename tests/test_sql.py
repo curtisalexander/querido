@@ -10,6 +10,11 @@ runner = CliRunner()
 
 
 class TestSqlSelect:
+    # DuckDB variant dropped (2026-04-17): ``sql select`` output is
+    # dialect-agnostic, so testing the same assertions on two fixtures
+    # caught nothing new.  DDL and UDF pairs stay because their output
+    # genuinely diverges (TEXT/VARCHAR, Python/SQL).
+
     def test_select_sqlite(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "select", "-t", "users", "-c", sqlite_path])
         assert result.exit_code == 0
@@ -17,12 +22,6 @@ class TestSqlSelect:
         assert "id," in result.output
         assert "name," in result.output
         assert "age" in result.output
-        assert "from users;" in result.output
-
-    def test_select_duckdb(self, duckdb_path: str) -> None:
-        result = runner.invoke(app, ["sql", "select", "-t", "users", "-c", duckdb_path])
-        assert result.exit_code == 0
-        assert "select" in result.output
         assert "from users;" in result.output
 
     def test_select_has_all_columns_with_commas(self, sqlite_path: str) -> None:
@@ -125,14 +124,9 @@ class TestSqlScratch:
         assert "'Bob'" in result.output
         assert "select * from tmp_users" in result.output
 
-    def test_scratch_duckdb(self, duckdb_path: str) -> None:
-        result = runner.invoke(
-            app, ["sql", "scratch", "-t", "users", "-c", duckdb_path, "-r", "1"]
-        )
-        assert result.exit_code == 0
-        assert "create temp table tmp_users" in result.output
-        assert "insert into tmp_users" in result.output
-        assert result.output.count("insert into") == 1
+    # DuckDB variant dropped (2026-04-17): output shape is dialect-agnostic
+    # for the scratch template; ``test_scratch_rows_1`` already covers the
+    # -r 1 case.
 
     def test_scratch_null_handling(self, sqlite_path: str) -> None:
         result = runner.invoke(app, ["sql", "scratch", "-t", "users", "-c", sqlite_path])
@@ -219,14 +213,7 @@ class TestSqlEmptyTable:
         assert "insert into empty_t" in result.output
 
 
-class TestSqlHelp:
-    def test_sql_help(self) -> None:
-        result = runner.invoke(app, ["sql", "--help"])
-        assert result.exit_code == 0
-        assert "select" in result.output
-        assert "insert" in result.output
-        assert "ddl" in result.output
-        assert "task" in result.output
-        assert "udf" in result.output
-        assert "procedure" in result.output
-        assert "scratch" in result.output
+# TestSqlHelp was removed (2026-04-17): Typer auto-generates the subcommand
+# list in --help; verifying it listed our subcommands was testing the
+# framework. The subcommands themselves are exercised by the per-command
+# tests above.

@@ -226,12 +226,21 @@ def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
         html = fn(*args, **kwargs)
         emit_html(html)
     else:
-        # Commands that go straight through dispatch_output (assert, pivot,
-        # explain, template, lineage, …) don't build an agent envelope
-        # themselves. Degrade agent → json so the output is at least
-        # structured/parseable; true agent rendering lives on the
-        # envelope-emitting commands (see querido.output.envelope).
-        effective_fmt = "json" if fmt == "agent" else fmt
+        # Envelope-emitting commands short-circuit in the CLI layer before
+        # reaching dispatch_output for json/agent (see for_<cmd> rules in
+        # querido.core.next_steps).  If we arrive here with fmt == "agent",
+        # the command hasn't been wired yet — warn on stderr and degrade to
+        # json so output stays parseable rather than breaking callers.
+        effective_fmt = fmt
+        if fmt == "agent":
+            import sys
+
+            print(
+                f"warning: '{command_name}' does not yet honor --format agent; "
+                "falling back to json. Please open an issue.",
+                file=sys.stderr,
+            )
+            effective_fmt = "json"
         mod = import_module("querido.output.formats")
         fn = cast(Any, mod.REGISTRY)[command_name]
         text = fn(*args, effective_fmt, **kwargs)

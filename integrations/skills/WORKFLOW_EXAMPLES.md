@@ -62,16 +62,15 @@ qdo workflow run wide-table-triage connection=mydb table=events
 
 ## table-handoff
 
-**Shape:** fan-in output composition, optional inputs with defaults.
-**Inputs:** `connection`, `table`, optional `sample_values` (default `10`).
-**Pattern:** three scans (`inspect`, `profile --quick`, `quality`), then compose the captures into a single rich output structured for pasting into a PR description, ticket, or agent prompt.
-**Teaches:** inputs with defaults; outputs that fan in across multiple captures to produce a document-like summary.
+**Shape:** conditional composition with row-count-gated follow-up steps.
+**Inputs:** `connection`, `table`.
+**Pattern:** `inspect` runs unconditionally (cheap probe). `profile --quick` runs only when the table has rows (`${schema.data.row_count} != null and ${schema.data.row_count} > 0`). `quality` runs only when profile wasn't skipped (`${stats.data} != null`). Outputs degrade to `null` for skipped steps so the handoff document still lands on an empty table — it just honestly says "no rows yet".
+**Teaches:** null-safe `when:` comparisons (the `!= null and` guard idiom); gating an expensive step on a cheap probe's result; outputs that resolve gracefully when their source step skipped.
 
-**Use when:** you're about to hand a table off — asking a PM for requirements, filing a bug, or seeding an agent session with ground truth.
+**Use when:** you want a summary that doesn't waste cycles on empty tables or fail noisily on views whose row-count the connector can't cheaply determine. Contrast with `table-summary`, which runs all three scans unconditionally.
 
 ```bash
 qdo workflow run table-handoff connection=mydb table=orders
-qdo workflow run table-handoff connection=mydb table=orders sample_values=25
 ```
 
 ## feature-target-exploration

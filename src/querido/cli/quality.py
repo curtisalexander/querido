@@ -24,6 +24,7 @@ def quality(
     columns: str | None = typer.Option(
         None,
         "--columns",
+        "-C",
         help="Comma-separated column names to check (default: all).",
     ),
     check_duplicates: bool = typer.Option(
@@ -85,6 +86,7 @@ def quality(
                 sample=sample,
                 no_sample=no_sample,
                 exact=exact,
+                connection=connection,
             )
 
         metadata_write_summary = None

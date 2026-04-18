@@ -1,33 +1,15 @@
-"""Tests for the explore CLI entry point."""
+"""Tests for the explore CLI entry point.
 
-import re
+The help-rendering and required-flag-enforcement tests were removed
+2026-04-17 — those exercise Typer, not our code. The remaining tests cover
+our validation and resolve_table integration.
+"""
 
 from typer.testing import CliRunner
 
 from querido.cli.main import app
 
 runner = CliRunner()
-
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-
-
-def test_explore_help():
-    result = runner.invoke(app, ["explore", "--help"])
-    assert result.exit_code == 0
-    plain = _ANSI_RE.sub("", result.output)
-    assert "explore" in plain.lower()
-    assert "--table" in plain
-    assert "--connection" in plain
-
-
-def test_explore_missing_table():
-    result = runner.invoke(app, ["explore", "-c", "dummy.db"])
-    assert result.exit_code != 0
-
-
-def test_explore_missing_connection():
-    result = runner.invoke(app, ["explore", "-t", "users"])
-    assert result.exit_code != 0
 
 
 def test_explore_invalid_table_name(sqlite_path: str):

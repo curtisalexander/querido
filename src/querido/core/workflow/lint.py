@@ -24,11 +24,29 @@ _SLUG = re.compile(r"^[a-z][a-z0-9-]*$")
 _SEMVER = re.compile(r"^\d+\.\d+(\.\d+)?$")
 _QDO_INVOCATION = re.compile(r"^qdo\s+\S+")
 
-# Matches SQL statements that mutate state. Used by the allow_write lint.
-_DESTRUCTIVE_SQL = re.compile(
-    r"\b(insert|update|delete|drop|create|alter|truncate|merge|replace|grant|revoke)\b",
-    re.IGNORECASE,
+# Keywords that, appearing as the first token of a SQL statement, mean the
+# statement mutates state. Used by the allow_write lint via
+# :func:`_first_keyword_is_destructive`.
+_DESTRUCTIVE_FIRST_KEYWORDS = frozenset(
+    {
+        "insert",
+        "update",
+        "delete",
+        "drop",
+        "create",
+        "alter",
+        "truncate",
+        "merge",
+        "replace",
+        "grant",
+        "revoke",
+    }
 )
+
+# Strips SQL line comments (``-- ...`` to end of line) and block comments
+# (``/* ... */``) so the first-keyword check sees actual code.
+_SQL_LINE_COMMENT = re.compile(r"--[^\n]*")
+_SQL_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 
 _VALID_INPUT_TYPES = {"string", "integer", "number", "boolean", "table", "connection"}
 
@@ -58,8 +76,15 @@ class LintResult:
         self.issues.append(LintIssue(code=code, message=message, fix=fix, path=path))
 
 
-def lint(doc: Any) -> LintResult:
-    """Return a ``LintResult`` with every structural and semantic issue."""
+def lint(doc: Any, *, valid_columns: set[str] | None = None) -> LintResult:
+    """Return a ``LintResult`` with every structural and semantic issue.
+
+    When *valid_columns* is provided (typically by ``qdo workflow lint
+    --connection <c> --table <t>``), every ``-C`` / ``--columns`` value that
+    isn't a ``${...}`` reference is checked against the set; unknown names
+    emit ``UNKNOWN_COLUMN`` issues. SQL embedded in ``--sql`` is NOT
+    inspected — callers own the accuracy of raw SQL references.
+    """
     result = LintResult()
     if not isinstance(doc, dict):
         result.add(
@@ -74,6 +99,8 @@ def lint(doc: Any) -> LintResult:
     steps = doc.get("steps")
     if isinstance(steps, list):
         _check_steps(steps, doc, result)
+        if valid_columns is not None:
+            _check_column_refs_against_schema(steps, valid_columns, result)
     _check_outputs(doc, steps if isinstance(steps, list) else [], result)
     return result
 
@@ -124,11 +151,21 @@ def _check_top_level(doc: dict[str, Any], result: LintResult) -> None:
             path="/qdo_min_version",
         )
 
+    step_timeout = doc.get("step_timeout")
+    if "step_timeout" in doc and (not isinstance(step_timeout, int) or step_timeout < 0):
+        result.add(
+            "INVALID_STEP_TIMEOUT",
+            "step_timeout must be a non-negative integer (seconds). 0 = no limit.",
+            fix="use an integer >= 0, e.g. 120 for 2 minutes or 0 to disable",
+            path="/step_timeout",
+        )
+
     for unknown in set(doc) - {
         "name",
         "description",
         "version",
         "qdo_min_version",
+        "step_timeout",
         "inputs",
         "steps",
         "outputs",
@@ -199,11 +236,23 @@ def _check_steps(steps: list[Any], doc: dict[str, Any], result: LintResult) -> N
             result.add("INVALID_STEP", "step must be a mapping", path=base)
             continue
 
-        for unknown in set(step) - {"id", "run", "capture", "when", "allow_write"}:
+        for unknown in set(step) - {"id", "run", "capture", "when", "allow_write", "timeout"}:
             result.add(
                 "UNKNOWN_STEP_FIELD",
                 f"step has unknown field {unknown!r}",
                 path=f"{base}/{unknown}",
+            )
+
+        timeout = step.get("timeout")
+        if "timeout" in step and (not isinstance(timeout, int) or timeout < 0):
+            result.add(
+                "INVALID_STEP_TIMEOUT",
+                (
+                    f"step timeout {timeout!r} must be a non-negative integer "
+                    "(seconds); 0 = no limit."
+                ),
+                fix="use an integer >= 0, e.g. 60 or 0 to disable",
+                path=f"{base}/timeout",
             )
 
         step_id = step.get("id")
@@ -324,14 +373,159 @@ def _iter_refs(s: str) -> list[str]:
 
 
 def _is_write_query(run: str) -> bool:
-    """Return True if the ``run`` line invokes ``qdo query`` with destructive SQL."""
+    """Return True if the ``run`` line invokes ``qdo query`` in a way that
+    plausibly mutates state.
+
+    The check is scoped to:
+
+    1. ``qdo query`` invocations (other commands don't execute arbitrary SQL).
+    2. The value of ``--sql`` / ``-s`` (not the connection name, not flags,
+       not other tokens that might contain destructive keywords incidentally).
+    3. The **first keyword** of each ``;``-separated statement inside that
+       value, after stripping leading whitespace and SQL comments.
+
+    When the caller uses ``--file`` / ``-F`` or stdin instead of inline SQL,
+    we can't inspect the text and conservatively flag the invocation — the
+    author should set ``allow_write: true`` explicitly or switch to inline
+    SQL.
+    """
     try:
         tokens = shlex.split(run)
     except ValueError:
         return False
     if len(tokens) < 2 or tokens[0] != "qdo" or tokens[1] != "query":
         return False
-    return bool(_DESTRUCTIVE_SQL.search(run))
+
+    sql_value = _extract_flag_value(tokens[2:], {"--sql", "-s"})
+    if sql_value is not None:
+        return _any_statement_is_destructive(sql_value)
+
+    uses_file = _extract_flag_value(tokens[2:], {"--file", "-F"}) is not None
+    # No --sql and no --file → either stdin or missing. Either way the
+    # runner can't see the SQL; assume destructive.
+    return True if uses_file else _read_sql_from_stdin_conservative(tokens[2:])
+
+
+def _extract_flag_value(tokens: list[str], names: set[str]) -> str | None:
+    """Return the value for the first occurrence of any flag in *names*.
+
+    Supports both ``--flag VALUE`` and ``--flag=VALUE`` forms. Returns
+    ``None`` when no matching flag is present (even if one appears without
+    a value — lint reports that as INVALID_RUN elsewhere).
+    """
+    i = 0
+    while i < len(tokens):
+        t = tokens[i]
+        if t in names and i + 1 < len(tokens):
+            return tokens[i + 1]
+        for name in names:
+            prefix = f"{name}="
+            if t.startswith(prefix):
+                return t[len(prefix) :]
+        i += 1
+    return None
+
+
+def _read_sql_from_stdin_conservative(tokens: list[str]) -> bool:
+    """When neither --sql nor --file is present, ``qdo query`` reads stdin.
+
+    Since we can't inspect stdin at lint time, treat it as destructive. This
+    matches the "err on the side of safety" intent of the allow_write lint.
+    """
+    return True
+
+
+def _any_statement_is_destructive(sql: str) -> bool:
+    """True if any ``;``-separated statement in *sql* starts with a
+    destructive keyword (after stripping comments and whitespace)."""
+    stripped = _SQL_BLOCK_COMMENT.sub("", sql)
+    stripped = _SQL_LINE_COMMENT.sub("", stripped)
+    for statement in stripped.split(";"):
+        first = _first_word(statement)
+        if first and first.lower() in _DESTRUCTIVE_FIRST_KEYWORDS:
+            return True
+    return False
+
+
+def _first_word(statement: str) -> str:
+    """Return the first alphabetic token from *statement*, or ``''``."""
+    for word in statement.split():
+        cleaned = word.strip("()[]{},;")
+        if cleaned:
+            return cleaned
+    return ""
+
+
+# Flag names whose values are comma-separated column lists. ``--column-set``
+# is intentionally excluded — its value is a saved-set name, not a column
+# list (different validation).
+_COLUMN_LIST_FLAGS = {"-C", "--columns"}
+
+
+def _check_column_refs_against_schema(
+    steps: list[Any], valid_columns: set[str], result: LintResult
+) -> None:
+    """Flag ``-C`` / ``--columns`` values that name columns missing from
+    *valid_columns* (case-insensitive).
+
+    Values containing ``${...}`` interpolation refs are skipped — they can't
+    be resolved at lint time. SQL embedded in ``--sql`` is not inspected.
+    """
+    lower_valid = {c.lower() for c in valid_columns}
+    for i, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        run = step.get("run")
+        if not isinstance(run, str):
+            continue
+        try:
+            tokens = shlex.split(run)
+        except ValueError:
+            continue
+        values = _iter_column_flag_values(tokens)
+        base = f"/steps/{i}/run"
+        for raw_value in values:
+            if "${" in raw_value:
+                continue
+            for name in _split_columns(raw_value):
+                if name.lower() in lower_valid:
+                    continue
+                result.add(
+                    "UNKNOWN_COLUMN",
+                    f"column {name!r} is not present in the target table",
+                    fix=(
+                        "check the column name against `qdo inspect`; if the "
+                        "workflow targets multiple tables, re-lint without "
+                        "--table for this step's context"
+                    ),
+                    path=base,
+                )
+
+
+def _iter_column_flag_values(tokens: list[str]) -> list[str]:
+    """Return every value supplied to ``-C`` / ``--columns`` in *tokens*.
+
+    Handles both ``--flag VALUE`` and ``--flag=VALUE`` forms.
+    """
+    values: list[str] = []
+    i = 0
+    while i < len(tokens):
+        t = tokens[i]
+        if t in _COLUMN_LIST_FLAGS and i + 1 < len(tokens):
+            values.append(tokens[i + 1])
+            i += 2
+            continue
+        if t.startswith("--columns="):
+            values.append(t[len("--columns=") :])
+            i += 1
+            continue
+        i += 1
+    return values
+
+
+def _split_columns(value: str) -> list[str]:
+    """Parse a comma-separated column list into cleaned names (empty-safe)."""
+    return [p.strip() for p in value.split(",") if p.strip()]
 
 
 __all__ = ["LintIssue", "LintResult", "lint"]

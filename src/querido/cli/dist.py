@@ -9,7 +9,7 @@ app = typer.Typer(help="Column distribution visualization.")
 @friendly_errors
 def dist(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    column: str = typer.Option(..., "--column", "-C", help="Column name to visualize."),
+    columns: str = typer.Option(..., "--columns", "-C", help="Column to visualize (exactly one)."),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
@@ -34,10 +34,18 @@ def dist(
     ),
 ) -> None:
     """Visualize distribution of a column's values."""
+    from querido.cli._options import parse_column_list
     from querido.cli._pipeline import dispatch_output, table_command
     from querido.cli._validation import resolve_column
     from querido.connectors.base import validate_column_name
 
+    col_names = parse_column_list(columns) or []
+    if len(col_names) != 1:
+        raise typer.BadParameter(
+            "--columns must name exactly one column for 'qdo dist' "
+            f"(got {len(col_names)}: {', '.join(col_names) or '(none)'})"
+        )
+    column = col_names[0]
     validate_column_name(column)
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:

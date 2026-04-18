@@ -9,13 +9,7 @@ from querido.cli._errors import friendly_errors
 app = typer.Typer(help="Manage enriched table metadata (init, show, list, edit, refresh).")
 
 
-# -- init ---------------------------------------------------------------------
-
-init_app = typer.Typer(help="Initialize metadata for a table.")
-app.add_typer(init_app, name="init")
-
-
-@init_app.callback(invoke_without_command=True)
+@app.command()
 @friendly_errors
 def init(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
@@ -66,13 +60,7 @@ def init(
     print("Edit the file to fill in descriptions, owner, and notes.", file=sys.stderr)
 
 
-# -- show ---------------------------------------------------------------------
-
-show_app = typer.Typer(help="Show stored metadata for a table.")
-app.add_typer(show_app, name="show")
-
-
-@show_app.callback(invoke_without_command=True)
+@app.command()
 @friendly_errors
 def show(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
@@ -91,13 +79,7 @@ def show(
     dispatch_output("metadata", meta)
 
 
-# -- list ---------------------------------------------------------------------
-
-list_app = typer.Typer(help="List stored metadata files.")
-app.add_typer(list_app, name="list")
-
-
-@list_app.callback(invoke_without_command=True)
+@app.command("list")
 @friendly_errors
 def list_cmd(
     connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
@@ -110,13 +92,7 @@ def list_cmd(
     dispatch_output("metadata_list", connection, entries)
 
 
-# -- edit ---------------------------------------------------------------------
-
-edit_app = typer.Typer(help="Open metadata file in $EDITOR.")
-app.add_typer(edit_app, name="edit")
-
-
-@edit_app.callback(invoke_without_command=True)
+@app.command()
 @friendly_errors
 def edit(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
@@ -136,13 +112,7 @@ def edit(
     subprocess.run([editor, str(path)], check=True)
 
 
-# -- refresh ------------------------------------------------------------------
-
-refresh_app = typer.Typer(help="Refresh machine fields in metadata.")
-app.add_typer(refresh_app, name="refresh")
-
-
-@refresh_app.callback(invoke_without_command=True)
+@app.command()
 @friendly_errors
 def refresh(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
@@ -194,13 +164,7 @@ def refresh(
     print(f"Refreshed: {path}", file=sys.stderr)
 
 
-# -- score --------------------------------------------------------------------
-
-score_app = typer.Typer(help="Score metadata completeness across a connection.")
-app.add_typer(score_app, name="score")
-
-
-@score_app.callback(invoke_without_command=True)
+@app.command()
 @friendly_errors
 def score(
     connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
@@ -223,13 +187,7 @@ def score(
     _print_score_report(report)
 
 
-# -- suggest ------------------------------------------------------------------
-
-suggest_app = typer.Typer(help="Propose metadata additions from fresh scans.")
-app.add_typer(suggest_app, name="suggest")
-
-
-@suggest_app.callback(invoke_without_command=True)
+@app.command()
 @friendly_errors
 def suggest(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),

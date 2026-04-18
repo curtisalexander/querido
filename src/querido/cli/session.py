@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Manage agent-workflow sessions.")
 
 
 @app.command()
+@friendly_errors
 def start(
     name: str | None = typer.Argument(
         None,
@@ -64,6 +67,7 @@ def start(
 
 
 @app.command(name="list")
+@friendly_errors
 def list_cmd() -> None:
     """List session names under ``.qdo/sessions/`` with step counts."""
     from querido.core.session import iter_steps, list_sessions
@@ -87,6 +91,7 @@ def list_cmd() -> None:
 
 
 @app.command()
+@friendly_errors
 def show(
     name: str = typer.Argument(..., help="Session name to show."),
     limit: int = typer.Option(0, "--limit", "-n", help="Show only the last N steps (0 = all)."),

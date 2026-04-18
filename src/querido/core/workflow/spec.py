@@ -54,6 +54,17 @@ WORKFLOW_SCHEMA: dict[str, Any] = {
             "pattern": _SEMVER,
             "description": "Minimum qdo version required to run this workflow.",
         },
+        "step_timeout": {
+            "type": "integer",
+            "minimum": 0,
+            "description": (
+                "Default per-step timeout in seconds for this workflow.  0 = "
+                "no limit (the step may run indefinitely).  Steps can override "
+                "with their own ``timeout``.  If unset, the runner's built-in "
+                "default (300s) applies unless overridden by "
+                "``--step-timeout`` or ``QDO_WORKFLOW_STEP_TIMEOUT``."
+            ),
+        },
         "inputs": {
             "type": "object",
             "description": "Typed inputs bound into step ${...} expressions.",
@@ -145,6 +156,16 @@ WORKFLOW_SCHEMA: dict[str, Any] = {
                     "description": (
                         "Must be true for any step that can mutate the target "
                         "(matches the query-command ``--allow-write`` guardrail)."
+                    ),
+                },
+                "timeout": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": (
+                        "Per-step timeout in seconds.  0 = no limit.  "
+                        "Overrides the workflow-level ``step_timeout`` but is "
+                        "itself overridden by the runtime ``--step-timeout`` "
+                        "flag and the ``QDO_WORKFLOW_STEP_TIMEOUT`` env var."
                     ),
                 },
             },

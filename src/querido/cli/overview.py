@@ -12,10 +12,13 @@ from pathlib import Path
 
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Print CLI overview (markdown or json).")
 
 
 @app.callback(invoke_without_command=True)
+@friendly_errors
 def overview() -> None:
     """Print the full CLI reference.
 

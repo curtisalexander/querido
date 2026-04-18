@@ -155,3 +155,18 @@ def test_values_numeric_column(sqlite_path: str):
     vals = [v["value"] for v in payload["values"]]
     assert 25 in vals
     assert 30 in vals
+
+
+def test_values_long_flag_works(sqlite_path: str):
+    """``--columns`` (long form) is the canonical name post-R.8."""
+    result = runner.invoke(app, ["values", "-c", sqlite_path, "-t", "users", "--columns", "name"])
+    assert result.exit_code == 0
+
+
+def test_values_rejects_multi_column_list(sqlite_path: str):
+    """``qdo values`` targets one column; a CSV of length > 1 is a clear error."""
+    result = runner.invoke(
+        app, ["values", "-c", sqlite_path, "-t", "users", "--columns", "name,age"]
+    )
+    assert result.exit_code != 0
+    assert "exactly one column" in result.output

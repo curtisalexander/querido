@@ -48,16 +48,33 @@ class InputError(WorkflowError):
 
 
 class StepFailed(WorkflowError):
-    """Raised when a subprocess step exits non-zero."""
+    """Raised when a subprocess step exits non-zero or exceeds its timeout."""
 
-    def __init__(self, step_id: str, exit_code: int, stderr: str, cmd: str) -> None:
-        super().__init__(
-            f"Step {step_id!r} failed with exit code {exit_code}: {stderr.strip() or cmd}"
-        )
+    def __init__(
+        self,
+        step_id: str,
+        exit_code: int,
+        stderr: str,
+        cmd: str,
+        *,
+        timed_out: bool = False,
+        timeout: int | None = None,
+        session: str = "",
+    ) -> None:
+        if timed_out:
+            tail = stderr.strip() or cmd
+            super().__init__(f"Step {step_id!r} timed out after {timeout}s: {tail}")
+        else:
+            super().__init__(
+                f"Step {step_id!r} failed with exit code {exit_code}: {stderr.strip() or cmd}"
+            )
         self.step_id = step_id
         self.exit_code = exit_code
         self.stderr = stderr
         self.cmd = cmd
+        self.timed_out = timed_out
+        self.timeout = timeout
+        self.session = session
 
 
 @dataclass
@@ -186,6 +203,63 @@ def _session_env(workflow_name: str) -> tuple[dict[str, str], str]:
     return env, session
 
 
+#: Built-in fallback when no layer sets a timeout.  Lenient enough to let a
+#: legitimate Snowflake profile finish; short enough that a hung step can't
+#: block CI forever.  See R.6 in PLAN.md.
+DEFAULT_STEP_TIMEOUT = 300
+
+
+def _resolve_step_timeout(
+    *,
+    cli_override: int | None,
+    env: dict[str, str],
+    step: dict[str, Any],
+    doc: dict[str, Any],
+) -> int | None:
+    """Return the effective timeout (seconds) for *step*, or ``None`` for no limit.
+
+    Precedence (highest → lowest):
+
+    1. ``cli_override`` (``--step-timeout`` flag on ``qdo workflow run``)
+    2. ``QDO_WORKFLOW_STEP_TIMEOUT`` env var
+    3. Per-step ``timeout`` field in the YAML
+    4. Workflow-level ``step_timeout`` field
+    5. :data:`DEFAULT_STEP_TIMEOUT`
+
+    ``0`` at any layer resolves to ``None`` (no limit), but a higher layer's
+    non-zero value still wins over a lower layer's ``0``.
+    """
+    layered: list[int | None] = []
+
+    if cli_override is not None:
+        layered.append(cli_override)
+
+    env_raw = env.get("QDO_WORKFLOW_STEP_TIMEOUT", "").strip()
+    if env_raw:
+        try:
+            env_val = int(env_raw)
+        except ValueError as exc:
+            raise WorkflowError(
+                f"QDO_WORKFLOW_STEP_TIMEOUT={env_raw!r} is not an integer"
+            ) from exc
+        if env_val < 0:
+            raise WorkflowError(f"QDO_WORKFLOW_STEP_TIMEOUT={env_raw!r} must be non-negative")
+        layered.append(env_val)
+
+    step_val = step.get("timeout")
+    if isinstance(step_val, int):
+        layered.append(step_val)
+
+    doc_val = doc.get("step_timeout")
+    if isinstance(doc_val, int):
+        layered.append(doc_val)
+
+    layered.append(DEFAULT_STEP_TIMEOUT)
+
+    effective = layered[0]
+    return None if effective == 0 else effective
+
+
 def run_workflow(
     doc: dict[str, Any],
     inputs: dict[str, Any] | None = None,
@@ -193,8 +267,14 @@ def run_workflow(
     cwd: Path | None = None,
     verbose: bool = False,
     stderr: Any = None,
+    step_timeout: int | None = None,
 ) -> RunResult:
-    """Execute *doc*. See module docstring for semantics."""
+    """Execute *doc*. See module docstring for semantics.
+
+    ``step_timeout`` is the runtime override (``--step-timeout`` CLI flag).
+    When ``None``, the env var / YAML fields / built-in default decide —
+    see :func:`_resolve_step_timeout`.
+    """
     name = doc.get("name") or "workflow"
     bound = bind_inputs(doc, inputs or {})
     context: dict[str, Any] = dict(bound)
@@ -213,7 +293,16 @@ def run_workflow(
         if isinstance(when_expr, str) and when_expr.strip():
             try:
                 keep = evaluate_when(when_expr, context)
-            except (UnresolvedReference, ExpressionError) as exc:
+            except UnresolvedReference:
+                # A ``when:`` that references a capture from a previously-skipped
+                # step sees the name as unresolved (the runner never populated
+                # it). Mirror the output-resolution policy: treat an unresolved
+                # ref as a signal to skip rather than abort. This is what makes
+                # chain-skip work, e.g. ``stats`` skipped → ``${stats.data} !=
+                # null`` on the next step → null → skip. Lint already rejects
+                # genuinely unknown refs at author time (UNRESOLVED_REFERENCE).
+                keep = False
+            except ExpressionError as exc:
                 raise WorkflowError(f"step {step_id!r}: when-expression failed: {exc}") from exc
             if not keep:
                 result.steps.append(StepRecord(id=step_id, run="", skipped=True))
@@ -247,15 +336,47 @@ def run_workflow(
         if verbose:
             print(f"[{step_id}] $ {rendered}", file=out_stderr)
 
-        start = time.monotonic()
-        proc = subprocess.run(
-            argv,
-            env=env,
-            cwd=str(cwd) if cwd else None,
-            capture_output=True,
-            text=True,
-            check=False,
+        effective_timeout = _resolve_step_timeout(
+            cli_override=step_timeout, env=env, step=step, doc=doc
         )
+
+        start = time.monotonic()
+        try:
+            proc = subprocess.run(
+                argv,
+                env=env,
+                cwd=str(cwd) if cwd else None,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=effective_timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            duration = round(time.monotonic() - start, 4)
+            # ``exc.stderr``/``stdout`` may be bytes or None depending on the
+            # subprocess state when the timer fired; coerce to str.
+            timed_stdout = _decode_stream(exc.stdout)
+            timed_stderr = _decode_stream(exc.stderr)
+            result.steps.append(
+                StepRecord(
+                    id=step_id,
+                    run=rendered,
+                    exit_code=-1,
+                    duration=duration,
+                    stdout=timed_stdout,
+                    stderr=timed_stderr,
+                    capture=capture if has_capture else None,
+                )
+            )
+            raise StepFailed(
+                step_id=step_id,
+                exit_code=-1,
+                stderr=timed_stderr,
+                cmd=rendered,
+                timed_out=True,
+                timeout=effective_timeout,
+                session=session_name,
+            ) from exc
         duration = round(time.monotonic() - start, 4)
 
         record = StepRecord(
@@ -271,7 +392,11 @@ def run_workflow(
 
         if proc.returncode != 0:
             raise StepFailed(
-                step_id=step_id, exit_code=proc.returncode, stderr=proc.stderr, cmd=rendered
+                step_id=step_id,
+                exit_code=proc.returncode,
+                stderr=proc.stderr,
+                cmd=rendered,
+                session=session_name,
             )
 
         if verbose and proc.stdout:
@@ -302,7 +427,17 @@ def run_workflow(
     return result
 
 
+def _decode_stream(value: bytes | str | None) -> str:
+    """Coerce a subprocess stdout/stderr capture into a string."""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 __all__ = [
+    "DEFAULT_STEP_TIMEOUT",
     "InputError",
     "RunResult",
     "StepFailed",

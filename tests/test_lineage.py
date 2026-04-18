@@ -50,11 +50,17 @@ def test_lineage_sqlite_json(view_sqlite: str):
         app, ["--format", "json", "view-def", "--view", "active_users", "-c", view_sqlite]
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    payload = json.loads(result.output)
+    assert payload["command"] == "view-def"
+    data = payload["data"]
     assert data["view"] == "active_users"
     assert data["dialect"] == "sqlite"
     assert "SELECT" in data["definition"]
     assert "users" in data["definition"]
+    # next_steps should point at inspect and preview on the view.
+    cmds = [s["cmd"] for s in payload["next_steps"]]
+    assert any("qdo inspect" in c and "active_users" in c for c in cmds)
+    assert any("qdo preview" in c and "active_users" in c for c in cmds)
 
 
 def test_lineage_sqlite_markdown(view_sqlite: str):
@@ -90,7 +96,7 @@ def test_lineage_duckdb_json(view_duckdb: str):
         app, ["--format", "json", "view-def", "--view", "high_value_orders", "-c", view_duckdb]
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["view"] == "high_value_orders"
     assert data["dialect"] == "duckdb"
     assert "orders" in data["definition"]

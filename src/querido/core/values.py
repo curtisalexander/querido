@@ -15,6 +15,7 @@ def get_distinct_values(
     *,
     max_values: int = 1000,
     sort: str = "value",
+    connection: str | None = None,
 ) -> dict:
     """Return distinct values for a column.
 
@@ -28,12 +29,18 @@ def get_distinct_values(
             "null_count": int,
             "truncated": bool,
             "values": [{"value": any, "count": int}, ...],
+            "stored_metadata": {...} | None,
         }
 
     When distinct count exceeds *max_values*, returns the top values by
     frequency and sets ``truncated=True``.
 
     *sort*: ``"value"`` for alphabetical, ``"frequency"`` for count desc.
+
+    When *connection* is provided, any stored metadata for the target
+    column (``description``, prior ``valid_values``, ``pii``, etc.) is
+    surfaced as ``stored_metadata`` so the agent sees what earlier runs
+    captured without a second call.
     """
     from querido.connectors.base import validate_column_name, validate_table_name
 
@@ -83,6 +90,13 @@ def get_distinct_values(
     if sort == "value":
         rows.sort(key=lambda r: (r.get("value") is None, str(r.get("value", ""))))
 
+    stored_metadata = None
+    if connection:
+        from querido.core.metadata import load_column_metadata
+
+        stored = load_column_metadata(connection, table)
+        stored_metadata = stored.get(column) or None
+
     return {
         "table": table,
         "column": column,
@@ -91,4 +105,5 @@ def get_distinct_values(
         "null_count": null_count,
         "truncated": truncated,
         "values": rows,
+        "stored_metadata": stored_metadata,
     }
