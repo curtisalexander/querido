@@ -640,6 +640,142 @@ Niche commands whose invisibility is probably fine: `view-def`, `completion` (sh
 
 After these land, Wave 2 (docs & tutorial consistency + code consistency sweep) runs.
 
+### Docs & tutorial consistency findings (DC.x)
+
+Agent walked README, AGENTS.md, SKILL.md, WORKFLOW_AUTHORING/EXAMPLES, `integrations/continue/qdo.md`, `docs/cli-reference.md`, and both tutorial runners. Verified claims against the actual CLI.
+
+#### DC.1 — `docs/cli-reference.md` references removed `qdo serve` and `[web]` extra — **STALE** — **landed inline**
+
+- **Where:** `docs/cli-reference.md:17` (`'querido[web]'`), `:106` (`qdo serve -c CONN` row), `:242-243` (example). R.13 (2026-04-17) removed the entire `qdo serve` command; the doc wasn't regenerated.
+- **Fix landed:** stripped all three references; replaced the example with `qdo report table` (the intended replacement per Phase 2.2).
+
+#### DC.2 — `integrations/continue/qdo.md` workflow block drifted from SKILL.md — **STALE** — **landed inline**
+
+- **Where:** `integrations/continue/qdo.md:43-86` (old quick-workflow) vs. `SKILL.md:43-85` (authoritative). Missing `joins` step, duplicate step-8 numbering (two different commands both labeled `# 8`), old `values` framing without `--write-metadata`, no `profile vs quality` note.
+- **Fix landed:** synced the workflow block to match SKILL.md verbatim (including steps 2 (joins) and 8 (`values --write-metadata`), renumbered through step 12, and copied the `profile vs quality` + `values --write-metadata` explanatory paragraphs).
+
+#### DC.3 — "six bundled examples" prose was stale — **STALE** — **landed inline**
+
+- **Where:** `integrations/continue/qdo.md:318` (old) — hardcoded "six bundled examples" after Call-3 added `migration-safety.yaml` (bringing the count to seven).
+- **Fix landed:** replaced the literal count with `(qdo workflow list shows the current set)`. Avoids future drift — the count is now discoverable rather than hardcoded.
+
+#### DC.4 — continue/qdo.md metadata-location docs lacked the path-vs-name nuance — **LANDED INLINE**
+
+- **Where:** `integrations/continue/qdo.md:284` — said "files go to `.qdo/metadata/<connection>/<table>.yaml`" without explaining the connection-dir derivation (named → name, file → stem).
+- **Fix landed:** copied the full explanation from SKILL.md, plus the bundle-portability note from CS.8.
+
+#### DC.5 — SKILL.md never mentioned `qdo tutorial` — **LANDED INLINE**
+
+- **Where:** `integrations/skills/SKILL.md` had zero mentions of the tutorial before this sweep. README + AGENTS surface it prominently, but SKILL.md (the Claude Code embedded rule) skipped it. New users reading SKILL.md alone couldn't discover the 15-lesson hands-on onboarding.
+- **Fix landed:** added a "First time?" sub-block to "Quick Setup" pointing at `qdo tutorial explore` and `qdo tutorial agent` with one-liners on what each covers.
+
+#### DC overall impression
+
+Doc surface is **mostly coherent but had one broken cycle** — `integrations/continue/qdo.md` was a stale copy-paste derivative of SKILL.md, and `docs/cli-reference.md` was a hand-written file that wasn't touched when `qdo serve` was removed. Both are now fixed.
+
+**Source-of-truth verdict:** SKILL.md is the authoritative agent-facing doc; AGENTS.md is complementary (output shapes, error codes); README.md is human-first; `continue/qdo.md` is a derivative (now synced); `docs/cli-reference.md` is a human-readable reference that must be hand-updated on each CLI surface change. No changes to that policy — just keep it honest.
+
+### Code consistency findings (CC.x)
+
+Agent read ~10 representative modules: `cli/_pipeline.py`, `cli/_errors.py`, `cli/workflow.py`, `core/profile.py`, `core/quality.py`, `core/workflow/runner.py`, `connectors/factory.py`, `connectors/snowflake.py`, `connectors/base.py`, `output/envelope.py`, `core/metadata.py`. Ran `grep` for `TODO|FIXME|XXX|HACK` — **zero hits**, code is clean of debt markers.
+
+#### CC.1 — Bare `except Exception` in background work paths — **PARTIAL FROM R.22**
+
+- **Where:** `cli/_pipeline.py:121,128` (cache warm), `core/context.py:302,312` (metadata load), `connectors/factory.py:37` (parquet register), `cli/config.py:237` (connection test). All intentional fallbacks; some already had rationale comments from R.22, others didn't.
+- **Why it matters:** The pattern is correct (best-effort degradation with logged debug info) but future maintainers should know *why* the bare catch is safe rather than treating it as a bug to narrow.
+- **Verdict:** **Partial-fix landed inline.** Added a doc block to `_maybe_warm_cache` explaining the daemon-thread design + cache-close invariant (CC.3 concern folded in). Remaining sites already have R.22 rationale comments; CC.8 improves `core/context.py`'s docstring.
+
+#### CC.2 — `dispatch_output` uses `**kwargs: Any` — **TYPE-CHECK HOLE** — **JUDGMENT CALL**
+
+- **Where:** `cli/_pipeline.py:200-248` — `dispatch_output(command_name, /, *args: Any, **kwargs: Any)` deliberately erases the per-command shape. Commands cast the result to `Any` at the call site.
+- **Why it matters:** Runtime `KeyError` would catch a missing registry mapping, but a typo in a kwarg name for a specific command isn't caught statically. R.25-style `TypedDict` payloads or `@overload` declarations would tighten this.
+- **Verdict:** **Judgment call.** The current pattern is safe in practice (integration tests exercise every command), and retrofitting overloads would be ~30 lines of protocol per command. I'd **defer** until we see an actual bug. Asking for your call.
+
+#### CC.3 — Cache-warm daemon thread had no documented shutdown semantics — **LANDED INLINE**
+
+- **Where:** `cli/_pipeline.py:126-127` spawns a daemon thread without documenting what happens at exit.
+- **Fix landed:** added docstring block to `_maybe_warm_cache` explaining the daemon-only strategy, the `finally: cache.close()` invariant, and the `atexit` upgrade path for if the cache ever becomes persistent state.
+
+#### CC.4 — `core/quality.py` metadata merge is silent — **REAL, SMALL**
+
+- **Where:** `core/quality.py:83` calls `load_column_metadata(connection, table)` without a try/except. That function itself degrades silently via `show_metadata` → `_read_yaml` (which catches `(OSError, yaml.YAMLError)` per R.22). No wrapping needed at the call site.
+- **Verdict:** **No fix needed** — the degradation path is already wrapped at the right layer (R.22). Agent misread the lack of try/except at the call site. **Finding withdrawn.**
+
+#### CC.5 — Scan-command return types are plain `dict[str, Any]` — **LEVERAGE** — **JUDGMENT CALL**
+
+- **Where:** `core/profile.py`, `core/quality.py`, `core/context.py`, `core/values.py` all return plain `dict`. Downstream callers (`cli/*.py`, tests, `core/next_steps.py`'s `for_*` rules) rely on specific keys by string lookup.
+- **Why it matters:** An unannounced key rename in `profile.py` would break callers silently. A `TypedDict` per result (`ProfileResult`, `QualityResult`, `ContextResult`, `ValuesResult`) would make the contract enforceable at type-check time and document the shape in one place.
+- **Verdict:** **Judgment call — high leverage.** This is a 4–6 TypedDicts, ~50 lines each once you count the optional-field markup. It enables static detection of shape drift and gives IDE autocompletion on scan results. Recommending we do it as a small post-Sharpening phase. Asking for your call.
+
+#### CC.6 — Envelope emit error-escalation is implicit — **PARTIAL RISK**
+
+- **Where:** All envelope-emitting commands go through `output/envelope.py:emit_envelope()`, which does the TOON-then-YAML fallback (per R.4). The non-envelope `render_agent()` path in `cli/_errors.py` is used only for structured errors and carries flat payloads that don't need fallback. Every leaf command is decorated with `@friendly_errors` (R.11).
+- **Verdict:** **Already guarded.** The "TOON fallback" is inside `emit_envelope`, not per-caller, so every envelope emission gets it. Agent's concern was valid pre-R.4, not now. **Finding withdrawn** except for one follow-up: add a contract test that asserts every envelope-emitting command can survive a TOON-incompatible shape by falling back to YAML. Small, non-blocking.
+
+#### CC.7 — Agent claim withdrawn (query.py module-level `import sys`)
+
+- Agent claimed `cli/query.py` had a module-level `import sys` violating the "pay for what you use" principle. Verification (`head -10 src/querido/cli/query.py`): only `typer` and `friendly_errors` are imported at module level. `sys` is imported lazily inside the function. **Not a real finding.**
+
+#### CC.8 — `core/context.py` docstring didn't document the metadata best-effort semantics — **LANDED INLINE**
+
+- **Where:** `core/context.py:23-43` docstring promised "stored metadata is loaded from disk concurrently" but didn't warn that unreadable YAML or permission errors silently degrade to `metadata=None`.
+- **Fix landed:** extended the docstring with a "Stored metadata is read best-effort…" paragraph so callers know to tolerate its absence.
+
+#### CC.9 — `quality.py` has hand-escaped SQL with inline literals — **JUDGMENT CALL**
+
+- **Where:** `core/quality.py:287-292` builds the stored-`valid_values` enum-violation probe via f-string with hand-escaped identifiers and literal values. `validate_column_name` runs first so the identifier is safe; literals are hand-escaped via `_sql_literal`.
+- **Why it matters:** The code today is safe. But there's no compile-time check that a future query won't bypass the escaping step. A `SafeSQL` wrapper or strict preference for parameterized literals would remove the manual burden.
+- **Verdict:** **Judgment call — probably overkill now.** Current surface is small enough that code review catches it. Revisit if the f-string SQL pattern spreads to more modules. **Defer** unless you want to make it a Phase.
+
+#### CC.10 — Workflow runner stderr truncation isn't surfaced in the envelope — **SMALL PROTOCOL GAP**
+
+- **Where:** `cli/workflow.py` — the `_STDERR_TAIL_BYTES = 4096` cap (per R.7) strips to the last 4KB of stderr but doesn't stamp a `stderr_truncated: true` flag on the error envelope. An agent reading an envelope whose `stderr` field is exactly 4096 bytes doesn't know whether it's a precise value or a truncation.
+- **Verdict:** **Small protocol change — inline.** Add a `stderr_truncated: bool` field to the workflow-step-failed envelope + one test assertion in `tests/test_workflow_runner.py`. Schedule.
+
+#### CC.11 — Cache-key convention wasn't linked from ARCHITECTURE.md — **LANDED INLINE**
+
+- **Where:** R.26 added per-connector class docstrings describing the `_columns_cache` key convention. ARCHITECTURE.md §5 (Identifier Case Normalization) didn't link to them, so a future contributor could write a connector that gets the cache wrong without ever reading the docstrings.
+- **Fix landed:** extended ARCHITECTURE.md §5 with a paragraph summarizing the conventions and making it a rule for future connectors.
+
+#### CC.12 — No `TODO` / `FIXME` / `XXX` / `HACK` tags — **GOOD**
+
+- Grep clean. Treat this as an invariant going forward.
+
+#### CC overall impression
+
+**Code is sharp overall.** The R-series cleanup is holding up — lazy imports follow the "pay for what you use" principle everywhere that matters, error hierarchy is typed and used, resource lifecycles are managed via context managers, security-sensitive paths (SQL interpolation) all route through validators.
+
+**Three systemic opportunities worth scheduling:**
+
+1. **TypedDict for scan results (CC.5)** — highest leverage. Documents the contract and catches shape drift statically.
+2. **Envelope contract test for TOON fallback (CC.6 follow-up)** — small, ensures the fallback is exercised on every envelope shape.
+3. **`stderr_truncated` flag (CC.10)** — protocol polish for the workflow step-failure envelope.
+
+**No security smells.** All subprocess calls use argv (no `shell=True`), all SQL interpolation is validator-gated, YAML loading is `safe_load`, secrets aren't logged.
+
+### Judgment calls Wave 2 surfaced (need your ruling)
+
+1. **CC.2** — Tighten `dispatch_output` types with `@overload`/`Protocol`? Defer recommended — no evidence of current bugs.
+2. **CC.5** — Add `ProfileResult` / `QualityResult` / `ContextResult` / `ValuesResult` TypedDicts? Recommending we schedule as a small post-Sharpening phase.
+3. **CC.6** — Add a "TOON fallback survives any envelope shape" contract test? Small, recommending we do it.
+4. **CC.9** — Introduce a `SafeSQL` wrapper for hand-escaped SQL paths? Defer recommended.
+5. **CC.10** — Add `stderr_truncated: bool` to the workflow-step-failure envelope? Recommending we do it.
+
+### Wave 2 cleanups landed inline (no approval needed)
+
+- **DC.1** — Stripped `qdo serve` / `[web]` references from `docs/cli-reference.md`
+- **DC.2** — Synced `integrations/continue/qdo.md` workflow block to SKILL.md
+- **DC.3** — Replaced "six bundled examples" with a discovery reference
+- **DC.4** — Added metadata-dir nuance + bundle-portability note to continue/qdo.md
+- **DC.5** — Added `qdo tutorial` mention to SKILL.md "Quick Setup"
+- **CC.3** — Documented cache-warm daemon-thread semantics in `_maybe_warm_cache`
+- **CC.8** — Extended `core/context.py` docstring with metadata best-effort warning
+- **CC.11** — Linked cache-key conventions from ARCHITECTURE.md §5
+
+### Resume point
+
+Wave 2 findings + cleanups landed 2026-04-18. **Judgment calls 1–5 above** are open. Wave 3 (eval-design proposal) is blocked on those + any follow-up work the user wants to schedule from CC.5, CC.6, CC.10. Once judgment calls are resolved, Wave 3 proceeds.
+
 ---
 
 ## Test-suite cleanup (2026-04-17) — done
