@@ -47,42 +47,59 @@ For any new database or table, follow this sequence:
 # 1. See all tables, column counts, and row counts
 qdo catalog -c <connection>
 
-# 2. Full context for a table — schema + stats + sample values in one call
+# 2. Discover likely join keys across all tables (before you pick one)
+qdo joins -c <connection> -t <table>
+
+# 3. Full context for a table — schema + stats + sample values in one call
 qdo context -c <connection> -t <table>
 
-# 3. Drill into structure (if you need PK/nullable/default details)
+# 4. Drill into structure (if you need PK/nullable/default details)
 qdo inspect -c <connection> -t <table>
 
-# 4. See sample rows
+# 5. See sample rows
 qdo preview -c <connection> -t <table> -r 10
 
-# 5. Statistical summary — min/max/mean/null_count/distinct_count
+# 6. Statistical summary — min/max/mean/null_count/distinct_count
 qdo profile -c <connection> -t <table>
 
-# 5b. Wide tables (50+ cols): classify first, then profile a subset
+# 6b. Wide tables (50+ cols): classify first, then profile a subset
 qdo profile -c <connection> -t <table> --classify          # categorize columns
 qdo profile -c <connection> -t <table> --columns <cols>    # full stats on selected
 qdo config column-set save -c <conn> -t <table> -n default --columns "<cols>"  # persist
 qdo profile -c <connection> -t <table> --column-set default  # reuse
 
-# 6. Top values for specific categorical columns
+# 7. Top values for specific categorical columns
 qdo profile -c <connection> -t <table> --columns <col1>,<col2> --top 5
 
-# 7. Full value list with counts for an enum-like column
-qdo values -c <connection> -t <table> -C <column>
+# 8. Full value list with counts for an enum-like column — write to metadata
+qdo values -c <connection> -t <table> -C <column> --write-metadata
 
-# 8. Histogram for a numeric column
+# 9. Histogram for a numeric column
 qdo dist -c <connection> -t <table> -C <column>
 
-# 8. Data quality report — null rates, uniqueness, anomalies
+# 10. Data quality report — null rates, uniqueness, invariant violations
 qdo quality -c <connection> -t <table>
 
-# 9. Run ad-hoc SQL
+# 11. Run ad-hoc SQL
 qdo query -c <connection> --sql "select ..."
 
-# 10. GROUP BY aggregation without writing SQL
+# 12. GROUP BY aggregation without writing SQL
 qdo pivot -c <connection> -t <table> -g <group_col> -a "sum(<value_col>)"
 ```
+
+**`profile` vs `quality`.** Both scan a table but surface different signals:
+`profile` is statistical (min/max/mean/null_pct/distinct_count — use it when
+you want *distributions*). `quality` is invariant-oriented (elevates columns
+whose null rate, uniqueness, or stored `valid_values` enum is violated — use
+it when you want *what's wrong*). They're complementary; run both on a new
+table.
+
+**`values --write-metadata` closes the compounding loop.** It enumerates a
+column's distinct values *and* writes them into the metadata YAML as
+`valid_values`. Next time `qdo context`/`qdo quality` runs, those values
+surface automatically and `quality` will flag any row that violates the enum.
+This is the single highest-leverage move for sharpening an agent's
+understanding of a table.
 
 ## context — everything about a table in one call
 
@@ -260,12 +277,35 @@ fields before treating statistics as exact.
 - Use `--exact` to disable approximate count distinct: `qdo quality -c <conn> -t <table> --exact`
 - The threshold is configurable: `export QDO_SAMPLE_THRESHOLD=5000000`
 
+## Advanced / specialized commands
+
+Not in the common workflow, but worth knowing about:
+
+- **`qdo assert -c <conn> --sql "…" --expect <n>`** — value assertion for CI
+  or end-of-workflow invariants. Single numeric SQL result; expectations via
+  `--expect`, `--expect-gt`, `--expect-lte`, etc. Exits non-zero on failure.
+  Use as the last step of a workflow to gate publishes or detect drift.
+- **`qdo diff -c <conn> -t <left> --target <right>`** — schema diff between
+  two tables (added / removed / type-changed columns). `--target-connection`
+  for cross-database comparison (staging vs prod).
+- **`qdo explain -c <conn> --sql "…"`** — database-native EXPLAIN plan with
+  a `-f json` envelope. DuckDB surfaces `EXPLAIN ANALYZE` suggestions; use
+  this when a profile / query feels slower than it should.
+- **`qdo view-def -c <conn> --view <name>`** — fetch the SQL definition of
+  a view. Works on DuckDB, SQLite (via `sqlite_master`), and Snowflake
+  (`information_schema.views`).
+- **`qdo snowflake semantic -c <conn> …`** — emit a Cortex Analyst semantic
+  model YAML from stored metadata. Snowflake-only.
+- **`qdo snowflake lineage -c <conn> -t <table>`** — upstream/downstream
+  trace via Snowflake `GET_LINEAGE`. Snowflake-only.
+
 ## Gotchas
 
 - **Table names are case-insensitive** — qdo normalizes them internally; use whatever case feels natural.
 - **Parquet files** — pass the file path directly as the connection: `-c ./data.parquet`. No separate config step needed.
 - **Snowflake** — requires a named connection set up via `qdo config add`. Use `qdo snowflake` for Cortex Analyst semantic model generation.
-- **Metadata location** — files go to `.qdo/metadata/<connection>/<table>.yaml` relative to your working directory. Override with the `QDO_METADATA_DIR` environment variable.
+- **Metadata location** — files go to `.qdo/metadata/<connection-dir>/<table>.yaml` relative to your working directory. When `--connection` is a named connection (e.g. `-c mydb`), `<connection-dir>` is the connection name (`.qdo/metadata/mydb/`). When `--connection` is a file path (e.g. `-c ./data/test.duckdb`), `<connection-dir>` is the file *stem* — the filename without extension (`.qdo/metadata/test/`). Override the root with the `QDO_METADATA_DIR` environment variable.
+- **Portability of metadata** — a local metadata YAML's `connection:` field stores whatever was passed to `-c` (possibly an absolute path). Don't rely on that field for cross-machine work. The portability boundary is `qdo bundle export` — bundles match tables by a `schema_fingerprint` (hash of columns+types), so an export from one machine imports cleanly onto another regardless of local paths.
 - **metadata refresh vs init** — `init` creates a new file and will error if one already exists. `refresh` updates machine fields in an existing file. Use `init --force` to overwrite.
 - **pivot aggregations** — the `-a` argument is a SQL aggregate expression: `"count(*)"`, `"avg(price)"`, `"sum(revenue)"`. Quote it to prevent shell interpretation.
 - **Wide tables** — `--quick` auto-engages at 50+ columns (only null counts + distinct counts). Use `--classify` for a category breakdown. Use `--column-set` to reuse a saved selection. Configurable threshold: `export QDO_QUICK_THRESHOLD=100`.

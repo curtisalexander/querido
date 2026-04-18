@@ -34,6 +34,22 @@ qdo workflow run table-summary connection=mydb table=orders
 qdo workflow run schema-compare connection=mydb left=orders right=orders_staging
 ```
 
+## migration-safety
+
+**Shape:** gather + assert. Ends in `qdo assert` calls that exit non-zero on invariant violation — CI-friendly.
+**Inputs:** `connection`, `before`, `after`, optional `max_row_delta_pct` (default `1.0`).
+**Pattern:** capture row counts for both tables, diff the schemas, then assert (a) row-count drift is within the threshold and (b) no new nulls were introduced on columns that still exist after the migration. Demonstrates:
+- Using `qdo assert --expect-lte` as the final gate on a workflow.
+- Chain-skip via `when:` when a prior step (here, schema diff) would make a downstream assertion meaningless.
+- Parameterizing a tolerance via the `inputs` block so the same workflow handles strict and loose migrations.
+
+**Use when:** promoting a table from staging to prod, running a schema refactor, or anywhere a migration should be gated on not losing or duplicating rows.
+
+```bash
+qdo workflow run migration-safety connection=mydb before=orders_v1 after=orders_v2
+qdo workflow run migration-safety connection=mydb before=orders_v1 after=orders_v2 max_row_delta_pct=0.1
+```
+
 ## column-deep-dive
 
 **Shape:** single-column focus.

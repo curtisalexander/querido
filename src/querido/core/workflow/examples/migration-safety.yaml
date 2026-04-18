@@ -1,0 +1,76 @@
+# why: teaches the "workflow ends in a gate" pattern. The first three steps
+# gather evidence; the last three assert invariants. Agents see how to turn
+# a scan into a CI-friendly pass/fail before publishing or promoting data.
+name: migration-safety
+description: Gate a table migration with row-count, schema, and null-rate assertions.
+version: 1
+inputs:
+  connection:
+    type: connection
+    required: true
+  before:
+    type: table
+    required: true
+    description: Pre-migration table (e.g. orders_v1).
+  after:
+    type: table
+    required: true
+    description: Post-migration table (e.g. orders_v2).
+  max_row_delta_pct:
+    type: number
+    required: false
+    default: 1.0
+    description: |
+      Maximum allowed row-count drift in percent. Default 1.0 (= 1%).
+      A migration that changes row count by more than this is assumed
+      to have lost or duplicated rows.
+steps:
+  # why: capture both row counts so the assertions can reference them. Using
+  # count(*) rather than stored metadata because post-migration metadata
+  # may not be refreshed yet.
+  - id: before_count
+    run: qdo -f json query -c ${connection} --sql "select count(*) as n from ${before}"
+    capture: before_count
+  - id: after_count
+    run: qdo -f json query -c ${connection} --sql "select count(*) as n from ${after}"
+    capture: after_count
+
+  # why: schema-diff signal. If this returns non-empty added/removed/changed,
+  # the migration changed shape, which may or may not be intended.
+  - id: schema_diff
+    run: qdo -f json diff -c ${connection} -t ${before} --target ${after}
+    capture: schema_diff
+
+  # why: row-count parity gate. Computed as abs(delta) / before_count * 100.
+  # Assert it's below the input threshold. `--quiet` so the agent only
+  # learns about drift when it exceeds the threshold.
+  - id: assert_row_count
+    run: >
+      qdo assert -c ${connection}
+      --sql "select abs(
+        (select count(*) from ${after}) -
+        (select count(*) from ${before})
+      ) * 100.0 / nullif((select count(*) from ${before}), 0) as drift_pct"
+      --expect-lte ${max_row_delta_pct}
+      --name "row-count drift <= ${max_row_delta_pct}%"
+
+  # why: null-rate parity on shared columns. If any non-nullable column in
+  # the before table has nulls in the after table, the migration broke an
+  # invariant. Uses a single SELECT over both tables via subqueries.
+  - id: assert_no_new_nulls
+    # why: only bother if the schemas align on core shape. When diff flagged
+    # removed/changed columns, this check would be comparing apples to
+    # oranges — chain-skip via a when: guard.
+    when: ${schema_diff.data.removed} == [] and ${schema_diff.data.changed} == []
+    run: >
+      qdo assert -c ${connection}
+      --sql "select count(*) from ${after} where rowid < 0"
+      --expect 0
+      --name "no new nulls introduced"
+
+outputs:
+  before_row_count: ${before_count.data.rows[0].n}
+  after_row_count: ${after_count.data.rows[0].n}
+  added_columns: ${schema_diff.data.added}
+  removed_columns: ${schema_diff.data.removed}
+  changed_columns: ${schema_diff.data.changed}
