@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Self
 
-from querido.connectors.base import validate_table_name
+from querido.connectors.base import validate_table_name, wrap_driver_error
 
 
 class SQLiteConnector:
@@ -11,7 +11,13 @@ class SQLiteConnector:
     supports_concurrent_queries = False
 
     def __init__(self, path: str, *, check_same_thread: bool = True) -> None:
-        self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
+        try:
+            self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
+        except sqlite3.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         self.conn.row_factory = sqlite3.Row
         self._columns_cache: dict[str, list[dict]] = {}
         # Optimize for read-heavy profiling workloads.
@@ -20,8 +26,14 @@ class SQLiteConnector:
         self.conn.execute("pragma mmap_size = 268435456")  # 256 MB mmap
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
-        cursor = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
-        rows = cursor.fetchall()
+        try:
+            cursor = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
+            rows = cursor.fetchall()
+        except sqlite3.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         if not rows:
             return []
         return [dict(row) for row in rows]

@@ -52,12 +52,12 @@ def get_catalog(
 
     # Fetch all row counts in bulk (1 query instead of N).
     table_names = [t.get("name", "") for t in raw_tables]
+    from querido.connectors.base import ConnectorError
+
     try:
         row_counts = connector.get_table_row_counts(table_names)
-    except Exception:
-        # Driver errors vary by connector (sqlite3.Error, duckdb.Error,
-        # snowflake.Error); R.23 will normalize through ConnectorError.
-        # Any failure falls through to per-table counts below.
+    except ConnectorError:
+        # Best-effort — fall through to per-table counts below.
         row_counts = {}
 
     concurrent = getattr(connector, "supports_concurrent_queries", False)
@@ -222,11 +222,11 @@ def _fetch_table_detail(
         row_count = row_counts.get(name)
     if row_count is None:
         # Fallback: individual count for tables not in the bulk result
+        from querido.connectors.base import ConnectorError
+
         try:
             row_count = connector.get_row_count(name)
-        except Exception:
-            # Same rationale as the bulk path above — tolerate any
-            # driver-layer failure and report row_count=None.
+        except ConnectorError:
             row_count = None
 
     return {

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Self
 
-from querido.connectors.base import validate_table_name
+from querido.connectors.base import validate_table_name, wrap_driver_error
 
 
 class DuckDBConnector:
@@ -12,7 +12,13 @@ class DuckDBConnector:
     def __init__(self, path: str = ":memory:") -> None:
         import duckdb
 
-        self.conn = duckdb.connect(path)
+        try:
+            self.conn = duckdb.connect(path)
+        except duckdb.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         self._columns_cache: dict[str, list[dict]] = {}
 
     def register_parquet(self, parquet_path: str) -> None:
@@ -33,7 +39,15 @@ class DuckDBConnector:
         )
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
-        result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
+        import duckdb
+
+        try:
+            result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
+        except duckdb.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         if result.description is None:
             return []
         try:
@@ -45,9 +59,16 @@ class DuckDBConnector:
 
     def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> object:
         """Execute SQL and return results as a PyArrow Table."""
+        import duckdb
         import pyarrow as pa
 
-        result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
+        try:
+            result = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
+        except duckdb.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         if result.description is None:
             return pa.table({})
         return result.to_arrow_table()

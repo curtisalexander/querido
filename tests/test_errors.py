@@ -248,6 +248,58 @@ def test_duckdb_get_table_comment_case_insensitive(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
+# _error_code / _classify_error — isinstance-based classification (R.23)
+# ---------------------------------------------------------------------------
+#
+# Replaces the prior string-match classifier. Driver exceptions are wrapped
+# into ConnectorError subclasses by each connector's execute()/__init__, and
+# the CLI classifier switches on type rather than message text.
+
+
+@pytest.mark.parametrize(
+    ("exc_factory", "expected_code"),
+    [
+        (lambda: _conn_err("TableNotFoundError", "orders"), "TABLE_NOT_FOUND"),
+        (lambda: _conn_err("ColumnNotFoundError", "email", "users"), "COLUMN_NOT_FOUND"),
+        (lambda: _conn_err("DatabaseLockedError", "database is locked"), "DATABASE_LOCKED"),
+        (lambda: _conn_err("DatabaseOpenError", "unable to open"), "DATABASE_OPEN_FAILED"),
+        (lambda: _conn_err("AuthenticationError", "bad password"), "AUTH_FAILED"),
+        (lambda: _conn_err("DatabaseError", "syntax error"), "DATABASE_ERROR"),
+        (lambda: FileNotFoundError("missing.db"), "FILE_NOT_FOUND"),
+        (lambda: ValueError("bad input"), "VALIDATION_ERROR"),
+        (lambda: ImportError("no duckdb"), "MISSING_DEPENDENCY"),
+        (lambda: PermissionError("denied"), "PERMISSION_DENIED"),
+        (lambda: RuntimeError("oops"), "UNKNOWN_ERROR"),
+    ],
+    ids=[
+        "table-not-found",
+        "column-not-found",
+        "database-locked",
+        "database-open",
+        "authentication",
+        "database-error",
+        "file-not-found",
+        "value-error",
+        "import-error",
+        "permission-error",
+        "unknown",
+    ],
+)
+def test_error_code_from_typed_exception(exc_factory, expected_code: str):
+    from querido.cli._errors import _error_code
+
+    assert _error_code(exc_factory()) == expected_code
+
+
+def _conn_err(name: str, *args):
+    """Construct a :class:`ConnectorError` subclass by name for parametrization."""
+    import querido.connectors.base as base
+
+    cls = getattr(base, name)
+    return cls(*args)
+
+
+# ---------------------------------------------------------------------------
 # Unit tests for _format_not_found / _fuzzy_suggestions
 # ---------------------------------------------------------------------------
 

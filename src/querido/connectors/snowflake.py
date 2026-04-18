@@ -70,7 +70,15 @@ class SnowflakeConnector:
         cfg_database = str(kwargs.get("database", "")).upper()
         cfg_schema = str(kwargs.get("schema", "")).upper()
 
-        self.conn = snowflake.connector.connect(**kwargs)
+        from querido.connectors.base import wrap_driver_error
+
+        try:
+            self.conn = snowflake.connector.connect(**kwargs)
+        except snowflake.connector.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         self._active_cursor: object | None = None
         self._columns_cache: dict[str, list[dict]] = {}
 
@@ -107,10 +115,20 @@ class SnowflakeConnector:
             raise
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
+        import snowflake.connector  # type: ignore[import-not-found]
+
+        from querido.connectors.base import wrap_driver_error
+
         cursor = self.conn.cursor()
         self._active_cursor = cursor
         try:
-            cursor.execute(sql, params)
+            try:
+                cursor.execute(sql, params)
+            except snowflake.connector.Error as exc:
+                wrapped = wrap_driver_error(exc)
+                if wrapped is not None:
+                    raise wrapped from exc
+                raise
             if cursor.description is None:
                 return []
             try:
@@ -124,11 +142,20 @@ class SnowflakeConnector:
     def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> object:
         """Execute SQL and return results as a PyArrow Table."""
         import pyarrow as pa
+        import snowflake.connector  # type: ignore[import-not-found]
+
+        from querido.connectors.base import wrap_driver_error
 
         cursor = self.conn.cursor()
         self._active_cursor = cursor
         try:
-            cursor.execute(sql, params)
+            try:
+                cursor.execute(sql, params)
+            except snowflake.connector.Error as exc:
+                wrapped = wrap_driver_error(exc)
+                if wrapped is not None:
+                    raise wrapped from exc
+                raise
             if cursor.description is None:
                 return pa.table({})
             batches = list(cursor.fetch_arrow_batches())

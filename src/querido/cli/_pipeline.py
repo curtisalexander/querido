@@ -131,14 +131,10 @@ def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> No
 
 def _maybe_reraise_as_table_not_found(exc: Exception, connector: Connector, table: str) -> None:
     """If *exc* is a 'table not found' error, re-raise as BadParameter with suggestions."""
-    from querido.connectors.base import TableNotFoundError
+    from querido.connectors.base import ConnectorError, TableNotFoundError
 
-    is_table_error = isinstance(exc, TableNotFoundError)
-    if not is_table_error:
-        # Fallback: string-match for dialect-specific error messages
-        msg = str(exc).lower()
-        if "no such table" not in msg and "does not exist" not in msg:
-            return
+    if not isinstance(exc, TableNotFoundError):
+        return
 
     import typer
 
@@ -150,7 +146,7 @@ def _maybe_reraise_as_table_not_found(exc: Exception, connector: Connector, tabl
         raise typer.BadParameter(_format_not_found("Table", table, names)) from exc
     except typer.BadParameter:
         raise
-    except Exception:
+    except ConnectorError:
         import logging
 
         logging.getLogger("querido.cli").debug(

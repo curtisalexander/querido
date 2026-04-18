@@ -222,9 +222,9 @@ Critical + tactical review conducted before starting Phase 6. One item (R.1) is 
 
 ### Resume point
 
-R.1–R.22 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
+R.1–R.23 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
 
-Remaining review work: **R.23 through R.26 (traditional code quality)** — all small, none blocking. See the section of the same name below. Pick any of them up independently; R.23 will clean up the `except Exception` rationale comments R.22 left behind in `core/catalog.py` and `core/bundle.py`.
+Remaining review work: **R.24 through R.26 (traditional code quality)** — all small, none blocking. See the section of the same name below.
 
 Outside the R-series: **Phase 6.1** (`qdo report session` HTML) is the next planned work after review items settle.
 
@@ -450,12 +450,15 @@ Narrowed 6 handlers to specific exception types; kept 5 broad with inline commen
 - [x] Out-of-scope sites intentionally left for R.23 / R.11's friendly_errors decorator / TUI error display (`cli/_errors.py:74`, `cli/_pipeline.py:{79,121,128,153}`, `cli/config.py:237`, `tui/*`, `cache.py`, `core/context.py`, `core/workflow/loader.py`). These either already classify exceptions via `_classify_error`, surface them via the TUI, or intentionally swallow in best-effort background work.
 - [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 894 passing, 24 skipped — no behavioral change.
 
-#### R.23 — Use connector error hierarchy consistently
+#### R.23 — Use connector error hierarchy consistently — **done (2026-04-18)**
 
-- [ ] `connectors/base.py:42-63` defines `ConnectorError`, `TableNotFoundError`, `ColumnNotFoundError` — most code paths raise `ValueError` or bare `Exception`
-- [ ] Route all connector-origin errors through the hierarchy; retire the fragile string-match classifier in `cli/_errors.py:200-224`
-
-**Effort:** half day.
+- [x] Extended `connectors/base.py` with `DatabaseLockedError`, `DatabaseOpenError`, `AuthenticationError`, and `DatabaseError` (generic wrapper), plus `wrap_driver_error(exc)` helper that centralizes the dialect-agnostic message-pattern classifier in the connector layer.
+- [x] Each connector's `execute()` + `__init__` / `execute_arrow()` catches its native driver error (`sqlite3.Error`, `duckdb.Error`, `snowflake.connector.Error`), runs `wrap_driver_error()`, and re-raises as the typed `ConnectorError` subclass (preserving the original as `__cause__`). Unclassified driver errors pass through untouched so tracebacks stay intact.
+- [x] `cli/_errors.py` `_format_db_error` / `_error_code` / `_recovery_hint` rewritten to switch on `isinstance` against the hierarchy; the old 3-way string-match in `_error_code` + `_recovery_hint` is gone. `_is_db_error` kept as a fallback for raw driver errors that escape the connector wrap.
+- [x] `cli/_pipeline.py:_maybe_reraise_as_table_not_found` dropped its string-match fallback — now a single `isinstance(exc, TableNotFoundError)` guard. The inner `except Exception` narrowed to `except ConnectorError`.
+- [x] R.22 rationale comments retired: `core/catalog.py` bulk + per-table row-count fallbacks → `except ConnectorError`; `core/bundle.py:_fingerprint_for_table` → `except ConnectorError`; bundle diff target-DB probe → `except (ConnectorError, FileNotFoundError, ImportError, ValueError)`.
+- [x] New tests (16): 5 connector-level (`test_sqlite_missing_table_raises_table_not_found`, `test_duckdb_missing_table_raises_table_not_found`, `test_sqlite_missing_column_raises_column_not_found`, `test_wrap_driver_error_unclassified_returns_none`, `test_wrap_driver_error_preserves_original_as_cause`) + 11-row parametrized `test_error_code_from_typed_exception` pinning the isinstance-based classifier for every code (`TABLE_NOT_FOUND`, `COLUMN_NOT_FOUND`, `DATABASE_LOCKED`, `DATABASE_OPEN_FAILED`, `AUTH_FAILED`, `DATABASE_ERROR`, `FILE_NOT_FOUND`, `VALIDATION_ERROR`, `MISSING_DEPENDENCY`, `PERMISSION_DENIED`, `UNKNOWN_ERROR`).
+- [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 910 passing (+16), 24 skipped.
 
 #### R.24 — Validate table names in `sample_source`
 

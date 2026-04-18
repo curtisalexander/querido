@@ -97,12 +97,12 @@ def compute_schema_fingerprint(columns: list[dict]) -> str:
 
 
 def _fingerprint_for_table(connector: Connector, table: str) -> str | None:
+    from querido.connectors.base import ConnectorError
+
     try:
         cols = connector.get_columns(table)
-    except Exception:
-        # Best-effort — missing table or any driver-layer failure
-        # short-circuits to an absent fingerprint; R.23 will route these
-        # through ConnectorError.
+    except ConnectorError:
+        # Best-effort — missing table short-circuits to an absent fingerprint.
         return None
     return compute_schema_fingerprint(cols)
 
@@ -412,12 +412,14 @@ def import_bundle(
         bundle_tables = manifest.get("tables") or []
 
         # Compute target fingerprints (best-effort — missing DB just skips check).
+        from querido.connectors.base import ConnectorError
+
         target_fps: dict[str, str | None] = {}
         try:
             config = resolve_connection(target_connection)
             with create_connector(config) as conn:
                 existing: set[str] = set()
-                with suppress(Exception):
+                with suppress(ConnectorError):
                     existing = {str(r.get("name")) for r in conn.get_tables()}
                 for entry in bundle_tables:
                     src = entry.get("name")
@@ -428,10 +430,9 @@ def import_bundle(
                         target_fps[tgt] = _fingerprint_for_table(conn, tgt)
                     else:
                         target_fps[tgt] = None
-        except Exception:
-            # Best-effort: if we can't reach the target DB, diff still runs
-            # without drift checks. Connection-resolution, import, or driver
-            # errors all fall through here (R.23 will normalize driver errors).
+        except (ConnectorError, FileNotFoundError, ImportError, ValueError):
+            # Drift check is best-effort — missing config, uninstalled driver,
+            # or unreachable DB all fall through and the diff still runs.
             pass
 
         table_diffs: list[dict] = []
