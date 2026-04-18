@@ -860,22 +860,30 @@ This closes the loop: the eval surfaces exactly where skill files fail to guide 
 3. **Cost control.** Haiku-only 11-task run is ~$0.10–0.20 today; full matrix is a few dollars. `--budget` flag caps it.
 4. **Task-prompt ambiguity.** Some prompts ("summarize the table") admit multiple valid answers (`context` vs. `inspect+profile+quality` vs. workflow). The design records path but doesn't fail — this is intentional and can be tightened later.
 
-### Judgment call Wave 3 surfaced (need your ruling)
+### EV.Build — **done (2026-04-18)**
 
-**EV.Build — implement `scripts/eval_skill_files.py` now, or stop at the design?**
+Built `scripts/eval_skill_files.py` per EV.1–EV.7. All three models (Haiku, Sonnet, Opus) supported via `--models haiku,sonnet,opus` or `--models all`.
 
-The design is self-contained and could sit in PLAN.md as a spec waiting for a rainy day. Implementing it is ~1–2 days of focused work (harness + 11 tasks + snapshot baselines). Worth building now because:
+- [x] **Eleven tasks** across four categories (A discovery, B column, C quality, D metadata/SQL) — each carries the Wave 1 gotcha it exercises (CS.x/CA.x cross-references).
+- [x] **Runner** invokes `claude -p --output-format stream-json` with `--bare --no-session-persistence --permission-mode bypassPermissions --tools Bash` in an isolated scratch dir; all skill files (SKILL.md + WORKFLOW_EXAMPLES.md + AGENTS.md) inlined via `--append-system-prompt`.
+- [x] **Parser** extracts qdo Bash tool calls + tool errors + final assistant text + usage/cost from the stream-json event log. Handles env-var prefixes and `uv run` wrappers.
+- [x] **Checker** (EV.4): categorizes failures as `qdo-bug` (tool_error before anything else), `model-mistake` (no required command / too many commands / no content match), `envelope-mismatch` (content regex miss), `timeout`, or `auth-error` (not logged in). Path-preferred is recorded as `path_ok` but doesn't fail.
+- [x] **Pass gates** per model (EV.7): Haiku ≥70%, Sonnet ≥85%, Opus ≥95%. Exit code 0 only when every model clears its gate.
+- [x] **Billing guardrails**: refuses with `ANTHROPIC_API_KEY` set, preflight cost estimate + `--confirm-spend` prompt, `--budget` cap aborts if projected spend exceeds it, per-task 240s timeout, per-`qdo`-command 30s timeout. Auth-error short-circuits the remaining tasks.
+- [x] **Per-run JSON log** written to `scripts/eval_results/results_<timestamp>.json` (gitignored — snapshot a baseline manually when you want one tracked).
+- [x] **39 harness unit tests** (`tests/test_eval_skill_files.py`) — parser, checker, prefix matcher, task selection, model selection, exit gates, auth-error detection. No live `claude -p` calls; runs in CI as normal. Total 987 passing (+48 from Wave 2 baseline).
+- [x] **Smoke-tested end-to-end.** Without an active Claude Code Max session, the script correctly detects the "Not logged in" state and surfaces it as `auth-error` rather than spewing 11 spurious model-mistake fails.
 
-- The eval *will* catch the next CS.1-class bug before it lands in a release.
-- It'll pressure-test the Wave 1 + Wave 2 SKILL.md edits (did we actually fix discoverability?).
-- It gives us a directional readout on Haiku 4.5 / Sonnet 4.6 / Opus 4.7 relative performance on qdo tasks — useful grounding data.
+Usage:
 
-Worth deferring because:
+```
+unset ANTHROPIC_API_KEY             # eval requires Claude Code Max, not API key
+uv run python scripts/eval_skill_files.py                                   # haiku MVP
+uv run python scripts/eval_skill_files.py --models all --budget 5           # full matrix
+uv run python scripts/eval_skill_files.py --tasks A1_list_tables --keep-artifacts
+```
 
-- Cost: ~1 day dev + $0.50–$2.00 per run ongoing.
-- Subscription requirement (`claude -p` needs Claude Code Max).
-
-My recommendation: **build it**, Haiku-only in the MVP. Snapshot, commit the baseline, then revisit whether Sonnet/Opus runs add enough signal for their cost.
+**Next use:** run it once against live models to establish the first baseline. Expected pass-rates by design: Haiku ≥70%, Sonnet ≥85%, Opus ≥95%. Any task that fails multiple models points at a SKILL.md gap we should fix.
 
 ### Resume point (post-Wave 3)
 
@@ -883,11 +891,13 @@ All three waves of the Sharpening pass complete.
 
 - **Wave 1** (cold-start + command-surface): 10 CS + 10 CA findings; 7 inline cleanups; 3 judgment calls resolved (orders fixture, bundle-portability note, migration-safety workflow).
 - **Wave 2** (docs + code): 5 DC + 12 CC findings; 8 inline cleanups; 5 judgment calls resolved (CC.6 + CC.10 landed; CC.5 scheduled; CC.2 + CC.9 deferred).
-- **Wave 3** (eval design): 7 EV entries; 1 judgment call open (build vs. defer).
+- **Wave 3** (eval design + build): 7 EV entries + EV.Build shipped — `scripts/eval_skill_files.py` runs 11 tasks × 3 models, 39 harness tests.
 
-Test count: 921 → 939 (+18 across CC.6 and CC.10). CI green throughout. `TODO`/`FIXME`-free. No security smells surfaced.
+Test count: 921 → 987 (+66 across CC.6, CC.10, and EV.Build harness unit tests). CI green throughout. `TODO`/`FIXME`-free. No security smells surfaced.
 
-**Next open item:** EV.Build ruling from the user, plus the scheduled Scan-result TypedDicts phase (from CC.5).
+**Next open items:**
+1. **Run the eval live** against Claude Code Max — establish first baseline per model, then treat failures as docs-tightening signal.
+2. **Scan-result TypedDicts** (CC.5 scheduled phase) — add `ProfileResult` / `QualityResult` / `ContextResult` / `ValuesResult` (+ shared `ColumnEntry`) once you want to block the next silent-key-rename class of bugs.
 
 ### Scheduled follow-up: Scan-result TypedDicts (from CC.5)
 

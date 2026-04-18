@@ -29,6 +29,11 @@ data/
 # named `.qdo`, so this ignore doesn't mask intentional commits.
 .qdo/
 
+# Self-hosting eval result logs (scripts/eval_skill_files.py). Per-run
+# JSON results are local artifacts — commit an explicit baseline file
+# manually when snapshotting.
+scripts/eval_results/
+
 # Tool caches
 .ruff_cache/
 .mypy_cache/
