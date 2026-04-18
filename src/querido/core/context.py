@@ -258,15 +258,31 @@ def _fetch_stats(
 def _extract_top_k_values(raw_top: list) -> list[str]:
     """Extract string values from an approx_top_k result.
 
-    DuckDB returns ``STRUCT(value X, count BIGINT)[]``, which the Python
-    connector delivers as a list of dicts like ``[{"value": ..., "count": ...}]``.
-    Snowflake's APPROX_TOP_K returns a similar VARIANT structure.
+    Shape varies by dialect:
+    * DuckDB ``approx_top_k(value, k)`` returns a list of the top-K values
+      themselves — e.g. ``["Rosa", "Xander", ...]`` for strings or
+      ``[datetime.date(2024, 6, 6), ...]`` for DATE columns.
+    * Snowflake ``APPROX_TOP_K`` returns ``[[value, count], ...]`` arrays.
+    * Older DuckDB / driver versions have returned dict-shaped
+      ``[{"value": ..., "count": ...}]``.
+
+    Handle all three by checking type before indexing; convert the value
+    to ``str`` for uniform downstream rendering.
     """
     if not raw_top:
         return []
-    values = []
+    values: list[str] = []
     for item in raw_top:
-        val = item.get("value") if isinstance(item, dict) else (item[0] if item else None)
+        if item is None:
+            continue
+        if isinstance(item, dict):
+            val = item.get("value")
+        elif isinstance(item, (list, tuple)):
+            val = item[0] if item else None
+        else:
+            # Primitive (str, int, float, datetime.date, …) — DuckDB's
+            # modern approx_top_k returns values directly.
+            val = item
         if val is not None:
             values.append(str(val))
     return values

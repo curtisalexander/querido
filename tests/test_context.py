@@ -177,6 +177,53 @@ def test_context_envelope_carries_sql_field(sqlite_path: str) -> None:
     assert "select" in data["sql"].lower()
 
 
+def test_context_duckdb_date_column_doesnt_crash(tmp_path: Path) -> None:
+    """Regression: CS.1 — DuckDB ``approx_top_k`` returns primitives (including
+    ``datetime.date``) directly; ``_extract_top_k_values`` used to index with
+    ``item[0]`` which raised ``TypeError: 'datetime.date' object is not
+    subscriptable``. Surfaced by the Phase 4.6 self-hosting eval and the
+    cold-start sim.
+    """
+    import duckdb
+
+    db_path = str(tmp_path / "dated.duckdb")
+    conn = duckdb.connect(db_path)
+    conn.execute("create table events (id integer, status varchar, happened_at date)")
+    conn.execute("insert into events values (1, 'ok', '2024-01-01')")
+    conn.execute("insert into events values (2, 'ok', '2024-02-15')")
+    conn.execute("insert into events values (3, 'failed', '2024-03-07')")
+    conn.close()
+
+    result = runner.invoke(app, ["--format", "json", "context", "-c", db_path, "-t", "events"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)["data"]
+    cols = {c["name"]: c for c in data["columns"]}
+    # The date column should have sample_values populated (stringified dates).
+    assert cols["happened_at"]["sample_values"] is not None
+    assert any("2024" in v for v in cols["happened_at"]["sample_values"])
+
+
+def test_extract_top_k_values_handles_three_shapes() -> None:
+    """Unit: the helper tolerates all three historic approx_top_k shapes."""
+    from querido.core.context import _extract_top_k_values
+
+    # DuckDB modern: plain value list (strings, ints, dates)
+    assert _extract_top_k_values(["a", "b", "c"]) == ["a", "b", "c"]
+    import datetime as dt
+
+    assert _extract_top_k_values([dt.date(2024, 1, 1)]) == ["2024-01-01"]
+
+    # Snowflake: list of [value, count] pairs
+    assert _extract_top_k_values([["a", 10], ["b", 5]]) == ["a", "b"]
+
+    # Legacy dict shape
+    assert _extract_top_k_values([{"value": "a", "count": 10}]) == ["a"]
+
+    # None/empty
+    assert _extract_top_k_values([]) == []
+    assert _extract_top_k_values([None, "x", None]) == ["x"]
+
+
 def test_context_duckdb_json_no_sample_values(duckdb_path: str) -> None:
     result = runner.invoke(
         app,
