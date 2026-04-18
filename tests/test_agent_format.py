@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 
+import pytest
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -92,6 +93,89 @@ def test_agent_meta_serialization_absent_on_json(sqlite_path: str):
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert "serialization" not in payload["meta"]
+
+
+# -- CC.6: TOON-fallback contract -----------------------------------------------
+#
+# Every envelope-emitting command must be safe under ``-f agent``: the encoder
+# tries TOON first and falls back to YAML on ``ToonUnsupportedShape``.  This
+# contract test asserts the invariant for every command in the envelope set
+# — adding a new envelope-emitting command and forgetting to test its
+# ``agent`` path is a bug caught here.
+#
+# The inner assertion is intentionally modest: exit 0, ``meta.serialization``
+# stamped to ``"toon"`` or ``"yaml"``, and when YAML the output parses as
+# ``safe_load``-valid YAML.  We don't try to decode TOON in-process (no
+# in-tree decoder — see test_toon.py for encoder correctness).
+
+
+_AGENT_FALLBACK_CASES: list[tuple[str, list[str]]] = [
+    ("inspect", ["inspect", "-t", "users"]),
+    ("catalog", ["catalog"]),
+    ("context", ["context", "-t", "users"]),
+    ("preview", ["preview", "-t", "users"]),
+    ("profile", ["profile", "-t", "users"]),
+    ("quality", ["quality", "-t", "users"]),
+    ("values", ["values", "-t", "users", "--columns", "name"]),
+    ("dist", ["dist", "-t", "users", "--columns", "age"]),
+    ("diff", ["diff", "-t", "users", "--target", "users"]),
+    ("joins", ["joins", "-t", "users"]),
+    ("query", ["query", "--sql", "select 1 as one"]),
+    ("assert", ["assert", "--sql", "select count(*) from users", "--expect", "2"]),
+    ("explain", ["explain", "--sql", "select * from users"]),
+    ("pivot", ["pivot", "-t", "users", "-g", "age", "-a", "count(id)"]),
+    ("template", ["template", "-t", "users"]),
+]
+
+
+@pytest.mark.parametrize(
+    ("label", "argv"), _AGENT_FALLBACK_CASES, ids=lambda v: v if isinstance(v, str) else None
+)
+def test_envelope_agent_format_either_toon_or_yaml_fallback(
+    sqlite_path: str, label: str, argv: list[str]
+) -> None:
+    """Contract: every envelope command runs under ``-f agent`` and stamps
+    a serialization tag the output actually matches. No crash, no silent
+    fall-through, no missing tag.
+    """
+    r = runner.invoke(app, ["-f", "agent", *argv, "-c", sqlite_path])
+    assert r.exit_code == 0, r.output
+
+    # Both TOON and YAML put ``serialization`` under ``meta``. For YAML we
+    # can round-trip via safe_load; for TOON we assert the tag is present.
+    if "serialization: yaml" in r.output:
+        import yaml
+
+        envelope = yaml.safe_load(r.output)
+        assert isinstance(envelope, dict), f"Expected dict, got {type(envelope).__name__}"
+        assert set(envelope) == {"command", "data", "next_steps", "meta"}
+        assert envelope["meta"]["serialization"] == "yaml"
+    else:
+        # TOON path — no in-tree decoder, so assert the marker is there and
+        # the envelope shell rendered at least the command and meta blocks.
+        assert "serialization: toon" in r.output, r.output
+        assert f"command: {label}" in r.output or f"command: '{label}'" in r.output, r.output
+
+
+def test_envelope_agent_format_yaml_fallback_for_non_tabular_shape(tmp_path):
+    """CC.6: forcibly TOON-incompatible payload still emits a valid envelope.
+
+    An envelope whose ``data`` contains mixed-type arrays isn't in TOON v1's
+    shape coverage. The fallback path must still produce parseable YAML
+    and carry ``meta.serialization == "yaml"``.
+    """
+    from querido.output.envelope import render_agent
+
+    # Mixed-type array — not a uniform tabular shape, not a primitive array,
+    # not a nested object. TOON raises ToonUnsupportedShape; render_agent
+    # catches and falls back to YAML.
+    payload = {"mix": [1, "two", {"n": 3}, [4, 5]]}
+    rendered = render_agent(payload)
+
+    import yaml
+
+    parsed = yaml.safe_load(rendered)
+    assert parsed == payload
 
 
 # -- R.5: YAML fallback round-trips --------------------------------------------

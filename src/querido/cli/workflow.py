@@ -334,6 +334,9 @@ def _parse_kv_inputs(items: list[str]) -> dict[str, str]:
 #: Cap the stderr tail copied into the step-failure envelope. Real driver
 #: errors are a few hundred bytes; this is generous enough to preserve a
 #: Python traceback without blowing an agent's context on a runaway log.
+#: When the raw stderr exceeds this, the envelope includes
+#: ``stderr_truncated: true`` and the stored ``stderr`` field is prefixed
+#: with ``…(truncated)…\n`` (see ``_emit_step_failure_envelope``).
 _STDERR_TAIL_BYTES = 4096
 
 
@@ -347,9 +350,12 @@ def _emit_step_failure_envelope(exc, *, workflow: str, fmt: str) -> None:
     from querido.core.next_steps import for_workflow_step_failed
     from querido.output.envelope import render_agent
 
-    stderr = exc.stderr or ""
-    if len(stderr) > _STDERR_TAIL_BYTES:
-        stderr = "…(truncated)…\n" + stderr[-_STDERR_TAIL_BYTES:]
+    stderr_raw = exc.stderr or ""
+    stderr_truncated = len(stderr_raw) > _STDERR_TAIL_BYTES
+    if stderr_truncated:
+        stderr = "…(truncated)…\n" + stderr_raw[-_STDERR_TAIL_BYTES:]
+    else:
+        stderr = stderr_raw
 
     code = "WORKFLOW_STEP_TIMEOUT" if exc.timed_out else "WORKFLOW_STEP_FAILED"
     payload: dict = {
@@ -361,7 +367,12 @@ def _emit_step_failure_envelope(exc, *, workflow: str, fmt: str) -> None:
         "step_cmd": exc.cmd,
         "exit_code": exc.exit_code,
         "stderr": stderr,
+        # CC.10: surface truncation so agents don't misread a clipped 4096-byte
+        # tail as a complete error.  Omitted (not set to False) when stderr
+        # fit entirely; presence-as-signal keeps the payload slim.
     }
+    if stderr_truncated:
+        payload["stderr_truncated"] = True
     if exc.timed_out:
         payload["timed_out"] = True
         if exc.timeout is not None:

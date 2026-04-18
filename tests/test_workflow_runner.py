@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import textwrap
 from pathlib import Path
 
@@ -1050,6 +1051,75 @@ def test_step_failure_non_structured_keeps_stderr_dump(
     assert '"code": "WORKFLOW_STEP_FAILED"' not in result.output
     # The friendly_errors decorator still surfaces an error message.
     assert "broken" in result.output.lower() or "failed" in result.output.lower()
+
+
+def test_step_failure_marks_stderr_truncated_when_oversized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CC.10: when stderr exceeds the tail cap, the envelope stamps
+    ``stderr_truncated: true`` so agents don't misread a clipped 4KB tail
+    as a complete error."""
+    from querido.cli.workflow import _emit_step_failure_envelope
+    from querido.core.workflow.runner import StepFailed
+
+    big = "x" * 10_000  # well over the 4096-byte cap
+    exc = StepFailed(
+        step_id="noisy",
+        cmd="qdo inspect -c no.db -t users",
+        exit_code=1,
+        stderr=big,
+        session="",
+        timed_out=False,
+        timeout=None,
+    )
+
+    captured: list[str] = []
+    monkeypatch.setattr(sys, "stderr", _Capture(captured))
+    _emit_step_failure_envelope(exc, workflow="oversized", fmt="json")
+    payload = json.loads("".join(captured))
+    assert payload["stderr_truncated"] is True
+    # The stored stderr field is the truncated tail, prefixed with the marker.
+    assert payload["stderr"].startswith("…(truncated)…\n")
+    assert len(payload["stderr"]) < len(big)
+
+
+def test_step_failure_omits_stderr_truncated_when_short(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CC.10: when stderr fits, the ``stderr_truncated`` key is absent — we
+    use presence-as-signal to keep the payload slim and unambiguous."""
+    from querido.cli.workflow import _emit_step_failure_envelope
+    from querido.core.workflow.runner import StepFailed
+
+    small = "boom\n"
+    exc = StepFailed(
+        step_id="tiny",
+        cmd="qdo inspect -c no.db -t users",
+        exit_code=1,
+        stderr=small,
+        session="",
+        timed_out=False,
+        timeout=None,
+    )
+
+    captured: list[str] = []
+    monkeypatch.setattr(sys, "stderr", _Capture(captured))
+    _emit_step_failure_envelope(exc, workflow="short", fmt="json")
+    payload = json.loads("".join(captured))
+    assert "stderr_truncated" not in payload
+    assert payload["stderr"] == small
+
+
+class _Capture:
+    """Minimal stderr stand-in — accumulates writes into a list[str]."""
+
+    def __init__(self, buf: list[str]) -> None:
+        self._buf = buf
+
+    def write(self, chunk: str) -> int:
+        self._buf.append(chunk)
+        return len(chunk)
+
+    def flush(self) -> None:
+        pass
 
 
 def test_step_timeout_emits_envelope_with_timed_out_true(

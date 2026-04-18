@@ -774,7 +774,29 @@ Agent read ~10 representative modules: `cli/_pipeline.py`, `cli/_errors.py`, `cl
 
 ### Resume point
 
-Wave 2 findings + cleanups landed 2026-04-18. **Judgment calls 1–5 above** are open. Wave 3 (eval-design proposal) is blocked on those + any follow-up work the user wants to schedule from CC.5, CC.6, CC.10. Once judgment calls are resolved, Wave 3 proceeds.
+Wave 2 findings + cleanups landed 2026-04-18. Judgment calls resolved:
+
+- **CC.2 — deferred** (no action; current `dispatch_output` typing hasn't produced bugs)
+- **CC.5 — scheduled as a post-Sharpening phase** (see "Scan-result TypedDicts" below)
+- **CC.6 — landed inline** (new `test_envelope_agent_format_either_toon_or_yaml_fallback` parametrized over 15 commands + `test_envelope_agent_format_yaml_fallback_for_non_tabular_shape` unit)
+- **CC.9 — deferred** (f-string SQL surface is small enough today; revisit if pattern spreads)
+- **CC.10 — landed inline** (`stderr_truncated: true` added to workflow step-failure envelope, absent when stderr fits; two new tests in `tests/test_workflow_runner.py`)
+
+Wave 3 (eval-design proposal) is next.
+
+### Scheduled follow-up: Scan-result TypedDicts (from CC.5)
+
+Add one TypedDict per scan result so the shape contract is enforced at type-check time rather than discovered through tests or runtime `KeyError`.
+
+- [ ] `ProfileResult` in `core/profile.py`
+- [ ] `QualityResult` in `core/quality.py`
+- [ ] `ContextResult` in `core/context.py`
+- [ ] `ValuesResult` in `core/values.py`
+- [ ] Optionally: `ColumnEntry` TypedDict shared by profile / quality / context (the per-column payload they all emit)
+- [ ] Update `core/next_steps.py` `for_*` rule signatures to consume the narrower type
+- [ ] Update tests to use `.get()` with `TypedDict.get(...)` semantics where applicable
+
+Schedule after Wave 3. Not blocking anything; high leverage when it lands (blocks a class of silent-key-rename bugs).
 
 ---
 
