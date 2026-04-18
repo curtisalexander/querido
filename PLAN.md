@@ -222,9 +222,9 @@ Critical + tactical review conducted before starting Phase 6. One item (R.1) is 
 
 ### Resume point
 
-R.1–R.20 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
+R.1–R.21 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
 
-Remaining review work: **R.21 through R.26 (traditional code quality)** — all small, none blocking. See the section of the same name below. Pick any of them up independently; they don't depend on each other except that R.22 and R.23 naturally go together (R.22 narrows bare `except Exception`, R.23 routes connector errors through `ConnectorError` — once R.23 lands, some R.22 fixes get cleaner).
+Remaining review work: **R.22 through R.26 (traditional code quality)** — all small, none blocking. See the section of the same name below. Pick any of them up independently; they don't depend on each other except that R.22 and R.23 naturally go together (R.22 narrows bare `except Exception`, R.23 routes connector errors through `ConnectorError` — once R.23 lands, some R.22 fixes get cleaner).
 
 Outside the R-series: **Phase 6.1** (`qdo report session` HTML) is the next planned work after review items settle.
 
@@ -434,12 +434,12 @@ Extended the existing `qdo workflow lint` with optional schema-aware checks rath
 
 ### Traditional code quality
 
-#### R.21 — Delete or wire up dead `null_count` templates
+#### R.21 — Delete or wire up dead `null_count` templates — **done (2026-04-18, deleted)**
 
-- [ ] `sql/templates/null_count/{common,duckdb,snowflake}.sql` has no `render_template("null_count", ...)` callers
-- [ ] Delete if truly dead; wire up if there's an intended use
-
-**Effort:** 15 min (delete) or 2 hours (investigate + wire).
+- [x] Confirmed no `render_template("null_count", ...)` callers exist and no dynamic path construction lands on `null_count`. Every caller that needs null counts gets them from a broader multi-column scan: `profile` (per-column columns in one select), `dist` (CTE), `context` (single-scan stats), `values` (window aggregate on grouped results), `quality` (inline aggregate build).
+- [x] Deleted `src/querido/sql/templates/null_count/{common,duckdb,snowflake}.sql` and the empty `null_count/` directory.
+- [x] Updated `ARCHITECTURE.md` project-structure block to drop the `null_count/` subsection.
+- [x] No tests touched the template path (grep clean); `ruff format`, `ruff check`, `ty check`, `pytest` all green.
 
 #### R.22 — Narrow broad `except Exception:` handlers
 

@@ -136,10 +136,6 @@ querido/
 │       │       ├── frequency/
 │       │       │   ├── common.sql      # Top-N frequent values query
 │       │       │   └── snowflake.sql   # approx_top_k variant
-│       │       ├── null_count/
-│       │       │   ├── common.sql      # NULL count + total rows for a column
-│       │       │   ├── duckdb.sql      # count_if variant
-│       │       │   └── snowflake.sql   # count_if variant
 │       │       ├── generate/           # SQL generation templates (qdo sql)
 │       │       │   ├── select/common.sql
 │       │       │   ├── insert/common.sql
