@@ -222,9 +222,9 @@ Critical + tactical review conducted before starting Phase 6. One item (R.1) is 
 
 ### Resume point
 
-R.1–R.24 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
+R.1–R.25 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
 
-Remaining review work: **R.25 and R.26 (traditional code quality)** — both small, none blocking. See the section of the same name below.
+Remaining review work: **R.26 (documentation-only)** — small, non-blocking. See the section of the same name below.
 
 Outside the R-series: **Phase 6.1** (`qdo report session` HTML) is the next planned work after review items settle.
 
@@ -467,13 +467,11 @@ Narrowed 6 handlers to specific exception types; kept 5 broad with inline commen
 - [x] 7 new parametrized tests asserting `ValueError` on four attack shapes (semicolon injection, SQL comment trailer, parens, leading digit) for SQLite + three shapes for DuckDB. Snowflake test coverage flows through its existing `_resolve_table` validation; no new fixture needed.
 - [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 917 passing (+7), 24 skipped.
 
-#### R.25 — Narrow `Any` in `arrow_util` and `bundle`
+#### R.25 — Narrow `Any` in `arrow_util` and `bundle` — **done (2026-04-18)**
 
-- [ ] `connectors/arrow_util.py:35` — `data: Any` → `PyArrowTable | list[dict]`
-- [ ] `core/bundle.py` provenance helpers — introduce a TypedDict for provenance dicts
-- [ ] Not blocking (ty passes); improves IDE autocomplete and reviewability
-
-**Effort:** 1 hour.
+- [x] `connectors/arrow_util.py` — introduced `ArrowOrDicts = pa.Table | list[dict]` alias under `TYPE_CHECKING`; `execute_arrow_or_dicts` return and `arrow_to_dicts` arg now use it instead of `Any`.
+- [x] `core/bundle.py` — added `Provenance` TypedDict (`value: Any, source: str, confidence: float, written_at: str, author: str`) and changed `_is_provenance` return type to `TypeGuard[Provenance]` so `_confidence_of` / `_written_at_of` branches narrow correctly.
+- [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 917 passing, 24 skipped — pure annotation change, no behavioral diff.
 
 #### R.26 — Document connector cache-key strategies
 
