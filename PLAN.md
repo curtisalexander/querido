@@ -222,9 +222,9 @@ Critical + tactical review conducted before starting Phase 6. One item (R.1) is 
 
 ### Resume point
 
-R.1–R.25 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
+**All review items R.1–R.26 are done or dropped.** Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
 
-Remaining review work: **R.26 (documentation-only)** — small, non-blocking. See the section of the same name below.
+Next planned work: **Phase 6.1** (`qdo report session` HTML).
 
 Outside the R-series: **Phase 6.1** (`qdo report session` HTML) is the next planned work after review items settle.
 
@@ -473,16 +473,14 @@ Narrowed 6 handlers to specific exception types; kept 5 broad with inline commen
 - [x] `core/bundle.py` — added `Provenance` TypedDict (`value: Any, source: str, confidence: float, written_at: str, author: str`) and changed `_is_provenance` return type to `TypeGuard[Provenance]` so `_confidence_of` / `_written_at_of` branches narrow correctly.
 - [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 917 passing, 24 skipped — pure annotation change, no behavioral diff.
 
-#### R.26 — Document connector cache-key strategies
+#### R.26 — Document connector cache-key strategies — **done (2026-04-18)**
 
-- [ ] `connectors/duckdb.py:70` lowercases; `connectors/snowflake.py:234` fully-qualifies uppercase
-- [ ] Add a one-line docstring on each connector class explaining the convention
-
-**Effort:** 15 min.
+- [x] Added a class docstring to each connector explaining the `_columns_cache` key convention and why: `SQLiteConnector` → `table.lower()` (SQLite is case-insensitive for unquoted identifiers), `DuckDBConnector` → `table.lower()` (DuckDB folds to lowercase), `SnowflakeConnector` → fully-qualified `f"{DATABASE}.{SCHEMA}.{TABLE}"` uppercase (Snowflake uppercases + must disambiguate across schemas).
+- [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 917 passing, 24 skipped — docstring-only change.
 
 ---
 
-**Triage summary (post-2026-04-17 session).** R.1–R.20 all done or intentionally dropped (R.3, R.18). R.13 + Phase 6.2/6.3 collapsed into full `qdo serve` removal. Only R.21–R.26 remain — classic maintenance, none blocking. Test count grew from 842 (post test-cleanup baseline) to 894 as R.2, R.5, R.6, R.7, R.8, R.10, R.11, R.12, R.14, R.15, R.16, R.17, R.19, R.20 added named-invariant contract tests; R.13's removal subtracted 31 web/serve tests that no longer apply.
+**Triage summary (post-2026-04-18 session).** R.1–R.26 all done or intentionally dropped (R.3, R.18). R.13 + Phase 6.2/6.3 collapsed into full `qdo serve` removal. Test count grew from 842 (post test-cleanup baseline) to 917 as R.2, R.5, R.6, R.7, R.8, R.10, R.11, R.12, R.14, R.15, R.16, R.17, R.19, R.20, R.23, R.24 added named-invariant contract tests; R.13's removal subtracted 31 web/serve tests that no longer apply. R.21 (dead null_count templates) + R.22 (narrow `except Exception`) + R.23 (connector error hierarchy) + R.24 (sample_source validation) + R.25 (narrow `Any`) + R.26 (cache-key docstrings) landed 2026-04-18.
 
 ---
 

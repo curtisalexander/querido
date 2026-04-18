@@ -6,6 +6,14 @@ from querido.connectors.base import validate_table_name, wrap_driver_error
 
 
 class DuckDBConnector:
+    """DuckDB connector (also handles Parquet via ``register_parquet``).
+
+    ``_columns_cache`` key convention: ``table.lower()``. DuckDB folds
+    unquoted identifiers to lowercase in its catalog, so lowercasing in
+    Python up front keeps cache lookups consistent with what ``duckdb_columns()``
+    sees and avoids a per-row ``lower()`` in the catalog query.
+    """
+
     dialect = "duckdb"
     supports_concurrent_queries = False
 

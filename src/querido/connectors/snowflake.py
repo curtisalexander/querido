@@ -4,6 +4,16 @@ from typing import Self
 
 
 class SnowflakeConnector:
+    """Snowflake connector.
+
+    ``_columns_cache`` key convention: fully-qualified uppercase
+    ``f"{DATABASE}.{SCHEMA}.{TABLE}"``. Snowflake stores unquoted
+    identifiers as uppercase, and the connector supports session-level
+    ``database``/``schema`` defaults plus qualified names — keying by
+    the fully-resolved triple prevents two different tables with the
+    same leaf name from colliding across schemas.
+    """
+
     dialect = "snowflake"
     supports_concurrent_queries = True
 

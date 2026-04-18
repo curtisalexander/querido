@@ -7,6 +7,13 @@ from querido.connectors.base import validate_table_name, wrap_driver_error
 
 
 class SQLiteConnector:
+    """SQLite connector.
+
+    ``_columns_cache`` key convention: ``table.lower()``. SQLite treats
+    identifiers case-insensitively (unless double-quoted), so a single
+    lowercase key collapses every casing a caller might supply.
+    """
+
     dialect = "sqlite"
     supports_concurrent_queries = False
 
