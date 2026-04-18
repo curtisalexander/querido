@@ -76,6 +76,20 @@ def show(
             f"No metadata found for {connection}/{table}. Run 'qdo metadata init' first."
         )
 
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    if is_structured_format():
+        from querido.core.next_steps import for_metadata_show
+
+        emit_envelope(
+            command="metadata show",
+            data=meta,
+            next_steps=for_metadata_show(meta, connection=connection, table=table),
+            connection=connection,
+            table=table,
+        )
+        return
+
     dispatch_output("metadata", meta)
 
 

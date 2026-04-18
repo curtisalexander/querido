@@ -766,6 +766,49 @@ def for_view_def(
     return steps
 
 
+def for_metadata_show(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo metadata show``.
+
+    A shown metadata doc points the reader at the two natural follow-ups:
+    edit the YAML (fill in human fields or correct auto-written ones), and
+    refresh auto-written stats from a new scan.
+    """
+    steps: list[dict] = [
+        _step(
+            ["qdo", "metadata", "edit", "-c", connection, "-t", table],
+            "Open the YAML in $EDITOR to fill in descriptions or correct stored fields.",
+        ),
+        _step(
+            ["qdo", "metadata", "refresh", "-c", connection, "-t", table],
+            "Re-run the profile scan and update auto-written stats.",
+        ),
+    ]
+
+    # If any human-authored placeholders remain, nudge at them.
+    placeholder = "<description>"
+    has_placeholder = False
+    if result.get("table_description") == placeholder:
+        has_placeholder = True
+    for col in result.get("columns") or []:
+        if col.get("description") == placeholder:
+            has_placeholder = True
+            break
+    if has_placeholder:
+        steps.append(
+            _step(
+                ["qdo", "metadata", "suggest", "-c", connection, "-t", table],
+                "Some placeholder fields remain — suggest deterministic auto-fill.",
+            )
+        )
+
+    return steps
+
+
 def for_template(
     result: dict,
     *,

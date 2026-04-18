@@ -211,6 +211,51 @@ def test_envelope_meta_carries_table_when_applicable(sqlite_path: str) -> None:
     assert payload["meta"]["table"] == "users"
 
 
+def test_metadata_show_emits_envelope(sqlite_path: str, tmp_path, monkeypatch) -> None:
+    """CS.3 regression — ``metadata show`` must emit the uniform envelope.
+
+    Requires ``metadata init`` first so the YAML exists. Isolated to a
+    temp working dir so `.qdo/metadata/` writes don't collide across tests.
+    """
+    monkeypatch.chdir(tmp_path)
+    init_result = runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+    assert init_result.exit_code == 0, init_result.output
+
+    r = runner.invoke(app, ["-f", "json", "metadata", "show", "-c", sqlite_path, "-t", "users"])
+    assert r.exit_code == 0, r.output
+    payload = json.loads(r.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload["command"] == "metadata show"
+    assert isinstance(payload["next_steps"], list)
+    # Every next_step points at the same connection + table.
+    for step in payload["next_steps"]:
+        assert sqlite_path in step["cmd"]
+        assert "users" in step["cmd"]
+    assert payload["meta"]["table"] == "users"
+
+
+def test_for_metadata_show_suggests_edit_and_refresh() -> None:
+    """Unit: the rule always returns edit + refresh; placeholders add suggest."""
+    from querido.core.next_steps import for_metadata_show
+
+    meta_no_placeholders = {
+        "table_description": "Real description.",
+        "columns": [{"name": "id", "description": "Primary key."}],
+    }
+    steps = for_metadata_show(meta_no_placeholders, connection="c", table="t")
+    cmds = [s["cmd"] for s in steps]
+    assert any("metadata edit" in c for c in cmds)
+    assert any("metadata refresh" in c for c in cmds)
+    assert not any("metadata suggest" in c for c in cmds)
+
+    meta_with_placeholder = {
+        "table_description": "<description>",
+        "columns": [{"name": "id"}],
+    }
+    steps = for_metadata_show(meta_with_placeholder, connection="c", table="t")
+    assert any("metadata suggest" in s["cmd"] for s in steps)
+
+
 def test_view_def_emits_envelope(tmp_path) -> None:
     """view-def needs a view in the db; covered separately from _ENVELOPE_CASES."""
     import sqlite3
@@ -242,6 +287,8 @@ def test_view_def_emits_envelope(tmp_path) -> None:
 
 _MULTIWORD_COMMAND_CASES: list[tuple[list[str], str]] = [
     (["workflow", "list"], "workflow list"),
+    # ``metadata show`` is covered by test_metadata_show_emits_envelope which
+    # also needs a metadata-init prelude; kept out of this parametrization.
 ]
 
 
