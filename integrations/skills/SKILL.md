@@ -16,6 +16,11 @@ Run this once per session (or add to your shell profile):
 export QDO_FORMAT=json   # all commands output JSON — no --format flag on every call
 ```
 
+**First time?** Pair a `qdo tutorial` run with this reference:
+
+- `qdo tutorial explore` — 15-lesson guided tour on a National Parks sample DB. Covers the full core workflow (catalog → context → profile → joins → query) in ~20 minutes.
+- `qdo tutorial agent` — 13 lessons focused on metadata + agent-assisted SQL. Run this before a real investigation to see the compounding loop end-to-end.
+
 **For a new database, start here:**
 
 ```bash

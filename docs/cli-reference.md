@@ -14,7 +14,6 @@ uv pip install querido              # core (SQLite)
 uv pip install 'querido[duckdb]'    # + DuckDB support
 uv pip install 'querido[snowflake]' # + Snowflake support
 uv pip install 'querido[tui]'       # Interactive TUI (qdo explore)
-uv pip install 'querido[web]'       # Web UI (qdo serve)
 ```
 
 ## Connection Setup
@@ -103,7 +102,6 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | Command | Purpose |
 |---------|---------|
 | `qdo explore -c CONN -t TABLE` | Interactive TUI explorer |
-| `qdo serve -c CONN` | Launch web UI (default port 8888) |
 
 ### Learn
 
@@ -239,6 +237,6 @@ echo "select * from events limit 10" | qdo query -c analytics.duckdb
 # Generate DDL for a table
 qdo sql ddl -c mydb -t users
 
-# Launch web UI for interactive exploration
-qdo serve -c analytics.duckdb
+# Generate a shareable single-file HTML report for a table
+qdo report table -c analytics.duckdb -t orders -o orders.html
 ```
