@@ -222,9 +222,9 @@ Critical + tactical review conducted before starting Phase 6. One item (R.1) is 
 
 ### Resume point
 
-R.1–R.23 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
+R.1–R.24 are **done or dropped**. Also done via R.13: Phase 6.2 + 6.3 (`qdo serve` fully removed — `src/querido/web/`, `cli/serve.py`, `tests/test_web.py`, `tests/test_serve_cli.py`, `[web]` extra all gone).
 
-Remaining review work: **R.24 through R.26 (traditional code quality)** — all small, none blocking. See the section of the same name below.
+Remaining review work: **R.25 and R.26 (traditional code quality)** — both small, none blocking. See the section of the same name below.
 
 Outside the R-series: **Phase 6.1** (`qdo report session` HTML) is the next planned work after review items settle.
 
@@ -460,12 +460,12 @@ Narrowed 6 handlers to specific exception types; kept 5 broad with inline commen
 - [x] New tests (16): 5 connector-level (`test_sqlite_missing_table_raises_table_not_found`, `test_duckdb_missing_table_raises_table_not_found`, `test_sqlite_missing_column_raises_column_not_found`, `test_wrap_driver_error_unclassified_returns_none`, `test_wrap_driver_error_preserves_original_as_cause`) + 11-row parametrized `test_error_code_from_typed_exception` pinning the isinstance-based classifier for every code (`TABLE_NOT_FOUND`, `COLUMN_NOT_FOUND`, `DATABASE_LOCKED`, `DATABASE_OPEN_FAILED`, `AUTH_FAILED`, `DATABASE_ERROR`, `FILE_NOT_FOUND`, `VALIDATION_ERROR`, `MISSING_DEPENDENCY`, `PERMISSION_DENIED`, `UNKNOWN_ERROR`).
 - [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 910 passing (+16), 24 skipped.
 
-#### R.24 — Validate table names in `sample_source`
+#### R.24 — Validate table names in `sample_source` — **done (2026-04-18)**
 
-- [ ] `connectors/sqlite.py:101-121`, `connectors/duckdb.py:160-169` build SQL via f-string and trust callers
-- [ ] Call `validate_table_name(table)` internally so integrations/tests can't bypass CLI validation
-
-**Effort:** 30 min.
+- [x] `connectors/sqlite.py` + `connectors/duckdb.py` `sample_source` now call `validate_table_name(table)` before f-stringing; `connectors/snowflake.py` calls `validate_object_name(table)` (dotted names allowed).
+- [x] Snowflake was missing from the original audit but had the same issue — three-connector fix instead of two.
+- [x] 7 new parametrized tests asserting `ValueError` on four attack shapes (semicolon injection, SQL comment trailer, parens, leading digit) for SQLite + three shapes for DuckDB. Snowflake test coverage flows through its existing `_resolve_table` validation; no new fixture needed.
+- [x] `ruff format`/`ruff check`/`ty check`/`pytest` all green; 917 passing (+7), 24 skipped.
 
 #### R.25 — Narrow `Any` in `arrow_util` and `bundle`
 

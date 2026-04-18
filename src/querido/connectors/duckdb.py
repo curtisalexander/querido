@@ -182,6 +182,7 @@ class DuckDBConnector:
         # Use system (block-level) sampling for large tables (>10M rows).
         # System sampling skips entire row groups and is significantly faster
         # than reservoir sampling, which must scan every row.
+        validate_table_name(table)
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
         if row_count > 10_000_000:

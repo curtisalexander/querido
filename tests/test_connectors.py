@@ -94,3 +94,29 @@ def test_wrap_driver_error_preserves_original_as_cause(sqlite_path: str):
         except TableNotFoundError as exc:
             assert exc.__cause__ is not None
             assert "nonexistent_table" in str(exc.__cause__)
+
+
+# ---------------------------------------------------------------------------
+# sample_source validates table names (R.24) so integrations/tests can't
+# bypass the CLI-layer identifier check.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad_name",
+    ["users; drop table x", "users'--", "users(1)", "1bad"],
+    ids=["semicolon", "sql-comment", "parens", "leading-digit"],
+)
+def test_sqlite_sample_source_rejects_unsafe_names(sqlite_path: str, bad_name: str):
+    with SQLiteConnector(sqlite_path) as conn, pytest.raises(ValueError, match="Invalid table"):
+        conn.sample_source(bad_name, 10)
+
+
+@pytest.mark.parametrize(
+    "bad_name",
+    ["users; drop table x", "users'--", "users(1)"],
+    ids=["semicolon", "sql-comment", "parens"],
+)
+def test_duckdb_sample_source_rejects_unsafe_names(duckdb_path: str, bad_name: str):
+    with DuckDBConnector(duckdb_path) as conn, pytest.raises(ValueError, match="Invalid table"):
+        conn.sample_source(bad_name, 10)

@@ -347,6 +347,9 @@ class SnowflakeConnector:
         # Use block sampling for large tables (>10M rows). Block sampling
         # operates on whole micropartitions and is 5-10x faster because it
         # skips entire storage blocks rather than evaluating each row.
+        from querido.connectors.base import validate_object_name
+
+        validate_object_name(table)
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
         if row_count > 10_000_000:
