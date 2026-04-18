@@ -333,6 +333,8 @@ Table and column names are validated at the CLI boundary using `validate_table_n
 
 Each connector normalizes identifier case in **Python** (e.g. `.lower()` for DuckDB, `.upper()` for Snowflake) before passing values as bind parameters to catalog queries. This is intentional — pushing normalization into SQL with functions like `LOWER()` forces the database to evaluate a function call per row in the catalog, which is wasteful. Doing it once in Python before the query is cheaper and keeps the SQL simple with exact-match `WHERE` clauses.
 
+The same conventions drive the connectors' in-process `_columns_cache` keys — SQLite and DuckDB key by `table.lower()`; Snowflake keys by the fully-qualified uppercase `f"{DATABASE}.{SCHEMA}.{TABLE}"` (matching Snowflake's uppercase identifier storage and disambiguating across schemas when session-level `database`/`schema` defaults differ). Each connector class docstring in `src/querido/connectors/` spells this out. Future connectors must follow the same pattern (and document it in their class docstring) so cache hits are deterministic and cross-session-safe.
+
 ### 6. Configuration
 
 Connections are stored in TOML at the platform-appropriate config directory (via `platformdirs`):

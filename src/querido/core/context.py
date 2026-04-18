@@ -47,6 +47,11 @@ def get_context(
     dict with keys:
         table, dialect, connection, row_count, sampled, sample_size,
         table_comment, table_description, columns (list), metadata (dict|None)
+
+    Stored metadata is read best-effort: unreadable YAML, permission errors,
+    or a missing file all degrade silently to ``metadata=None`` / empty
+    per-column overlays rather than failing the command. Agents relying on
+    the metadata merge should tolerate its absence.
     """
     from querido.connectors.base import validate_table_name
     from querido.core._utils import (

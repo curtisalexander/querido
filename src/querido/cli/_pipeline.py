@@ -87,6 +87,13 @@ def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> No
     Only warms for named connections (not file paths) to avoid polluting
     the cache with transient databases.  Only caches the table list (not
     columns) to keep the operation fast.
+
+    The warm runs in a daemon thread so it never blocks interpreter exit —
+    we deliberately don't join it. The ``finally: cache.close()`` inside
+    ``_warm`` ensures the SQLite cache DB handle is released; a
+    ``KeyboardInterrupt`` during the warm will surface on the main thread's
+    next operation. If the cache grows persistent state in the future, add
+    an ``atexit`` hook to flush pending writes.
     """
     import threading
 
