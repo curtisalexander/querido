@@ -1,8 +1,10 @@
 """Generate synthetic test data and import into SQLite and DuckDB.
 
-Creates three tables per database:
+Creates four tables per database:
 - customers (1000 rows): strings, dates, emails, phones, nulls
 - products (1000 rows): numeric, categorical, varying nulls
+- orders (5000 rows): customer_id + product_id foreign keys, status enum with
+  a few data-quality outliers (for demos), amount, region, order_date
 - datatypes (100 rows): exotic/complex types per database engine
 
 All data is deterministic (seeded RNG) for reproducible test runs.
@@ -328,6 +330,9 @@ AVAILABILITY = ["In Stock", "Out of Stock", "Preorder", "Discontinued"]
 
 CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CAD"]
 
+ORDER_STATUSES = ["shipped", "pending", "cancelled", "processing", "returned", "delivered"]
+ORDER_REGIONS = ["NA", "EMEA", "APAC", "LATAM"]
+
 DESCRIPTIONS = [
     "High-performance component for demanding applications.",
     "Reliable and cost-effective solution for everyday use.",
@@ -419,6 +424,52 @@ def gen_customers(n: int = 1000) -> tuple[list[str], list[list[object]]]:
     return headers, rows
 
 
+def gen_orders(
+    n: int = 5000, n_customers: int = 1000, n_products: int = 1000
+) -> tuple[list[str], list[list[object]]]:
+    """Generate orders linking customers to products with a status enum.
+
+    A small percentage of rows intentionally carry data-quality issues so
+    demos of ``qdo quality`` / ``qdo values`` have something to flag:
+      * ~0.8% status values outside ``ORDER_STATUSES`` (case mismatch or typo)
+      * ~2.5% NULL amount
+      * ~1.5% negative amount (invariant: should be > 0)
+    """
+    headers = [
+        "customer_id",
+        "product_id",
+        "status",
+        "amount",
+        "region",
+        "order_date",
+    ]
+    rows: list[list[object]] = []
+    bad_statuses = ["PENDING", "Shipped", "canceled", ""]  # case/typo drift
+    for _ in range(n):
+        status_roll = RNG.random()
+        status = RNG.choice(bad_statuses) if status_roll < 0.008 else RNG.choice(ORDER_STATUSES)
+
+        amount_roll = RNG.random()
+        if amount_roll < 0.025:
+            amount: object = None
+        elif amount_roll < 0.040:
+            amount = round(-RNG.uniform(1.0, 500.0), 2)  # invariant violation
+        else:
+            amount = round(RNG.uniform(1.0, 5000.0), 2)
+
+        rows.append(
+            [
+                RNG.randint(1, n_customers),
+                RNG.randint(1, n_products),
+                status,
+                amount,
+                RNG.choice(ORDER_REGIONS),
+                gen_date(2023, 2025),
+            ]
+        )
+    return headers, rows
+
+
 def gen_products(n: int = 1000) -> tuple[list[str], list[list[object]]]:
     headers = [
         "name",
@@ -483,7 +534,10 @@ def write_csv(path: Path, headers: list[str], rows: list[list[object]]) -> None:
 
 
 def init_sqlite(
-    db_path: Path, customers: list[list[object]], products: list[list[object]]
+    db_path: Path,
+    customers: list[list[object]],
+    products: list[list[object]],
+    orders: list[list[object]],
 ) -> None:
     print(f"\n  Creating SQLite database: {db_path}")
     if db_path.exists():
@@ -538,6 +592,24 @@ def init_sqlite(
         " currency, stock, ean, color, size, availability, internal_id)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         products,
+    )
+
+    # Orders table — FKs to customers/products, status enum, amount, region
+    conn.execute("""
+        CREATE TABLE orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
+            product_id INTEGER,
+            status TEXT,
+            amount REAL,
+            region TEXT,
+            order_date TEXT
+        )
+    """)
+    conn.executemany(
+        "INSERT INTO orders (customer_id, product_id, status, amount, region,"
+        " order_date) VALUES (?, ?, ?, ?, ?, ?)",
+        orders,
     )
 
     # Datatypes table — exercises SQLite's type flexibility
@@ -598,7 +670,7 @@ def init_sqlite(
 
     conn.commit()
 
-    for table in ["customers", "products", "datatypes"]:
+    for table in ["customers", "products", "orders", "datatypes"]:
         result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
         count = result[0] if result else 0
         print(f"  [ok] {table}: {count} rows")
@@ -612,7 +684,10 @@ def init_sqlite(
 
 
 def init_duckdb(
-    db_path: Path, customers: list[list[object]], products: list[list[object]]
+    db_path: Path,
+    customers: list[list[object]],
+    products: list[list[object]],
+    orders: list[list[object]],
 ) -> None:
     print(f"\n  Creating DuckDB database: {db_path}")
     if db_path.exists():
@@ -643,6 +718,21 @@ def init_duckdb(
             CAST(stock AS INTEGER) AS stock,
             ean, color, size, availability, internal_id
         FROM read_csv('{products_csv}', header=true, null_padding=true)
+    """)
+
+    # Orders — load from CSV for proper type inference (date + numeric + text)
+    orders_csv = str(DATA_DIR / "orders-5000.csv").replace("\\", "/")
+    conn.execute(f"""
+        CREATE TABLE orders AS
+        SELECT
+            ROW_NUMBER() OVER () AS id,
+            CAST(customer_id AS INTEGER) AS customer_id,
+            CAST(product_id AS INTEGER) AS product_id,
+            status,
+            CAST(amount AS DOUBLE) AS amount,
+            region,
+            CAST(order_date AS DATE) AS order_date
+        FROM read_csv('{orders_csv}', header=true, null_padding=true)
     """)
 
     # Datatypes table — exercises DuckDB's rich type system
@@ -739,7 +829,7 @@ def init_duckdb(
             )
         """)
 
-    for table in ["customers", "products", "datatypes"]:
+    for table in ["customers", "products", "orders", "datatypes"]:
         result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
         count = result[0] if result else 0
         print(f"  [ok] {table}: {count} rows")
@@ -761,16 +851,18 @@ def main() -> None:
     print("Generating synthetic data...")
     cust_headers, cust_rows = gen_customers(1000)
     prod_headers, prod_rows = gen_products(1000)
+    ord_headers, ord_rows = gen_orders(5000, n_customers=len(cust_rows), n_products=len(prod_rows))
 
     # Write CSVs
     print("\nWriting CSVs...")
     write_csv(DATA_DIR / "customers-1000.csv", cust_headers, cust_rows)
     write_csv(DATA_DIR / "products-1000.csv", prod_headers, prod_rows)
+    write_csv(DATA_DIR / "orders-5000.csv", ord_headers, ord_rows)
 
     # Create databases
     print("\nCreating databases...")
-    init_sqlite(DATA_DIR / "test.db", cust_rows, prod_rows)
-    init_duckdb(DATA_DIR / "test.duckdb", cust_rows, prod_rows)
+    init_sqlite(DATA_DIR / "test.db", cust_rows, prod_rows, ord_rows)
+    init_duckdb(DATA_DIR / "test.duckdb", cust_rows, prod_rows, ord_rows)
 
     print("\n=== Done! ===")
     print(f"Data directory: {DATA_DIR.resolve()}")
