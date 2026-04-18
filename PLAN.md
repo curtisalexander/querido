@@ -8,6 +8,28 @@ Each item: **what**, **why it matters**, **acceptance criteria**, **effort estim
 
 ---
 
+## Status (as of 2026-04-18)
+
+**Tests:** 987 passing, 25 skipped. `ruff format`, `ruff check`, `ty check` all green. Zero `TODO`/`FIXME` tags in tree.
+
+**Phases done:** 1 (Agent-first foundations), 2 (Agent output + report table), 3 (Knowledge bundles), 4 (Workflows incl. self-hosting eval 4.6). Phase 5 dropped by design. Phase 6.2/6.3 (`qdo serve` removal) done via R.13. **R-series (R.1–R.26) all done or intentionally dropped.** **Sharpening pass (Waves 1–3) done**, including EV.Build — `scripts/eval_skill_files.py` shipped.
+
+**Pick up next session with one of these (ordered by value):**
+
+1. **Run `scripts/eval_skill_files.py` live** to establish the first baseline per model.
+   - Requires Claude Code Max (`claude /login` first; `ANTHROPIC_API_KEY` must be unset).
+   - Start Haiku-only — `uv run python scripts/eval_skill_files.py` — to validate the harness end-to-end against a live model (~$0.02–0.20).
+   - If Haiku clears its 70% gate, run the full matrix — `--models all --budget 5` (~$0.50–2 per run).
+   - Per-task failures that cluster in a category (e.g. `model-mistake` on `qdo values`) are signal to tighten SKILL.md. Snapshot the results JSON + add a note to PLAN.md when you do.
+
+2. **Phase 6.1 — `qdo report session` HTML.** See the "Phase 6" section below. Dependency-wise this is the next planned piece after the Sharpening pass settled.
+
+3. **Scan-result TypedDicts (scheduled from CC.5).** See "Scheduled follow-up: Scan-result TypedDicts" later in this file. Non-blocking; high leverage. ~half day.
+
+Each picks up cold-start without remembering what was in the previous session — the resume point at the end of the Sharpening-pass section has the full context.
+
+---
+
 ## Phase 1 — Agent-first foundations (~1 week)
 
 The four items that together create the "tool gets better the more it's used" compounding loop. Do these first; everything else depends on them.

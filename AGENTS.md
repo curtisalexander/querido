@@ -402,14 +402,26 @@ uv run python scripts/init_test_data.py   # creates data/test.db and data/test.d
 
 | Database | Tables | Rows |
 |----------|--------|------|
-| test.db (SQLite) | customers, products, datatypes | 1000 / 1000 / 100 |
-| test.duckdb | customers, products, datatypes | 1000 / 1000 / 100 |
+| test.db (SQLite) | customers, products, orders, datatypes | 1000 / 1000 / 5000 / 100 |
+| test.duckdb | customers, products, orders, datatypes | 1000 / 1000 / 5000 / 100 |
 
 **customers**: customer_id, first_name, last_name, company, city, country, phone1, phone2, email, subscription_date, website
 
 **products**: name, description, brand, category, price, currency, stock, ean, color, size, availability, internal_id
 
+**orders**: customer_id, product_id, status, amount, region, order_date — 5000 rows linking customers and products, with intentional data-quality outliers (~0.8% malformed status values, ~2.5% null amounts, ~1.5% negative amounts) so demos of `qdo quality` and `qdo values --write-metadata` have something to flag
+
 **datatypes**: mixed types for edge-case testing (blobs, JSON, nulls, negatives, large ints)
+
+## Self-hosting evaluations
+
+Two optional eval scripts live under `scripts/`. Both require a Claude Code Max subscription (`claude -p`) and refuse to run when `ANTHROPIC_API_KEY` is set so billing can't leak to the API.
+
+- **`eval_workflow_authoring.py`** — Phase 4.6. Feeds `WORKFLOW_AUTHORING.md` + `qdo workflow spec` + bundled examples to `claude -p`, asks the model to author three workflows it hasn't seen, and checks lint + run + shape assertions. Signals whether the authoring doc is pedagogically complete.
+
+- **`eval_skill_files.py`** — EV.Build. Feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 11 realistic data-exploration questions across four categories (discovery, column-level, quality, metadata/SQL). Each task has required-command / content-regex / preferred-command checks and categorizes failures (qdo-bug / model-mistake / envelope-mismatch / timeout / auth-error). Supports Haiku / Sonnet / Opus; per-model pass gates (70 / 85 / 95 %). Per-run JSON results land in `scripts/eval_results/` (gitignored).
+
+Both are opt-in. Run locally after doc or implementation changes; failures that cluster in a category point at specific docs to tighten.
 
 ## Dependency Management
 

@@ -24,11 +24,12 @@ querido/
 │   ├── skills/WORKFLOW_EXAMPLES.md  # Annotated reference to bundled workflow examples
 │   └── continue/qdo.md             # Continue.dev rule
 ├── scripts/
-│   ├── init_test_data.py           # Generate synthetic data → data/test.db + data/test.duckdb
+│   ├── init_test_data.py           # Generate synthetic data → data/test.{db,duckdb} (customers, products, orders, datatypes)
 │   ├── init_tutorial_data.py       # Generate tutorial National Parks DB
 │   ├── check_deps.py              # Dependency checker with supply-chain quarantine
 │   ├── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
-│   ├── eval_workflow_authoring.py # Self-hosting eval: claude -p round-trips WORKFLOW_AUTHORING.md (Phase 4.6)
+│   ├── eval_workflow_authoring.py # Self-hosting eval: claude -p writes workflows (Phase 4.6)
+│   ├── eval_skill_files.py        # Self-hosting eval: claude -p answers data questions via SKILL.md (EV.Build)
 │   └── retag.sh                   # Move release tag to current commit
 ├── src/
 │   └── querido/
