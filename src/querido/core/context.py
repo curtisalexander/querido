@@ -11,13 +11,33 @@ database queries using a background thread.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 # Dialects that support approx_top_k in one scan
 _TOP_K_DIALECTS = frozenset({"duckdb", "snowflake"})
+
+
+class ContextResult(TypedDict):
+    """Return shape of :func:`get_context`. Per-column entries merge schema,
+    stats, sample values, and stored metadata; that shape varies by dialect
+    and is kept loose as ``dict[str, Any]`` for now."""
+
+    table: str
+    dialect: str
+    connection: str | None
+    row_count: int
+    sampled: bool
+    sample_size: int | None
+    sampling_note: str | None
+    table_comment: str | None
+    table_description: str | None
+    data_owner: str | None
+    columns: list[dict[str, Any]]
+    metadata: dict[str, Any] | None
+    sql: str
 
 
 def get_context(
@@ -29,7 +49,7 @@ def get_context(
     no_sample: bool = False,
     sample: int | None = None,
     exact: bool = False,
-) -> dict:
+) -> ContextResult:
     """Return rich context for a table: schema, stats, sample values, metadata.
 
     Performance strategy

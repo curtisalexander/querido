@@ -2,10 +2,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+
+
+class QualityResult(TypedDict):
+    """Return shape of :func:`get_quality`. Per-column entries in
+    ``columns`` carry violations + stored-metadata enrichment and are not
+    narrowed further here."""
+
+    table: str
+    row_count: int
+    sampled: bool
+    sample_size: int | None
+    sampling_note: str | None
+    duplicate_rows: int | None
+    columns: list[dict[str, Any]]
 
 
 def get_quality(
@@ -18,7 +32,7 @@ def get_quality(
     no_sample: bool = False,
     exact: bool = False,
     connection: str | None = None,
-) -> dict:
+) -> QualityResult:
     """Run quality checks on a table.
 
     Parameters

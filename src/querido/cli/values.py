@@ -87,13 +87,13 @@ def values(
         if is_structured_format():
             from querido.core.next_steps import for_values
 
+            envelope_data: dict = dict(result)
             if metadata_write_summary is not None:
-                result = dict(result)
-                result["metadata_write"] = metadata_write_summary
+                envelope_data["metadata_write"] = metadata_write_summary
 
             emit_envelope(
                 command="values",
-                data=result,
+                data=envelope_data,
                 next_steps=for_values(result, connection=connection, table=ctx.table),
                 connection=connection,
                 table=ctx.table,

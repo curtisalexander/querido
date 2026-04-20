@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from querido.core._utils import (
     build_col_info,
@@ -13,6 +13,20 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
+class ProfileResult(TypedDict):
+    """Return shape of :func:`get_profile`. Top-level contract is fixed; the
+    per-column ``stats`` entries vary by dialect + flags and stay as ``dict``."""
+
+    stats: list[dict[str, Any]]
+    row_count: int
+    sampled: bool
+    sample_size: int | None
+    sampling_note: str | None
+    source: str
+    col_info: list[dict[str, Any]]
+    quick: bool
+
+
 def get_profile(
     connector: Connector,
     table: str,
@@ -23,7 +37,7 @@ def get_profile(
     exact: bool = False,
     quick: bool = False,
     connection: str | None = None,
-) -> dict:
+) -> ProfileResult:
     """Profile table columns and return statistics.
 
     When *exact* is ``False`` (the default) and the connector dialect is

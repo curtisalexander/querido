@@ -10,6 +10,7 @@ from textual.widgets import DataTable, Static
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+    from querido.core.profile import ProfileResult
 
 
 class ProfileScreen(ModalScreen):
@@ -128,7 +129,7 @@ class ProfileScreen(ModalScreen):
             callback=_on_columns_selected,
         )
 
-    def _populate_table(self, result: dict) -> None:
+    def _populate_table(self, result: ProfileResult) -> None:
         stats = result["stats"]
         row_count = result["row_count"]
         sampled = result["sampled"]

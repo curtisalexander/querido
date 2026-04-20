@@ -28,6 +28,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from querido.core.metadata import _read_yaml, _write_yaml, metadata_path
+from querido.core.quality import QualityResult
+from querido.core.values import ValuesResult
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
@@ -137,7 +139,7 @@ def derive_from_profile(stats: list[dict], col_info: list[dict]) -> list[FieldUp
     return updates
 
 
-def derive_from_values(result: dict) -> list[FieldUpdate]:
+def derive_from_values(result: ValuesResult) -> list[FieldUpdate]:
     """Derive candidate ``valid_values`` from a ``values`` result."""
     column = result.get("column")
     if not column:
@@ -172,7 +174,7 @@ def derive_from_values(result: dict) -> list[FieldUpdate]:
     ]
 
 
-def derive_from_quality(result: dict) -> list[FieldUpdate]:
+def derive_from_quality(result: QualityResult) -> list[FieldUpdate]:
     """Derive ``likely_sparse`` from a ``quality`` result."""
     updates: list[FieldUpdate] = []
     for col in result.get("columns") or []:
@@ -279,7 +281,7 @@ def write_from_values(
     connector: Connector,
     connection: str,
     table: str,
-    result: dict,
+    result: ValuesResult,
     *,
     force: bool = False,
 ) -> dict:
@@ -291,7 +293,7 @@ def write_from_quality(
     connector: Connector,
     connection: str,
     table: str,
-    result: dict,
+    result: QualityResult,
     *,
     force: bool = False,
 ) -> dict:

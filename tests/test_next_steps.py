@@ -11,12 +11,16 @@ same shape of output, they produce the same next_steps list.
 from __future__ import annotations
 
 import json
+from typing import cast
 
 import pytest
 from typer.testing import CliRunner
 
 from querido.cli.main import app
 from querido.core import next_steps as ns
+from querido.core.context import ContextResult
+from querido.core.quality import QualityResult
+from querido.core.values import ValuesResult
 from querido.output.envelope import build_envelope, cmd, shell_quote_value
 
 runner = CliRunner()
@@ -124,7 +128,7 @@ def test_for_context_high_null_suggests_quality() -> None:
         "row_count": 100,
         "columns": [{"name": "notes", "type": "TEXT", "null_pct": 80.0}],
     }
-    steps = ns.for_context(result, connection="c", table="t")
+    steps = ns.for_context(cast(ContextResult, result), connection="c", table="t")
     assert any("qdo quality" in s["cmd"] for s in steps)
 
 
@@ -133,7 +137,7 @@ def test_for_context_low_cardinality_string_suggests_values() -> None:
         "row_count": 100,
         "columns": [{"name": "status", "type": "VARCHAR", "distinct_count": 4}],
     }
-    steps = ns.for_context(result, connection="c", table="t")
+    steps = ns.for_context(cast(ContextResult, result), connection="c", table="t")
     assert any("qdo values" in s["cmd"] and "--columns status" in s["cmd"] for s in steps)
 
 
@@ -142,7 +146,7 @@ def test_for_context_numeric_suggests_dist() -> None:
         "row_count": 100,
         "columns": [{"name": "amount", "type": "DOUBLE", "null_pct": 0.0}],
     }
-    steps = ns.for_context(result, connection="c", table="t")
+    steps = ns.for_context(cast(ContextResult, result), connection="c", table="t")
     assert any("qdo dist" in s["cmd"] and "--columns amount" in s["cmd"] for s in steps)
 
 
@@ -393,13 +397,13 @@ def test_for_dist_with_nulls_suggests_quality() -> None:
 
 def test_for_values_truncated_suggests_raising_max() -> None:
     result = {"column": "x", "truncated": True, "distinct_count": 5000}
-    steps = ns.for_values(result, connection="c", table="t")
+    steps = ns.for_values(cast(ValuesResult, result), connection="c", table="t")
     assert any("--max" in s["cmd"] for s in steps)
 
 
 def test_for_values_enumerable_suggests_capture() -> None:
     result = {"column": "x", "truncated": False, "distinct_count": 4}
-    steps = ns.for_values(result, connection="c", table="t")
+    steps = ns.for_values(cast(ValuesResult, result), connection="c", table="t")
     assert any("qdo values" in s["cmd"] and "--write-metadata" in s["cmd"] for s in steps)
 
 
@@ -411,7 +415,7 @@ def test_for_values_skips_capture_when_already_stored() -> None:
         "distinct_count": 4,
         "stored_metadata": {"valid_values": ["a", "b", "c", "d"]},
     }
-    steps = ns.for_values(result, connection="c", table="t")
+    steps = ns.for_values(cast(ValuesResult, result), connection="c", table="t")
     assert not any("--write-metadata" in s["cmd"] for s in steps)
 
 
@@ -420,7 +424,7 @@ def test_for_quality_failing_column_triggers_dist_and_values() -> None:
         "columns": [{"name": "notes", "status": "fail"}],
         "duplicate_rows": None,
     }
-    steps = ns.for_quality(result, connection="c", table="t")
+    steps = ns.for_quality(cast(QualityResult, result), connection="c", table="t")
     assert any("qdo dist" in s["cmd"] and "--columns notes" in s["cmd"] for s in steps)
     assert any("qdo values" in s["cmd"] and "--columns notes" in s["cmd"] for s in steps)
     assert any("--check-duplicates" in s["cmd"] for s in steps)

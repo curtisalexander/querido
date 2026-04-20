@@ -2,10 +2,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+
+
+class ValuesResult(TypedDict):
+    """Return shape of :func:`get_distinct_values`. Per-value rows are
+    ``{"value": Any, "count": int}`` dicts."""
+
+    table: str
+    column: str
+    distinct_count: int
+    total_rows: int
+    null_count: int
+    truncated: bool
+    values: list[dict[str, Any]]
+    stored_metadata: dict[str, Any] | None
 
 
 def get_distinct_values(
@@ -16,7 +30,7 @@ def get_distinct_values(
     max_values: int = 1000,
     sort: str = "value",
     connection: str | None = None,
-) -> dict:
+) -> ValuesResult:
     """Return distinct values for a column.
 
     Returns::

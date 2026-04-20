@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 import yaml
 from typer.testing import CliRunner
@@ -17,6 +18,8 @@ from querido.core.metadata_write import (
     derive_from_quality,
     derive_from_values,
 )
+from querido.core.quality import QualityResult
+from querido.core.values import ValuesResult
 
 runner = CliRunner()
 
@@ -56,7 +59,7 @@ def test_derive_from_values_low_cardinality_strings():
             {"value": "pending", "count": 1},
         ],
     }
-    [upd] = derive_from_values(result)
+    [upd] = derive_from_values(cast(ValuesResult, result))
     assert upd.field == "valid_values"
     assert upd.value == ["active", "inactive", "pending"]
     assert upd.confidence == 0.8
@@ -69,7 +72,7 @@ def test_derive_from_values_skips_high_cardinality():
         "truncated": True,
         "values": [{"value": "a@b.com", "count": 1}],
     }
-    assert derive_from_values(result) == []
+    assert derive_from_values(cast(ValuesResult, result)) == []
 
 
 def test_derive_from_values_skips_numeric():
@@ -79,7 +82,7 @@ def test_derive_from_values_skips_numeric():
         "truncated": False,
         "values": [{"value": 25, "count": 10}, {"value": 30, "count": 5}],
     }
-    assert derive_from_values(result) == []
+    assert derive_from_values(cast(ValuesResult, result)) == []
 
 
 def test_derive_from_quality_flags_sparse_columns():
@@ -91,7 +94,7 @@ def test_derive_from_quality_flags_sparse_columns():
             {"name": "title", "null_pct": 95.0},  # boundary — not sparse
         ]
     }
-    updates = derive_from_quality(result)
+    updates = derive_from_quality(cast(QualityResult, result))
     assert {u.column for u in updates} == {"notes", "nickname"}
     assert all(u.field == "likely_sparse" and u.value is True for u in updates)
 

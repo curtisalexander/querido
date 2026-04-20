@@ -16,11 +16,9 @@ Each item: **what**, **why it matters**, **acceptance criteria**, **effort estim
 
 **Pick up next session with one of these (ordered by value):**
 
-1. **Phase 6.1 — `qdo report session` HTML.** See the "Phase 6" section below. Dependency-wise this is the next planned piece after the Sharpening pass settled.
+1. **Phase 6.1 — `qdo report session` HTML.** See the "Phase 6" section below. The last planned milestone before the open-ended backlog in "Deferred / future phases".
 
-2. **Scan-result TypedDicts (scheduled from CC.5).** See "Scheduled follow-up: Scan-result TypedDicts" later in this file. Non-blocking; high leverage. ~half day.
-
-3. **Re-run the eval** after any SKILL.md or command-surface change. One line: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
+2. **Re-run the eval** after any SKILL.md or command-surface change. One line: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
 
 Each picks up cold-start without remembering what was in the previous session — the resume point at the end of the Sharpening-pass section has the full context.
 
@@ -939,22 +937,21 @@ All four waves of the Sharpening pass complete.
 - **Wave 4** (first live baseline + harness/docs sharpening): argv hoister, SKILL.md corrections, harness classifier + parser + pre-task fixes. Matrix 33/33.
 
 **Next open items:**
-1. **Scan-result TypedDicts** (CC.5 scheduled phase) — add `ProfileResult` / `QualityResult` / `ContextResult` / `ValuesResult` (+ shared `ColumnEntry`) once you want to block the next silent-key-rename class of bugs.
-2. **Phase 6.1 — `qdo report session` HTML.** Dependency-light; ready whenever.
+1. **Phase 6.1 — `qdo report session` HTML.** Dependency-light; ready whenever. Scan-result TypedDicts (CC.5) landed as part of this wave so the report renderer consumes narrowed types.
 
-### Scheduled follow-up: Scan-result TypedDicts (from CC.5)
+### Scheduled follow-up: Scan-result TypedDicts (from CC.5) — **done (2026-04-20)**
 
-Add one TypedDict per scan result so the shape contract is enforced at type-check time rather than discovered through tests or runtime `KeyError`.
+Landed as part of the Wave 4 wrap-up. Top-level scan-result shapes are now documented by TypedDicts; downstream `for_*` / `derive_from_*` / `write_from_*` consumers narrowed to the specific types so silent key renames fail at type-check time.
 
-- [ ] `ProfileResult` in `core/profile.py`
-- [ ] `QualityResult` in `core/quality.py`
-- [ ] `ContextResult` in `core/context.py`
-- [ ] `ValuesResult` in `core/values.py`
-- [ ] Optionally: `ColumnEntry` TypedDict shared by profile / quality / context (the per-column payload they all emit)
-- [ ] Update `core/next_steps.py` `for_*` rule signatures to consume the narrower type
-- [ ] Update tests to use `.get()` with `TypedDict.get(...)` semantics where applicable
+- [x] `ProfileResult` in `core/profile.py`
+- [x] `QualityResult` in `core/quality.py`
+- [x] `ContextResult` in `core/context.py`
+- [x] `ValuesResult` in `core/values.py`
+- [x] Narrowed signatures: `for_context` / `for_quality` / `for_values` in `core/next_steps.py`; `derive_from_quality` / `derive_from_values` / `write_from_quality` / `write_from_values` in `core/metadata_write.py`; `_populate_table` in `tui/screens/profile.py`
+- [~] Optional shared `ColumnEntry` — **skipped**. Per-column payload varies enough between profile (stats), quality (violations), and context (merged + metadata) that a common TypedDict would be more noise than signal. Per-command `list[dict[str, Any]]` is honest about the polymorphism.
+- [x] Tests: `cast(...)` at call sites in `tests/test_next_steps.py` + `tests/test_metadata_write.py` where fixtures are intentional minimal subsets. Preserved narrow signatures in production code without forcing full-fixture rewrites.
 
-Schedule after Wave 3. Not blocking anything; high leverage when it lands (blocks a class of silent-key-rename bugs).
+Trade-off recorded: `for_profile` in `core/next_steps.py` kept `dict` as the parameter type because it's polymorphic — reads both `"stats"` (profile shape) and `"columns"` (context shape). Narrowing it would either require a union or a refactor to pass only one shape. Not worth it today.
 
 ---
 

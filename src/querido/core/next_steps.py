@@ -15,6 +15,9 @@ them — it handles quoting for identifiers with special characters.
 
 from __future__ import annotations
 
+from querido.core.context import ContextResult
+from querido.core.quality import QualityResult
+from querido.core.values import ValuesResult
 from querido.output.envelope import cmd
 
 
@@ -163,7 +166,7 @@ def for_catalog(
 
 
 def for_context(
-    result: dict,
+    result: ContextResult,
     *,
     connection: str,
     table: str,
@@ -390,7 +393,7 @@ def for_dist(
 
 
 def for_values(
-    result: dict,
+    result: ValuesResult,
     *,
     connection: str,
     table: str,
@@ -454,7 +457,7 @@ def for_values(
 
 
 def for_quality(
-    result: dict,
+    result: QualityResult,
     *,
     connection: str,
     table: str,
