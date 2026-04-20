@@ -10,13 +10,15 @@ Each item: **what**, **why it matters**, **acceptance criteria**, **effort estim
 
 ## Status (as of 2026-04-20)
 
-**Tests:** 1024 passing, 25 skipped. `ruff format`, `ruff check`, `ty check` all green. Zero `TODO`/`FIXME` tags in tree.
+**Tests:** 1043 passing, 25 skipped. `ruff format`, `ruff check`, `ty check` all green. Zero `TODO`/`FIXME` tags in tree.
 
-**Phases done:** 1 (Agent-first foundations), 2 (Agent output + report table), 3 (Knowledge bundles), 4 (Workflows incl. self-hosting eval 4.6). Phase 5 dropped by design. Phase 6.2/6.3 (`qdo serve` removal) done via R.13. **R-series (R.1–R.26) all done or intentionally dropped.** **Sharpening pass (Waves 1–4) done** — EV.Build shipped, first live eval baseline locked in at **33/33 perfect** across haiku/sonnet/opus.
+**Phases done:** 1 (Agent-first foundations), 2 (Agent output + report table), 3 (Knowledge bundles), 4 (Workflows incl. self-hosting eval 4.6), 6 (Session reports — 6.1 `qdo report session` + 6.2/6.3 `qdo serve` removal). Phase 5 dropped by design. **R-series (R.1–R.26) all done or intentionally dropped.** **Sharpening pass (Waves 1–4) done** — EV.Build shipped, first live eval baseline locked in at **33/33 perfect** across haiku/sonnet/opus.
 
-**Pick up next session with one of these (ordered by value):**
+Every planned phase in this plan is done. Remaining work is the "Deferred / future phases" open-ended backlog.
 
-1. **Phase 6.1 — `qdo report session` HTML.** See the "Phase 6" section below. The last planned milestone before the open-ended backlog in "Deferred / future phases".
+**Pick up next session with one of these:**
+
+1. **Pick an item from the deferred backlog.** See "Deferred / future phases" below — each is a standalone, non-blocking. Natural next candidates: `qdo investigate <table>` (bundled workflow; cheap), read-only-by-default guardrail on `query` (safety), or `qdo diff --since <session>` (change-detection for returning agents — synergizes with 6.1).
 
 2. **Re-run the eval** after any SKILL.md or command-surface change. One line: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
 
@@ -997,15 +999,19 @@ Files the cleanup explicitly spared; resist future pressure to shrink them:
 
 ## Phase 6 — Session reports and cleanup (~1 week)
 
-### 6.1 — `qdo report session` HTML
+### 6.1 — `qdo report session` HTML — **done (2026-04-20)**
 
-- [ ] Session-as-narrative: each step = card with title, one-line context, collapsed command (`<details>`), rendered output
-- [ ] Optional per-step `--note` captured during the session renders as commentary
-- [ ] Same single-file, offline, print-friendly constraints as Phase 2.2
+- [x] Session-as-narrative: each step = card with status pills (ok/fail, rows, duration), alternating theme color, collapsed `<details>` showing the full invocation, rendered stdout (JSON pretty-printed when it parses)
+- [x] Per-step commentary captured via `qdo session note <text>` (rewrites the last record in `steps.jsonl` with a `note` field). Renders as an accented block above stdout.
+- [x] Single-file HTML, self-contained `<style>`, no JavaScript, no external `<img>`/`<iframe>`; `<details>` expand for print. Same page shell as `qdo report table`.
 
-**Acceptance:** run a 5-step session, export to HTML, email to someone without qdo installed, they can read it in a browser offline.
+Code layout mirrors the existing table report:
+- `core/report.py::build_session_report(name, cwd=None) -> dict` — pure data aggregator (reads `iter_steps` + eagerly loads per-step stdout).
+- `output/report_html.py::render_session_report(report) -> str` — adds per-step card renderer, alternating `_STEP_THEMES`, new CSS for step cards + print mode.
+- `cli/report.py::report_session` — `qdo report session <name> [-o <path>]`, parallels `qdo report table`.
+- `cli/session.py::note` — `qdo session note <text> [--session <name>]`, uses `$QDO_SESSION` by default.
 
-**Effort:** 2 days.
+Tests: 19 in `tests/test_report_session.py`. The acceptance test builds a real 5-step session, exports to HTML, and asserts no `<script>`/`<iframe>`, no `<img src="http…">`, no external stylesheet link. Total 1024 → 1043.
 
 ### 6.2 + 6.3 — Deprecate + remove `qdo serve` — **done (2026-04-17, collapsed into one step via R.13)**
 

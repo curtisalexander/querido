@@ -92,6 +92,61 @@ def list_cmd() -> None:
 
 @app.command()
 @friendly_errors
+def note(
+    text: str = typer.Argument(..., help="Commentary to attach to the most recent step."),
+    name: str | None = typer.Option(
+        None,
+        "--session",
+        "-s",
+        help="Session name. Defaults to $QDO_SESSION.",
+    ),
+) -> None:
+    """Attach a note to the most recent step in the current session.
+
+    Notes render as commentary in ``qdo report session``. Useful for
+    adding context between runs — why you ran a command, what you
+    noticed, what to follow up on.
+
+    \b
+    Example:
+        qdo profile -c mydb -t orders
+        qdo session note "amount has 2.7% nulls — worth a quality pass"
+    """
+    import json
+
+    from querido.core.session import (
+        STEPS_FILE,
+        active_session_name,
+        iter_steps,
+        session_dir,
+    )
+
+    session_name = name or active_session_name()
+    if not session_name:
+        raise typer.BadParameter("No session specified. Set QDO_SESSION or pass --session <name>.")
+
+    dir_ = session_dir(session_name)
+    if not dir_.is_dir():
+        raise typer.BadParameter(f"Session not found: {session_name}")
+
+    steps = list(iter_steps(session_name))
+    if not steps:
+        raise typer.BadParameter(
+            f"Session {session_name!r} has no steps yet — nothing to annotate."
+        )
+
+    steps[-1]["note"] = text
+    steps_file = dir_ / STEPS_FILE
+    with steps_file.open("w", encoding="utf-8") as f:
+        for step in steps:
+            f.write(json.dumps(step) + "\n")
+
+    target = steps[-1].get("index", "?")
+    typer.echo(f"Annotated step {target} of session {session_name!r}.")
+
+
+@app.command()
+@friendly_errors
 def show(
     name: str = typer.Argument(..., help="Session name to show."),
     limit: int = typer.Option(0, "--limit", "-n", help="Show only the last N steps (0 = all)."),
