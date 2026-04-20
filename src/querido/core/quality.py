@@ -2,10 +2,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+
+
+class QualityResult(TypedDict):
+    """Return shape of :func:`get_quality`. Per-column entries in
+    ``columns`` carry violations + stored-metadata enrichment and are not
+    narrowed further here."""
+
+    table: str
+    row_count: int
+    sampled: bool
+    sample_size: int | None
+    sampling_note: str | None
+    duplicate_rows: int | None
+    columns: list[dict[str, Any]]
 
 
 def get_quality(
@@ -17,7 +31,8 @@ def get_quality(
     sample: int | None = None,
     no_sample: bool = False,
     exact: bool = False,
-) -> dict:
+    connection: str | None = None,
+) -> QualityResult:
     """Run quality checks on a table.
 
     Parameters
@@ -29,6 +44,13 @@ def get_quality(
     exact:
         If ``True``, use exact ``COUNT(DISTINCT)`` instead of
         ``APPROX_COUNT_DISTINCT`` on Snowflake/DuckDB.
+    connection:
+        When provided, stored metadata is loaded and merged onto each
+        column entry (``description``, ``valid_values``, ``pii``,
+        ``temporal``, ``likely_sparse``).  When ``valid_values`` is
+        stored for a column, a follow-up query counts rows that violate
+        the allowed set and surfaces it as ``invalid_count`` plus an
+        ``invalid_values`` issue on that column.
 
     Returns::
 
@@ -68,6 +90,15 @@ def get_quality(
     col_results, row_count = _compute_column_quality(
         connector, source, all_columns, approx=use_approx
     )
+
+    # Merge stored metadata onto each column + run enum-membership checks
+    # against any column with stored valid_values.
+    if connection:
+        from querido.core.metadata import load_column_metadata
+
+        stored = load_column_metadata(connection, table)
+        if stored:
+            _apply_stored_metadata(connector, source, col_results, stored)
 
     # Optional duplicate row check (always against the real table, not sample)
     duplicate_rows = None
@@ -209,6 +240,86 @@ def _classify(
         status = "ok"
 
     return status, issues
+
+
+def _apply_stored_metadata(
+    connector: Connector,
+    source: str,
+    col_results: list[dict],
+    stored: dict[str, dict],
+) -> None:
+    """Merge stored metadata onto each column result and run enum checks.
+
+    For every column with stored ``valid_values``, issues a single
+    ``count(*) where col not in (...)`` query and records the result
+    as ``invalid_count`` plus an issue + elevated status.
+    """
+    for col in col_results:
+        name = col.get("name")
+        if not isinstance(name, str):
+            continue
+        fields = stored.get(name)
+        if not fields:
+            continue
+
+        for key in ("description", "pii", "temporal", "likely_sparse"):
+            if key in fields:
+                col[key] = fields.get(key)
+
+        valid_values = fields.get("valid_values")
+        if isinstance(valid_values, list) and valid_values:
+            col["valid_values"] = valid_values
+            invalid_count = _count_invalid(connector, source, name, valid_values)
+            col["invalid_count"] = invalid_count
+            if invalid_count > 0:
+                issues = col.get("issues") or []
+                issues.append(
+                    f"{invalid_count} value(s) not in valid_values ({len(valid_values)} allowed)"
+                )
+                col["issues"] = issues
+                if col.get("status") == "ok":
+                    col["status"] = "warn"
+
+
+def _count_invalid(
+    connector: Connector,
+    source: str,
+    column: str,
+    valid_values: list,
+) -> int:
+    """Count rows where ``column`` is non-null and not in ``valid_values``.
+
+    Inlines ``valid_values`` as escaped SQL literals rather than bind
+    params — paramstyle differs across SQLite (``?``), DuckDB (``?``),
+    and Snowflake (``%s``), and the set is small (``< 20`` by the
+    ``values --write-metadata`` writer rule).
+    """
+    from querido.connectors.base import validate_column_name
+
+    validate_column_name(column)
+    literals = ", ".join(_sql_literal(v) for v in valid_values)
+    qcol = '"' + column.replace('"', '""') + '"'
+    sql = (
+        f"select count(*) as invalid "
+        f"from {source} "
+        f"where {qcol} is not null and {qcol} not in ({literals})"
+    )
+    rows = connector.execute(sql)
+    if not rows:
+        return 0
+    return int(rows[0].get("invalid", 0) or 0)
+
+
+def _sql_literal(value: object) -> str:
+    """Render *value* as a SQL literal (numbers inline, others single-quoted)."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    text = str(value).replace("'", "''")
+    return f"'{text}'"
 
 
 def _check_duplicate_rows(

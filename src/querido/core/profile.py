@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from querido.core._utils import (
     build_col_info,
@@ -13,6 +13,20 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
+class ProfileResult(TypedDict):
+    """Return shape of :func:`get_profile`. Top-level contract is fixed; the
+    per-column ``stats`` entries vary by dialect + flags and stay as ``dict``."""
+
+    stats: list[dict[str, Any]]
+    row_count: int
+    sampled: bool
+    sample_size: int | None
+    sampling_note: str | None
+    source: str
+    col_info: list[dict[str, Any]]
+    quick: bool
+
+
 def get_profile(
     connector: Connector,
     table: str,
@@ -22,12 +36,18 @@ def get_profile(
     no_sample: bool = False,
     exact: bool = False,
     quick: bool = False,
-) -> dict:
+    connection: str | None = None,
+) -> ProfileResult:
     """Profile table columns and return statistics.
 
     When *exact* is ``False`` (the default) and the connector dialect is
     Snowflake, ``APPROX_COUNT_DISTINCT`` is used for faster cardinality
     estimation.  Pass ``exact=True`` to use exact ``COUNT(DISTINCT)``.
+
+    When *connection* is provided and the table has stored metadata,
+    surfaceable fields (``description``, ``valid_values``, ``pii``,
+    ``temporal``, ``likely_sparse``) are merged onto each per-column
+    stats entry so agents see prior-run captures without a second call.
 
     Returns::
 
@@ -95,6 +115,18 @@ def get_profile(
     # available — it's exact, while get_row_count() may be an estimate.
     if stats and stats[0].get("total_rows") is not None:
         row_count = stats[0].get("total_rows", 0)
+
+    if connection:
+        from querido.core.metadata import load_column_metadata
+
+        stored = load_column_metadata(connection, table)
+        if stored:
+            for entry in stats:
+                name = entry.get("column_name")
+                if isinstance(name, str):
+                    fields = stored.get(name)
+                    if fields:
+                        entry.update(fields)
 
     sampling_note = None
     if sampled and sample_size:

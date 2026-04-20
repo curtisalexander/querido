@@ -66,6 +66,21 @@ def pivot(
 
         maybe_show_sql(result.get("sql", ""))
         set_last_sql(result.get("sql", ""))
+
+        from querido.output.envelope import emit_envelope, is_structured_format
+
+        if is_structured_format():
+            from querido.core.next_steps import for_pivot
+
+            emit_envelope(
+                command="pivot",
+                data=result,
+                next_steps=for_pivot(result, connection=connection, table=ctx.table),
+                connection=connection,
+                table=ctx.table,
+            )
+            return
+
         dispatch_output("pivot", result)
 
 

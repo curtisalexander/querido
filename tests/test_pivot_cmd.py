@@ -61,9 +61,11 @@ def test_pivot_format_json(orders_path: str):
     import json
 
     payload = json.loads(result.output)
-    assert payload["row_count"] == 2
+    assert payload["command"] == "pivot"
+    data = payload["data"]
+    assert data["row_count"] == 2
     # Check we got sum_amount for each region
-    by_region = {r["region"]: r["sum_amount"] for r in payload["rows"]}
+    by_region = {r["region"]: r["sum_amount"] for r in data["rows"]}
     assert by_region["east"] == 350.0
     assert by_region["west"] == 525.0
 
@@ -89,7 +91,7 @@ def test_pivot_multiple_group_by(orders_path: str):
     import json
 
     payload = json.loads(result.output)
-    assert payload["row_count"] == 4  # 2 regions x 2 statuses
+    assert payload["data"]["row_count"] == 4  # 2 regions x 2 statuses
 
 
 def test_pivot_count(orders_path: str):
@@ -113,7 +115,7 @@ def test_pivot_count(orders_path: str):
     import json
 
     payload = json.loads(result.output)
-    by_region = {r["region"]: r["count_id"] for r in payload["rows"]}
+    by_region = {r["region"]: r["count_id"] for r in payload["data"]["rows"]}
     assert by_region["east"] == 3
     assert by_region["west"] == 3
 
@@ -141,7 +143,7 @@ def test_pivot_with_filter(orders_path: str):
     import json
 
     payload = json.loads(result.output)
-    by_region = {r["region"]: r["sum_amount"] for r in payload["rows"]}
+    by_region = {r["region"]: r["sum_amount"] for r in payload["data"]["rows"]}
     assert by_region["east"] == 300.0  # 100 + 200
     assert by_region["west"] == 300.0
 
@@ -169,7 +171,7 @@ def test_pivot_with_limit(orders_path: str):
     import json
 
     payload = json.loads(result.output)
-    assert payload["row_count"] == 1
+    assert payload["data"]["row_count"] == 1
 
 
 def test_pivot_with_order_by(orders_path: str):
@@ -196,7 +198,7 @@ def test_pivot_with_order_by(orders_path: str):
 
     payload = json.loads(result.output)
     # west (525) should come first
-    assert payload["rows"][0]["region"] == "west"
+    assert payload["data"]["rows"][0]["region"] == "west"
 
 
 def test_pivot_format_csv(orders_path: str):
@@ -298,4 +300,4 @@ def test_pivot_duckdb(tmp_path: Path):
     import json
 
     payload = json.loads(result.output)
-    assert payload["row_count"] == 2
+    assert payload["data"]["row_count"] == 2

@@ -24,6 +24,7 @@ def quality(
     columns: str | None = typer.Option(
         None,
         "--columns",
+        "-C",
         help="Comma-separated column names to check (default: all).",
     ),
     check_duplicates: bool = typer.Option(
@@ -85,6 +86,7 @@ def quality(
                 sample=sample,
                 no_sample=no_sample,
                 exact=exact,
+                connection=connection,
             )
 
         metadata_write_summary = None
@@ -100,13 +102,13 @@ def quality(
         if is_structured_format():
             from querido.core.next_steps import for_quality
 
+            envelope_data: dict = dict(result)
             if metadata_write_summary is not None:
-                result = dict(result)
-                result["metadata_write"] = metadata_write_summary
+                envelope_data["metadata_write"] = metadata_write_summary
 
             emit_envelope(
                 command="quality",
-                data=result,
+                data=envelope_data,
                 next_steps=for_quality(result, connection=connection, table=ctx.table),
                 connection=connection,
                 table=ctx.table,

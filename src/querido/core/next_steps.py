@@ -15,6 +15,9 @@ them — it handles quoting for identifiers with special characters.
 
 from __future__ import annotations
 
+from querido.core.context import ContextResult
+from querido.core.quality import QualityResult
+from querido.core.values import ValuesResult
 from querido.output.envelope import cmd
 
 
@@ -163,7 +166,7 @@ def for_catalog(
 
 
 def for_context(
-    result: dict,
+    result: ContextResult,
     *,
     connection: str,
     table: str,
@@ -195,7 +198,7 @@ def for_context(
     if low_card_col:
         steps.append(
             _step(
-                ["qdo", "values", "-c", connection, "-t", table, "--column", low_card_col],
+                ["qdo", "values", "-c", connection, "-t", table, "--columns", low_card_col],
                 f"'{low_card_col}' is low-cardinality — list distinct values.",
             )
         )
@@ -204,7 +207,7 @@ def for_context(
     if numeric_col and row_count > 0:
         steps.append(
             _step(
-                ["qdo", "dist", "-c", connection, "-t", table, "--column", numeric_col],
+                ["qdo", "dist", "-c", connection, "-t", table, "--columns", numeric_col],
                 f"Visualize distribution of numeric column '{numeric_col}'.",
             )
         )
@@ -310,7 +313,7 @@ def for_profile(
     if low_card:
         steps.append(
             _step(
-                ["qdo", "values", "-c", connection, "-t", table, "--column", low_card],
+                ["qdo", "values", "-c", connection, "-t", table, "--columns", low_card],
                 f"'{low_card}' is low-cardinality — list distinct values.",
             )
         )
@@ -319,7 +322,7 @@ def for_profile(
     if numeric:
         steps.append(
             _step(
-                ["qdo", "dist", "-c", connection, "-t", table, "--column", numeric],
+                ["qdo", "dist", "-c", connection, "-t", table, "--columns", numeric],
                 f"Visualize distribution of numeric column '{numeric}'.",
             )
         )
@@ -367,7 +370,7 @@ def for_dist(
         if values and len(values) >= 20:
             steps.append(
                 _step(
-                    ["qdo", "values", "-c", connection, "-t", table, "--column", column],
+                    ["qdo", "values", "-c", connection, "-t", table, "--columns", column],
                     f"'{column}' has many distinct values — enumerate them all.",
                 )
             )
@@ -390,7 +393,7 @@ def for_dist(
 
 
 def for_values(
-    result: dict,
+    result: ValuesResult,
     *,
     connection: str,
     table: str,
@@ -415,7 +418,7 @@ def for_values(
                     connection,
                     "-t",
                     table,
-                    "--column",
+                    "--columns",
                     column,
                     "--max",
                     str(max(distinct, 1000) * 2),
@@ -426,15 +429,27 @@ def for_values(
 
     steps.append(
         _step(
-            ["qdo", "dist", "-c", connection, "-t", table, "--column", column],
+            ["qdo", "dist", "-c", connection, "-t", table, "--columns", column],
             f"Visualize '{column}' as a frequency distribution.",
         )
     )
 
-    if 1 < distinct <= 20:
+    stored = result.get("stored_metadata") or {}
+    already_captured = bool(stored.get("valid_values"))
+    if 1 < distinct <= 20 and not already_captured:
         steps.append(
             _step(
-                ["qdo", "metadata", "edit", "-c", connection, "-t", table],
+                [
+                    "qdo",
+                    "values",
+                    "-c",
+                    connection,
+                    "-t",
+                    table,
+                    "--columns",
+                    column,
+                    "--write-metadata",
+                ],
                 f"'{column}' looks enumerable — capture as valid_values in metadata.",
             )
         )
@@ -442,7 +457,7 @@ def for_values(
 
 
 def for_quality(
-    result: dict,
+    result: QualityResult,
     *,
     connection: str,
     table: str,
@@ -460,13 +475,13 @@ def for_quality(
         name = failing.get("name") or ""
         steps.append(
             _step(
-                ["qdo", "dist", "-c", connection, "-t", table, "--column", name],
+                ["qdo", "dist", "-c", connection, "-t", table, "--columns", name],
                 f"'{name}' flagged {failing.get('status')} — inspect its distribution.",
             )
         )
         steps.append(
             _step(
-                ["qdo", "values", "-c", connection, "-t", table, "--column", name],
+                ["qdo", "values", "-c", connection, "-t", table, "--columns", name],
                 f"See distinct values for flagged column '{name}'.",
             )
         )
@@ -614,10 +629,223 @@ def for_query(
     if limited:
         steps.append(
             _step(
-                ["qdo", "export", "-c", connection, "--format", "csv"],
+                ["qdo", "export", "-c", connection, "--export-format", "csv"],
                 "Results were limit-capped — use export to stream everything.",
             )
         )
+
+    return steps
+
+
+def for_assert(
+    result: dict,
+    *,
+    connection: str,
+) -> list[dict]:
+    """Rules for ``qdo assert``.
+
+    On fail: point at the underlying query so the agent can see the actual
+    rows behind the counter it asserted on. On pass: no nudge — success
+    rarely warrants a follow-up, and noise here costs agent tokens.
+    """
+    steps: list[dict] = []
+    if result.get("passed", False):
+        return steps
+
+    sql = result.get("sql") or ""
+    if sql:
+        steps.append(
+            _step(
+                ["qdo", "query", "-c", connection, "--sql", sql],
+                "Assertion failed — run the underlying query to see actual rows.",
+            )
+        )
+    return steps
+
+
+def for_explain(
+    result: dict,
+    *,
+    connection: str,
+) -> list[dict]:
+    """Rules for ``qdo explain``.
+
+    Natural next moves: run the query for real, or (DuckDB only) re-run
+    with ``--analyze`` for runtime stats.
+    """
+    steps: list[dict] = []
+    sql = result.get("sql") or ""
+    dialect = result.get("dialect") or ""
+    analyzed = bool(result.get("analyzed"))
+
+    if sql:
+        steps.append(
+            _step(
+                ["qdo", "query", "-c", connection, "--sql", sql],
+                "Execute the query to see actual results.",
+            )
+        )
+
+    if not analyzed and dialect == "duckdb" and sql:
+        steps.append(
+            _step(
+                ["qdo", "explain", "-c", connection, "--sql", sql, "--analyze"],
+                "Re-run with --analyze for actual runtime stats (DuckDB).",
+            )
+        )
+
+    return steps
+
+
+def for_pivot(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo pivot``.
+
+    Empty result → sanity-check the source table. Normal result → offer
+    to dump the underlying pivot SQL or export for downstream tooling.
+    """
+    steps: list[dict] = []
+    rows = result.get("rows") or []
+    row_count = len(rows)
+    sql = result.get("sql") or ""
+
+    if row_count == 0:
+        steps.append(
+            _step(
+                ["qdo", "preview", "-c", connection, "-t", table],
+                "Pivot returned no rows — peek at source rows to verify filters.",
+            )
+        )
+        return steps
+
+    if sql:
+        steps.append(
+            _step(
+                ["qdo", "query", "-c", connection, "--sql", sql],
+                "Run the underlying pivot SQL to iterate on it directly.",
+            )
+        )
+
+    steps.append(
+        _step(
+            ["qdo", "context", "-c", connection, "-t", table],
+            "Step back to full table context to compare with the pivot.",
+        )
+    )
+    return steps
+
+
+def for_view_def(
+    result: dict,
+    *,
+    connection: str,
+    view: str,
+) -> list[dict]:
+    """Rules for ``qdo view-def``.
+
+    After reading a view's SQL, the next moves are to see its shape
+    (``inspect``), sample rows (``preview``), or profile its output.
+    """
+    steps: list[dict] = []
+    if not result.get("definition"):
+        return steps
+
+    steps.append(
+        _step(
+            ["qdo", "inspect", "-c", connection, "-t", view],
+            f"See '{view}' column types and nullability.",
+        )
+    )
+    steps.append(
+        _step(
+            ["qdo", "preview", "-c", connection, "-t", view],
+            f"Peek at rows produced by '{view}'.",
+        )
+    )
+    return steps
+
+
+def for_metadata_show(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo metadata show``.
+
+    A shown metadata doc points the reader at the two natural follow-ups:
+    edit the YAML (fill in human fields or correct auto-written ones), and
+    refresh auto-written stats from a new scan.
+    """
+    steps: list[dict] = [
+        _step(
+            ["qdo", "metadata", "edit", "-c", connection, "-t", table],
+            "Open the YAML in $EDITOR to fill in descriptions or correct stored fields.",
+        ),
+        _step(
+            ["qdo", "metadata", "refresh", "-c", connection, "-t", table],
+            "Re-run the profile scan and update auto-written stats.",
+        ),
+    ]
+
+    # If any human-authored placeholders remain, nudge at them.
+    placeholder = "<description>"
+    has_placeholder = False
+    if result.get("table_description") == placeholder:
+        has_placeholder = True
+    for col in result.get("columns") or []:
+        if col.get("description") == placeholder:
+            has_placeholder = True
+            break
+    if has_placeholder:
+        steps.append(
+            _step(
+                ["qdo", "metadata", "suggest", "-c", connection, "-t", table],
+                "Some placeholder fields remain — suggest deterministic auto-fill.",
+            )
+        )
+
+    return steps
+
+
+def for_template(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo template``.
+
+    Template is the doc-authoring entrypoint. The natural compounding move
+    is to scaffold / enrich stored metadata from the same scan output.
+    """
+    steps: list[dict] = []
+    table_comment = result.get("table_comment") or ""
+    columns = result.get("columns") or []
+
+    if not table_comment:
+        steps.append(
+            _step(
+                ["qdo", "metadata", "init", "-c", connection, "-t", table],
+                "No table description — scaffold a metadata YAML to edit.",
+            )
+        )
+
+    if columns:
+        steps.append(
+            _step(
+                ["qdo", "profile", "-c", connection, "-t", table, "--write-metadata"],
+                "Capture deterministic profile inferences into the metadata YAML.",
+            )
+        )
+
+    pointer = _maybe_suggest_metadata(connection, table)
+    if pointer:
+        steps.append(pointer)
 
     return steps
 
@@ -700,6 +928,59 @@ def for_error(
     elif code == "FILE_NOT_FOUND":
         steps.append(
             _step(["qdo", "config", "list"], "List configured connections to find the right path.")
+        )
+
+    return steps
+
+
+def for_workflow_step_failed(
+    *,
+    workflow: str,
+    step_id: str,
+    step_cmd: str,
+    session: str,
+    timed_out: bool = False,
+) -> list[dict]:
+    """Rules for ``try_next`` on a workflow step failure.
+
+    Deterministic follow-ups: stream the session to see what else happened,
+    re-run with ``--verbose`` for live output, or run the failing step's
+    command standalone to iterate on it outside the workflow.
+    """
+    steps: list[dict] = []
+
+    if session:
+        steps.append(
+            _step(
+                ["qdo", "session", "show", session],
+                "See every step this run recorded (step-by-step stdout is saved).",
+            )
+        )
+
+    if step_cmd:
+        steps.append(
+            {
+                "cmd": step_cmd,
+                "why": (
+                    f"Re-run step {step_id!r} on its own to iterate "
+                    "without the rest of the workflow."
+                ),
+            }
+        )
+
+    steps.append(
+        _step(
+            ["qdo", "workflow", "run", workflow, "--verbose"],
+            "Re-run with --verbose to stream each step's stdout as it executes.",
+        )
+    )
+
+    if timed_out:
+        steps.append(
+            _step(
+                ["qdo", "workflow", "run", workflow, "--step-timeout", "0"],
+                "Disable the step timeout for a one-off run (agents: use with care).",
+            )
         )
 
     return steps

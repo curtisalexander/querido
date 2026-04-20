@@ -4,6 +4,16 @@ from typing import Self
 
 
 class SnowflakeConnector:
+    """Snowflake connector.
+
+    ``_columns_cache`` key convention: fully-qualified uppercase
+    ``f"{DATABASE}.{SCHEMA}.{TABLE}"``. Snowflake stores unquoted
+    identifiers as uppercase, and the connector supports session-level
+    ``database``/``schema`` defaults plus qualified names — keying by
+    the fully-resolved triple prevents two different tables with the
+    same leaf name from colliding across schemas.
+    """
+
     dialect = "snowflake"
     supports_concurrent_queries = True
 
@@ -70,7 +80,15 @@ class SnowflakeConnector:
         cfg_database = str(kwargs.get("database", "")).upper()
         cfg_schema = str(kwargs.get("schema", "")).upper()
 
-        self.conn = snowflake.connector.connect(**kwargs)
+        from querido.connectors.base import wrap_driver_error
+
+        try:
+            self.conn = snowflake.connector.connect(**kwargs)
+        except snowflake.connector.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         self._active_cursor: object | None = None
         self._columns_cache: dict[str, list[dict]] = {}
 
@@ -107,10 +125,20 @@ class SnowflakeConnector:
             raise
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
+        import snowflake.connector  # type: ignore[import-not-found]
+
+        from querido.connectors.base import wrap_driver_error
+
         cursor = self.conn.cursor()
         self._active_cursor = cursor
         try:
-            cursor.execute(sql, params)
+            try:
+                cursor.execute(sql, params)
+            except snowflake.connector.Error as exc:
+                wrapped = wrap_driver_error(exc)
+                if wrapped is not None:
+                    raise wrapped from exc
+                raise
             if cursor.description is None:
                 return []
             try:
@@ -124,11 +152,20 @@ class SnowflakeConnector:
     def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> object:
         """Execute SQL and return results as a PyArrow Table."""
         import pyarrow as pa
+        import snowflake.connector  # type: ignore[import-not-found]
+
+        from querido.connectors.base import wrap_driver_error
 
         cursor = self.conn.cursor()
         self._active_cursor = cursor
         try:
-            cursor.execute(sql, params)
+            try:
+                cursor.execute(sql, params)
+            except snowflake.connector.Error as exc:
+                wrapped = wrap_driver_error(exc)
+                if wrapped is not None:
+                    raise wrapped from exc
+                raise
             if cursor.description is None:
                 return pa.table({})
             batches = list(cursor.fetch_arrow_batches())
@@ -320,6 +357,9 @@ class SnowflakeConnector:
         # Use block sampling for large tables (>10M rows). Block sampling
         # operates on whole micropartitions and is 5-10x faster because it
         # skips entire storage blocks rather than evaluating each row.
+        from querido.connectors.base import validate_object_name
+
+        validate_object_name(table)
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
         if row_count > 10_000_000:

@@ -70,4 +70,18 @@ def template(
             columns, ctx.table, table_comment, row_count, profile_data, sample_rows
         )
 
+        from querido.output.envelope import emit_envelope, is_structured_format
+
+        if is_structured_format():
+            from querido.core.next_steps import for_template
+
+            emit_envelope(
+                command="template",
+                data=template_result,
+                next_steps=for_template(template_result, connection=connection, table=ctx.table),
+                connection=connection,
+                table=ctx.table,
+            )
+            return
+
         dispatch_output("template", template_result, style=style)

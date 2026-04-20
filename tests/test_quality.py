@@ -95,6 +95,20 @@ def test_quality_column_filter(sqlite_path: str):
     assert "id" not in col_names
 
 
+def test_quality_short_C_flag(sqlite_path: str):
+    """``-C`` is the short form of ``--columns`` — parity with values/dist (R.8)."""
+    result = runner.invoke(
+        app,
+        ["-f", "json", "quality", "-c", sqlite_path, "-t", "users", "-C", "age"],
+    )
+    assert result.exit_code == 0
+    import json
+
+    payload = json.loads(result.output)["data"]
+    col_names = [c["name"] for c in payload["columns"]]
+    assert col_names == ["age"]
+
+
 def test_quality_check_duplicates_none(sqlite_path: str):
     """No duplicates in standard test table."""
     result = runner.invoke(

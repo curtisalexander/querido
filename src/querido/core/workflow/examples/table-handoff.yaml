@@ -1,9 +1,14 @@
-# why: "handoff" pattern — compose inspect/profile/quality into a single
-# structured output suitable for pasting into a PR description, a
-# ticket, or an agent prompt. Teaches optional inputs with defaults
-# and rich fan-in output composition.
+# why: "conditional composition" teaching pattern — run each step only when
+# the previous step produced something worth acting on. Unlike the
+# table-summary example (which runs all three scans unconditionally),
+# this one teaches:
+#   1. null-safe ``when:`` comparisons (the ``!= null and`` idiom)
+#   2. how to gate an expensive step on a cheap probe's result
+#   3. how outputs degrade to ``null`` when a step is skipped
+# A coding agent reading this file learns: if your table might be empty
+# or might not exist yet, gate the scans rather than letting them fail.
 name: table-handoff
-description: Prepare a one-shot table summary (schema, stats, quality) ready to paste into a PR or ticket.
+description: Summarize a table with row-count-gated profile and quality steps.
 version: 1
 inputs:
   connection:
@@ -14,39 +19,40 @@ inputs:
     type: table
     required: true
     description: Table to summarize.
-  sample_values:
-    type: integer
-    default: 10
-    description: How many sample values per column to surface (passed through to inspect via context-style inputs in future).
 steps:
-  # why: inspect is the cheapest way to get the authoritative column list
-  # and PK/nullable/comment metadata. Captured so the handoff can
-  # surface schema shape directly.
+  # why: inspect is the cheapest probe — it hits the information_schema or
+  # sqlite_master, not the data. Captured so downstream steps can decide
+  # whether it's worth running the heavier scans.
   - id: schema
     run: qdo -f json inspect -c ${connection} -t ${table}
     capture: schema
-  # why: --quick avoids per-column frequency queries. For a handoff
-  # document the caller wants the *shape* of the data (null rates,
-  # distinct counts), not top-value lists, which would clutter the
-  # summary. If the reader wants more depth, point them at
-  # `qdo context` or `qdo values`.
+
+  # why: profile runs only when the table has rows. ``row_count`` can
+  # legitimately be ``null`` for views or when the connector couldn't
+  # cheaply determine a count, so guard with the null-safe idiom
+  # before the ordering comparison. Otherwise a null would raise
+  # ``ExpressionError: cannot compare None > 0`` at runtime.
   - id: stats
+    when: ${schema.data.row_count} != null and ${schema.data.row_count} > 0
     run: qdo -f json profile -c ${connection} -t ${table} --quick
     capture: stats
-  # why: quality flags null-rate anomalies and uniqueness surprises.
-  # Including this in the handoff lets the reader decide whether the
-  # table is ready to use without re-running the investigation.
-  - id: quality
+
+  # why: quality is worth running when profile produced something. If
+  # ``stats`` was skipped above, ``${stats.data}`` resolves to ``null``
+  # and this step skips too — the runner doesn't abort on refs that
+  # belong to skipped steps.
+  - id: callouts
+    when: ${stats.data} != null
     run: qdo -f json quality -c ${connection} -t ${table}
-    capture: quality
+    capture: callouts
+
 outputs:
-  # Shape deliberately matches what an agent would paste into a
-  # markdown-friendly summary: top-level facts, then nested lists.
-  # Uses inspect's row_count rather than profile's to minimize
-  # reliance on the slower step.
+  # Outputs degrade gracefully when steps skip: ``profile`` and ``quality``
+  # resolve to null on empty tables rather than aborting the run. That's
+  # the whole point of the conditional composition — the handoff document
+  # still lands, it just honestly says "no rows yet, no profile".
   table: ${table}
   row_count: ${schema.data.row_count}
   schema: ${schema.data.columns}
   profile: ${stats.data.columns}
-  quality: ${quality.data.columns}
-  requested_sample_values: ${sample_values}
+  quality: ${callouts.data.columns}

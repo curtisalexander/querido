@@ -4,10 +4,13 @@ from pathlib import Path
 
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Manage connections.")
 
 
 @app.command()
+@friendly_errors
 def add(
     name: str = typer.Option(..., "--name", "-n", help="Connection name."),
     db_type: str = typer.Option(
@@ -84,6 +87,7 @@ def add(
 
 
 @app.command("list")
+@friendly_errors
 def list_connections() -> None:
     """List all configured connections."""
     from rich.console import Console
@@ -145,6 +149,7 @@ def list_connections() -> None:
 
 
 @app.command()
+@friendly_errors
 def clone(
     source: str = typer.Option(..., "--source", "-s", help="Name of the connection to clone."),
     name: str = typer.Option(..., "--name", "-n", help="Name for the new connection."),
@@ -205,6 +210,7 @@ def clone(
 
 
 @app.command()
+@friendly_errors
 def test(
     connection: str = typer.Argument(..., help="Connection name or file path to test."),
     db_type: str | None = typer.Option(
@@ -252,6 +258,7 @@ app.add_typer(column_set_app, name="column-set")
 
 
 @column_set_app.command("save")
+@friendly_errors
 def column_set_save(
     connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
@@ -275,6 +282,7 @@ def column_set_save(
 
 
 @column_set_app.command("list")
+@friendly_errors
 def column_set_list(
     connection: str | None = typer.Option(
         None, "--connection", "-c", help="Filter by connection."
@@ -311,6 +319,7 @@ def column_set_list(
 
 
 @column_set_app.command("show")
+@friendly_errors
 def column_set_show(
     connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
@@ -332,6 +341,7 @@ def column_set_show(
 
 
 @column_set_app.command("delete")
+@friendly_errors
 def column_set_delete(
     connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
     table: str = typer.Option(..., "--table", "-t", help="Table name."),

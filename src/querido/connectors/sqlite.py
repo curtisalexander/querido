@@ -3,15 +3,28 @@ from __future__ import annotations
 import sqlite3
 from typing import Self
 
-from querido.connectors.base import validate_table_name
+from querido.connectors.base import validate_table_name, wrap_driver_error
 
 
 class SQLiteConnector:
+    """SQLite connector.
+
+    ``_columns_cache`` key convention: ``table.lower()``. SQLite treats
+    identifiers case-insensitively (unless double-quoted), so a single
+    lowercase key collapses every casing a caller might supply.
+    """
+
     dialect = "sqlite"
     supports_concurrent_queries = False
 
     def __init__(self, path: str, *, check_same_thread: bool = True) -> None:
-        self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
+        try:
+            self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
+        except sqlite3.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         self.conn.row_factory = sqlite3.Row
         self._columns_cache: dict[str, list[dict]] = {}
         # Optimize for read-heavy profiling workloads.
@@ -20,8 +33,14 @@ class SQLiteConnector:
         self.conn.execute("pragma mmap_size = 268435456")  # 256 MB mmap
 
     def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
-        cursor = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
-        rows = cursor.fetchall()
+        try:
+            cursor = self.conn.execute(sql) if params is None else self.conn.execute(sql, params)
+            rows = cursor.fetchall()
+        except sqlite3.Error as exc:
+            wrapped = wrap_driver_error(exc)
+            if wrapped is not None:
+                raise wrapped from exc
+            raise
         if not rows:
             return []
         return [dict(row) for row in rows]
@@ -104,6 +123,7 @@ class SQLiteConnector:
         # it avoids the full sort and can stop early via LIMIT.
         # When row_count is provided, use it directly instead of embedding a
         # nested count(*) subquery that would re-scan the table.
+        validate_table_name(table)
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
         if row_count > 0:

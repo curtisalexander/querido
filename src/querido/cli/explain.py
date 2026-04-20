@@ -53,4 +53,17 @@ def explain(
 
             result = get_explain(ctx.connector, query_sql, analyze=analyze)
 
+        from querido.output.envelope import emit_envelope, is_structured_format
+
+        if is_structured_format():
+            from querido.core.next_steps import for_explain
+
+            emit_envelope(
+                command="explain",
+                data=result,
+                next_steps=for_explain(result, connection=connection),
+                connection=connection,
+            )
+            return
+
         dispatch_output("explain", result)

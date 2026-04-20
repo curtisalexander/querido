@@ -6,10 +6,8 @@ from querido.cli.main import app
 runner = CliRunner()
 
 
-def test_help():
-    result = runner.invoke(app, ["--help"])
-    assert result.exit_code == 0
-    assert "qdo" in result.output
+# test_help dropped (2026-04-17): asserted that --help renders and "qdo"
+# appears in the output — pure Typer-framework behavior, not our code.
 
 
 def test_version():
@@ -43,36 +41,4 @@ def test_no_debug_by_default(sqlite_path: str):
     assert "[qdo]" not in result.output
 
 
-def test_completion_bash():
-    result = runner.invoke(app, ["completion", "show", "bash"])
-    assert result.exit_code == 0
-    assert "_qdo_completion" in result.output or "_QDO_COMPLETE" in result.output
-
-
-def test_completion_zsh():
-    result = runner.invoke(app, ["completion", "show", "zsh"])
-    assert result.exit_code == 0
-    assert "_QDO_COMPLETE" in result.output
-
-
-def test_completion_fish():
-    result = runner.invoke(app, ["completion", "show", "fish"])
-    assert result.exit_code == 0
-    assert "complete" in result.output
-
-
-def test_completion_powershell():
-    result = runner.invoke(app, ["completion", "show", "powershell"])
-    assert result.exit_code == 0
-    assert "_QDO_COMPLETE" in result.output
-
-
-def test_completion_invalid_shell():
-    result = runner.invoke(app, ["completion", "show", "csh"])
-    assert result.exit_code != 0
-
-
-def test_completion_hint():
-    result = runner.invoke(app, ["completion", "show", "bash", "--hint"])
-    assert result.exit_code == 0
-    assert "bashrc" in result.output
+# completion tests live in test_completion.py (parametrized across shells).

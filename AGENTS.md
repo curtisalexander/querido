@@ -118,12 +118,6 @@ qdo explore -c <connection> -t <table> [-r <rows>]
 ```
 Interactive terminal UI for data exploration. Requires `uv pip install 'querido[tui]'`. Key bindings: `q` quit, `?` help, `i` inspect metadata, `m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
 
-### serve — local web UI
-```bash
-qdo serve -c <connection> [--port 8888] [--host 127.0.0.1]
-```
-Launches a local web server for interactive data exploration in the browser. Requires `uv pip install 'querido[web]'`. Features: table list with search, tabbed detail pages (inspect, preview, profile, template, view definition), distribution drill-down, pivot table builder. Uses HTMX for dynamic loading, keyboard shortcuts (`?` help, `/` search).
-
 ### catalog — full schema overview (also searches)
 ```bash
 qdo catalog -c <connection>
@@ -408,14 +402,26 @@ uv run python scripts/init_test_data.py   # creates data/test.db and data/test.d
 
 | Database | Tables | Rows |
 |----------|--------|------|
-| test.db (SQLite) | customers, products, datatypes | 1000 / 1000 / 100 |
-| test.duckdb | customers, products, datatypes | 1000 / 1000 / 100 |
+| test.db (SQLite) | customers, products, orders, datatypes | 1000 / 1000 / 5000 / 100 |
+| test.duckdb | customers, products, orders, datatypes | 1000 / 1000 / 5000 / 100 |
 
 **customers**: customer_id, first_name, last_name, company, city, country, phone1, phone2, email, subscription_date, website
 
 **products**: name, description, brand, category, price, currency, stock, ean, color, size, availability, internal_id
 
+**orders**: customer_id, product_id, status, amount, region, order_date — 5000 rows linking customers and products, with intentional data-quality outliers (~0.8% malformed status values, ~2.5% null amounts, ~1.5% negative amounts) so demos of `qdo quality` and `qdo values --write-metadata` have something to flag
+
 **datatypes**: mixed types for edge-case testing (blobs, JSON, nulls, negatives, large ints)
+
+## Self-hosting evaluations
+
+Two optional eval scripts live under `scripts/`. Both require a Claude Code Max subscription (`claude -p`) and refuse to run when `ANTHROPIC_API_KEY` is set so billing can't leak to the API.
+
+- **`eval_workflow_authoring.py`** — Phase 4.6. Feeds `WORKFLOW_AUTHORING.md` + `qdo workflow spec` + bundled examples to `claude -p`, asks the model to author three workflows it hasn't seen, and checks lint + run + shape assertions. Signals whether the authoring doc is pedagogically complete.
+
+- **`eval_skill_files.py`** — EV.Build. Feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 11 realistic data-exploration questions across four categories (discovery, column-level, quality, metadata/SQL). Each task has required-command / content-regex / preferred-command checks and categorizes failures (qdo-bug / model-mistake / envelope-mismatch / timeout / auth-error). Supports Haiku / Sonnet / Opus; per-model pass gates (70 / 85 / 95 %). Per-run JSON results land in `scripts/eval_results/` (gitignored).
+
+Both are opt-in. Run locally after doc or implementation changes; failures that cluster in a category point at specific docs to tighten.
 
 ## Dependency Management
 
@@ -472,11 +478,25 @@ When the user says "retag", run the retag script to move the release tag to the 
 
 This deletes the GitHub release and remote/local tag, then recreates the tag at the target commit and pushes it. Always commit and push first, then retag.
 
+## Writing tests
+
+Before adding a test, read these rules. A tight, fast test suite is more valuable than a big one — every test is a lifelong maintenance obligation. The suite has drifted under "just add another" pressure before; don't re-accumulate it.
+
+1. **Name the failure mode.** Write the one-sentence regression this test prevents. If you can't name it, don't write the test. "Coverage" is not a failure mode.
+2. **Test behavior, not framework.** We don't own Typer's `--help` rendering, Jinja's escaping, YAML's round-trip, or DuckDB's query engine. Don't re-test them. A test whose assertions are really about a dependency's contract belongs upstream, not here.
+3. **Exit code alone is not an assertion.** `assert result.exit_code == 0` proves the command parsed, nothing more. Pair every exit-code check with a real assertion about the output payload, a file written to disk, or an observable side effect. Same rule applies to `!= 0` — assert on the error code or classification, not just on failure.
+4. **Prefer parameterization to copy-paste.** Two tests that differ only in fixture path (`sqlite_path` vs `duckdb_path`) should be one `@pytest.mark.parametrize` unless the assertions genuinely diverge (e.g., DDL types, UDF syntax, dialect-specific built-ins). When they do diverge, keep both — that's real dialect coverage.
+5. **Scenario coverage is not redundancy.** Three tests per rule that each exercise a distinct branch (populated / empty / no-metadata) are each doing work — don't cut them in the name of "deduplication." Duplicate assertions across three files *is* redundancy; three assertions across three branches isn't.
+6. **Integration tests beat unit tests for helpers used in one place.** If a helper is only called from one CLI command, one round-trip test through that command beats an isolated unit test of the helper. Reserve unit tests for pure logic that's reused or genuinely hard to reach via integration.
+7. **Don't string-match error prose.** Error message wording drifts; brittle substring matches churn on every refactor and silently pass when the error handling degrades. Assert on error codes, exit statuses, or structured `try_next` / envelope fields — not on human-readable messages.
+
+See PLAN.md → "Test-suite cleanup" (T.1–T.10) for the concrete cleanup todos derived from these rules. When pruning, the `Don't touch — already good` list in that section calls out tests that look cuttable but aren't.
+
 ## Style Guide
 
 - Keep functions focused and small
 - Don't over-engineer — solve the current problem, not hypothetical future ones
-- Tests should prove things work, not chase coverage numbers
+- Tests should prove things work, not chase coverage numbers (see "Writing tests" above)
 - Use type hints on function signatures
 - Don't add docstrings/comments unless the logic is non-obvious
 - Connectors are context managers — use `with` statements, not try/finally

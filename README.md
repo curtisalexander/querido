@@ -80,7 +80,6 @@ SQLite support is always available (stdlib). Other backends are opt-in:
 uv pip install 'querido[duckdb]'     # DuckDB + Parquet support
 uv pip install 'querido[snowflake]'  # Snowflake support
 uv pip install 'querido[tui]'        # Interactive TUI (qdo explore)
-uv pip install 'querido[web]'        # Web UI (qdo serve)
 uv pip install 'querido[all]'        # Everything
 ```
 
@@ -183,11 +182,10 @@ qdo sql task -c prod -t my_table                        # task template
 qdo sql procedure -c prod -t my_table                   # stored procedure template
 ```
 
-### Interactive — TUI and web UI
+### Interactive — TUI
 
 ```bash
 qdo explore -c my-db -t orders               # terminal UI (requires querido[tui])
-qdo serve   -c my-db --port 8888             # web UI (requires querido[web])
 ```
 
 ### Learn — built-in tutorials

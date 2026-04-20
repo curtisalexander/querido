@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Interactive tutorials with a National Parks dataset.")
 
 
 @app.callback(invoke_without_command=True)
+@friendly_errors
 def tutorial(ctx: typer.Context) -> None:
     """Walk through qdo's features with a National Parks dataset.
 
@@ -22,6 +25,7 @@ def tutorial(ctx: typer.Context) -> None:
 
 
 @app.command()
+@friendly_errors
 def explore(
     lesson: int | None = typer.Option(
         None,
@@ -73,6 +77,7 @@ def explore(
 
 
 @app.command()
+@friendly_errors
 def agent(
     lesson: int | None = typer.Option(
         None,

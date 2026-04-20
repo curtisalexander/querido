@@ -46,139 +46,124 @@ def duckdb_path(tmp_path: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Table not found
+# Validation-error contract
 # ---------------------------------------------------------------------------
+#
+# Validation errors (table / column not found, missing connection file) raise
+# ``typer.BadParameter``, which bypasses the structured JSON error envelope —
+# Typer formats them as human-readable prose on stderr.  Until R.22 / R.23
+# route these through the envelope, the test surface is unavoidably prose-
+# matched.  These tests therefore assert on *content* (identifier names,
+# expected candidates) rather than prose framing where we can avoid it, and
+# the whole contract is centralized here so reshaping the error path later
+# is a one-file change.
+#
+# Every validation error must: exit non-zero, not leak a Python traceback,
+# and echo the offending identifier back to the user.
 
 
 @pytest.mark.parametrize(
-    "args",
+    ("argv", "expected_identifier"),
     [
-        ["inspect", "-t", "nonexistent"],
-        ["preview", "-t", "nonexistent"],
-        ["profile", "-t", "nonexistent"],
-        ["dist", "-t", "nonexistent", "-C", "id"],
-        ["sql", "select", "-t", "nonexistent"],
+        (["inspect", "-t", "nonexistent"], "nonexistent"),
+        (["preview", "-t", "nonexistent"], "nonexistent"),
+        (["profile", "-t", "nonexistent"], "nonexistent"),
+        (["dist", "-t", "nonexistent", "-C", "id"], "nonexistent"),
+        (["sql", "select", "-t", "nonexistent"], "nonexistent"),
+        (["dist", "-t", "users", "-C", "nonexistent"], "nonexistent"),
     ],
-    ids=["inspect", "preview", "profile", "dist", "sql-select"],
+    ids=[
+        "inspect-missing-table",
+        "preview-missing-table",
+        "profile-missing-table",
+        "dist-missing-table",
+        "sql-select-missing-table",
+        "dist-missing-column",
+    ],
 )
-def test_table_not_found(sqlite_path: str, args: list[str]):
-    result = runner.invoke(app, [*args, "-c", sqlite_path])
+def test_validation_error_contract(
+    sqlite_path: str, argv: list[str], expected_identifier: str
+) -> None:
+    """Non-zero exit, no traceback, offending identifier echoed back."""
+    result = runner.invoke(app, [*argv, "-c", sqlite_path])
     assert result.exit_code != 0
+    assert "Traceback" not in result.output
+    assert expected_identifier in result.output
 
 
-def test_table_not_found_lists_available(sqlite_path: str):
-    """Error message should list available tables."""
+def test_profile_column_filter_missing(sqlite_path: str) -> None:
+    """``profile --columns nonexistent`` has a distinct error path that says
+    "No matching columns" rather than echoing the bad identifier verbatim.
+    Kept as a separate test so the product can change without failing the
+    main validation contract above.
+    """
+    result = runner.invoke(
+        app, ["profile", "-c", sqlite_path, "-t", "users", "--columns", "nonexistent"]
+    )
+    assert result.exit_code != 0
+    assert "Traceback" not in result.output
+    assert "No matching columns" in result.output or "nonexistent" in result.output
+
+
+def test_table_not_found_lists_available(sqlite_path: str) -> None:
+    """The list of available tables shows up when one isn't found."""
     result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "nonexistent"])
     assert result.exit_code != 0
     assert "users" in result.output
 
 
-# ---------------------------------------------------------------------------
-# Table fuzzy suggestions
-# ---------------------------------------------------------------------------
-
-
-def test_table_fuzzy_suggestion_typo(sqlite_path: str):
-    """Misspelling 'users' as 'usrs' should suggest 'users'."""
-    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "usrs"])
-    assert result.exit_code != 0
-    assert "Did you mean" in result.output
-    assert "users" in result.output
-
-
-def test_table_fuzzy_suggestion_partial(sqlite_path: str):
-    """Partial name 'user' should suggest 'users' and 'user_roles'."""
-    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "user"])
-    assert result.exit_code != 0
-    assert "Did you mean" in result.output
-    assert "users" in result.output
-
-
-def test_table_fuzzy_no_suggestion_for_gibberish(sqlite_path: str):
-    """Completely unrelated name should not crash, may not have suggestions."""
-    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "zzzzzzz"])
-    assert result.exit_code != 0
-    assert "not found" in result.output
-
-
-def test_table_fuzzy_still_lists_available(sqlite_path: str):
-    """Available tables should still be listed for small table counts."""
-    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "usrs"])
-    assert result.exit_code != 0
-    assert "Available" in result.output
-
-
-# ---------------------------------------------------------------------------
-# Column not found
-# ---------------------------------------------------------------------------
-
-
-def test_dist_column_not_found(sqlite_path: str):
+def test_column_not_found_lists_available(sqlite_path: str) -> None:
+    """The list of available columns shows up when one isn't found."""
     result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"])
     assert result.exit_code != 0
-    assert "not found" in result.output.lower()
-
-
-def test_dist_column_not_found_lists_available(sqlite_path: str):
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"])
-    assert result.exit_code != 0
-    # Should list available columns
     assert "name" in result.output or "id" in result.output
 
 
-def test_profile_column_filter_not_found(sqlite_path: str):
-    result = runner.invoke(
-        app, ["profile", "-c", sqlite_path, "-t", "users", "--columns", "nonexistent"]
-    )
-    assert result.exit_code != 0
-    assert "not found" in result.output.lower() or "No matching" in result.output
-
-
-# ---------------------------------------------------------------------------
-# Column fuzzy suggestions
-# ---------------------------------------------------------------------------
-
-
-def test_column_fuzzy_suggestion_typo(sqlite_path: str):
-    """Misspelling 'email' as 'emal' should suggest 'email'."""
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "emal"])
-    assert result.exit_code != 0
-    assert "Did you mean" in result.output
-    assert "email" in result.output
-
-
-def test_column_fuzzy_suggestion_partial(sqlite_path: str):
-    """'nam' should suggest 'name'."""
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "nam"])
-    assert result.exit_code != 0
-    assert "Did you mean" in result.output
-    assert "name" in result.output
-
-
-def test_column_fuzzy_context_message(sqlite_path: str):
-    """Error message should mention the table name for context."""
-    result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"])
-    assert result.exit_code != 0
-    assert "table 'users'" in result.output
-
-
-# ---------------------------------------------------------------------------
-# Database file not found
-# ---------------------------------------------------------------------------
-
-
-def test_connection_file_not_found(tmp_path: Path):
+def test_missing_connection_file_contract(tmp_path: Path) -> None:
+    """Missing DB file: non-zero, no traceback, suggests `qdo config add`."""
     missing = str(tmp_path / "missing.db")
     result = runner.invoke(app, ["inspect", "-c", missing, "-t", "users"])
     assert result.exit_code != 0
-    assert "not found" in result.output.lower()
-
-
-def test_connection_file_not_found_suggests_config(tmp_path: Path):
-    missing = str(tmp_path / "missing.db")
-    result = runner.invoke(app, ["inspect", "-c", missing, "-t", "users"])
-    assert result.exit_code != 0
+    assert "Traceback" not in result.output
+    # ``qdo config add`` is the try_next hint surfaced to the user — stable
+    # wording, worth asserting on until R.22/R.23 route this through the
+    # structured envelope.
     assert "qdo config add" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Fuzzy-suggestion content contract
+# ---------------------------------------------------------------------------
+#
+# When a typo has a close match, the candidate identifier must appear in the
+# output so the user can retry.  We intentionally don't assert on the
+# "Did you mean" prose framing — that's covered by the _format_not_found
+# unit tests below — only that the right candidate shows up.
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected_candidate"),
+    [
+        (["inspect", "-t", "usrs"], "users"),
+        (["inspect", "-t", "user"], "users"),
+        (["dist", "-t", "users", "-C", "emal"], "email"),
+        (["dist", "-t", "users", "-C", "nam"], "name"),
+    ],
+    ids=["table-typo", "table-partial", "column-typo-email", "column-typo-name"],
+)
+def test_fuzzy_suggestion_surfaces_candidate(
+    sqlite_path: str, argv: list[str], expected_candidate: str
+) -> None:
+    result = runner.invoke(app, [*argv, "-c", sqlite_path])
+    assert result.exit_code != 0
+    assert expected_candidate in result.output
+
+
+def test_fuzzy_no_crash_on_gibberish(sqlite_path: str) -> None:
+    """Unrelated input produces a clean validation error (no traceback)."""
+    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "zzzzzzz"])
+    assert result.exit_code != 0
+    assert "Traceback" not in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -203,14 +188,14 @@ def test_invalid_column_name(sqlite_path: str):
 # ---------------------------------------------------------------------------
 
 
-def test_dist_case_insensitive_column_sqlite(sqlite_path: str):
-    """Column name matching should be case-insensitive."""
+def test_dist_case_insensitive_column(sqlite_path: str):
+    """Column name matching should be case-insensitive.
+
+    ``resolve_column()`` normalizes at the CLI boundary regardless of
+    dialect, so one fixture is enough to prove the contract (the DuckDB
+    variant was dropped 2026-04-17).
+    """
     result = runner.invoke(app, ["dist", "-c", sqlite_path, "-t", "users", "-C", "NAME"])
-    assert result.exit_code == 0
-
-
-def test_dist_case_insensitive_column_duckdb(duckdb_path: str):
-    result = runner.invoke(app, ["dist", "-c", duckdb_path, "-t", "users", "-C", "NAME"])
     assert result.exit_code == 0
 
 
@@ -257,23 +242,61 @@ def test_duckdb_get_table_comment_case_insensitive(tmp_path: Path):
         assert connector.get_table_comment("USERS") == "Test comment"
 
 
+# The standalone ``test_no_traceback_*`` pair was folded into
+# ``test_validation_error_contract`` / ``test_missing_connection_file_contract``
+# above — every validation error already asserts ``"Traceback" not in``.
+
+
 # ---------------------------------------------------------------------------
-# Friendly error formatting (no tracebacks)
+# _error_code / _classify_error — isinstance-based classification (R.23)
 # ---------------------------------------------------------------------------
+#
+# Replaces the prior string-match classifier. Driver exceptions are wrapped
+# into ConnectorError subclasses by each connector's execute()/__init__, and
+# the CLI classifier switches on type rather than message text.
 
 
-def test_no_traceback_on_table_not_found(sqlite_path: str):
-    """Errors should show clean messages, not Python tracebacks."""
-    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "nonexistent"])
-    assert result.exit_code != 0
-    assert "Traceback" not in result.output
+@pytest.mark.parametrize(
+    ("exc_factory", "expected_code"),
+    [
+        (lambda: _conn_err("TableNotFoundError", "orders"), "TABLE_NOT_FOUND"),
+        (lambda: _conn_err("ColumnNotFoundError", "email", "users"), "COLUMN_NOT_FOUND"),
+        (lambda: _conn_err("DatabaseLockedError", "database is locked"), "DATABASE_LOCKED"),
+        (lambda: _conn_err("DatabaseOpenError", "unable to open"), "DATABASE_OPEN_FAILED"),
+        (lambda: _conn_err("AuthenticationError", "bad password"), "AUTH_FAILED"),
+        (lambda: _conn_err("DatabaseError", "syntax error"), "DATABASE_ERROR"),
+        (lambda: FileNotFoundError("missing.db"), "FILE_NOT_FOUND"),
+        (lambda: ValueError("bad input"), "VALIDATION_ERROR"),
+        (lambda: ImportError("no duckdb"), "MISSING_DEPENDENCY"),
+        (lambda: PermissionError("denied"), "PERMISSION_DENIED"),
+        (lambda: RuntimeError("oops"), "UNKNOWN_ERROR"),
+    ],
+    ids=[
+        "table-not-found",
+        "column-not-found",
+        "database-locked",
+        "database-open",
+        "authentication",
+        "database-error",
+        "file-not-found",
+        "value-error",
+        "import-error",
+        "permission-error",
+        "unknown",
+    ],
+)
+def test_error_code_from_typed_exception(exc_factory, expected_code: str):
+    from querido.cli._errors import _error_code
+
+    assert _error_code(exc_factory()) == expected_code
 
 
-def test_no_traceback_on_missing_file(tmp_path: Path):
-    missing = str(tmp_path / "missing.db")
-    result = runner.invoke(app, ["inspect", "-c", missing, "-t", "users"])
-    assert result.exit_code != 0
-    assert "Traceback" not in result.output
+def _conn_err(name: str, *args):
+    """Construct a :class:`ConnectorError` subclass by name for parametrization."""
+    import querido.connectors.base as base
+
+    cls = getattr(base, name)
+    return cls(*args)
 
 
 # ---------------------------------------------------------------------------
@@ -327,8 +350,13 @@ def test_resolve_table_exact_match(sqlite_path: str):
         assert resolve_table(conn, "users") == "users"
 
 
-def test_resolve_table_case_insensitive_sqlite(sqlite_path: str):
-    """User types USERS, table is users — should resolve to canonical name."""
+def test_resolve_table_case_insensitive(sqlite_path: str):
+    """User types USERS, table is users — resolver returns canonical name.
+
+    ``resolve_table()`` delegates to ``connector.get_tables()`` and does the
+    case-insensitive match in Python; it's dialect-neutral. The DuckDB
+    variant was dropped 2026-04-17.
+    """
     from querido.cli._validation import resolve_table
     from querido.connectors.sqlite import SQLiteConnector
 
@@ -336,15 +364,6 @@ def test_resolve_table_case_insensitive_sqlite(sqlite_path: str):
         assert resolve_table(conn, "USERS") == "users"
         assert resolve_table(conn, "Users") == "users"
         assert resolve_table(conn, "ORDERS") == "orders"
-
-
-def test_resolve_table_case_insensitive_duckdb(duckdb_path: str):
-    from querido.cli._validation import resolve_table
-    from querido.connectors.duckdb import DuckDBConnector
-
-    with DuckDBConnector(duckdb_path) as conn:
-        assert resolve_table(conn, "USERS") == "users"
-        assert resolve_table(conn, "Users") == "users"
 
 
 def test_resolve_table_not_found_raises(sqlite_path: str):
@@ -379,23 +398,24 @@ def test_resolve_table_not_found_has_suggestions(sqlite_path: str):
 # ---------------------------------------------------------------------------
 
 
-def test_preview_case_insensitive_table(sqlite_path: str):
-    result = runner.invoke(app, ["preview", "-c", sqlite_path, "-t", "USERS", "-r", "1"])
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["preview", "-t", "USERS", "-r", "1"],
+        ["inspect", "-t", "USERS"],
+        ["sql", "select", "-t", "USERS"],
+        ["profile", "-t", "USERS"],
+    ],
+    ids=["preview", "inspect", "sql-select", "profile"],
+)
+def test_cli_accepts_case_insensitive_table(sqlite_path: str, argv: list[str]) -> None:
+    """Contract: every table-scoped command resolves USERS → users."""
+    result = runner.invoke(app, [*argv, "-c", sqlite_path])
     assert result.exit_code == 0
 
 
-def test_inspect_case_insensitive_table(sqlite_path: str):
-    result = runner.invoke(app, ["inspect", "-c", sqlite_path, "-t", "USERS"])
-    assert result.exit_code == 0
-
-
-def test_sql_select_case_insensitive_table(sqlite_path: str):
+def test_sql_select_case_insensitive_emits_canonical_name(sqlite_path: str) -> None:
+    """sql select should output the canonical (lowercase) table name."""
     result = runner.invoke(app, ["sql", "select", "-c", sqlite_path, "-t", "USERS"])
     assert result.exit_code == 0
-    # Should use the canonical table name (lowercase) in output
     assert "from users;" in result.output
-
-
-def test_profile_case_insensitive_table(sqlite_path: str):
-    result = runner.invoke(app, ["profile", "-c", sqlite_path, "-t", "USERS"])
-    assert result.exit_code == 0

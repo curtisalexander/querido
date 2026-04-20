@@ -105,6 +105,78 @@ def show_metadata(connection: str, table: str) -> dict | None:
     return _read_yaml(path)
 
 
+# Fields surfaced to scanning commands (profile / quality / values / context)
+# as part of the write→read compounding loop. Keep in sync with the fields
+# written by metadata_write.py + the human-authored fields above.
+_SURFACEABLE_COLUMN_FIELDS = (
+    "description",
+    "valid_values",
+    "pii",
+    "temporal",
+    "likely_sparse",
+)
+
+
+def _unwrap_field(value: object) -> object | None:
+    """Unwrap a stored metadata value to its plain form for read-back.
+
+    * Provenance-wrapped values (``{value, source, confidence, ...}``) are
+      unwrapped to their ``value``.
+    * Placeholder strings (``<description>``), empty strings, and empty
+      lists return ``None`` so callers can treat them as absent.
+    """
+    if isinstance(value, dict):
+        keys = tuple(value.keys())
+        if "value" in keys and "source" in keys:
+            value = next((v for k, v in value.items() if k == "value"), None)
+    if value is None:
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped or stripped.startswith("<"):
+            return None
+        return stripped
+    if isinstance(value, list) and not value:
+        return None
+    return value
+
+
+def load_column_metadata(connection: str, table: str) -> dict[str, dict]:
+    """Return stored per-column metadata for *table* as a name → fields map.
+
+    Reads the table's YAML (if any) and returns ``{column_name: {field: value}}``
+    for fields in :data:`_SURFACEABLE_COLUMN_FIELDS` that are present and
+    non-placeholder.  Provenance-wrapped values are unwrapped to plain form.
+
+    This is the reader half of the compounding loop: ``profile``, ``quality``,
+    ``values``, and ``context`` call it so earlier ``--write-metadata`` runs
+    actually influence subsequent scans.
+
+    Returns ``{}`` if the YAML is missing or has no surfaceable fields.
+    """
+    meta = show_metadata(connection, table)
+    if not meta:
+        return {}
+    result: dict[str, dict] = {}
+    for col in meta.get("columns") or []:
+        if not isinstance(col, dict):
+            continue
+        name = col.get("name")
+        if not isinstance(name, str):
+            continue
+        entry: dict = {}
+        for field in _SURFACEABLE_COLUMN_FIELDS:
+            if field not in col:
+                continue
+            unwrapped = _unwrap_field(col.get(field))
+            if unwrapped is None:
+                continue
+            entry[field] = unwrapped
+        if entry:
+            result[name] = entry
+    return result
+
+
 def list_metadata(connection: str) -> list[dict]:
     """List all stored metadata files for a connection.
 
@@ -276,5 +348,5 @@ def _read_yaml(path: Path) -> dict | None:
     try:
         with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f)
-    except Exception:
+    except (OSError, yaml.YAMLError):
         return None

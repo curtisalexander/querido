@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import pytest
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -29,27 +30,32 @@ def _scalar(conn: Any, sql: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(scope="module")
+def tutorial_db(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Generate the tutorial DB once per test module (~2s) and share it."""
+    from querido.tutorial.data import create_tutorial_db
+
+    db_path = tmp_path_factory.mktemp("tutorial_db") / "tutorial.duckdb"
+    create_tutorial_db(db_path)
+    return db_path
+
+
 class TestDataGeneration:
-    """Test that the tutorial database is generated correctly."""
+    """Assertions on the shape and distribution of the generated tutorial DB.
 
-    def test_creates_all_tables(self, tmp_path: Path) -> None:
-        from querido.tutorial.data import create_tutorial_db
+    All tests share the ``tutorial_db`` module-scoped fixture so the DB is
+    only built once.  ``test_deterministic`` is the exception — by
+    definition it must build two DBs to compare.
+    """
 
-        db_path = tmp_path / "tutorial.duckdb"
-        create_tutorial_db(db_path)
-
-        conn = duckdb.connect(str(db_path), read_only=True)
+    def test_creates_all_tables(self, tutorial_db: Path) -> None:
+        conn = duckdb.connect(str(tutorial_db), read_only=True)
         tables = {r[0] for r in conn.execute("show tables").fetchall()}
         conn.close()
         assert tables == {"parks", "trails", "wildlife_sightings", "visitor_stats"}
 
-    def test_row_counts(self, tmp_path: Path) -> None:
-        from querido.tutorial.data import create_tutorial_db
-
-        db_path = tmp_path / "tutorial.duckdb"
-        create_tutorial_db(db_path)
-
-        conn = duckdb.connect(str(db_path), read_only=True)
+    def test_row_counts(self, tutorial_db: Path) -> None:
+        conn = duckdb.connect(str(tutorial_db), read_only=True)
         parks = _scalar(conn, "select count(*) from parks")
         trails = _scalar(conn, "select count(*) from trails")
         sightings = _scalar(conn, "select count(*) from wildlife_sightings")
@@ -62,6 +68,7 @@ class TestDataGeneration:
         assert 2000 <= stats <= 3500
 
     def test_deterministic(self, tmp_path: Path) -> None:
+        """Uses its own pair of DBs; cannot share the module fixture."""
         from querido.tutorial.data import create_tutorial_db
 
         db1 = tmp_path / "a.duckdb"
@@ -78,13 +85,8 @@ class TestDataGeneration:
         c1.close()
         c2.close()
 
-    def test_foreign_keys_valid(self, tmp_path: Path) -> None:
-        from querido.tutorial.data import create_tutorial_db
-
-        db_path = tmp_path / "tutorial.duckdb"
-        create_tutorial_db(db_path)
-
-        conn = duckdb.connect(str(db_path), read_only=True)
+    def test_foreign_keys_valid(self, tutorial_db: Path) -> None:
+        conn = duckdb.connect(str(tutorial_db), read_only=True)
 
         # All trails reference valid parks
         orphan_trails = _scalar(
@@ -121,13 +123,8 @@ class TestDataGeneration:
 
         conn.close()
 
-    def test_null_rates(self, tmp_path: Path) -> None:
-        from querido.tutorial.data import create_tutorial_db
-
-        db_path = tmp_path / "tutorial.duckdb"
-        create_tutorial_db(db_path)
-
-        conn = duckdb.connect(str(db_path), read_only=True)
+    def test_null_rates(self, tutorial_db: Path) -> None:
+        conn = duckdb.connect(str(tutorial_db), read_only=True)
 
         # Parks description: ~20% null
         desc_null = _scalar(
@@ -191,19 +188,12 @@ class TestLessons:
 
 
 class TestTutorialCLI:
-    def test_help(self) -> None:
-        result = runner.invoke(app, ["tutorial", "--help"])
-        assert result.exit_code == 0
-        assert "National Parks" in result.output
+    # test_help and test_shows_in_help dropped (2026-04-17): both asserted
+    # on Typer-rendered help text; they tested the framework's docstring
+    # rendering rather than our code.
 
     def test_list(self) -> None:
         result = runner.invoke(app, ["tutorial", "explore", "--list"])
         assert result.exit_code == 0
         assert "Welcome" in result.output
         assert "catalog" in result.output
-
-    def test_shows_in_help(self) -> None:
-        result = runner.invoke(app, ["--help"])
-        assert result.exit_code == 0
-        assert "tutorial" in result.output
-        assert "Learn" in result.output

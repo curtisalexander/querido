@@ -24,24 +24,34 @@ def set_last_sql(sql: str) -> None:
 
 
 def _format_db_error(exc: Exception) -> str:
-    """Turn a database driver exception into a user-friendly message."""
-    msg = str(exc).strip()
-    cls = type(exc).__name__
+    """Turn a database driver exception into a user-friendly message.
 
-    # Classify common errors
-    msg_lower = msg.lower()
-    if "no such table" in msg_lower or "does not exist" in msg_lower:
+    Expects *exc* to already be a :class:`ConnectorError` subclass; raw
+    driver exceptions (sqlite3.Error, duckdb.Error, snowflake.Error) that
+    slip past the connector wrappers fall through to a generic label.
+    """
+    from querido.connectors.base import (
+        AuthenticationError,
+        ColumnNotFoundError,
+        DatabaseLockedError,
+        DatabaseOpenError,
+        TableNotFoundError,
+    )
+
+    msg = str(exc).strip()
+
+    if isinstance(exc, TableNotFoundError):
         return f"Table not found: {msg}"
-    if "no such column" in msg_lower:
+    if isinstance(exc, ColumnNotFoundError):
         return f"Column not found: {msg}"
-    if "database is locked" in msg_lower:
+    if isinstance(exc, DatabaseLockedError):
         return f"Database is locked — another process may be using it. {msg}"
-    if "unable to open database" in msg_lower or "could not open" in msg_lower:
+    if isinstance(exc, DatabaseOpenError):
         return f"Cannot open database file: {msg}"
-    if "authentication" in msg_lower or "password" in msg_lower:
+    if isinstance(exc, AuthenticationError):
         return f"Authentication failed: {msg}"
 
-    return f"Database error ({cls}): {msg}"
+    return f"Database error ({type(exc).__name__}): {msg}"
 
 
 def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
@@ -160,19 +170,27 @@ def _try_next_for(code: str) -> list[dict]:
             connection = connection or params.get("connection")
             table = table or params.get("table")
             ctx = ctx.parent
-    except Exception:
+    except (AttributeError, LookupError):
         pass
 
     return for_error(code, connection=connection, table=table)
 
 
 def _is_db_error(exc: Exception) -> bool:
-    """Return True if *exc* looks like a database driver error."""
+    """Return True if *exc* originated from the DB layer.
+
+    Matches both :class:`ConnectorError` (normal path — connectors wrap
+    driver errors in ``execute()``/``__init__``) and raw driver exceptions
+    that slip past the wrapper (detected by module name).
+    """
     import sqlite3
 
+    from querido.connectors.base import ConnectorError
+
+    if isinstance(exc, ConnectorError):
+        return True
     if isinstance(exc, sqlite3.Error):
         return True
-
     module = type(exc).__module__ or ""
     return "duckdb" in module or "snowflake" in module
 
@@ -199,18 +217,25 @@ def _classify_error(exc: Exception) -> str:
 
 def _error_code(exc: Exception) -> str:
     """Return a machine-readable error code for *exc*."""
+    from querido.connectors.base import (
+        AuthenticationError,
+        ColumnNotFoundError,
+        DatabaseLockedError,
+        DatabaseOpenError,
+        TableNotFoundError,
+    )
+
+    if isinstance(exc, TableNotFoundError):
+        return "TABLE_NOT_FOUND"
+    if isinstance(exc, ColumnNotFoundError):
+        return "COLUMN_NOT_FOUND"
+    if isinstance(exc, DatabaseLockedError):
+        return "DATABASE_LOCKED"
+    if isinstance(exc, DatabaseOpenError):
+        return "DATABASE_OPEN_FAILED"
+    if isinstance(exc, AuthenticationError):
+        return "AUTH_FAILED"
     if _is_db_error(exc):
-        msg_lower = str(exc).lower()
-        if "no such table" in msg_lower or "does not exist" in msg_lower:
-            return "TABLE_NOT_FOUND"
-        if "no such column" in msg_lower:
-            return "COLUMN_NOT_FOUND"
-        if "database is locked" in msg_lower:
-            return "DATABASE_LOCKED"
-        if "unable to open database" in msg_lower or "could not open" in msg_lower:
-            return "DATABASE_OPEN_FAILED"
-        if "authentication" in msg_lower or "password" in msg_lower:
-            return "AUTH_FAILED"
         return "DATABASE_ERROR"
 
     if isinstance(exc, FileNotFoundError):
@@ -226,16 +251,21 @@ def _error_code(exc: Exception) -> str:
 
 def _recovery_hint(exc: Exception) -> str | None:
     """Return an actionable hint for recovering from *exc*, or None."""
-    if _is_db_error(exc):
-        msg_lower = str(exc).lower()
-        if "no such table" in msg_lower or "does not exist" in msg_lower:
-            return "Try: qdo catalog -c <connection> --pattern <name> to find available tables"
-        if "no such column" in msg_lower:
-            return "Try: qdo inspect -c <connection> -t <table> to see available columns"
-        if "database is locked" in msg_lower:
-            return "Close other connections to this database and retry"
-        if "authentication" in msg_lower or "password" in msg_lower:
-            return "Check your credentials in connections.toml or re-authenticate"
+    from querido.connectors.base import (
+        AuthenticationError,
+        ColumnNotFoundError,
+        DatabaseLockedError,
+        TableNotFoundError,
+    )
+
+    if isinstance(exc, TableNotFoundError):
+        return "Try: qdo catalog -c <connection> --pattern <name> to find available tables"
+    if isinstance(exc, ColumnNotFoundError):
+        return "Try: qdo inspect -c <connection> -t <table> to see available columns"
+    if isinstance(exc, DatabaseLockedError):
+        return "Close other connections to this database and retry"
+    if isinstance(exc, AuthenticationError):
+        return "Check your credentials in connections.toml or re-authenticate"
 
     if isinstance(exc, FileNotFoundError):
         return "Check the file path and ensure it exists"

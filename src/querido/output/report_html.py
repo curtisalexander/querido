@@ -497,6 +497,91 @@ footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--line);
 footer summary { cursor: pointer; }
 footer .footer-cmd pre { margin-top: 8px; background: var(--soft); padding: 8px 10px; border-radius: 5px; font-size: 0.76rem; overflow-x: auto; }
 
+/* ── Session step cards ─────────────────────────────────────────────── */
+.step .step-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.step .step-head h2 {
+  background: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95rem;
+  color: var(--fg);
+}
+.step .step-index {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.step .step-head code.mono {
+  font-size: 0.9rem;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.step .step-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+}
+.step .step-ts { color: var(--muted); font-size: 0.72rem; }
+.pill.neutral { background: var(--soft); color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  .pill.ok   { background: #064e3b; color: #6ee7b7; }
+  .pill.warn { background: #451a03; color: #fcd34d; }
+  .pill.fail { background: #4c0519; color: #fda4af; }
+}
+
+.step-invocation { margin-bottom: 10px; }
+.step-invocation summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.step-invocation pre {
+  margin-top: 6px;
+  background: var(--soft);
+  padding: 8px 10px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  overflow-x: auto;
+}
+
+.step-note {
+  border-left: 3px solid var(--accent);
+  padding: 6px 12px;
+  background: var(--soft);
+  border-radius: 0 5px 5px 0;
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+  color: var(--fg);
+}
+
+pre.stdout {
+  background: var(--soft);
+  padding: 10px 12px;
+  border-radius: 5px;
+  font-size: 0.76rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
 /* ── Print ──────────────────────────────────────────────────────────── */
 @media print {
   body { background: #fff; color: #000; }
@@ -504,6 +589,10 @@ footer .footer-cmd pre { margin-top: 8px; background: var(--soft); padding: 8px 
   .head { border-bottom-color: #000; }
   a { color: inherit; text-decoration: none; }
   .schema tr { break-inside: avoid; }
+  details { break-inside: avoid; }
+  details > summary { display: none; }
+  details > *:not(summary) { display: block !important; }
+  pre.stdout { max-height: none; overflow: visible; }
 }
 """
 
@@ -523,3 +612,170 @@ _PAGE = """<!DOCTYPE html>
 </body>
 </html>
 """
+
+
+# --------------------------------------------------------------------------- #
+# Session report
+# --------------------------------------------------------------------------- #
+
+
+# Alternating theme classes (matches the table-report palette) so adjacent
+# step cards are visually distinguishable without any per-step semantics.
+_STEP_THEMES = ("theme-indigo", "theme-violet", "theme-amber", "theme-emerald", "theme-sky")
+
+
+def render_session_report(report: dict) -> str:
+    """Render a ``core.report.build_session_report`` dict as HTML.
+
+    The output is a narrative: one card per step, each showing command +
+    metadata + captured stdout. Optional per-step notes render as a
+    commentary block above stdout.
+    """
+    name = report.get("session_name", "")
+    steps = report.get("steps") or []
+    generated_at = report.get("generated_at", "")
+
+    body = "\n".join(
+        [
+            _session_header(report),
+            *(_session_step(step, i) for i, step in enumerate(steps)),
+            _session_footer(report),
+        ]
+    )
+
+    return _PAGE.format(
+        title=html.escape(f"{name} — qdo session report"),
+        body=body,
+        css=_CSS,
+        table=html.escape(str(name)),
+        connection="",
+        generated_at=html.escape(str(generated_at)),
+        row_count=f"{len(steps):,}",
+    )
+
+
+def _session_header(report: dict) -> str:
+    name = html.escape(str(report.get("session_name", "")))
+    step_count = report.get("step_count", 0)
+    generated_at = html.escape(str(report.get("generated_at", "")))
+    steps = report.get("steps") or []
+    total_duration = sum(float(s.get("duration") or 0) for s in steps)
+    failures = sum(1 for s in steps if s.get("exit_code", 0) != 0)
+    status_html = (
+        f'<div><span class="k">failures</span><span class="v">{failures}</span></div>'
+        if failures
+        else '<div><span class="k">status</span><span class="v">all ok</span></div>'
+    )
+    return f"""
+    <section class="head">
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">qdo report · session</div>
+          <h1>{name}</h1>
+        </div>
+        <div class="head-meta">
+          <div><span class="k">steps</span><span class="v">{step_count}</span></div>
+          <div><span class="k">duration</span><span class="v">{total_duration:.2f}s</span></div>
+          {status_html}
+          <div><span class="k">generated</span><span class="v mono">{generated_at}</span></div>
+        </div>
+      </div>
+    </section>
+    """
+
+
+def _session_step(step: dict, zero_based_index: int) -> str:
+    theme = _STEP_THEMES[zero_based_index % len(_STEP_THEMES)]
+    idx = step.get("index", zero_based_index + 1)
+    cmd = html.escape(str(step.get("cmd", "")) or "qdo")
+    args = step.get("args") or []
+    invocation = "qdo " + " ".join(args)
+    timestamp = html.escape(str(step.get("timestamp", "")))
+    duration = float(step.get("duration") or 0)
+    exit_code = step.get("exit_code", 0)
+    row_count = step.get("row_count")
+    note = step.get("note")
+
+    # Status pill — green for ok, red for non-zero exit
+    status_pill = (
+        '<span class="pill ok">ok</span>'
+        if exit_code == 0
+        else f'<span class="pill fail">exit {html.escape(str(exit_code))}</span>'
+    )
+    rows_pill = (
+        f'<span class="pill neutral">{row_count:,} rows</span>'
+        if isinstance(row_count, int)
+        else ""
+    )
+    duration_pill = f'<span class="pill neutral">{duration:.2f}s</span>'
+
+    note_html = ""
+    if note:
+        note_html = f'<div class="step-note">{html.escape(str(note))}</div>'
+
+    stdout = step.get("stdout") or ""
+    stdout_html = _render_stdout(stdout)
+
+    # The invocation sits inside a <details>/<summary> so short reports are
+    # skimmable. Open-by-default on non-zero exit so failures are visible
+    # without a click.
+    details_open = "open" if exit_code != 0 else ""
+    invocation_html = (
+        f'<details class="step-invocation" {details_open}>'
+        f"<summary>full invocation</summary>"
+        f'<pre class="mono">{html.escape(invocation)}</pre>'
+        f"</details>"
+    )
+
+    return f"""
+    <section class="panel step {theme}">
+      <div class="step-head">
+        <h2><span class="step-index">#{idx}</span> <code class="mono">{cmd}</code></h2>
+        <div class="step-meta">
+          {status_pill}{rows_pill}{duration_pill}
+          <span class="step-ts mono">{timestamp}</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        {invocation_html}
+        {note_html}
+        {stdout_html}
+      </div>
+    </section>
+    """
+
+
+def _render_stdout(stdout: str) -> str:
+    """Render captured stdout as preformatted HTML.
+
+    If the output parses as JSON, pretty-print it — reports are easier to
+    scan when nested envelopes are indented. Otherwise render as-is.
+    Always HTML-escaped.
+    """
+    if not stdout:
+        return '<p class="empty">No output captured.</p>'
+
+    stripped = stdout.strip()
+    if stripped and stripped[0] in "{[":
+        try:
+            import json as _json
+
+            payload = _json.loads(stripped)
+            pretty = _json.dumps(payload, indent=2, ensure_ascii=False)
+            return f'<pre class="stdout mono">{html.escape(pretty)}</pre>'
+        except _json.JSONDecodeError:
+            pass
+
+    return f'<pre class="stdout mono">{html.escape(stdout)}</pre>'
+
+
+def _session_footer(report: dict) -> str:
+    command = report.get("command") or ""
+    if command:
+        return (
+            f'<footer><details class="footer-cmd">'
+            f"<summary>Generated with qdo</summary>"
+            f'<pre class="mono">{html.escape(command)}</pre>'
+            f"</details></footer>"
+        )
+    return '<footer><p class="footer-text">Generated with qdo.</p></footer>'

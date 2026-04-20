@@ -33,12 +33,28 @@ from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict, TypeGuard
 
 from querido.core.metadata import _read_yaml, _write_yaml
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+
+
+class Provenance(TypedDict):
+    """Provenance-wrapped metadata field — the shape written by ``metadata_write``.
+
+    Every auto-written metadata field carries the source command, a
+    0.0-1.0 confidence, a sortable ``written_at`` (session id or ISO
+    timestamp), and an author. The inner ``value`` may be any of the
+    scalar/list shapes metadata supports.
+    """
+
+    value: Any
+    source: str
+    confidence: float
+    written_at: str
+    author: str
 
 
 BUNDLE_FORMAT_VERSION = "1"
@@ -97,9 +113,12 @@ def compute_schema_fingerprint(columns: list[dict]) -> str:
 
 
 def _fingerprint_for_table(connector: Connector, table: str) -> str | None:
+    from querido.connectors.base import ConnectorError
+
     try:
         cols = connector.get_columns(table)
-    except Exception:
+    except ConnectorError:
+        # Best-effort — missing table short-circuits to an absent fingerprint.
         return None
     return compute_schema_fingerprint(cols)
 
@@ -109,7 +128,7 @@ def _fingerprint_for_table(connector: Connector, table: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _is_provenance(value: Any) -> bool:
+def _is_provenance(value: Any) -> TypeGuard[Provenance]:
     return (
         isinstance(value, dict)
         and "value" in value
@@ -409,12 +428,14 @@ def import_bundle(
         bundle_tables = manifest.get("tables") or []
 
         # Compute target fingerprints (best-effort — missing DB just skips check).
+        from querido.connectors.base import ConnectorError
+
         target_fps: dict[str, str | None] = {}
         try:
             config = resolve_connection(target_connection)
             with create_connector(config) as conn:
                 existing: set[str] = set()
-                with suppress(Exception):
+                with suppress(ConnectorError):
                     existing = {str(r.get("name")) for r in conn.get_tables()}
                 for entry in bundle_tables:
                     src = entry.get("name")
@@ -425,7 +446,9 @@ def import_bundle(
                         target_fps[tgt] = _fingerprint_for_table(conn, tgt)
                     else:
                         target_fps[tgt] = None
-        except Exception:
+        except (ConnectorError, FileNotFoundError, ImportError, ValueError):
+            # Drift check is best-effort — missing config, uninstalled driver,
+            # or unreachable DB all fall through and the diff still runs.
             pass
 
         table_diffs: list[dict] = []

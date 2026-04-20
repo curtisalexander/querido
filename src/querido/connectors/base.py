@@ -40,7 +40,12 @@ def validate_object_name(name: str) -> str:
 
 
 class ConnectorError(Exception):
-    """Base exception for all connector errors."""
+    """Base exception for all connector errors.
+
+    Wraps driver-specific exceptions (``sqlite3.Error``, ``duckdb.Error``,
+    ``snowflake.connector.Error``) so CLI code can isinstance-check against
+    a dialect-neutral hierarchy instead of string-matching driver messages.
+    """
 
 
 class TableNotFoundError(ConnectorError):
@@ -60,6 +65,46 @@ class ColumnNotFoundError(ConnectorError):
         self.table = table
         self.available = available or []
         super().__init__(f"Column {column!r} not found in table {table!r}")
+
+
+class DatabaseLockedError(ConnectorError):
+    """Raised when the database is locked by another process."""
+
+
+class DatabaseOpenError(ConnectorError):
+    """Raised when the database file cannot be opened (missing, permission denied, corrupt)."""
+
+
+class AuthenticationError(ConnectorError):
+    """Raised when driver authentication fails (bad credentials, expired token)."""
+
+
+class DatabaseError(ConnectorError):
+    """Generic wrapper for driver errors that don't fit a narrower subclass."""
+
+
+def wrap_driver_error(exc: Exception) -> ConnectorError | None:
+    """Classify a raw driver exception into a :class:`ConnectorError` subclass.
+
+    Returns ``None`` when *exc* doesn't match a known pattern — callers
+    should re-raise the original in that case so tracebacks stay intact.
+
+    Message-pattern matching is intentionally centralized here so each
+    connector wraps driver errors the same way and CLI-layer code can
+    switch on exception type instead of parsing messages.
+    """
+    msg = str(exc).lower()
+    if "no such table" in msg or "does not exist" in msg:
+        return TableNotFoundError(str(exc))
+    if "no such column" in msg:
+        return ColumnNotFoundError(str(exc), "")
+    if "database is locked" in msg:
+        return DatabaseLockedError(str(exc))
+    if "unable to open database" in msg or "could not open" in msg:
+        return DatabaseOpenError(str(exc))
+    if "authentication" in msg or "password" in msg:
+        return AuthenticationError(str(exc))
+    return None
 
 
 # ---------------------------------------------------------------------------

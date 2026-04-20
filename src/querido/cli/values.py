@@ -13,7 +13,7 @@ app = typer.Typer(help="Show distinct values for a column.")
 @friendly_errors
 def values(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    column: str = typer.Option(..., "--column", "-C", help="Column to enumerate."),
+    columns: str = typer.Option(..., "--columns", "-C", help="Column to enumerate (exactly one)."),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
@@ -42,11 +42,20 @@ def values(
     For low-cardinality columns, returns every distinct value. For
     high-cardinality columns (> --max), returns the top values by frequency.
     """
+    from querido.cli._options import parse_column_list
     from querido.cli._pipeline import dispatch_output, table_command
 
     valid_sorts = {"value", "frequency"}
     if sort not in valid_sorts:
         raise typer.BadParameter(f"--sort must be one of: {', '.join(sorted(valid_sorts))}")
+
+    col_names = parse_column_list(columns) or []
+    if len(col_names) != 1:
+        raise typer.BadParameter(
+            "--columns must name exactly one column for 'qdo values' "
+            f"(got {len(col_names)}: {', '.join(col_names) or '(none)'})"
+        )
+    column = col_names[0]
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         from querido.cli._validation import resolve_column
@@ -62,6 +71,7 @@ def values(
                 resolved_column,
                 max_values=max_values,
                 sort=sort,
+                connection=connection,
             )
 
         metadata_write_summary = None
@@ -77,13 +87,13 @@ def values(
         if is_structured_format():
             from querido.core.next_steps import for_values
 
+            envelope_data: dict = dict(result)
             if metadata_write_summary is not None:
-                result = dict(result)
-                result["metadata_write"] = metadata_write_summary
+                envelope_data["metadata_write"] = metadata_write_summary
 
             emit_envelope(
                 command="values",
-                data=result,
+                data=envelope_data,
                 next_steps=for_values(result, connection=connection, table=ctx.table),
                 connection=connection,
                 table=ctx.table,

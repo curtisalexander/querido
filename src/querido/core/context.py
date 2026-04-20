@@ -11,13 +11,33 @@ database queries using a background thread.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 # Dialects that support approx_top_k in one scan
 _TOP_K_DIALECTS = frozenset({"duckdb", "snowflake"})
+
+
+class ContextResult(TypedDict):
+    """Return shape of :func:`get_context`. Per-column entries merge schema,
+    stats, sample values, and stored metadata; that shape varies by dialect
+    and is kept loose as ``dict[str, Any]`` for now."""
+
+    table: str
+    dialect: str
+    connection: str | None
+    row_count: int
+    sampled: bool
+    sample_size: int | None
+    sampling_note: str | None
+    table_comment: str | None
+    table_description: str | None
+    data_owner: str | None
+    columns: list[dict[str, Any]]
+    metadata: dict[str, Any] | None
+    sql: str
 
 
 def get_context(
@@ -29,7 +49,7 @@ def get_context(
     no_sample: bool = False,
     sample: int | None = None,
     exact: bool = False,
-) -> dict:
+) -> ContextResult:
     """Return rich context for a table: schema, stats, sample values, metadata.
 
     Performance strategy
@@ -47,6 +67,11 @@ def get_context(
     dict with keys:
         table, dialect, connection, row_count, sampled, sample_size,
         table_comment, table_description, columns (list), metadata (dict|None)
+
+    Stored metadata is read best-effort: unreadable YAML, permission errors,
+    or a missing file all degrade silently to ``metadata=None`` / empty
+    per-column overlays rather than failing the command. Agents relying on
+    the metadata merge should tolerate its absence.
     """
     from querido.connectors.base import validate_table_name
     from querido.core._utils import (
@@ -69,16 +94,21 @@ def get_context(
     )
 
     # --- Start metadata load in background -----------------------------------
+    # Loaded twice: the raw YAML for table-level fields, and the per-column
+    # surfaceable map that unwraps provenance to plain values.
     meta_future = None
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    col_meta_future = None
+    with ThreadPoolExecutor(max_workers=2) as executor:
         meta_future = executor.submit(_load_metadata, connection, table)
+        col_meta_future = executor.submit(_load_column_metadata, connection, table)
 
         # --- Fetch stats (and optionally top-K) from DB ----------------------
-        stats_by_col, row_count, top_values_by_col = _fetch_stats(
+        stats_by_col, row_count, top_values_by_col, primary_sql = _fetch_stats(
             connector, col_info, source, sample_values=sample_values, approx=not exact
         )
 
         stored_metadata = meta_future.result()
+        stored_column_metadata = col_meta_future.result()
 
     # --- Load table comment --------------------------------------------------
     table_comment = connector.get_table_comment(table)
@@ -115,15 +145,11 @@ def get_context(
             col_entry["max"] = stats.get("max_val")
             col_entry["sample_values"] = top_vals
 
-        # Merge human-authored metadata fields if available
-        if stored_metadata:
-            col_docs = stored_metadata.get("columns", {}).get(name, {})
-            if col_docs.get("description"):
-                col_entry["description"] = col_docs["description"]
-            if col_docs.get("valid_values"):
-                col_entry["valid_values"] = col_docs["valid_values"]
-            if col_docs.get("pii"):
-                col_entry["pii"] = col_docs["pii"]
+        # Merge stored metadata (human-authored + auto-written with
+        # provenance unwrapped) if available.
+        col_docs = stored_column_metadata.get(name)
+        if col_docs:
+            col_entry.update(col_docs)
 
         columns.append(col_entry)
 
@@ -154,6 +180,7 @@ def get_context(
         "data_owner": data_owner,
         "columns": columns,
         "metadata": stored_metadata,
+        "sql": primary_sql,
     }
 
 
@@ -164,10 +191,14 @@ def _fetch_stats(
     *,
     sample_values: int,
     approx: bool,
-) -> tuple[dict[str, dict], int, dict[str, list[str] | None]]:
+) -> tuple[dict[str, dict], int, dict[str, list[str] | None], str]:
     """Run the stats query and return per-column stats and sample values.
 
-    Returns ``(stats_by_col, row_count, top_values_by_col)``.
+    Returns ``(stats_by_col, row_count, top_values_by_col, primary_sql)``.
+    ``primary_sql`` is the main scan template — the one worth surfacing via
+    ``--show-sql``. On SQLite, per-column frequency queries also run but
+    they're repetitive boilerplate; showing the profile scan is the useful
+    signal.
 
     For dialects with approx_top_k, everything is fetched in one scan.
     For SQLite, runs profile + sequential frequency queries.
@@ -246,21 +277,37 @@ def _fetch_stats(
         else:
             top_values_by_col = {c["name"]: None for c in col_info}
 
-    return stats_by_col, row_count, top_values_by_col
+    return stats_by_col, row_count, top_values_by_col, sql
 
 
 def _extract_top_k_values(raw_top: list) -> list[str]:
     """Extract string values from an approx_top_k result.
 
-    DuckDB returns ``STRUCT(value X, count BIGINT)[]``, which the Python
-    connector delivers as a list of dicts like ``[{"value": ..., "count": ...}]``.
-    Snowflake's APPROX_TOP_K returns a similar VARIANT structure.
+    Shape varies by dialect:
+    * DuckDB ``approx_top_k(value, k)`` returns a list of the top-K values
+      themselves — e.g. ``["Rosa", "Xander", ...]`` for strings or
+      ``[datetime.date(2024, 6, 6), ...]`` for DATE columns.
+    * Snowflake ``APPROX_TOP_K`` returns ``[[value, count], ...]`` arrays.
+    * Older DuckDB / driver versions have returned dict-shaped
+      ``[{"value": ..., "count": ...}]``.
+
+    Handle all three by checking type before indexing; convert the value
+    to ``str`` for uniform downstream rendering.
     """
     if not raw_top:
         return []
-    values = []
+    values: list[str] = []
     for item in raw_top:
-        val = item.get("value") if isinstance(item, dict) else (item[0] if item else None)
+        if item is None:
+            continue
+        if isinstance(item, dict):
+            val = item.get("value")
+        elif isinstance(item, (list, tuple)):
+            val = item[0] if item else None
+        else:
+            # Primitive (str, int, float, datetime.date, …) — DuckDB's
+            # modern approx_top_k returns values directly.
+            val = item
         if val is not None:
             values.append(str(val))
     return values
@@ -279,3 +326,13 @@ def _load_metadata(connection: str, table: str) -> dict | None:
         return yaml.safe_load(meta_path.read_text(encoding="utf-8")) or None
     except Exception:
         return None
+
+
+def _load_column_metadata(connection: str, table: str) -> dict[str, dict]:
+    """Load the per-column surfaceable metadata map.  Returns ``{}`` if none."""
+    try:
+        from querido.core.metadata import load_column_metadata
+
+        return load_column_metadata(connection, table)
+    except Exception:
+        return {}

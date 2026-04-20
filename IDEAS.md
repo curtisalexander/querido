@@ -70,6 +70,9 @@ Querido sits in a niche between:
 - Markdown-KV topped one accuracy study at 60.7% ([improvingagents.com](https://www.improvingagents.com/blog/best-input-data-format-for-llms/)).
 
 ### Proposed: `qdo ... -f agent` (or `-f compact`)
+
+> **[IMPLEMENTED — Phase 2.1.]** `-f agent` ships as a TOON-for-tabular / YAML-for-nested hybrid. `QDO_FORMAT=agent` sets the default. See `src/querido/output/envelope.py::render_agent` + `src/querido/output/toon.py`.
+
 A new output format tuned for LLM consumption:
 
 - **Tabular results** → TSV or TOON (pick one; TOON is more future-proof and preserves types)
@@ -90,6 +93,8 @@ Follow-up ideas:
 Docs needed: a "writing for agents" page explaining the legend and how to reconstruct full data.
 
 ### Is TOON actually accurate? (follow-up research, 2026-04-13)
+
+> **[IMPLEMENTED — Phase 2.1.]** Verdict adopted: TOON for tabular, YAML for nested. Encoder is vendored in-tree under `src/querido/output/toon.py` with 118 parametrized conformance cases in `tests/test_toon.py`.
 
 The headline "40% fewer tokens + higher accuracy" oversells it. Digging in:
 
@@ -115,6 +120,8 @@ This is hybrid on purpose — it matches format to shape, which is the actual ac
 
 ### Recording agent output and reading it back into other subcommands
 
+> **[IMPLEMENTED — Phase 1.2 + 6.1.]** `qdo session start`, `QDO_SESSION=<name>` auto-recording, `qdo session show`, `qdo session note`, and `qdo report session <name>` (single-file HTML narrative) all ship. The `--from session.step_N` cross-reference flag is still deferred. See `src/querido/core/session.py`, `src/querido/cli/session.py`, `src/querido/core/report.py::build_session_report`.
+
 Yes, genuinely valuable — and it's the right way to think about the CLI as a pipeline, not a set of independent commands.
 
 **Today:** `-f json` is round-trippable. You can `qdo catalog -c db -f json > cat.json` and a subsequent tool (or command) can parse it. We don't currently have commands that *accept* querido's own output as input, but agents effectively do this by re-reading stdout.
@@ -132,6 +139,8 @@ Yes, genuinely valuable — and it's the right way to think about the CLI as a p
 ---
 
 ## MCP server
+
+> **[DEFERRED.]** Tracked in PLAN.md "Deferred / future phases" as a thin wrapper over the CLI. Not started; CLI surface is kept MCP-ready (stable flags, structured JSON errors, no TTY-required behaviors).
 
 Preference: **only a thin wrapper over the CLI, if at all.**
 
@@ -152,6 +161,8 @@ Preference: **only a thin wrapper over the CLI, if at all.**
 ---
 
 ## Rust: two separate questions
+
+> **[DROPPED.]** Both paths rejected. (a) Rust+PyO3 skipped — our hot path lives in DuckDB/Snowflake. (b) Rust→WASM skipped — if browser querido ever happens, Pyodide reuses our existing Python; a Rust rewrite would double the codebase for marginal gain.
 
 ### (a) Rust+PyO3 for CLI hot paths → **skip.**
 
@@ -194,6 +205,8 @@ Our hot paths are:
 
 ## Agent tutorial: separate from skill file?
 
+> **[IMPLEMENTED — Phase 4.5 + Wave 3.]** Both artifacts kept and deepened. `qdo tutorial agent` survives for human+agent pairing; `SKILL.md` is the agent-context reference. The "playbook doc" idea is partially covered by `WORKFLOW_AUTHORING.md` + bundled workflows serving as the worked-example corpus. Self-hosting eval (`scripts/eval_skill_files.py`, `scripts/eval_workflow_authoring.py`) is the quality signal — 33/33 on the first live baseline.
+
 We already have `qdo tutorial agent` (13 lessons) and `integrations/skills/SKILL.md`. Different purposes:
 
 - **SKILL.md** — reference dropped into the agent's context. Static. Tells the agent *what* commands exist and *when* to use which. This is the right artifact for "teach an agent how to use querido."
@@ -206,6 +219,8 @@ We already have `qdo tutorial agent` (13 lessons) and `integrations/skills/SKILL
 ---
 
 ## High-value quick wins (implementable now)
+
+> **[SUPERSEDED.]** This list was revised by the "Consolidated quick-wins" further down, then by "Updated consolidated quick-wins". Item 1 (`-f agent`) shipped as Phase 2.1. Items 2–6 (`qdo search`, SQL history, audit log, recipes doc, `qdo catalog functions`) remain deferred — see PLAN.md "Deferred / future phases".
 
 Ordered by (value / effort):
 
@@ -230,6 +245,8 @@ The principles below are the unifying theme. Individual ideas slot under them.
 
 ## Principle 1 — Every output ends with a pointer to the next step
 
+> **[IMPLEMENTED — Phase 1.1.]** Every scanning command emits `next_steps`; errors emit `try_next`. See `src/querido/core/next_steps.py` and the `_ENVELOPE_CASES` contract test in `tests/test_next_steps.py`.
+
 **`next_steps` field in every JSON response.** A ranked list of commands the caller is likely to want, based on what was just returned. Not prose — concrete invocations.
 
 Examples of what this looks like in practice:
@@ -245,6 +262,8 @@ Examples of what this looks like in practice:
 **Token cost:** 2–4 lines of compact JSON per call. Worth it.
 
 ## Principle 2 — Sessions as first-class, not a flag
+
+> **[IMPLEMENTED — Phase 1.2 + 6.1.]** Session MVP ships (`.qdo/sessions/<name>/steps.jsonl` + per-step stdout). `QDO_SESSION` auto-records. `qdo session show/list/start/note`. The `--from session.stepN` cross-reference and `qdo session replay` are still deferred.
 
 Expanding line 128's `qdo session` from a paragraph into the centerpiece.
 
@@ -264,6 +283,8 @@ A **session** is a named directory under `.qdo/sessions/<name>/` that captures e
 
 ## Principle 3 — Metadata is the shared memory, and commands should feed it automatically
 
+> **[IMPLEMENTED — Phase 1.3 + 1.4.]** `--write-metadata` on `profile`/`values`/`quality` with provenance + confidence. Auto-fill rules are deterministic (low-cardinality enum → `valid_values`, high null → `likely_sparse`, temporal column names → `temporal`). Human fields (`confidence: 1.0`) never overwritten without `--force`. `qdo metadata score` + `qdo metadata suggest --apply` shipped. Metadata undo is deferred.
+
 Today metadata is populated by `metadata init` + human edits + `refresh`. That's a cliff. Flatten it:
 
 - **`--write-metadata` on every scanning command.** `qdo profile -t orders --write-metadata` merges computed stats (null_pct, distinct_count, min/max) into the YAML with `source: profile, confidence: 0.7`. `qdo values -C status --write-metadata` proposes `valid_values: [...]` when distinct count is small.
@@ -278,6 +299,8 @@ This turns metadata from a separate chore into a byproduct of normal exploration
 
 ## Principle 4 — A visible command graph agents can traverse
 
+> **[DEFERRED.]** Partial coverage exists via per-command `next_steps` (Principle 1) and the `qdo overview` command reference, but `--graph`, `qdo next`, and `qdo explain <command>` are not shipped.
+
 **`qdo overview --graph -f json`** returns the command DAG: nodes are commands, edges are typical transitions, each edge annotated with the trigger (`if row_count > 1M → suggest --sample`). An agent can load this once at session start and plan.
 
 Complements existing `overview`; doesn't replace it. Static data, trivial to maintain.
@@ -287,6 +310,8 @@ Complements existing `overview`; doesn't replace it. Static data, trivial to mai
 **`qdo explain <command>`** — not `--help` text; a short "when to reach for this" with one-line examples and predecessor/successor commands. Complements SKILL.md but lives with the binary so it's always current.
 
 ## Principle 5 — Investigations as named workflows
+
+> **[FOLDED INTO Phase 4.]** Principle 11's workflows absorbed this — bundled workflows under `src/querido/workflows/` are how canonical investigations are expressed and shared. A dedicated `qdo investigate <table>` convenience command is still deferred; it would be a thin wrapper around `qdo workflow run` for a specific bundled workflow.
 
 `qdo investigate table <name>` runs the canonical loop: `catalog → context → profile --classify → quality → joins` and writes a consolidated agent-friendly report plus auto-metadata updates. One command, correct defaults, reproducible.
 
@@ -299,12 +324,16 @@ These are not magic; they're named scripts baked in. The value is that the *name
 
 ## Principle 6 — Progressive disclosure and cost awareness
 
+> **[DEFERRED.]** All four items (`--level 1..3`, `--estimate`, read-only-by-default on `query`, `--plan` dry-run) are in PLAN.md's deferred list. Read-only-by-default is the highest-leverage next pick.
+
 - **`--level 1..3`** on expensive commands. Level 1 is schema-only (free/cached), level 2 is profile (one scan), level 3 is full quality + joins + value frequencies (multi-scan). Agents start cheap, drill in only where needed.
 - **Cost/time estimate before running.** `qdo query --estimate` returns predicted credits (Snowflake) / duration (DuckDB via EXPLAIN cardinality) / bytes scanned. Agents can set a policy: skip if >$0.10.
 - **Read-only by default.** `qdo query` refuses DML/DDL without `--allow-write`. No accidental agent mutation. Show this in the output so users know the guardrail exists.
 - **`--plan` / dry-run** on `export`, `query`, `metadata write` — preview without executing.
 
 ## Principle 7 — Change detection across time
+
+> **[PARTIAL.]** `qdo diff` ships for schema comparison between two tables (see `src/querido/cli/diff.py`). The time-aware variants — `qdo diff --since <session|timestamp>` and `qdo cache snapshot` — are deferred.
 
 - **`qdo diff --since <session|timestamp>`** — what tables appeared, disappeared, gained/lost columns, changed row counts since a prior session. Uses cache snapshots. Returning agent immediately knows what's new.
 - **`qdo cache snapshot <name>`** — freeze a schema+row-count snapshot. `qdo diff --since snap:release-42` for release-boundary comparison.
@@ -313,11 +342,15 @@ This is one of the best agent UX wins: a returning agent that already knows a DB
 
 ## Principle 8 — Stable identifiers for outputs
 
+> **[DEFERRED.]** `result_id` and `--from-result` not shipped. The session substrate (Principle 2) covers the "reference a prior output" use case at a coarser granularity.
+
 Every structured output carries a `result_id` (hash of command + args + connection + schema_version). Later commands can reference it (`--from-result <id>`), and sessions use it to deduplicate replays. Cheap to generate, enables the `--from` patterns above.
 
 ---
 
 ## Consolidated quick-wins (supersedes the list higher in this file)
+
+> **[LARGELY IMPLEMENTED.]** 1–5 shipped (Phases 1.1, 1.2, 1.3, 1.4, 2.1). 6 (`qdo investigate`) is deferred as a thin wrapper over bundled workflows. 7 (`qdo diff --since`) and 8 (`--estimate`) are in PLAN.md's deferred list. See "Updated consolidated quick-wins" further down for the revised list with items 9–11 (report table, bundles, workflows).
 
 Ordered by leverage on the pit-of-success story:
 
@@ -345,6 +378,8 @@ Items 1–4 together are the project's competitive moat: they make qdo the tool 
 Metadata + sessions are already valuable to one user. They get dramatically more valuable when **team members can import each other's work**. This is the network effect qsv/datasette/harlequin don't have at all — they don't capture investigation state, so there's nothing to share. We do. Lean in.
 
 ## Principle 9 — Knowledge bundles as the unit of exchange
+
+> **[IMPLEMENTED — Phase 3.]** `qdo bundle export/import/inspect/diff` all ship. Schema-fingerprint checks catch drift on import; merge strategies preserve provenance (auto-fills break ties by confidence + recency; human `confidence: 1.0` fields never auto-overwritten). See `src/querido/core/bundle.py` and `src/querido/cli/bundle.py`.
 
 A **knowledge bundle** is a portable archive of what one user/agent has learned about some part of a database. It should be:
 
@@ -395,6 +430,8 @@ The agent and the analyst know the data. Their stakeholders don't. We should mak
 
 ## Principle 10 — HTML report as the shareable primitive
 
+> **[IMPLEMENTED — Phase 2.2 + 6.1.]** `qdo report table` and `qdo report session` both ship as single-file HTML (no JS, inline SVG, print-friendly). `qdo report connection` multi-table overview is deferred. See `src/querido/core/report.py`, `src/querido/output/report_html.py`, `src/querido/cli/report.py`.
+
 **`qdo report table -c mydb -t orders -o orders.html`** — a single self-contained HTML file (inline CSS, inline SVG, no CDN, no JS required for reading; small vanilla JS only for optional interactivity like sortable tables). Works offline. Opens in any browser. Easy to email, attach in Slack, commit to a repo.
 
 Content (from one table):
@@ -434,6 +471,8 @@ This is the narrative artifact. Run an investigation, share the HTML, the recipi
 The user is right to point at Claude Code's skills model: the tool ships primitives, the agent writes extensions, users share them. That pattern is *exactly* right for querido. Workflows are the extension mechanism — not plugins, not Python hooks, not an ABI. Files.
 
 ## Principle 11 — Workflows as the extensibility surface
+
+> **[IMPLEMENTED — Phase 4.]** Workflow spec (JSON Schema), runner, lint, list, `show`, `spec --examples`, `from-session` all ship. See `src/querido/core/workflow/`, `src/querido/cli/workflow.py`, `integrations/skills/WORKFLOW_AUTHORING.md`. The "CLI sugar shim" (`qdo <workflow-name>` as a top-level alias) was **dropped** — canonical invocation is always `qdo workflow run <name>`.
 
 A **workflow** is a declarative YAML file describing a named, parameterized sequence of qdo commands. It's:
 
@@ -505,6 +544,8 @@ This loop is the whole feature. It only works if (a) the spec is documented well
 
 ## Updated consolidated quick-wins (revises the earlier list)
 
+> **[IMPLEMENTED.]** Items 9 (report table, Phase 2.2), 10 (bundles, Phase 3), and 11 (workflows, Phase 4) all shipped. The earlier eight items are annotated individually above. The suggested week-by-week sequencing below was followed, with `report session` landing as Phase 6.1 (2026-04-20).
+
 The earlier eight items still stand. These three additions rank against them:
 
 9. **HTML `qdo report table` (single file, Jinja, inline CSS)** — 2–3 days. Immediate "show it to your boss" value; low risk
@@ -523,6 +564,8 @@ This is roughly the order where each step's value is unlocked by the prior step:
 ---
 
 ## qdo freshness — row freshness / staleness
+
+> **[DEFERRED.]** In PLAN.md's deferred list. `qdo context` already surfaces `temporal: true` metadata hints for timestamp columns; `qdo freshness` would build on that.
 
 "Is this table still being loaded?" is one of the most common analyst questions. The agent needs to answer it without the analyst knowing the column names.
 
@@ -561,6 +604,8 @@ Use an open-weight local LLM to generate SQL from natural language, informed by 
 `resolve_column()` queries the database for column metadata just to do case-insensitive name matching. Could check MetadataCache first and fall back to a live query if stale. Deferred because within-session memoization already covers most cases.
 
 ## Should some subcommands be workflows instead of Python primitives?
+
+> **[DROPPED by design.]** Originally "Phase 5" in PLAN.md, then dropped. The "no workflow shim" principle prevails — agents and humans learn one invocation pattern (`qdo workflow run <name>`), not two. Subcommands that earn rule 1 or 2 (direct connection access, cross-query optimization like `context`/`quality`) stay primitives; new user-authored composition lives as workflows. The dual-surface CLI sugar alias this proposal relied on is explicitly out.
 
 **Yes. This is a direct consequence of Principle 11** — once workflows are a first-class authoring surface, the bar for a built-in Python subcommand goes up. Anything that's "run these qdo commands in this order and format the result" should be a workflow, not hidden code.
 
@@ -643,6 +688,8 @@ This is roughly one additional week on top of Principle 11's week, assuming no s
 ---
 
 ## Agent-authoring documentation: the prerequisite for workflow extensibility
+
+> **[IMPLEMENTED — Phase 4.5 + Wave 3 + Wave 4.]** `WORKFLOW_AUTHORING.md`, `SKILL.md`, bundled workflows as worked examples, `qdo workflow spec [--examples]` all ship. Self-hosting eval shipped twice: `scripts/eval_workflow_authoring.py` (Phase 4.6) and the broader `scripts/eval_skill_files.py` (Wave 3, 11 tasks × 3 models). Option 1 (claude -p single-shot) is what's wired; Option 2 (Agent SDK with restricted tools) and Option 3 (hermetic Docker) remain available if the doc gap shifts.
 
 The Claude Code skills pattern only works if the agent has *everything it needs to author a correct extension on the first try*. For querido, that means a dedicated, authoritative body of documentation aimed at agents writing workflows — not aimed at humans reading prose about workflows. This is a feature, not a chore. Without it, Principle 11 degrades to "agents generate plausible-looking YAML that doesn't run."
 
@@ -794,6 +841,8 @@ Skipping this section is the single fastest way to ship workflow support that do
 ---
 
 ## Should we remove `qdo serve` (the interactive web UI)?
+
+> **[IMPLEMENTED — R.13, 2026-04-17.]** `qdo serve` removed outright (no deprecation step; no users). `tests/test_web.py` deleted. HTML reports (`qdo report table` / `qdo report session`) + the TUI (`qdo explore`) cover the use cases `serve` was straddling.
 
 **Tentative recommendation: yes, deprecate and remove in the next minor release.** Reasoning below; this is a note to revisit before acting.
 

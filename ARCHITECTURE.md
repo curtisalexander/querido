@@ -24,11 +24,12 @@ querido/
 │   ├── skills/WORKFLOW_EXAMPLES.md  # Annotated reference to bundled workflow examples
 │   └── continue/qdo.md             # Continue.dev rule
 ├── scripts/
-│   ├── init_test_data.py           # Generate synthetic data → data/test.db + data/test.duckdb
+│   ├── init_test_data.py           # Generate synthetic data → data/test.{db,duckdb} (customers, products, orders, datatypes)
 │   ├── init_tutorial_data.py       # Generate tutorial National Parks DB
 │   ├── check_deps.py              # Dependency checker with supply-chain quarantine
 │   ├── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
-│   ├── eval_workflow_authoring.py # Self-hosting eval: claude -p round-trips WORKFLOW_AUTHORING.md (Phase 4.6)
+│   ├── eval_workflow_authoring.py # Self-hosting eval: claude -p writes workflows (Phase 4.6)
+│   ├── eval_skill_files.py        # Self-hosting eval: claude -p answers data questions via SKILL.md (EV.Build)
 │   └── retag.sh                   # Move release tag to current commit
 ├── src/
 │   └── querido/
@@ -67,7 +68,6 @@ querido/
 │       │   ├── quality.py          # `qdo quality` — data quality summary (nulls, uniqueness, anomalies)
 │       │   ├── query.py            # `qdo query` — execute ad-hoc SQL
 │       │   ├── report.py           # `qdo report table` — single-file HTML report
-│       │   ├── serve.py            # `qdo serve` — FastAPI web UI launcher
 │       │   ├── session.py          # `qdo session start/list/show` — agent-workflow session logs
 │       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
 │       │   ├── sql.py              # `qdo sql` — SQL generation (select, insert, ddl, scratch, task, udf, procedure)
@@ -137,10 +137,6 @@ querido/
 │       │       ├── frequency/
 │       │       │   ├── common.sql      # Top-N frequent values query
 │       │       │   └── snowflake.sql   # approx_top_k variant
-│       │       ├── null_count/
-│       │       │   ├── common.sql      # NULL count + total rows for a column
-│       │       │   ├── duckdb.sql      # count_if variant
-│       │       │   └── snowflake.sql   # count_if variant
 │       │       ├── generate/           # SQL generation templates (qdo sql)
 │       │       │   ├── select/common.sql
 │       │       │   ├── insert/common.sql
@@ -189,22 +185,6 @@ querido/
 │       │   ├── toon.py             # TOON v3.0 encoder (in-tree); primitives, objects, tabular + primitive arrays
 │       │   ├── html.py             # Standalone HTML pages with interactive tables
 │       │   └── report_html.py      # Single-file report renderer (cheatsheet aesthetic, inline SVG)
-│       └── web/
-│           ├── __init__.py         # FastAPI app factory (create_app)
-│           ├── routes/
-│           │   ├── __init__.py
-│           │   ├── pages.py        # Full-page routes (landing, table detail)
-│           │   ├── fragments.py    # HTMX partial endpoints (inspect, preview, profile, etc.)
-│           │   └── pivot.py        # Pivot builder endpoints
-│           ├── static/
-│           │   ├── style.css       # Shared CSS (light/dark mode, nav, tabs, cards)
-│           │   └── app.js          # Shared JS (sort, filter, copy, export, keyboard shortcuts)
-│           └── templates/
-│               ├── base.html       # Layout shell: nav, sidebar, HTMX/Alpine script tags
-│               ├── landing.html    # Connection info + table card grid
-│               ├── table.html      # Table detail page with tab navigation
-│               ├── pivot.html      # Pivot builder form
-│               └── partials/       # HTMX fragments (inspect, preview, profile, dist, etc.)
 └── tests/
     ├── conftest.py                 # Shared fixtures (temp databases, test tables)
     ├── test_agent_mode.py          # Agent mode (QDO_FORMAT=json) tests
@@ -242,7 +222,6 @@ querido/
     ├── test_quality.py             # Data quality tests
     ├── test_query.py               # Query command tests
     ├── test_renderer.py            # SQL template rendering tests
-    ├── test_serve_cli.py           # Serve command CLI tests
     ├── test_snowflake.py           # Snowflake connector tests (mocked)
     ├── test_snowflake_commands.py  # Snowflake-specific command tests
     ├── test_sql.py                 # SQL generation command tests
@@ -250,7 +229,6 @@ querido/
     ├── test_tui.py                 # TUI widget and app tests (Textual pilot framework)
     ├── test_tutorial.py            # Tutorial tests
     ├── test_values.py              # Values command tests
-    ├── test_web.py                 # Web UI tests (FastAPI TestClient, all endpoints)
     └── integration/
         ├── conftest.py             # Integration test fixtures
         ├── test_connectors.py      # Connector tests against real data
@@ -356,6 +334,8 @@ Table and column names are validated at the CLI boundary using `validate_table_n
 
 Each connector normalizes identifier case in **Python** (e.g. `.lower()` for DuckDB, `.upper()` for Snowflake) before passing values as bind parameters to catalog queries. This is intentional — pushing normalization into SQL with functions like `LOWER()` forces the database to evaluate a function call per row in the catalog, which is wasteful. Doing it once in Python before the query is cheaper and keeps the SQL simple with exact-match `WHERE` clauses.
 
+The same conventions drive the connectors' in-process `_columns_cache` keys — SQLite and DuckDB key by `table.lower()`; Snowflake keys by the fully-qualified uppercase `f"{DATABASE}.{SCHEMA}.{TABLE}"` (matching Snowflake's uppercase identifier storage and disambiguating across schemas when session-level `database`/`schema` defaults differ). Each connector class docstring in `src/querido/connectors/` spells this out. Future connectors must follow the same pattern (and document it in their class docstring) so cache hits are deterministic and cross-session-safe.
+
 ### 6. Configuration
 
 Connections are stored in TOML at the platform-appropriate config directory (via `platformdirs`):
@@ -403,7 +383,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage` (view-def), `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The web UI (`web/`) serves the same data via FastAPI + Jinja2 templates + HTMX for interactive browsing.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage` (view-def), `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The report renderer (`output/report_html.py`) produces a single-file shareable report for `qdo report table`.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
@@ -421,7 +401,16 @@ step is recorded whether the command succeeds or fails. `LazyGroup.resolve_comma
 stashes the raw subcommand argv on `ctx.obj` so the finalizer can persist the
 exact invocation. `qdo session start/list/show` manage session directories.
 
-### 8. Global Flags
+### 8. CLI Command Grouping
+
+Multi-action command groups like `bundle`, `workflow`, `config`, `metadata`, `session`, `sql`, and `snowflake` are each a sub-`Typer` mounted on the root app via `add_typer()` in `cli/main.py`. Inside a group, the convention is:
+
+- **Leaf actions use `@app.command()`** — e.g. `qdo bundle export`, `qdo workflow run`, `qdo metadata show`. One decorator per action, one command-function per file section. This is the default and covers the overwhelming majority of actions.
+- **Nest a further sub-`Typer` only for a real sub-domain** — a sub-domain is a coherent set of CRUD verbs against a distinct resource. The only legitimate instance today is `config column-set save/list/show/delete`: `column-set` is a separate resource from connection config, and the four verbs are CRUD on that resource. Nesting earns its keep here.
+
+Anti-pattern: wrapping every leaf action in its own sub-`Typer` just to get a per-action `--help` screen. `@app.command()` already provides that for free — the nested pattern adds ~8 lines per action with no user-visible benefit.
+
+### 9. Global Flags
 
 - `--version` / `-V`: Show version and exit
 - `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_context.py:maybe_show_sql()`.
@@ -458,8 +447,6 @@ CLI (Typer)
 | pyarrow | Arrow columnar format | `uv pip install 'querido[snowflake]'` | In connectors/snowflake.py, arrow_util.py |
 | snowflake-connector-python | Snowflake connector | `uv pip install 'querido[snowflake]'` | In connectors/snowflake.py only |
 | textual | Interactive TUI | `uv pip install 'querido[tui]'` | In tui/ only |
-| fastapi | Web UI backend | `uv pip install 'querido[web]'` | In web/ only |
-| uvicorn | ASGI server | `uv pip install 'querido[web]'` | In cli/serve.py only |
 
 Note: `sqlite3` is stdlib — no extra dependency needed, always available.
 

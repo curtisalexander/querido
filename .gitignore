@@ -24,6 +24,16 @@ coverage.xml
 # Test data — fully reproducible via: uv run python scripts/init_test_data.py
 data/
 
+# Local qdo state (sessions, cached metadata written during dev or tests).
+# Real repo-level metadata should live under a subdirectory that isn't
+# named `.qdo`, so this ignore doesn't mask intentional commits.
+.qdo/
+
+# Self-hosting eval result logs (scripts/eval_skill_files.py). Per-run
+# JSON results are local artifacts — commit an explicit baseline file
+# manually when snapshotting.
+scripts/eval_results/
+
 # Tool caches
 .ruff_cache/
 .mypy_cache/

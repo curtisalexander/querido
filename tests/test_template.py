@@ -37,7 +37,7 @@ def test_template_shows_sample_values(sqlite_path: str):
     """Verify sample values appear — use JSON format to avoid Rich truncation."""
     result = runner.invoke(app, ["--format", "json", "template", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     name_col = next(c for c in data["columns"] if c["name"] == "name")
     assert "Alice" in name_col["sample_values"]
 
@@ -56,7 +56,9 @@ def test_template_no_sample_values(sqlite_path: str):
 def test_template_json(sqlite_path: str):
     result = runner.invoke(app, ["--format", "json", "template", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    payload = json.loads(result.output)
+    assert payload["command"] == "template"
+    data = payload["data"]
     assert data["table"] == "users"
     assert data["row_count"] == 2
     assert len(data["columns"]) == 3
@@ -67,6 +69,8 @@ def test_template_json(sqlite_path: str):
     # Check that profile stats are present
     name_col = next(c for c in data["columns"] if c["name"] == "name")
     assert name_col["distinct_count"] == 2
+    # next_steps should include a metadata-authoring nudge.
+    assert any("metadata init" in s["cmd"] for s in payload["next_steps"])
 
 
 def test_template_csv(sqlite_path: str):
@@ -97,7 +101,7 @@ def test_template_duckdb_with_comments(duckdb_with_comments_path: str):
         ["--format", "json", "template", "-c", duckdb_with_comments_path, "-t", "users"],
     )
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = json.loads(result.output)["data"]
     assert data["table_comment"] == "Application user accounts"
     name_col = next(c for c in data["columns"] if c["name"] == "name")
     assert name_col["comment"] == "Full legal name"

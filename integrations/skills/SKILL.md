@@ -16,6 +16,11 @@ Run this once per session (or add to your shell profile):
 export QDO_FORMAT=json   # all commands output JSON — no --format flag on every call
 ```
 
+**First time?** Pair a `qdo tutorial` run with this reference:
+
+- `qdo tutorial explore` — 15-lesson guided tour on a National Parks sample DB. Covers the full core workflow (catalog → context → profile → joins → query) in ~20 minutes.
+- `qdo tutorial agent` — 13 lessons focused on metadata + agent-assisted SQL. Run this before a real investigation to see the compounding loop end-to-end.
+
 **For a new database, start here:**
 
 ```bash
@@ -47,42 +52,62 @@ For any new database or table, follow this sequence:
 # 1. See all tables, column counts, and row counts
 qdo catalog -c <connection>
 
-# 2. Full context for a table — schema + stats + sample values in one call
+# 2. Discover likely join keys across all tables (before you pick one)
+qdo joins -c <connection> -t <table>
+
+# 3. Full context for a table — schema + stats + sample values in one call
 qdo context -c <connection> -t <table>
 
-# 3. Drill into structure (if you need PK/nullable/default details)
+# 4. Drill into structure (if you need PK/nullable/default details)
 qdo inspect -c <connection> -t <table>
 
-# 4. See sample rows
+# 5. See sample rows
 qdo preview -c <connection> -t <table> -r 10
 
-# 5. Statistical summary — min/max/mean/null_count/distinct_count
+# 6. Statistical summary — min/max/mean/null_count/distinct_count
 qdo profile -c <connection> -t <table>
 
-# 5b. Wide tables (50+ cols): classify first, then profile a subset
+# 6b. Wide tables (50+ cols): classify first, then profile a subset
 qdo profile -c <connection> -t <table> --classify          # categorize columns
 qdo profile -c <connection> -t <table> --columns <cols>    # full stats on selected
 qdo config column-set save -c <conn> -t <table> -n default --columns "<cols>"  # persist
 qdo profile -c <connection> -t <table> --column-set default  # reuse
 
-# 6. Top values for specific categorical columns
+# 7. Top values for specific categorical columns
 qdo profile -c <connection> -t <table> --columns <col1>,<col2> --top 5
 
-# 7. Full value list with counts for an enum-like column
-qdo values -c <connection> -t <table> -C <column>
+# 8. Full value list with counts for an enum-like column — write to metadata
+qdo values -c <connection> -t <table> -C <column> --write-metadata
 
-# 8. Histogram for a numeric column
+# 9. Histogram for a numeric column
 qdo dist -c <connection> -t <table> -C <column>
 
-# 8. Data quality report — null rates, uniqueness, anomalies
+# 10. Data quality report — null rates, uniqueness, invariant violations
 qdo quality -c <connection> -t <table>
 
-# 9. Run ad-hoc SQL
+# 11. Run ad-hoc SQL
 qdo query -c <connection> --sql "select ..."
 
-# 10. GROUP BY aggregation without writing SQL
+# 12. GROUP BY aggregation without writing SQL
 qdo pivot -c <connection> -t <table> -g <group_col> -a "sum(<value_col>)"
+
+# 13. Compare two table schemas — columns added / removed / type-changed
+qdo diff -c <connection> -t <left> --target <right>
 ```
+
+**`profile` vs `quality`.** Both scan a table but surface different signals:
+`profile` is statistical (min/max/mean/null_pct/distinct_count — use it when
+you want *distributions*). `quality` is invariant-oriented (elevates columns
+whose null rate, uniqueness, or stored `valid_values` enum is violated — use
+it when you want *what's wrong*). They're complementary; run both on a new
+table.
+
+**`values --write-metadata` closes the compounding loop.** It enumerates a
+column's distinct values *and* writes them into the metadata YAML as
+`valid_values`. Next time `qdo context`/`qdo quality` runs, those values
+surface automatically and `quality` will flag any row that violates the enum.
+This is the single highest-leverage move for sharpening an agent's
+understanding of a table.
 
 ## context — everything about a table in one call
 
@@ -93,7 +118,7 @@ queries. Stored metadata is loaded from disk concurrently.
 
 ```bash
 qdo context -c <connection> -t <table>
-qdo context -c <connection> -t <table> -f json          # machine-readable
+qdo -f json context -c <connection> -t <table>          # machine-readable
 qdo context -c <connection> -t <table> --sample-values 10   # more samples
 qdo context -c <connection> -t <table> --no-sample      # exact counts, no sampling
 ```
@@ -141,12 +166,18 @@ before writing SQL. It replaces separate calls to `inspect`, `profile`, and
 export QDO_FORMAT=json
 
 # Or per-command
-qdo --format json catalog -c mydb
-qdo --format json inspect -c mydb -t orders
-qdo --format json profile -c mydb -t events
+qdo -f json catalog -c mydb
+qdo -f json inspect -c mydb -t orders
+qdo -f json profile -c mydb -t events
 ```
 
-Errors go to stderr as structured JSON when `--format json` is set:
+`-f/--format` is a **top-level** option. Canonical placement is right after
+`qdo` (before the subcommand), as in the examples above. qdo also accepts
+`-f json` *after* the subcommand (`qdo inspect -c mydb -f json`) — the
+entrypoint hoists it automatically. Either works; prefer the canonical form
+for readability.
+
+Errors go to stderr as structured JSON when `-f json` is set:
 ```json
 {"error": true, "code": "TABLE_NOT_FOUND", "message": "...", "hint": "..."}
 ```
@@ -194,8 +225,8 @@ qdo metadata refresh -c <connection> -t <table>
 Export metadata as JSON and paste it into your prompt:
 
 ```bash
-qdo metadata show -c <connection> -t <table1> -f json
-qdo metadata show -c <connection> -t <table2> -f json
+qdo -f json metadata show -c <connection> -t <table1>
+qdo -f json metadata show -c <connection> -t <table2>
 ```
 
 **Prompt template:**
@@ -204,8 +235,8 @@ qdo metadata show -c <connection> -t <table2> -f json
 You are a SQL expert. I'm working with a DuckDB database.
 
 Table metadata:
-[paste output of: qdo metadata show -c <db> -t <table1> -f json]
-[paste output of: qdo metadata show -c <db> -t <table2> -f json]
+[paste output of: qdo -f json metadata show -c <db> -t <table1>]
+[paste output of: qdo -f json metadata show -c <db> -t <table2>]
 
 Question: <your question>
 
@@ -243,8 +274,8 @@ qdo --format csv preview -c <connection> -t <table> -r 100
 # JSON lines — one object per row
 qdo --format jsonl query -c <connection> --sql "select ..."
 
-# Export command with explicit format flag
-qdo export -c <connection> -t <table> --format csv
+# Export command uses its own -e/--export-format for file format
+qdo export -c <connection> -t <table> -e csv
 ```
 
 ## Sampling and accuracy
@@ -260,12 +291,35 @@ fields before treating statistics as exact.
 - Use `--exact` to disable approximate count distinct: `qdo quality -c <conn> -t <table> --exact`
 - The threshold is configurable: `export QDO_SAMPLE_THRESHOLD=5000000`
 
+## Advanced / specialized commands
+
+Not in the common workflow, but worth knowing about:
+
+- **`qdo assert -c <conn> --sql "…" --expect <n>`** — value assertion for CI
+  or end-of-workflow invariants. Single numeric SQL result; expectations via
+  `--expect`, `--expect-gt`, `--expect-lte`, etc. Exits non-zero on failure.
+  Use as the last step of a workflow to gate publishes or detect drift.
+- **`qdo diff -c <conn> -t <left> --target <right>`** — schema diff between
+  two tables (added / removed / type-changed columns). `--target-connection`
+  for cross-database comparison (staging vs prod).
+- **`qdo explain -c <conn> --sql "…"`** — database-native EXPLAIN plan with
+  a `-f json` envelope. DuckDB surfaces `EXPLAIN ANALYZE` suggestions; use
+  this when a profile / query feels slower than it should.
+- **`qdo view-def -c <conn> --view <name>`** — fetch the SQL definition of
+  a view. Works on DuckDB, SQLite (via `sqlite_master`), and Snowflake
+  (`information_schema.views`).
+- **`qdo snowflake semantic -c <conn> …`** — emit a Cortex Analyst semantic
+  model YAML from stored metadata. Snowflake-only.
+- **`qdo snowflake lineage -c <conn> -t <table>`** — upstream/downstream
+  trace via Snowflake `GET_LINEAGE`. Snowflake-only.
+
 ## Gotchas
 
 - **Table names are case-insensitive** — qdo normalizes them internally; use whatever case feels natural.
 - **Parquet files** — pass the file path directly as the connection: `-c ./data.parquet`. No separate config step needed.
 - **Snowflake** — requires a named connection set up via `qdo config add`. Use `qdo snowflake` for Cortex Analyst semantic model generation.
-- **Metadata location** — files go to `.qdo/metadata/<connection>/<table>.yaml` relative to your working directory. Override with the `QDO_METADATA_DIR` environment variable.
+- **Metadata location** — files go to `.qdo/metadata/<connection-dir>/<table>.yaml` relative to your working directory. When `--connection` is a named connection (e.g. `-c mydb`), `<connection-dir>` is the connection name (`.qdo/metadata/mydb/`). When `--connection` is a file path (e.g. `-c ./data/test.duckdb`), `<connection-dir>` is the file *stem* — the filename without extension (`.qdo/metadata/test/`). Override the root with the `QDO_METADATA_DIR` environment variable.
+- **Portability of metadata** — a local metadata YAML's `connection:` field stores whatever was passed to `-c` (possibly an absolute path). Don't rely on that field for cross-machine work. The portability boundary is `qdo bundle export` — bundles match tables by a `schema_fingerprint` (hash of columns+types), so an export from one machine imports cleanly onto another regardless of local paths.
 - **metadata refresh vs init** — `init` creates a new file and will error if one already exists. `refresh` updates machine fields in an existing file. Use `init --force` to overwrite.
 - **pivot aggregations** — the `-a` argument is a SQL aggregate expression: `"count(*)"`, `"avg(price)"`, `"sum(revenue)"`. Quote it to prevent shell interpretation.
 - **Wide tables** — `--quick` auto-engages at 50+ columns (only null counts + distinct counts). Use `--classify` for a category breakdown. Use `--column-set` to reuse a saved selection. Configurable threshold: `export QDO_QUICK_THRESHOLD=100`.

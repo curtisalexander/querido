@@ -2,10 +2,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+
+
+class ValuesResult(TypedDict):
+    """Return shape of :func:`get_distinct_values`. Per-value rows are
+    ``{"value": Any, "count": int}`` dicts."""
+
+    table: str
+    column: str
+    distinct_count: int
+    total_rows: int
+    null_count: int
+    truncated: bool
+    values: list[dict[str, Any]]
+    stored_metadata: dict[str, Any] | None
 
 
 def get_distinct_values(
@@ -15,7 +29,8 @@ def get_distinct_values(
     *,
     max_values: int = 1000,
     sort: str = "value",
-) -> dict:
+    connection: str | None = None,
+) -> ValuesResult:
     """Return distinct values for a column.
 
     Returns::
@@ -28,12 +43,18 @@ def get_distinct_values(
             "null_count": int,
             "truncated": bool,
             "values": [{"value": any, "count": int}, ...],
+            "stored_metadata": {...} | None,
         }
 
     When distinct count exceeds *max_values*, returns the top values by
     frequency and sets ``truncated=True``.
 
     *sort*: ``"value"`` for alphabetical, ``"frequency"`` for count desc.
+
+    When *connection* is provided, any stored metadata for the target
+    column (``description``, prior ``valid_values``, ``pii``, etc.) is
+    surfaced as ``stored_metadata`` so the agent sees what earlier runs
+    captured without a second call.
     """
     from querido.connectors.base import validate_column_name, validate_table_name
 
@@ -83,6 +104,13 @@ def get_distinct_values(
     if sort == "value":
         rows.sort(key=lambda r: (r.get("value") is None, str(r.get("value", ""))))
 
+    stored_metadata = None
+    if connection:
+        from querido.core.metadata import load_column_metadata
+
+        stored = load_column_metadata(connection, table)
+        stored_metadata = stored.get(column) or None
+
     return {
         "table": table,
         "column": column,
@@ -91,4 +119,5 @@ def get_distinct_values(
         "null_count": null_count,
         "truncated": truncated,
         "values": rows,
+        "stored_metadata": stored_metadata,
     }

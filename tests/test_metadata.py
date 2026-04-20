@@ -68,8 +68,10 @@ def test_metadata_show(sqlite_path: str, tmp_path: Path, monkeypatch):
     import json
 
     payload = json.loads(result.output)
-    assert payload.get("table") == "users"
-    assert payload.get("row_count") == 2
+    # CS.3 — metadata show now wraps output in the standard envelope.
+    data = payload["data"]
+    assert data.get("table") == "users"
+    assert data.get("row_count") == 2
 
 
 def test_metadata_show_not_found(sqlite_path: str, tmp_path: Path, monkeypatch):

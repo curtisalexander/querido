@@ -1,4 +1,10 @@
-"""Tests for qdo completion show."""
+"""Tests for qdo completion show.
+
+Typer generates the shell-completion output itself; we don't own it.  So the
+only tests here exercise *our* code: the hint text we print and the invalid
+shell rejection.  The earlier per-shell "produces output" / "contains marker"
+tests were dropped (2026-04-17) — they asserted on Typer's generated text.
+"""
 
 import re
 
@@ -17,14 +23,8 @@ def _plain(output: str) -> str:
 
 
 @pytest.mark.parametrize("shell", ["bash", "zsh", "fish", "powershell"])
-def test_completion_show_produces_output(shell: str) -> None:
-    result = runner.invoke(app, ["completion", "show", shell])
-    assert result.exit_code == 0, result.output
-    assert len(result.output.strip()) > 0
-
-
-@pytest.mark.parametrize("shell", ["bash", "zsh", "fish", "powershell"])
 def test_completion_show_hint(shell: str) -> None:
+    """The hint text mentions either qdo or the shell it's configuring."""
     result = runner.invoke(app, ["completion", "show", shell, "--hint"])
     assert result.exit_code == 0
     plain = _plain(result.output)
@@ -32,23 +32,7 @@ def test_completion_show_hint(shell: str) -> None:
 
 
 def test_completion_invalid_shell() -> None:
+    """Unknown shell names are rejected with a message naming the shell."""
     result = runner.invoke(app, ["completion", "show", "nushell"])
     assert result.exit_code != 0
     assert "nushell" in result.output or "nushell" in str(result.exception or "")
-
-
-def test_completion_bash_contains_complete_marker() -> None:
-    result = runner.invoke(app, ["completion", "show", "bash"])
-    assert result.exit_code == 0
-    assert "complete" in result.output.lower() or "_QDO" in result.output
-
-
-def test_completion_fish_hint_shows_save_path() -> None:
-    result = runner.invoke(app, ["completion", "show", "fish", "--hint"])
-    assert result.exit_code == 0
-    assert "fish" in result.output.lower()
-
-
-def test_completion_help() -> None:
-    result = runner.invoke(app, ["completion", "--help"])
-    assert result.exit_code == 0

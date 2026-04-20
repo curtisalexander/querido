@@ -34,6 +34,22 @@ qdo workflow run table-summary connection=mydb table=orders
 qdo workflow run schema-compare connection=mydb left=orders right=orders_staging
 ```
 
+## migration-safety
+
+**Shape:** gather + assert. Ends in `qdo assert` calls that exit non-zero on invariant violation — CI-friendly.
+**Inputs:** `connection`, `before`, `after`, optional `max_row_delta_pct` (default `1.0`).
+**Pattern:** capture row counts for both tables, diff the schemas, then assert (a) row-count drift is within the threshold and (b) no new nulls were introduced on columns that still exist after the migration. Demonstrates:
+- Using `qdo assert --expect-lte` as the final gate on a workflow.
+- Chain-skip via `when:` when a prior step (here, schema diff) would make a downstream assertion meaningless.
+- Parameterizing a tolerance via the `inputs` block so the same workflow handles strict and loose migrations.
+
+**Use when:** promoting a table from staging to prod, running a schema refactor, or anywhere a migration should be gated on not losing or duplicating rows.
+
+```bash
+qdo workflow run migration-safety connection=mydb before=orders_v1 after=orders_v2
+qdo workflow run migration-safety connection=mydb before=orders_v1 after=orders_v2 max_row_delta_pct=0.1
+```
+
 ## column-deep-dive
 
 **Shape:** single-column focus.
@@ -62,16 +78,15 @@ qdo workflow run wide-table-triage connection=mydb table=events
 
 ## table-handoff
 
-**Shape:** fan-in output composition, optional inputs with defaults.
-**Inputs:** `connection`, `table`, optional `sample_values` (default `10`).
-**Pattern:** three scans (`inspect`, `profile --quick`, `quality`), then compose the captures into a single rich output structured for pasting into a PR description, ticket, or agent prompt.
-**Teaches:** inputs with defaults; outputs that fan in across multiple captures to produce a document-like summary.
+**Shape:** conditional composition with row-count-gated follow-up steps.
+**Inputs:** `connection`, `table`.
+**Pattern:** `inspect` runs unconditionally (cheap probe). `profile --quick` runs only when the table has rows (`${schema.data.row_count} != null and ${schema.data.row_count} > 0`). `quality` runs only when profile wasn't skipped (`${stats.data} != null`). Outputs degrade to `null` for skipped steps so the handoff document still lands on an empty table — it just honestly says "no rows yet".
+**Teaches:** null-safe `when:` comparisons (the `!= null and` guard idiom); gating an expensive step on a cheap probe's result; outputs that resolve gracefully when their source step skipped.
 
-**Use when:** you're about to hand a table off — asking a PM for requirements, filing a bug, or seeding an agent session with ground truth.
+**Use when:** you want a summary that doesn't waste cycles on empty tables or fail noisily on views whose row-count the connector can't cheaply determine. Contrast with `table-summary`, which runs all three scans unconditionally.
 
 ```bash
 qdo workflow run table-handoff connection=mydb table=orders
-qdo workflow run table-handoff connection=mydb table=orders sample_values=25
 ```
 
 ## feature-target-exploration

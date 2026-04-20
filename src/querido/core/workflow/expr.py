@@ -98,7 +98,18 @@ def evaluate_when(expr: str, context: dict[str, Any]) -> bool:
     return bool(_eval_node(tree.body, refs))
 
 
-_BOOL_NAMES = {"True": True, "true": True, "False": False, "false": False, "None": None}
+_BOOL_NAMES = {
+    "True": True,
+    "true": True,
+    "False": False,
+    "false": False,
+    # Null literal — both Python (``None``) and YAML/JSON (``null``/``none``)
+    # spellings resolve to Python None so ``${x} != null`` works as authors
+    # expect.
+    "None": None,
+    "null": None,
+    "none": None,
+}
 
 
 def _eval_node(node: ast.AST, refs: dict[str, Any]) -> Any:
@@ -111,19 +122,25 @@ def _eval_node(node: ast.AST, refs: dict[str, Any]) -> Any:
             return _BOOL_NAMES[node.id]
         raise ExpressionError(f"unknown name in expression: {node.id}")
     if isinstance(node, ast.BoolOp):
-        values = [_eval_node(v, refs) for v in node.values]
+        # Short-circuit evaluation: walk children one at a time so a failing
+        # ordering comparison on the right side of ``${x} != null and ${x} > 0``
+        # never fires when the equality check already decided the result.
         if isinstance(node.op, ast.And):
-            result: Any = True
-            for v in values:
+            last: Any = True
+            for v_node in node.values:
+                v = _eval_node(v_node, refs)
                 if not v:
                     return v
-                result = v
-            return result
+                last = v
+            return last
         if isinstance(node.op, ast.Or):
-            for v in values:
+            last = False
+            for v_node in node.values:
+                v = _eval_node(v_node, refs)
                 if v:
                     return v
-            return values[-1] if values else False
+                last = v
+            return last
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
         return not _eval_node(node.operand, refs)
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
@@ -139,19 +156,39 @@ def _eval_node(node: ast.AST, refs: dict[str, Any]) -> Any:
     raise ExpressionError(f"unsupported expression construct: {type(node).__name__}")
 
 
+_ORDERING_OPS: dict[type[ast.cmpop], str] = {
+    ast.Lt: "<",
+    ast.LtE: "<=",
+    ast.Gt: ">",
+    ast.GtE: ">=",
+}
+
+
 def _apply_compare(op: ast.cmpop, left: Any, right: Any) -> bool:
     if isinstance(op, ast.Eq):
         return bool(left == right)
     if isinstance(op, ast.NotEq):
         return bool(left != right)
-    if isinstance(op, ast.Lt):
-        return bool(left < right)
-    if isinstance(op, ast.LtE):
-        return bool(left <= right)
-    if isinstance(op, ast.Gt):
-        return bool(left > right)
-    if isinstance(op, ast.GtE):
-        return bool(left >= right)
+    # Ordering comparisons wrap Python's raw ``<``/``>`` so mismatched types
+    # or nulls surface as a workflow-level ExpressionError (attributable to
+    # the failing ``when:``) instead of a bare TypeError with no context.
+    symbol = _ORDERING_OPS.get(type(op))
+    if symbol is not None:
+        try:
+            if symbol == "<":
+                return bool(left < right)
+            if symbol == "<=":
+                return bool(left <= right)
+            if symbol == ">":
+                return bool(left > right)
+            return bool(left >= right)
+        except TypeError as exc:
+            raise ExpressionError(
+                f"cannot compare {left!r} ({type(left).__name__}) "
+                f"{symbol} {right!r} ({type(right).__name__}) — "
+                "null or mismatched types. Guard with an equality check first, "
+                f"e.g. `${{ref}} != null and ${{ref}} {symbol} {right!r}`."
+            ) from exc
     raise ExpressionError(f"unsupported comparison: {type(op).__name__}")
 
 

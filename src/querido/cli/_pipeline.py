@@ -87,6 +87,13 @@ def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> No
     Only warms for named connections (not file paths) to avoid polluting
     the cache with transient databases.  Only caches the table list (not
     columns) to keep the operation fast.
+
+    The warm runs in a daemon thread so it never blocks interpreter exit —
+    we deliberately don't join it. The ``finally: cache.close()`` inside
+    ``_warm`` ensures the SQLite cache DB handle is released; a
+    ``KeyboardInterrupt`` during the warm will surface on the main thread's
+    next operation. If the cache grows persistent state in the future, add
+    an ``atexit`` hook to flush pending writes.
     """
     import threading
 
@@ -131,14 +138,10 @@ def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> No
 
 def _maybe_reraise_as_table_not_found(exc: Exception, connector: Connector, table: str) -> None:
     """If *exc* is a 'table not found' error, re-raise as BadParameter with suggestions."""
-    from querido.connectors.base import TableNotFoundError
+    from querido.connectors.base import ConnectorError, TableNotFoundError
 
-    is_table_error = isinstance(exc, TableNotFoundError)
-    if not is_table_error:
-        # Fallback: string-match for dialect-specific error messages
-        msg = str(exc).lower()
-        if "no such table" not in msg and "does not exist" not in msg:
-            return
+    if not isinstance(exc, TableNotFoundError):
+        return
 
     import typer
 
@@ -150,7 +153,7 @@ def _maybe_reraise_as_table_not_found(exc: Exception, connector: Connector, tabl
         raise typer.BadParameter(_format_not_found("Table", table, names)) from exc
     except typer.BadParameter:
         raise
-    except Exception:
+    except ConnectorError:
         import logging
 
         logging.getLogger("querido.cli").debug(
@@ -226,12 +229,21 @@ def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
         html = fn(*args, **kwargs)
         emit_html(html)
     else:
-        # Commands that go straight through dispatch_output (assert, pivot,
-        # explain, template, lineage, …) don't build an agent envelope
-        # themselves. Degrade agent → json so the output is at least
-        # structured/parseable; true agent rendering lives on the
-        # envelope-emitting commands (see querido.output.envelope).
-        effective_fmt = "json" if fmt == "agent" else fmt
+        # Envelope-emitting commands short-circuit in the CLI layer before
+        # reaching dispatch_output for json/agent (see for_<cmd> rules in
+        # querido.core.next_steps).  If we arrive here with fmt == "agent",
+        # the command hasn't been wired yet — warn on stderr and degrade to
+        # json so output stays parseable rather than breaking callers.
+        effective_fmt = fmt
+        if fmt == "agent":
+            import sys
+
+            print(
+                f"warning: '{command_name}' does not yet honor --format agent; "
+                "falling back to json. Please open an issue.",
+                file=sys.stderr,
+            )
+            effective_fmt = "json"
         mod = import_module("querido.output.formats")
         fn = cast(Any, mod.REGISTRY)[command_name]
         text = fn(*args, effective_fmt, **kwargs)

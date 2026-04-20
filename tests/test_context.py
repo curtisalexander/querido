@@ -148,6 +148,82 @@ def test_context_duckdb_json(duckdb_path: str) -> None:
     assert cols["amount"]["sample_values"] is None
 
 
+def test_context_honors_show_sql_sqlite(sqlite_path: str) -> None:
+    """R.12: ``context`` should print rendered SQL to stderr under ``--show-sql``."""
+    result = runner.invoke(app, ["--show-sql", "context", "-c", sqlite_path, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    # The SQLite context path uses the profile template, which does null_count /
+    # min / max aggregations — distinctive enough to prove SQL was emitted.
+    blob = result.output.lower()
+    assert "select" in blob
+    assert "from " in blob
+
+
+def test_context_honors_show_sql_duckdb(duckdb_path: str) -> None:
+    """R.12: same contract on the DuckDB approx_top_k single-scan path."""
+    result = runner.invoke(app, ["--show-sql", "context", "-c", duckdb_path, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    blob = result.output.lower()
+    assert "approx_top_k" in blob or "select" in blob
+
+
+def test_context_envelope_carries_sql_field(sqlite_path: str) -> None:
+    """The rendered SQL is threaded through the envelope's ``data`` for
+    agents that want to understand what ran (consistent with ``pivot``)."""
+    result = runner.invoke(app, ["-f", "json", "context", "-c", sqlite_path, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)["data"]
+    assert data["sql"]
+    assert "select" in data["sql"].lower()
+
+
+def test_context_duckdb_date_column_doesnt_crash(tmp_path: Path) -> None:
+    """Regression: CS.1 — DuckDB ``approx_top_k`` returns primitives (including
+    ``datetime.date``) directly; ``_extract_top_k_values`` used to index with
+    ``item[0]`` which raised ``TypeError: 'datetime.date' object is not
+    subscriptable``. Surfaced by the Phase 4.6 self-hosting eval and the
+    cold-start sim.
+    """
+    import duckdb
+
+    db_path = str(tmp_path / "dated.duckdb")
+    conn = duckdb.connect(db_path)
+    conn.execute("create table events (id integer, status varchar, happened_at date)")
+    conn.execute("insert into events values (1, 'ok', '2024-01-01')")
+    conn.execute("insert into events values (2, 'ok', '2024-02-15')")
+    conn.execute("insert into events values (3, 'failed', '2024-03-07')")
+    conn.close()
+
+    result = runner.invoke(app, ["--format", "json", "context", "-c", db_path, "-t", "events"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)["data"]
+    cols = {c["name"]: c for c in data["columns"]}
+    # The date column should have sample_values populated (stringified dates).
+    assert cols["happened_at"]["sample_values"] is not None
+    assert any("2024" in v for v in cols["happened_at"]["sample_values"])
+
+
+def test_extract_top_k_values_handles_three_shapes() -> None:
+    """Unit: the helper tolerates all three historic approx_top_k shapes."""
+    from querido.core.context import _extract_top_k_values
+
+    # DuckDB modern: plain value list (strings, ints, dates)
+    assert _extract_top_k_values(["a", "b", "c"]) == ["a", "b", "c"]
+    import datetime as dt
+
+    assert _extract_top_k_values([dt.date(2024, 1, 1)]) == ["2024-01-01"]
+
+    # Snowflake: list of [value, count] pairs
+    assert _extract_top_k_values([["a", 10], ["b", 5]]) == ["a", "b"]
+
+    # Legacy dict shape
+    assert _extract_top_k_values([{"value": "a", "count": 10}]) == ["a"]
+
+    # None/empty
+    assert _extract_top_k_values([]) == []
+    assert _extract_top_k_values([None, "x", None]) == ["x"]
+
+
 def test_context_duckdb_json_no_sample_values(duckdb_path: str) -> None:
     result = runner.invoke(
         app,

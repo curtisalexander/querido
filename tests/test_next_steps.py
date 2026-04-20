@@ -11,11 +11,16 @@ same shape of output, they produce the same next_steps list.
 from __future__ import annotations
 
 import json
+from typing import cast
 
+import pytest
 from typer.testing import CliRunner
 
 from querido.cli.main import app
 from querido.core import next_steps as ns
+from querido.core.context import ContextResult
+from querido.core.quality import QualityResult
+from querido.core.values import ValuesResult
 from querido.output.envelope import build_envelope, cmd, shell_quote_value
 
 runner = CliRunner()
@@ -123,7 +128,7 @@ def test_for_context_high_null_suggests_quality() -> None:
         "row_count": 100,
         "columns": [{"name": "notes", "type": "TEXT", "null_pct": 80.0}],
     }
-    steps = ns.for_context(result, connection="c", table="t")
+    steps = ns.for_context(cast(ContextResult, result), connection="c", table="t")
     assert any("qdo quality" in s["cmd"] for s in steps)
 
 
@@ -132,8 +137,8 @@ def test_for_context_low_cardinality_string_suggests_values() -> None:
         "row_count": 100,
         "columns": [{"name": "status", "type": "VARCHAR", "distinct_count": 4}],
     }
-    steps = ns.for_context(result, connection="c", table="t")
-    assert any("qdo values" in s["cmd"] and "--column status" in s["cmd"] for s in steps)
+    steps = ns.for_context(cast(ContextResult, result), connection="c", table="t")
+    assert any("qdo values" in s["cmd"] and "--columns status" in s["cmd"] for s in steps)
 
 
 def test_for_context_numeric_suggests_dist() -> None:
@@ -141,42 +146,165 @@ def test_for_context_numeric_suggests_dist() -> None:
         "row_count": 100,
         "columns": [{"name": "amount", "type": "DOUBLE", "null_pct": 0.0}],
     }
-    steps = ns.for_context(result, connection="c", table="t")
-    assert any("qdo dist" in s["cmd"] and "--column amount" in s["cmd"] for s in steps)
+    steps = ns.for_context(cast(ContextResult, result), connection="c", table="t")
+    assert any("qdo dist" in s["cmd"] and "--columns amount" in s["cmd"] for s in steps)
 
 
-# -- end-to-end JSON shape ----------------------------------------------------
+# -- envelope contract --------------------------------------------------------
+#
+# Every command listed here must emit a uniform ``{command, data, next_steps,
+# meta}`` envelope under ``-f json``.  Adding a scanning command without
+# adding it to this parametrize list — or adding one that skips the envelope
+# — is a bug (see PLAN.md R.2).  The ``expected_command`` field pins the
+# ``command`` value; where subcommands use a space-joined form (bundle,
+# workflow, etc.) those get their own contract test or are audited in R.10.
 
 
-def test_inspect_json_has_envelope(sqlite_path: str) -> None:
-    r = runner.invoke(app, ["-f", "json", "inspect", "-c", sqlite_path, "-t", "users"])
+_ENVELOPE_CASES: list[tuple[str, list[str], str]] = [
+    ("inspect", ["inspect", "-t", "users"], "inspect"),
+    ("catalog", ["catalog"], "catalog"),
+    ("context", ["context", "-t", "users"], "context"),
+    ("preview", ["preview", "-t", "users"], "preview"),
+    ("profile", ["profile", "-t", "users"], "profile"),
+    ("quality", ["quality", "-t", "users"], "quality"),
+    ("values", ["values", "-t", "users", "--columns", "name"], "values"),
+    ("dist", ["dist", "-t", "users", "--columns", "age"], "dist"),
+    ("diff", ["diff", "-t", "users", "--target", "users"], "diff"),
+    ("joins", ["joins", "-t", "users"], "joins"),
+    ("query", ["query", "--sql", "select 1 as one"], "query"),
+    # R.2 — wired through emit_envelope alongside the original scanning set.
+    (
+        "assert",
+        ["assert", "--sql", "select count(*) from users", "--expect", "2"],
+        "assert",
+    ),
+    ("explain", ["explain", "--sql", "select * from users"], "explain"),
+    (
+        "pivot",
+        ["pivot", "-t", "users", "-g", "age", "-a", "count(id)"],
+        "pivot",
+    ),
+    ("template", ["template", "-t", "users"], "template"),
+]
+
+
+@pytest.mark.parametrize(("label", "argv", "expected_command"), _ENVELOPE_CASES, ids=lambda v: v)
+def test_command_emits_envelope(
+    sqlite_path: str, label: str, argv: list[str], expected_command: str
+) -> None:
+    """Contract: every envelope-emitting scan command returns the uniform shape."""
+    r = runner.invoke(app, ["-f", "json", *argv, "-c", sqlite_path])
     assert r.exit_code == 0, r.output
     payload = json.loads(r.output)
     assert set(payload) == {"command", "data", "next_steps", "meta"}
-    assert payload["command"] == "inspect"
-    assert payload["next_steps"], "expected at least one next_step"
+    assert payload["command"] == expected_command
+    # next_steps may be empty for some edge shapes (e.g. trivial diff) but the
+    # field must exist as a list.
+    assert isinstance(payload["next_steps"], list)
     for step in payload["next_steps"]:
         assert step["cmd"].startswith(("qdo ", "uv "))
         assert step["why"]
+    assert payload["meta"].get("connection") == sqlite_path
 
 
-def test_catalog_json_has_envelope(sqlite_path: str) -> None:
-    r = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path])
-    assert r.exit_code == 0, r.output
-    payload = json.loads(r.output)
-    assert payload["command"] == "catalog"
-    assert "tables" in payload["data"]
-    assert payload["next_steps"]
-
-
-def test_context_json_has_envelope(sqlite_path: str) -> None:
+def test_envelope_meta_carries_table_when_applicable(sqlite_path: str) -> None:
+    """Table-scoped commands echo the table back in ``meta.table``."""
     r = runner.invoke(app, ["-f", "json", "context", "-c", sqlite_path, "-t", "users"])
     assert r.exit_code == 0, r.output
     payload = json.loads(r.output)
-    assert payload["command"] == "context"
-    assert payload["data"]["table"] == "users"
-    assert payload["meta"]["connection"] == sqlite_path
     assert payload["meta"]["table"] == "users"
+
+
+def test_metadata_show_emits_envelope(sqlite_path: str, tmp_path, monkeypatch) -> None:
+    """CS.3 regression — ``metadata show`` must emit the uniform envelope.
+
+    Requires ``metadata init`` first so the YAML exists. Isolated to a
+    temp working dir so `.qdo/metadata/` writes don't collide across tests.
+    """
+    monkeypatch.chdir(tmp_path)
+    init_result = runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+    assert init_result.exit_code == 0, init_result.output
+
+    r = runner.invoke(app, ["-f", "json", "metadata", "show", "-c", sqlite_path, "-t", "users"])
+    assert r.exit_code == 0, r.output
+    payload = json.loads(r.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload["command"] == "metadata show"
+    assert isinstance(payload["next_steps"], list)
+    # Every next_step points at the same connection + table.
+    for step in payload["next_steps"]:
+        assert sqlite_path in step["cmd"]
+        assert "users" in step["cmd"]
+    assert payload["meta"]["table"] == "users"
+
+
+def test_for_metadata_show_suggests_edit_and_refresh() -> None:
+    """Unit: the rule always returns edit + refresh; placeholders add suggest."""
+    from querido.core.next_steps import for_metadata_show
+
+    meta_no_placeholders = {
+        "table_description": "Real description.",
+        "columns": [{"name": "id", "description": "Primary key."}],
+    }
+    steps = for_metadata_show(meta_no_placeholders, connection="c", table="t")
+    cmds = [s["cmd"] for s in steps]
+    assert any("metadata edit" in c for c in cmds)
+    assert any("metadata refresh" in c for c in cmds)
+    assert not any("metadata suggest" in c for c in cmds)
+
+    meta_with_placeholder = {
+        "table_description": "<description>",
+        "columns": [{"name": "id"}],
+    }
+    steps = for_metadata_show(meta_with_placeholder, connection="c", table="t")
+    assert any("metadata suggest" in s["cmd"] for s in steps)
+
+
+def test_view_def_emits_envelope(tmp_path) -> None:
+    """view-def needs a view in the db; covered separately from _ENVELOPE_CASES."""
+    import sqlite3
+
+    db_path = str(tmp_path / "viewtest.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute("CREATE VIEW active_users AS SELECT id, name FROM users")
+    conn.commit()
+    conn.close()
+
+    r = runner.invoke(app, ["-f", "json", "view-def", "--view", "active_users", "-c", db_path])
+    assert r.exit_code == 0, r.output
+    payload = json.loads(r.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload["command"] == "view-def"
+    assert isinstance(payload["next_steps"], list)
+    assert payload["meta"]["table"] == "active_users"
+
+
+# -- R.10: envelope ``command`` field must match argv shape -------------------
+#
+# Agents re-exec invocations by reading ``command`` back; the value must
+# equal ``argv[0:n]`` joined by single spaces. Leaf commands are a single
+# token ("inspect"), nested commands are space-joined ("bundle export",
+# "workflow list"). Adding a new envelope-emitting subcommand without
+# updating this list is a bug.
+
+
+_MULTIWORD_COMMAND_CASES: list[tuple[list[str], str]] = [
+    (["workflow", "list"], "workflow list"),
+    # ``metadata show`` is covered by test_metadata_show_emits_envelope which
+    # also needs a metadata-init prelude; kept out of this parametrization.
+]
+
+
+@pytest.mark.parametrize(("argv", "expected_command"), _MULTIWORD_COMMAND_CASES)
+def test_envelope_command_matches_argv_for_multiword_commands(
+    argv: list[str], expected_command: str
+) -> None:
+    """Nested commands emit ``command`` as a space-joined argv prefix."""
+    r = runner.invoke(app, ["-f", "json", *argv])
+    assert r.exit_code == 0, r.output
+    payload = json.loads(r.output)
+    assert payload["command"] == expected_command
 
 
 # -- try_next on errors -------------------------------------------------------
@@ -230,7 +358,7 @@ def test_for_profile_low_card_string_suggests_values() -> None:
         "sampled": False,
     }
     steps = ns.for_profile(result, connection="c", table="t", top=0)
-    assert any("qdo values" in s["cmd"] and "--column status" in s["cmd"] for s in steps)
+    assert any("qdo values" in s["cmd"] and "--columns status" in s["cmd"] for s in steps)
 
 
 def test_for_profile_numeric_suggests_dist() -> None:
@@ -241,7 +369,7 @@ def test_for_profile_numeric_suggests_dist() -> None:
         "sampled": False,
     }
     steps = ns.for_profile(result, connection="c", table="t", top=0)
-    assert any("qdo dist" in s["cmd"] and "--column amount" in s["cmd"] for s in steps)
+    assert any("qdo dist" in s["cmd"] and "--columns amount" in s["cmd"] for s in steps)
 
 
 def test_for_profile_sampled_suggests_no_sample() -> None:
@@ -269,14 +397,26 @@ def test_for_dist_with_nulls_suggests_quality() -> None:
 
 def test_for_values_truncated_suggests_raising_max() -> None:
     result = {"column": "x", "truncated": True, "distinct_count": 5000}
-    steps = ns.for_values(result, connection="c", table="t")
+    steps = ns.for_values(cast(ValuesResult, result), connection="c", table="t")
     assert any("--max" in s["cmd"] for s in steps)
 
 
-def test_for_values_enumerable_suggests_metadata_edit() -> None:
+def test_for_values_enumerable_suggests_capture() -> None:
     result = {"column": "x", "truncated": False, "distinct_count": 4}
-    steps = ns.for_values(result, connection="c", table="t")
-    assert any("qdo metadata edit" in s["cmd"] for s in steps)
+    steps = ns.for_values(cast(ValuesResult, result), connection="c", table="t")
+    assert any("qdo values" in s["cmd"] and "--write-metadata" in s["cmd"] for s in steps)
+
+
+def test_for_values_skips_capture_when_already_stored() -> None:
+    """Don't nag about capturing valid_values that are already on disk."""
+    result = {
+        "column": "x",
+        "truncated": False,
+        "distinct_count": 4,
+        "stored_metadata": {"valid_values": ["a", "b", "c", "d"]},
+    }
+    steps = ns.for_values(cast(ValuesResult, result), connection="c", table="t")
+    assert not any("--write-metadata" in s["cmd"] for s in steps)
 
 
 def test_for_quality_failing_column_triggers_dist_and_values() -> None:
@@ -284,9 +424,9 @@ def test_for_quality_failing_column_triggers_dist_and_values() -> None:
         "columns": [{"name": "notes", "status": "fail"}],
         "duplicate_rows": None,
     }
-    steps = ns.for_quality(result, connection="c", table="t")
-    assert any("qdo dist" in s["cmd"] and "--column notes" in s["cmd"] for s in steps)
-    assert any("qdo values" in s["cmd"] and "--column notes" in s["cmd"] for s in steps)
+    steps = ns.for_quality(cast(QualityResult, result), connection="c", table="t")
+    assert any("qdo dist" in s["cmd"] and "--columns notes" in s["cmd"] for s in steps)
+    assert any("qdo values" in s["cmd"] and "--columns notes" in s["cmd"] for s in steps)
     assert any("--check-duplicates" in s["cmd"] for s in steps)
 
 
@@ -341,6 +481,143 @@ def test_for_query_no_rows_suggests_catalog() -> None:
 def test_for_query_limit_hit_suggests_export() -> None:
     steps = ns.for_query({"rows": [{"x": 1}], "limited": True}, connection="c")
     assert any("qdo export" in s["cmd"] for s in steps)
+    # for_query points at --export-format, not the global --format; the two
+    # flags are different and the latter is a no-op on export.
+    assert any("--export-format" in s["cmd"] for s in steps)
+
+
+# -- rules for the R.2 commands -----------------------------------------------
+
+
+def test_for_assert_passed_no_next_steps() -> None:
+    steps = ns.for_assert({"passed": True, "sql": "select 1"}, connection="c")
+    assert steps == []
+
+
+def test_for_assert_failed_points_at_underlying_query() -> None:
+    result = {"passed": False, "sql": "select count(*) from orders"}
+    steps = ns.for_assert(result, connection="c")
+    assert len(steps) == 1
+    assert "qdo query" in steps[0]["cmd"]
+    assert "select count(*) from orders" in steps[0]["cmd"]
+
+
+def test_for_explain_always_suggests_running_the_query() -> None:
+    result = {"sql": "select * from users", "dialect": "sqlite", "analyzed": False}
+    steps = ns.for_explain(result, connection="c")
+    assert any("qdo query" in s["cmd"] for s in steps)
+
+
+def test_for_explain_duckdb_non_analyzed_suggests_analyze() -> None:
+    result = {"sql": "select * from users", "dialect": "duckdb", "analyzed": False}
+    steps = ns.for_explain(result, connection="c")
+    assert any("--analyze" in s["cmd"] for s in steps)
+
+
+def test_for_explain_sqlite_does_not_suggest_analyze() -> None:
+    """SQLite doesn't support EXPLAIN ANALYZE — don't offer it."""
+    result = {"sql": "select * from users", "dialect": "sqlite", "analyzed": False}
+    steps = ns.for_explain(result, connection="c")
+    assert not any("--analyze" in s["cmd"] for s in steps)
+
+
+def test_for_pivot_empty_suggests_preview_for_sanity_check() -> None:
+    steps = ns.for_pivot({"rows": [], "sql": "select ..."}, connection="c", table="orders")
+    assert len(steps) == 1
+    assert "qdo preview" in steps[0]["cmd"]
+
+
+def test_for_pivot_with_rows_suggests_iterate_and_context() -> None:
+    result = {"rows": [{"region": "east", "sum_amount": 100}], "sql": "select ..."}
+    steps = ns.for_pivot(result, connection="c", table="orders")
+    cmds = [s["cmd"] for s in steps]
+    assert any("qdo query" in c for c in cmds)
+    assert any("qdo context" in c for c in cmds)
+
+
+def test_for_view_def_points_at_inspect_and_preview() -> None:
+    result = {"view": "active_users", "dialect": "sqlite", "definition": "select ..."}
+    steps = ns.for_view_def(result, connection="c", view="active_users")
+    cmds = [s["cmd"] for s in steps]
+    assert any("qdo inspect" in c and "active_users" in c for c in cmds)
+    assert any("qdo preview" in c and "active_users" in c for c in cmds)
+
+
+def test_for_view_def_empty_definition_skips_suggestions() -> None:
+    steps = ns.for_view_def({"definition": ""}, connection="c", view="v")
+    assert steps == []
+
+
+def test_for_template_no_comment_suggests_metadata_init() -> None:
+    result = {
+        "table": "orders",
+        "table_comment": "",
+        "columns": [{"name": "id"}],
+    }
+    steps = ns.for_template(result, connection="c", table="orders")
+    assert any("metadata init" in s["cmd"] for s in steps)
+
+
+def test_for_template_with_comment_skips_metadata_init() -> None:
+    result = {
+        "table": "orders",
+        "table_comment": "Customer orders",
+        "columns": [{"name": "id"}],
+    }
+    steps = ns.for_template(result, connection="c", table="orders")
+    assert not any("metadata init" in s["cmd"] for s in steps)
+
+
+def test_for_template_always_suggests_profile_write_metadata() -> None:
+    """Template is the doc-authoring entrypoint — always nudge toward
+    auto-capturing deterministic inferences when there are columns."""
+    result = {
+        "table": "orders",
+        "table_comment": "Customer orders",
+        "columns": [{"name": "id"}],
+    }
+    steps = ns.for_template(result, connection="c", table="orders")
+    assert any("profile" in s["cmd"] and "--write-metadata" in s["cmd"] for s in steps)
+
+
+# -- R.7: workflow step-failure rule ------------------------------------------
+
+
+def test_for_workflow_step_failed_points_at_session_and_verbose_rerun() -> None:
+    """Every step failure offers: session inspection, standalone cmd, verbose rerun."""
+    steps = ns.for_workflow_step_failed(
+        workflow="demo",
+        step_id="inspect",
+        step_cmd="qdo inspect -c ./x.db -t users",
+        session="workflow-demo-123",
+    )
+    cmds = [s["cmd"] for s in steps]
+    assert any("qdo session show workflow-demo-123" in c for c in cmds)
+    assert any(c == "qdo inspect -c ./x.db -t users" for c in cmds)
+    assert any("qdo workflow run demo --verbose" in c for c in cmds)
+
+
+def test_for_workflow_step_failed_timeout_adds_disable_hint() -> None:
+    """Timeout failures get an extra hint: --step-timeout 0 to disable."""
+    steps = ns.for_workflow_step_failed(
+        workflow="demo",
+        step_id="slow",
+        step_cmd="qdo profile -c ./x.db -t big",
+        session="",
+        timed_out=True,
+    )
+    assert any("--step-timeout 0" in s["cmd"] for s in steps)
+
+
+def test_for_workflow_step_failed_empty_session_skips_session_step() -> None:
+    """When the runner couldn't record a session, don't offer to show it."""
+    steps = ns.for_workflow_step_failed(
+        workflow="demo",
+        step_id="s",
+        step_cmd="qdo inspect -c ./x.db -t users",
+        session="",
+    )
+    assert not any("qdo session show" in s["cmd"] for s in steps)
 
 
 # -- end-to-end envelope checks on the fan-out 8 ------------------------------

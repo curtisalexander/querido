@@ -6,17 +6,21 @@ without requiring every connector to implement ``execute_arrow()``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import pyarrow as pa
+
     from querido.connectors.base import Connector
+
+    ArrowOrDicts = pa.Table | list[dict]
 
 
 def execute_arrow_or_dicts(
     connector: Connector,
     sql: str,
     params: dict | tuple | None = None,
-) -> tuple[Any, bool]:
+) -> tuple[ArrowOrDicts, bool]:
     """Try the Arrow path, fall back to ``execute()``.
 
     Returns ``(data, is_arrow)`` where *data* is either a PyArrow Table
@@ -32,7 +36,7 @@ def execute_arrow_or_dicts(
     return connector.execute(sql, params), False
 
 
-def arrow_to_dicts(data: Any, is_arrow: bool) -> list[dict]:
+def arrow_to_dicts(data: ArrowOrDicts, is_arrow: bool) -> list[dict]:
     """Convert *data* to ``list[dict]`` if it came from the Arrow path."""
     if is_arrow:
         return data.to_pylist()

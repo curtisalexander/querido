@@ -41,10 +41,14 @@ def test_explain_format_json(sqlite_path: str):
     import json
 
     payload = json.loads(result.output)
-    assert "plan" in payload
-    assert payload.get("dialect") == "sqlite"
-    assert payload.get("analyzed") is False
-    assert len(payload.get("plan", "")) > 0
+    assert payload["command"] == "explain"
+    data = payload["data"]
+    assert "plan" in data
+    assert data.get("dialect") == "sqlite"
+    assert data.get("analyzed") is False
+    assert len(data.get("plan", "")) > 0
+    # Every explain should nudge the agent toward running the query for real.
+    assert any("qdo query" in s["cmd"] for s in payload["next_steps"])
 
 
 def test_explain_format_csv(sqlite_path: str):
@@ -101,7 +105,7 @@ def test_explain_analyze_duckdb(duckdb_path: str):
     import json
 
     payload = json.loads(result.output)
-    assert payload.get("analyzed") is True
+    assert payload["data"].get("analyzed") is True
 
 
 def test_explain_from_stdin(sqlite_path: str):
@@ -148,4 +152,4 @@ def test_explain_with_where_clause(sqlite_path: str):
     import json
 
     payload = json.loads(result.output)
-    assert len(payload.get("plan", "")) > 0
+    assert len(payload["data"].get("plan", "")) > 0

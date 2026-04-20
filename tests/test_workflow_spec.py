@@ -41,6 +41,7 @@ def test_load_examples_returns_nonempty_yaml() -> None:
     expected = {
         "column-deep-dive.yaml",
         "feature-target-exploration.yaml",
+        "migration-safety.yaml",
         "schema-compare.yaml",
         "table-handoff.yaml",
         "table-summary.yaml",

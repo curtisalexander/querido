@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import typer
 
+from querido.cli._errors import friendly_errors
+
 app = typer.Typer(help="Generate shell completion scripts.")
 
 _SHELLS = ("bash", "zsh", "fish", "powershell")
@@ -22,6 +24,7 @@ _INSTALL_HINTS: dict[str, str] = {
 
 
 @app.command()
+@friendly_errors
 def show(
     shell: str = typer.Argument(
         ..., help=f"Shell to generate completions for: {', '.join(_SHELLS)}."
