@@ -210,6 +210,11 @@ def test_parse_stream_json_tolerates_garbage_lines(eval_mod) -> None:
         ("QDO_FORMAT=json qdo catalog", True),
         ("QDO_FORMAT=json PATH=/usr/local/bin qdo catalog", True),
         ("uv run qdo catalog", True),
+        ("cd /Users/me/repo && qdo catalog -c /db", True),
+        ("cd /tmp ; qdo catalog", True),
+        ("cd /tmp && QDO_FORMAT=json uv run qdo catalog", True),
+        ("export QDO_FORMAT=json && cd /tmp && qdo catalog", True),
+        ("export DEBUG=1 ; qdo catalog -c /db", True),
         ("ls qdo", False),
         ("echo qdo", False),
         ("", False),
@@ -222,6 +227,11 @@ def test_parse_stream_json_tolerates_garbage_lines(eval_mod) -> None:
         "one-env",
         "multi-env",
         "uv-run",
+        "cd-and-qdo",
+        "cd-semicolon-qdo",
+        "cd-and-env-and-uv-and-qdo",
+        "export-and-cd-and-qdo",
+        "export-semicolon-qdo",
         "embedded-ls",
         "embedded-echo",
         "empty",
@@ -231,6 +241,60 @@ def test_parse_stream_json_tolerates_garbage_lines(eval_mod) -> None:
 )
 def test_looks_like_qdo(eval_mod, cmd: str, expected: bool) -> None:
     assert eval_mod._looks_like_qdo(cmd) is expected
+
+
+def test_any_prefix_match_strips_cd_prefix(eval_mod) -> None:
+    """`cd <dir> && qdo catalog ...` should match the `qdo catalog` prefix."""
+    assert eval_mod._any_prefix_match(
+        ["qdo catalog"],
+        ["cd /Users/me/repo && qdo catalog -c /db -f json"],
+    )
+
+
+def test_any_prefix_match_strips_cd_semicolon(eval_mod) -> None:
+    assert eval_mod._any_prefix_match(
+        ["qdo joins"],
+        ["cd /tmp ; qdo joins -c /db"],
+    )
+
+
+def test_any_prefix_match_strips_format_flag_before_subcommand(eval_mod) -> None:
+    """`qdo -f json catalog ...` should match the `qdo catalog` prefix —
+    the format flag is noise for prefix matching."""
+    assert eval_mod._any_prefix_match(
+        ["qdo catalog"],
+        ["qdo -f json catalog -c /db"],
+    )
+
+
+def test_any_prefix_match_strips_long_format_flag(eval_mod) -> None:
+    assert eval_mod._any_prefix_match(
+        ["qdo profile"],
+        ["qdo --format json profile -c /db -t orders"],
+    )
+
+
+def test_any_prefix_match_strips_equals_format_flag(eval_mod) -> None:
+    assert eval_mod._any_prefix_match(
+        ["qdo values"],
+        ["qdo --format=json values -c /db -t orders -C status"],
+    )
+
+
+def test_any_prefix_match_combined_cd_and_format(eval_mod) -> None:
+    """The real case from the haiku A1 failure: cd /repo && qdo -f json catalog."""
+    assert eval_mod._any_prefix_match(
+        ["qdo catalog"],
+        [
+            "cd /Users/calex/code/querido && qdo -f json catalog "
+            "-c /Users/calex/code/querido/data/test.duckdb"
+        ],
+    )
+
+
+def test_cmd_prefix_shows_normalized_form(eval_mod) -> None:
+    """Error messages should show `qdo catalog ...`, not `cd /repo &&`."""
+    assert eval_mod._cmd_prefix("cd /repo && qdo -f json catalog -c /db", 2) == "qdo catalog"
 
 
 # ---------------------------------------------------------------------------
@@ -272,11 +336,81 @@ def test_check_pass_flags_qdo_bug_first(eval_mod) -> None:
     r = eval_mod.check_pass(
         task=task,
         qdo_commands=["qdo catalog -c /db"],
-        tool_errors=["Traceback…"],
+        tool_errors=["Traceback (most recent call last): ..."],
         final_text="hmm",
     )
     assert r["status"] == "fail"
     assert r["failure_category"] == "qdo-bug"
+
+
+def test_check_pass_click_usage_error_is_model_mistake(eval_mod) -> None:
+    """A click-level 'No such option' error means the model put the flag in
+    the wrong position — that's an argv shape mistake, not a qdo crash."""
+    task = _task(eval_mod)
+    r = eval_mod.check_pass(
+        task=task,
+        qdo_commands=["qdo catalog -c /db -f json"],
+        tool_errors=[
+            "Exit code 2\n"
+            "Usage: qdo catalog [OPTIONS] COMMAND [ARGS]...\n"
+            "Try 'qdo catalog --help' for help.\n\n"
+            "Error: No such option: -f"
+        ],
+        final_text="partial answer",
+    )
+    assert r["status"] == "fail"
+    assert r["failure_category"] == "model-mistake"
+    assert "click usage error" in r["reason"]
+
+
+def test_check_pass_mixed_usage_and_crash_is_qdo_bug(eval_mod) -> None:
+    """If even one tool error is a real crash, categorize as qdo-bug — usage
+    errors are noise the model can recover from, but a crash is a qdo
+    issue we need to fix."""
+    task = _task(eval_mod)
+    r = eval_mod.check_pass(
+        task=task,
+        qdo_commands=["qdo catalog -c /db", "qdo profile -c /db -t orders"],
+        tool_errors=[
+            "Usage: qdo catalog ...\n\nError: No such option: -f",
+            "Traceback (most recent call last):\n  File ...",
+        ],
+        final_text="partial",
+    )
+    assert r["status"] == "fail"
+    assert r["failure_category"] == "qdo-bug"
+
+
+def test_is_click_usage_error_matches_common_phrases(eval_mod) -> None:
+    for phrase in (
+        "Error: No such option: --foo",
+        "Error: Missing option '-c'",
+        "Error: Missing argument 'TABLE'",
+        "Error: Got unexpected extra arguments (xyz)",
+        "Error: Invalid value for '--format'",
+        "Error: No such command 'frobnicate'",
+        "Error: Did you mean --export-format?",
+    ):
+        text = f"Usage: qdo [OPTIONS] ...\nTry '--help' for help.\n\n{phrase}"
+        assert eval_mod._is_click_usage_error(text), phrase
+
+
+def test_is_click_usage_error_rejects_traceback(eval_mod) -> None:
+    """A traceback lacks the click 'Usage:' preamble → not a usage error."""
+    assert not eval_mod._is_click_usage_error(
+        'Traceback (most recent call last):\n  File "/q.py", line 5, in <module>\nValueError: bad'
+    )
+
+
+def test_is_click_usage_error_rejects_usage_without_error(eval_mod) -> None:
+    """'Usage:' alone (e.g. from a --help dump) isn't an error."""
+    assert not eval_mod._is_click_usage_error(
+        "Usage: qdo catalog [OPTIONS]\n\nOptions:\n  -c TEXT  Connection"
+    )
+
+
+def test_is_click_usage_error_empty_string(eval_mod) -> None:
+    assert not eval_mod._is_click_usage_error("")
 
 
 def test_check_pass_missing_required_command(eval_mod) -> None:

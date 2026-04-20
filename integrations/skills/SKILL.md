@@ -90,6 +90,9 @@ qdo query -c <connection> --sql "select ..."
 
 # 12. GROUP BY aggregation without writing SQL
 qdo pivot -c <connection> -t <table> -g <group_col> -a "sum(<value_col>)"
+
+# 13. Compare two table schemas — columns added / removed / type-changed
+qdo diff -c <connection> -t <left> --target <right>
 ```
 
 **`profile` vs `quality`.** Both scan a table but surface different signals:
@@ -115,7 +118,7 @@ queries. Stored metadata is loaded from disk concurrently.
 
 ```bash
 qdo context -c <connection> -t <table>
-qdo context -c <connection> -t <table> -f json          # machine-readable
+qdo -f json context -c <connection> -t <table>          # machine-readable
 qdo context -c <connection> -t <table> --sample-values 10   # more samples
 qdo context -c <connection> -t <table> --no-sample      # exact counts, no sampling
 ```
@@ -163,12 +166,18 @@ before writing SQL. It replaces separate calls to `inspect`, `profile`, and
 export QDO_FORMAT=json
 
 # Or per-command
-qdo --format json catalog -c mydb
-qdo --format json inspect -c mydb -t orders
-qdo --format json profile -c mydb -t events
+qdo -f json catalog -c mydb
+qdo -f json inspect -c mydb -t orders
+qdo -f json profile -c mydb -t events
 ```
 
-Errors go to stderr as structured JSON when `--format json` is set:
+`-f/--format` is a **top-level** option. Canonical placement is right after
+`qdo` (before the subcommand), as in the examples above. qdo also accepts
+`-f json` *after* the subcommand (`qdo inspect -c mydb -f json`) — the
+entrypoint hoists it automatically. Either works; prefer the canonical form
+for readability.
+
+Errors go to stderr as structured JSON when `-f json` is set:
 ```json
 {"error": true, "code": "TABLE_NOT_FOUND", "message": "...", "hint": "..."}
 ```
@@ -216,8 +225,8 @@ qdo metadata refresh -c <connection> -t <table>
 Export metadata as JSON and paste it into your prompt:
 
 ```bash
-qdo metadata show -c <connection> -t <table1> -f json
-qdo metadata show -c <connection> -t <table2> -f json
+qdo -f json metadata show -c <connection> -t <table1>
+qdo -f json metadata show -c <connection> -t <table2>
 ```
 
 **Prompt template:**
@@ -226,8 +235,8 @@ qdo metadata show -c <connection> -t <table2> -f json
 You are a SQL expert. I'm working with a DuckDB database.
 
 Table metadata:
-[paste output of: qdo metadata show -c <db> -t <table1> -f json]
-[paste output of: qdo metadata show -c <db> -t <table2> -f json]
+[paste output of: qdo -f json metadata show -c <db> -t <table1>]
+[paste output of: qdo -f json metadata show -c <db> -t <table2>]
 
 Question: <your question>
 
@@ -265,8 +274,8 @@ qdo --format csv preview -c <connection> -t <table> -r 100
 # JSON lines — one object per row
 qdo --format jsonl query -c <connection> --sql "select ..."
 
-# Export command with explicit format flag
-qdo export -c <connection> -t <table> --format csv
+# Export command uses its own -e/--export-format for file format
+qdo export -c <connection> -t <table> -e csv
 ```
 
 ## Sampling and accuracy

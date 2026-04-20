@@ -33,7 +33,7 @@ all = [
 ]
 
 [project.scripts]
-qdo = "querido.cli.main:app"
+qdo = "querido.cli.main:run"
 
 [build-system]
 requires = ["hatchling"]

@@ -305,7 +305,6 @@ def main() -> int:
 
     results: list[dict[str, Any]] = []
     for task in tasks:
-        _run_pre_task(task)
         for model in models:
             print(f"\n=== {task.id} [{model}] ===")
             result = run_task(task, model, system_prompt, args)
@@ -470,10 +469,21 @@ def _concat_skill_files() -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def _run_pre_task(task: Task) -> None:
-    """Run a task's pre_task setup commands (e.g. metadata init) before the model gets it."""
+def _run_pre_task(task: Task, *, cwd: Path | None = None) -> None:
+    """Run a task's pre_task setup commands (e.g. metadata init) before the model gets it.
+
+    *cwd* should match the directory ``claude -p`` will run from, so any files
+    qdo writes during setup (e.g. ``.qdo/metadata/<conn>/<table>.yaml``) are
+    visible to the agent's own qdo calls.
+    """
     for argv in task.pre_task:
-        proc = subprocess.run(argv, capture_output=True, text=True, timeout=QDO_TIMEOUT_SEC)
+        proc = subprocess.run(
+            argv,
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            timeout=QDO_TIMEOUT_SEC,
+        )
         if proc.returncode != 0:
             sys.exit(
                 f"error: pre-task setup failed for {task.id}: "
@@ -499,6 +509,11 @@ def run_task(
     if not args.keep_artifacts:
         atexit.register(lambda p=scratch: shutil.rmtree(p, ignore_errors=True))
 
+    # Pre-task runs here (not in main) so its cwd matches claude -p's cwd.
+    # Stuff qdo writes — e.g. metadata YAML in ``.qdo/metadata/`` — lands in
+    # scratch, where the model's qdo subprocess will find it.
+    _run_pre_task(task, cwd=scratch)
+
     # Fixture path is absolute so the agent doesn't need to guess CWD.
     prompt = task.prompt.format(db=str(FIXTURE_DB))
     print(f"  scratch: {scratch}")
@@ -521,7 +536,6 @@ def run_task(
         "Bash",
         "--add-dir",
         str(REPO),
-        "--bare",
         "--no-session-persistence",
         "--max-budget-usd",
         str(args.budget),
@@ -666,13 +680,35 @@ def parse_stream_json(text: str) -> tuple[list[str], list[str], str, dict[str, A
     return qdo_commands, tool_errors, final_text, usage
 
 
+def _strip_shell_prefix(cmd: str) -> str:
+    """Strip shell prefixes agents commonly wrap ``qdo`` in so downstream
+    detection can treat the command as a plain ``qdo ...`` invocation.
+
+    Handles (repeatedly, until stable):
+    - env-var setters: ``FOO=bar BAZ=qux qdo ...``
+    - ``uv run qdo ...``
+    - ``cd <path> && qdo ...`` / ``cd <path> ; qdo ...``
+
+    Haiku in particular likes ``cd <repo> && qdo ...`` even though the eval
+    already sets ``cwd`` to a scratch dir and qdo takes an absolute path for
+    ``-c``. We accept the noise rather than fight it.
+    """
+    prev = None
+    stripped = cmd
+    while stripped != prev:
+        prev = stripped
+        stripped = re.sub(r"^(?:[A-Z_][A-Z0-9_]*=\S+\s+)+", "", stripped)
+        stripped = re.sub(r"^uv\s+run\s+", "", stripped)
+        stripped = re.sub(r"^cd\s+\S+\s*(?:&&|;)\s*", "", stripped)
+        stripped = re.sub(r"^export\s+[A-Z_][A-Z0-9_]*=\S+\s*(?:&&|;)\s*", "", stripped)
+    return stripped
+
+
 def _looks_like_qdo(cmd: str) -> bool:
-    """True if *cmd* is a qdo invocation (including env-prefixed)."""
+    """True if *cmd* is a qdo invocation (including wrapped in common shell prefixes)."""
     if not cmd:
         return False
-    # Strip common prefixes: env var setters, uv wrappers.
-    stripped = re.sub(r"^(?:[A-Z_][A-Z0-9_]*=\S+\s+)+", "", cmd)
-    stripped = re.sub(r"^uv\s+run\s+", "", stripped)
+    stripped = _strip_shell_prefix(cmd)
     return stripped.startswith("qdo ") or stripped == "qdo"
 
 
@@ -701,9 +737,19 @@ def check_pass(
 ) -> dict[str, Any]:
     """Return ``status``, ``failure_category``, ``reason``, ``path_ok``."""
 
-    # Treat any tool_use that crashed as a qdo-bug signal first — a failing
-    # qdo command shouldn't be counted against the model.
+    # Tool errors split into two kinds:
+    #  - Click usage errors ("No such option", "Missing option", etc.) mean
+    #    the model called qdo with wrong argv — that's a model-mistake.
+    #  - Anything else (tracebacks, runtime errors) is a real qdo-bug.
     if tool_errors:
+        usage_errs = [e for e in tool_errors if _is_click_usage_error(e)]
+        if len(usage_errs) == len(tool_errors):
+            return {
+                "status": "fail",
+                "failure_category": "model-mistake",
+                "reason": f"{len(tool_errors)} qdo invocation(s) had bad argv (click usage error)",
+                "path_ok": False,
+            }
         return {
             "status": "fail",
             "failure_category": "qdo-bug",
@@ -764,6 +810,37 @@ _AUTH_ERROR_RE = re.compile(
     r"not\s*logged\s*in|please\s*run\s*/?login|unauthorized", re.IGNORECASE
 )
 
+# Click usage errors have a two-line shape: a `Usage: ...` preamble plus an
+# `Error: <phrase>` line naming one of a closed set of argv-shape problems.
+# These are model-mistakes (wrong flag, missing required option, extra
+# positional, bad choice value), not qdo bugs — the eval categorizes them
+# separately and leaves qdo-bug for real runtime failures / tracebacks.
+_USAGE_PREAMBLE_RE = re.compile(r"^\s*Usage:\s", re.MULTILINE)
+_USAGE_ERROR_PHRASE_RE = re.compile(
+    r"Error:\s(?:"
+    r"No\s+such\s+option"
+    r"|Missing\s+option"
+    r"|Missing\s+argument"
+    r"|Got\s+unexpected\s+extra"
+    r"|Invalid\s+value\s+for"
+    r"|No\s+such\s+command"
+    r"|Did\s+you\s+mean"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_click_usage_error(text: str) -> bool:
+    """True when *text* (a tool-error snippet) looks like a click usage error.
+
+    Requires both the ``Usage:`` preamble **and** an ``Error: <usage phrase>``
+    line — a traceback that mentions ``Usage:`` in source code wouldn't match
+    because it lacks the error-phrase tail.
+    """
+    if not text:
+        return False
+    return bool(_USAGE_PREAMBLE_RE.search(text)) and bool(_USAGE_ERROR_PHRASE_RE.search(text))
+
 
 def _is_auth_error(final_text: str, stderr: str) -> bool:
     """Detect the claude-not-authenticated case so operators don't see a
@@ -772,20 +849,38 @@ def _is_auth_error(final_text: str, stderr: str) -> bool:
     return bool(_AUTH_ERROR_RE.search(haystack))
 
 
+def _normalize_for_prefix(cmd: str) -> str:
+    """Return *cmd* shell-stripped and with ``-f``/``--format`` pairs removed.
+
+    Strips shell wrappers (``cd X && ...``, env-var setters, ``uv run ...``)
+    and the format flag so the result starts with ``qdo <subcommand> ...``,
+    which is what :func:`_any_prefix_match` compares against.
+
+    Without this, ``cd /repo && qdo -f json catalog ...`` wouldn't match the
+    prefix ``qdo catalog`` because ``-f json`` sits between ``qdo`` and the
+    subcommand. The qdo CLI itself hoists ``-f`` on invocation, but that
+    doesn't help the eval's string-level inspection of the Bash tool call.
+    """
+    stripped = _strip_shell_prefix(cmd)
+    stripped = re.sub(r"\s+--format=\S*", " ", stripped)
+    stripped = re.sub(r"\s+(?:-f|--format)(?:\s+\S+)?", " ", stripped)
+    return re.sub(r"\s+", " ", stripped).strip()
+
+
 def _any_prefix_match(prefixes: list[str], cmds: list[str]) -> bool:
-    """True when any *cmds* entry starts with any prefix (env/uv wrappers allowed)."""
+    """True when any *cmds* entry starts with any prefix (after normalization)."""
     for cmd in cmds:
-        stripped = re.sub(r"^(?:[A-Z_][A-Z0-9_]*=\S+\s+)+", "", cmd)
-        stripped = re.sub(r"^uv\s+run\s+", "", stripped)
+        normalized = _normalize_for_prefix(cmd)
         for pfx in prefixes:
-            if stripped.startswith(pfx):
+            if normalized.startswith(pfx):
                 return True
     return False
 
 
 def _cmd_prefix(cmd: str, words: int) -> str:
-    """First N whitespace-delimited tokens of *cmd*."""
-    return " ".join(cmd.split()[:words])
+    """First N whitespace-delimited tokens of *cmd* (after normalization, so
+    error messages show ``qdo catalog`` rather than ``cd /repo &&``)."""
+    return " ".join(_normalize_for_prefix(cmd).split()[:words])
 
 
 # ---------------------------------------------------------------------------

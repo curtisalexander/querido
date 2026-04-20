@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import importlib
+import sys
 from typing import Any
 
 import click
 import typer
 from typer.core import TyperGroup
+
+from querido.cli.argv_hoist import hoist_format_flag
 
 # ---------------------------------------------------------------------------
 # Lazy subcommand loading
@@ -343,3 +346,11 @@ def main(
         logger.addHandler(handler)
     else:
         logger.setLevel(logging.WARNING)
+
+
+def run() -> None:
+    """Console-script entrypoint. Hoists `-f/--format` to the front of argv so
+    it reaches the root callback regardless of where an agent placed it, then
+    hands off to the Typer app."""
+    sys.argv[1:] = hoist_format_flag(sys.argv[1:])
+    app()

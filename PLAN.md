@@ -8,23 +8,19 @@ Each item: **what**, **why it matters**, **acceptance criteria**, **effort estim
 
 ---
 
-## Status (as of 2026-04-18)
+## Status (as of 2026-04-20)
 
-**Tests:** 987 passing, 25 skipped. `ruff format`, `ruff check`, `ty check` all green. Zero `TODO`/`FIXME` tags in tree.
+**Tests:** 1024 passing, 25 skipped. `ruff format`, `ruff check`, `ty check` all green. Zero `TODO`/`FIXME` tags in tree.
 
-**Phases done:** 1 (Agent-first foundations), 2 (Agent output + report table), 3 (Knowledge bundles), 4 (Workflows incl. self-hosting eval 4.6). Phase 5 dropped by design. Phase 6.2/6.3 (`qdo serve` removal) done via R.13. **R-series (R.1–R.26) all done or intentionally dropped.** **Sharpening pass (Waves 1–3) done**, including EV.Build — `scripts/eval_skill_files.py` shipped.
+**Phases done:** 1 (Agent-first foundations), 2 (Agent output + report table), 3 (Knowledge bundles), 4 (Workflows incl. self-hosting eval 4.6). Phase 5 dropped by design. Phase 6.2/6.3 (`qdo serve` removal) done via R.13. **R-series (R.1–R.26) all done or intentionally dropped.** **Sharpening pass (Waves 1–4) done** — EV.Build shipped, first live eval baseline locked in at **33/33 perfect** across haiku/sonnet/opus.
 
 **Pick up next session with one of these (ordered by value):**
 
-1. **Run `scripts/eval_skill_files.py` live** to establish the first baseline per model.
-   - Requires Claude Code Max (`claude /login` first; `ANTHROPIC_API_KEY` must be unset).
-   - Start Haiku-only — `uv run python scripts/eval_skill_files.py` — to validate the harness end-to-end against a live model (~$0.02–0.20).
-   - If Haiku clears its 70% gate, run the full matrix — `--models all --budget 5` (~$0.50–2 per run).
-   - Per-task failures that cluster in a category (e.g. `model-mistake` on `qdo values`) are signal to tighten SKILL.md. Snapshot the results JSON + add a note to PLAN.md when you do.
+1. **Phase 6.1 — `qdo report session` HTML.** See the "Phase 6" section below. Dependency-wise this is the next planned piece after the Sharpening pass settled.
 
-2. **Phase 6.1 — `qdo report session` HTML.** See the "Phase 6" section below. Dependency-wise this is the next planned piece after the Sharpening pass settled.
+2. **Scan-result TypedDicts (scheduled from CC.5).** See "Scheduled follow-up: Scan-result TypedDicts" later in this file. Non-blocking; high leverage. ~half day.
 
-3. **Scan-result TypedDicts (scheduled from CC.5).** See "Scheduled follow-up: Scan-result TypedDicts" later in this file. Non-blocking; high leverage. ~half day.
+3. **Re-run the eval** after any SKILL.md or command-surface change. One line: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
 
 Each picks up cold-start without remembering what was in the previous session — the resume point at the end of the Sharpening-pass section has the full context.
 
@@ -887,7 +883,7 @@ This closes the loop: the eval surfaces exactly where skill files fail to guide 
 Built `scripts/eval_skill_files.py` per EV.1–EV.7. All three models (Haiku, Sonnet, Opus) supported via `--models haiku,sonnet,opus` or `--models all`.
 
 - [x] **Eleven tasks** across four categories (A discovery, B column, C quality, D metadata/SQL) — each carries the Wave 1 gotcha it exercises (CS.x/CA.x cross-references).
-- [x] **Runner** invokes `claude -p --output-format stream-json` with `--bare --no-session-persistence --permission-mode bypassPermissions --tools Bash` in an isolated scratch dir; all skill files (SKILL.md + WORKFLOW_EXAMPLES.md + AGENTS.md) inlined via `--append-system-prompt`.
+- [x] **Runner** invokes `claude -p --output-format stream-json` with `--no-session-persistence --permission-mode bypassPermissions --tools Bash` in an isolated scratch dir; all skill files (SKILL.md + WORKFLOW_EXAMPLES.md + AGENTS.md) inlined via `--append-system-prompt`. (`--bare` was dropped — it disables the stored OAuth token, causing false "Not logged in" failures.)
 - [x] **Parser** extracts qdo Bash tool calls + tool errors + final assistant text + usage/cost from the stream-json event log. Handles env-var prefixes and `uv run` wrappers.
 - [x] **Checker** (EV.4): categorizes failures as `qdo-bug` (tool_error before anything else), `model-mistake` (no required command / too many commands / no content match), `envelope-mismatch` (content regex miss), `timeout`, or `auth-error` (not logged in). Path-preferred is recorded as `path_ok` but doesn't fail.
 - [x] **Pass gates** per model (EV.7): Haiku ≥70%, Sonnet ≥85%, Opus ≥95%. Exit code 0 only when every model clears its gate.
@@ -907,19 +903,44 @@ uv run python scripts/eval_skill_files.py --tasks A1_list_tables --keep-artifact
 
 **Next use:** run it once against live models to establish the first baseline. Expected pass-rates by design: Haiku ≥70%, Sonnet ≥85%, Opus ≥95%. Any task that fails multiple models points at a SKILL.md gap we should fix.
 
-### Resume point (post-Wave 3)
+### Wave 4 — first live baseline + harness/docs sharpening (2026-04-20)
 
-All three waves of the Sharpening pass complete.
+Running the eval live surfaced five gaps — none in the tasks themselves, all in the scaffolding around them. Fixed in one pass; final matrix is **33/33 perfect** (haiku 11/11, sonnet 11/11, opus 11/11).
+
+**Runtime fixes (CLI):**
+- [x] **`-f/--format` hoister** (`src/querido/cli/argv_hoist.py`, new). Click binds options to whichever command they follow, so `qdo inspect -c db -t t -f json` used to fail with `No such option: -f`. New entrypoint `querido.cli.main:run` preprocesses argv so `-f/--format` can appear anywhere. Workflow runner now shares `split_format_flag` helper. `pyproject.toml` entry-point + `__main__.py` updated. 19 new unit tests in `tests/test_argv_hoist.py`.
+
+**Docs fixes (`integrations/skills/SKILL.md`):**
+- [x] Six examples had `-f json` placed after the subcommand (failed before the hoister existed, stylistically wrong after). All moved to canonical `qdo -f json <sub>` form.
+- [x] Added an explicit "Flag placement" paragraph stating the canonical form while noting the hoister accepts either position.
+- [x] `qdo export --format csv` corrected to `qdo export -e csv` (export uses its own `-e/--export-format`, not top-level `--format`).
+- [x] `qdo diff` promoted from "Advanced / specialized" into the Quick Exploration Workflow as step 13. Closed the last model-mistake on C2 (haiku was comparing two `qdo inspect` outputs by hand instead of using the dedicated diff).
+
+**Eval-harness fixes (`scripts/eval_skill_files.py`):**
+- [x] Dropped `--bare` from the `claude -p` argv — it disables the stored OAuth token, which was giving every task a false `auth-error`.
+- [x] **Classifier**: click usage errors (`No such option`, `Missing option`, `Missing argument`, `Got unexpected extra arguments`, `Invalid value for`, `No such command`, `Did you mean`) now route to `model-mistake`, not `qdo-bug`. Real tracebacks still route to `qdo-bug`. Mixed → `qdo-bug`.
+- [x] **Parser** (`_strip_shell_prefix` + `_normalize_for_prefix`): handles `cd <path> && qdo ...`, `cd <path> ; qdo ...`, `export X=Y && qdo ...`, and `qdo -f json <sub>` as normalized prefix for matching `qdo <sub>` patterns. Fixes three false-negative "no required command" classifications.
+- [x] **Pre-task** now runs with `cwd=scratch` (previously ran from repo root, so metadata landed where agents wouldn't look). `.qdo/metadata/...` setup now matches where `claude -p` will run.
+
+**Where the old "Pick up next session" item #1 landed:**
+- First baseline: haiku 11/11 (target 70%), sonnet 11/11 (target 85%), opus 11/11 (target 95%). Full matrix run ≈ $1.50 and ~3 minutes.
+- Usage cadence going forward: rerun `--models all` after any SKILL.md or command-surface change. Tests + eval are the two gates.
+- Results snapshots live in `scripts/eval_results/results_<timestamp>.json` (gitignored — drop a curated baseline into the tree only if you want one tracked).
+
+Test count: 987 → 1024 (+37 across argv_hoist, harness parser, harness classifier). CI green.
+
+### Resume point (post-Wave 4)
+
+All four waves of the Sharpening pass complete.
 
 - **Wave 1** (cold-start + command-surface): 10 CS + 10 CA findings; 7 inline cleanups; 3 judgment calls resolved (orders fixture, bundle-portability note, migration-safety workflow).
 - **Wave 2** (docs + code): 5 DC + 12 CC findings; 8 inline cleanups; 5 judgment calls resolved (CC.6 + CC.10 landed; CC.5 scheduled; CC.2 + CC.9 deferred).
 - **Wave 3** (eval design + build): 7 EV entries + EV.Build shipped — `scripts/eval_skill_files.py` runs 11 tasks × 3 models, 39 harness tests.
-
-Test count: 921 → 987 (+66 across CC.6, CC.10, and EV.Build harness unit tests). CI green throughout. `TODO`/`FIXME`-free. No security smells surfaced.
+- **Wave 4** (first live baseline + harness/docs sharpening): argv hoister, SKILL.md corrections, harness classifier + parser + pre-task fixes. Matrix 33/33.
 
 **Next open items:**
-1. **Run the eval live** against Claude Code Max — establish first baseline per model, then treat failures as docs-tightening signal.
-2. **Scan-result TypedDicts** (CC.5 scheduled phase) — add `ProfileResult` / `QualityResult` / `ContextResult` / `ValuesResult` (+ shared `ColumnEntry`) once you want to block the next silent-key-rename class of bugs.
+1. **Scan-result TypedDicts** (CC.5 scheduled phase) — add `ProfileResult` / `QualityResult` / `ContextResult` / `ValuesResult` (+ shared `ColumnEntry`) once you want to block the next silent-key-rename class of bugs.
+2. **Phase 6.1 — `qdo report session` HTML.** Dependency-light; ready whenever.
 
 ### Scheduled follow-up: Scan-result TypedDicts (from CC.5)
 
