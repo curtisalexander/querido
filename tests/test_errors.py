@@ -208,6 +208,26 @@ def test_validation_error_json_sql_required_uses_structured_error(sqlite_path: s
     assert payload["code"] == "SQL_REQUIRED"
 
 
+def test_validation_error_json_write_requires_allow_write(sqlite_path: str) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "query",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "update users set name = 'Alicia' where id = 1",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "WRITE_REQUIRES_ALLOW_WRITE"
+    assert any("--allow-write" in step["cmd"] for step in payload["try_next"])
+
+
 def test_validation_error_json_sql_file_not_found_uses_structured_error(sqlite_path: str) -> None:
     result = runner.invoke(
         app,

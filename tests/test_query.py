@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -188,3 +189,53 @@ def test_query_aggregate(sqlite_path: str):
 
     payload = json.loads(result.output)["data"]
     assert payload["rows"][0]["cnt"] == 2
+
+
+def test_query_write_requires_allow_write(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        ["query", "-c", sqlite_path, "--sql", "update users set age = age + 1 where id = 1"],
+    )
+    assert result.exit_code != 0
+    assert "--allow-write" in result.output
+
+
+def test_query_write_requires_allow_write_json(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "query",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "delete from users where id = 1",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "WRITE_REQUIRES_ALLOW_WRITE"
+    assert any("--allow-write" in step["cmd"] for step in payload["try_next"])
+
+
+def test_query_allow_write_persists_sqlite_mutation(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "query",
+            "-c",
+            sqlite_path,
+            "--allow-write",
+            "--sql",
+            "update users set age = 41 where id = 1",
+        ],
+    )
+    assert result.exit_code == 0
+
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        age = conn.execute("select age from users where id = 1").fetchone()[0]
+    finally:
+        conn.close()
+    assert age == 41

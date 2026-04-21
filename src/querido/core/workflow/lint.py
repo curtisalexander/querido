@@ -17,36 +17,13 @@ import shlex
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from querido.core.sql_safety import any_statement_is_destructive
 from querido.core.workflow.expr import REF_RE
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 _SLUG = re.compile(r"^[a-z][a-z0-9-]*$")
 _SEMVER = re.compile(r"^\d+\.\d+(\.\d+)?$")
 _QDO_INVOCATION = re.compile(r"^qdo\s+\S+")
-
-# Keywords that, appearing as the first token of a SQL statement, mean the
-# statement mutates state. Used by the allow_write lint via
-# :func:`_first_keyword_is_destructive`.
-_DESTRUCTIVE_FIRST_KEYWORDS = frozenset(
-    {
-        "insert",
-        "update",
-        "delete",
-        "drop",
-        "create",
-        "alter",
-        "truncate",
-        "merge",
-        "replace",
-        "grant",
-        "revoke",
-    }
-)
-
-# Strips SQL line comments (``-- ...`` to end of line) and block comments
-# (``/* ... */``) so the first-keyword check sees actual code.
-_SQL_LINE_COMMENT = re.compile(r"--[^\n]*")
-_SQL_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 
 _VALID_INPUT_TYPES = {"string", "integer", "number", "boolean", "table", "connection"}
 
@@ -436,24 +413,8 @@ def _read_sql_from_stdin_conservative(tokens: list[str]) -> bool:
 
 
 def _any_statement_is_destructive(sql: str) -> bool:
-    """True if any ``;``-separated statement in *sql* starts with a
-    destructive keyword (after stripping comments and whitespace)."""
-    stripped = _SQL_BLOCK_COMMENT.sub("", sql)
-    stripped = _SQL_LINE_COMMENT.sub("", stripped)
-    for statement in stripped.split(";"):
-        first = _first_word(statement)
-        if first and first.lower() in _DESTRUCTIVE_FIRST_KEYWORDS:
-            return True
-    return False
-
-
-def _first_word(statement: str) -> str:
-    """Return the first alphabetic token from *statement*, or ``''``."""
-    for word in statement.split():
-        cleaned = word.strip("()[]{},;")
-        if cleaned:
-            return cleaned
-    return ""
+    """Compatibility wrapper around the shared SQL safety helper."""
+    return any_statement_is_destructive(sql)
 
 
 # Flag names whose values are comma-separated column lists. ``--column-set``

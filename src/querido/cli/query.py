@@ -17,6 +17,11 @@ def query(
     ),
     sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query string."),
     file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file to execute."),
+    allow_write: bool = typer.Option(
+        False,
+        "--allow-write",
+        help="Allow INSERT/UPDATE/DELETE/DDL statements. Read-only by default.",
+    ),
     limit: int = typer.Option(
         1000, "--limit", "-l", min=0, help="Max rows to return (0 = no limit)."
     ),
@@ -41,9 +46,9 @@ def query(
 
     query_sql = resolve_sql(sql, file, sys.stdin)
 
-    from querido.cli._validation import warn_if_destructive
+    from querido.cli._validation import require_allow_write
 
-    warn_if_destructive(query_sql)
+    require_allow_write(query_sql, allow_write=allow_write)
 
     with database_command(connection=connection, db_type=db_type) as ctx:
         maybe_show_sql(query_sql)
@@ -52,7 +57,7 @@ def query(
         with ctx.spin("Executing query"):
             from querido.core.query import run_query
 
-            result = run_query(ctx.connector, query_sql, limit=limit)
+            result = run_query(ctx.connector, query_sql, limit=limit, allow_write=allow_write)
 
         from querido.output.envelope import emit_envelope, is_structured_format
 

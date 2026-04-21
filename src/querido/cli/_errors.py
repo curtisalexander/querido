@@ -224,6 +224,8 @@ def _bad_parameter_code(msg: str) -> str:
         return "SQL_FILE_NOT_FOUND"
     if lower.startswith("no sql provided."):
         return "SQL_REQUIRED"
+    if lower.startswith("write queries require --allow-write."):
+        return "WRITE_REQUIRES_ALLOW_WRITE"
     if "requires a snowflake connection" in lower:
         return "SNOWFLAKE_REQUIRED"
     if lower.startswith("unknown shell:"):

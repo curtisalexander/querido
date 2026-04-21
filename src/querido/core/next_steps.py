@@ -963,6 +963,20 @@ def for_error(
             )
         )
 
+    elif code == "WRITE_REQUIRES_ALLOW_WRITE":
+        steps.append(
+            {
+                "cmd": "qdo query --allow-write -c <connection> --sql '<write statement>'",
+                "why": "Re-run only if you intend to mutate data.",
+            }
+        )
+        steps.append(
+            {
+                "cmd": "qdo query -c <connection> --sql 'select ...'",
+                "why": "Keep using the default read-only path for inspection queries.",
+            }
+        )
+
     elif code == "CONNECTION_NOT_FOUND":
         steps.append(
             _step(

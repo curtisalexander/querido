@@ -8,7 +8,7 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-21)
 
-**Tests:** 1107 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
+**Tests:** 1112 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
 
 **Phase 7 is now shipped.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
 
@@ -16,9 +16,9 @@ Active work is now the open-ended backlog in [Deferred / future phases](#deferre
 
 **Pick up next session with one of these:**
 
-1. **Pick a deferred phase and promote it.** Natural candidates: `qdo investigate <table>` as a bundled workflow, `qdo diff --since <session>`, or read-only-by-default query guardrails.
+1. **Pick a deferred phase and promote it.** Natural candidates: `qdo investigate <table>` as a bundled workflow or `qdo diff --since <session>`.
 2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
-3. **Treat structured errors as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
+3. **Treat structured errors and query guardrails as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`, and `qdo query` is read-only by default unless `--allow-write` is explicit; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
 
 ---
 
@@ -162,7 +162,6 @@ Capture but don't start. Each is standalone and non-blocking.
 - `qdo diff --since <session>` — change detection for returning agents (pairs well with Phase 6.1 session reports).
 - `qdo freshness` — row freshness / staleness with auto timestamp-column detection.
 - Cost / time `--estimate` flag on `query` / `export`.
-- Read-only-by-default guardrail on `query` (`--allow-write` required).
 - `--plan` dry-run flag on `export`, `query`, `metadata write`.
 - `qdo search "<intent>"` — BM25 over command docstrings.
 - `qdo catalog functions` — list DuckDB / Snowflake SQL functions.
