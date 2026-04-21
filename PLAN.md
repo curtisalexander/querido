@@ -8,15 +8,15 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-21)
 
-**Tests:** 1085 passing, 25 skipped. `ruff check` and `ty check` are green. Zero `TODO` / `FIXME` tags.
+**Tests:** 1102 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
 
-**Every planned phase is shipped.** Phases 1–4 + 6; Phase 5 dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
+**Phase 7 is now in progress.** Phases 1–4 + 6 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
 
-Remaining work is the open-ended backlog in [Deferred / future phases](#deferred--future-phases).
+Remaining work is the unfinished portion of Phase 7 plus the open-ended backlog in [Deferred / future phases](#deferred--future-phases).
 
 **Pick up next session with one of these:**
 
-1. **Start Phase 7.** Human-facing output / TUI polish now has an explicit plan below. Natural first slice: richer `explore` sidebar + status bar, then semantic highlighting in the main table.
+1. **Continue Phase 7.** Natural next slices: bring `context` Rich output up to the new summary-panel standard, then keep tightening wide-table / triage UX in `explore`.
 2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
 3. **Treat structured errors as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
 
@@ -62,19 +62,21 @@ IDEAS.md proposed converting 8–10 subcommands (`template`, `sql scratch`, `piv
 - **6.1** — `qdo report session <name>` renders a session as single-file HTML. One card per step with status pills, alternating theme color, collapsed `<details>` for the full invocation, rendered stdout (JSON pretty-printed). Per-step commentary via `qdo session note <text>`, which rewrites the last record in `steps.jsonl`. Offline-readable invariants encoded as tests (no `<script>`, no `<iframe>`, no external stylesheet, no `<img src="http…">`). See `src/querido/core/report.py::build_session_report`, `src/querido/output/report_html.py::render_session_report`, `tests/test_report_session.py`.
 - **6.2 + 6.3** — `qdo serve` removed (landed via R.13; deprecation step skipped since there were no users). `tests/test_web.py` deleted with it.
 
-### Phase 7 — Human-facing output polish (planned)
+### Phase 7 — Human-facing output polish (in progress)
 
-The agent-first core is in good shape. The next committed track is making the human experience feel intentional and high-signal too, especially in `qdo explore` and Rich terminal output.
+The agent-first core is in good shape. This track is about making the human experience feel intentional and high-signal too, especially in `qdo explore` and Rich terminal output.
 
 **7.1 — TUI foundation / information hierarchy**
 
-- Upgrade the `explore` sidebar from a text dump into a compact facts panel: type, null rate, distinct count, min/max, sample values, metadata description, and quality flags for the selected column.
-- Make the status bar carry more real context: connection, table, displayed/total rows, filtered state, sampled/exact state, sort state, metadata presence.
-- Add semantic highlighting in the main `DataTable` so PKs, sorted columns, null-heavy columns, and warning states are visually obvious.
+- Shipped: the `explore` sidebar is now a compact selected-column facts panel: type, null rate, distinct count, min/max, sample values, metadata description, allowed values, and quality flags.
+- Shipped: the status bar now carries connection, table, displayed/total rows, filtered state, sampled/exact state, sort state, and metadata presence.
+- Shipped: semantic highlighting in the main `DataTable` now makes PKs, sorted columns, null-heavy columns, and null cells visually obvious.
+- Remaining: continue refining wide-table readability and tighten the visual language so the main table and sidebar feel more cohesive under sustained use.
 
 **7.2 — Human-readable scan output**
 
-- Improve Rich output for `context`, `quality`, `profile`, and `catalog` so important signals are easier to scan: clearer section hierarchy, badges, callouts, small inline bars / sparklines where appropriate.
+- Shipped: Rich output for `quality`, `profile`, `catalog`, `inspect`, `preview`, `values`, and `dist` now uses compact headers, summary panels, and clearer section titles.
+- Remaining: bring `context` to the same level, then decide whether any lightweight inline bars / sparklines are still worth adding.
 - Keep the JSON / agent shapes unchanged; this phase is about human presentation, not output-contract churn.
 
 **7.3 — Wide-table and triage UX**

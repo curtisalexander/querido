@@ -205,6 +205,10 @@ qdo sql procedure -c prod -t my_table                   # stored procedure templ
 qdo explore -c my-db -t orders               # terminal UI (requires querido[tui])
 ```
 
+`qdo explore` now includes a selected-column facts sidebar, richer status bar context,
+and semantic table highlighting so PKs, sorted columns, null-heavy columns, and null
+cells are easier to spot at a glance.
+
 ### Learn — built-in tutorials
 
 ```bash
