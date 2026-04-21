@@ -142,6 +142,8 @@ def _compute_column_quality(
     if not columns:
         return [], 0
 
+    from querido.core._utils import normalize_distinct_count
+
     def _q(name: str) -> str:
         return '"' + name.replace('"', '""') + '"'
 
@@ -186,7 +188,7 @@ def _compute_column_quality(
     for col in columns:
         name = col.get("name", "")
         null_count = stats_row.get(f"{name}_nulls", 0)
-        distinct_count = stats_row.get(f"{name}_distinct", 0)
+        distinct_count = normalize_distinct_count(stats_row.get(f"{name}_distinct"), row_count)
         min_val = stats_row.get(f"{name}_min")
         max_val = stats_row.get(f"{name}_max")
 

@@ -224,6 +224,25 @@ def test_extract_top_k_values_handles_three_shapes() -> None:
     assert _extract_top_k_values([None, "x", None]) == ["x"]
 
 
+def test_unpack_single_row_clamps_approx_distinct_to_row_count() -> None:
+    """Approximate distinct counts should never exceed the table row count."""
+    from querido.core._utils import unpack_single_row
+
+    row = {
+        "total_rows": 4,
+        "id__null_count": 0,
+        "id__null_pct": 0.0,
+        "id__distinct_count": 6,
+        "id__min_val": 1,
+        "id__max_val": 4,
+        "id__mean_val": 2.5,
+        "id__median_val": 2,
+        "id__stddev_val": 1.0,
+    }
+    stats = unpack_single_row(row, [{"name": "id", "type": "INTEGER", "numeric": True}])
+    assert stats[0]["distinct_count"] == 4
+
+
 def test_context_duckdb_json_no_sample_values(duckdb_path: str) -> None:
     result = runner.invoke(
         app,

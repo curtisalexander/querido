@@ -2,6 +2,7 @@
 
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 from typer.testing import CliRunner
 
@@ -173,3 +174,29 @@ def test_quality_uniqueness(sqlite_path: str):
     by_name = {c["name"]: c for c in payload["columns"]}
     assert by_name["id"]["uniqueness_pct"] == 100.0
     assert by_name["name"]["uniqueness_pct"] == 100.0
+
+
+def test_compute_column_quality_clamps_approx_distinct_to_row_count() -> None:
+    """Approximate distinct estimates should not surface impossible counts."""
+    from querido.connectors.base import Connector
+    from querido.core.quality import _compute_column_quality
+
+    class FakeConnector:
+        def execute(self, sql: str) -> list[dict]:
+            return [
+                {
+                    "_total_rows": 5,
+                    "id_nulls": 0,
+                    "id_distinct": 7,
+                    "id_min": 1,
+                    "id_max": 5,
+                }
+            ]
+
+    columns = [{"name": "id", "type": "INTEGER"}]
+    result, row_count = _compute_column_quality(
+        cast(Connector, FakeConnector()), "orders", columns, approx=True
+    )
+    assert row_count == 5
+    assert result[0]["distinct_count"] == 5
+    assert result[0]["uniqueness_pct"] == 100.0
