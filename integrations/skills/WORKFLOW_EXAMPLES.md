@@ -67,8 +67,8 @@ qdo workflow run column-deep-dive connection=mydb table=customers column=country
 
 **Shape:** same-primitive-twice composition.
 **Inputs:** `connection`, `table`.
-**Pattern:** two `profile` steps with different flags — first `--quick` (fast row/null counts for every column), then `--classify` (categorizes columns as numeric / categorical / temporal / high-cardinality / identifier).
-**Teaches:** step ids must be unique even when the subcommand repeats; using `--classify` to drive a follow-up decision about which subset to profile in full.
+**Pattern:** two `profile` steps with different flags — first `--quick` (fast null/distinct scan for every column), then `--classify` (groups columns into triage buckets such as constant, sparse, high-cardinality, time, measure, and low-cardinality).
+**Teaches:** step ids must be unique even when the subcommand repeats; using `--classify` to decide which subset is worth a full profile or a saved column set.
 
 **Use when:** a table has 50+ columns and you need to triage before investing time in a full profile. Follow-up: persist a `column-set` with `qdo config column-set save` so subsequent runs target only the interesting columns.
 

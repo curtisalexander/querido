@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from textual.app import App, ComposeResult
@@ -99,6 +100,7 @@ class ExploreApp(App):
         self._rows: list[dict] = []
         self._column_context: dict[str, dict[str, Any]] = {}
         self._column_quality: dict[str, dict[str, Any]] = {}
+        self._column_category: dict[str, str] = {}
         self._filter_sql: str | None = None
         self._sort_column: str | None = None
         self._sort_reverse: bool = False
@@ -131,6 +133,72 @@ class ExploreApp(App):
     def _metadata_connection(self) -> str:
         return self.connection_name
 
+    def _quick_threshold(self) -> int:
+        return int(os.environ.get("QDO_QUICK_THRESHOLD", "50"))
+
+    def _wide_mode_enabled(self) -> bool:
+        return len([col for col in self._columns if col.get("name")]) >= self._quick_threshold()
+
+    @staticmethod
+    def _category_label(category: str | None) -> str | None:
+        labels = {
+            "time": "time",
+            "measure": "measure",
+            "low_cardinality": "low-card",
+            "other": "other",
+            "high_cardinality": "high-card",
+            "sparse": "sparse",
+            "constant": "constant",
+        }
+        if category is None:
+            return None
+        return labels.get(category, category.replace("_", "-"))
+
+    def _column_is_recommended(self, column_name: str) -> bool:
+        category = self._column_category.get(column_name)
+        return category not in {"sparse", "constant"}
+
+    def _compute_column_categories(self) -> dict[str, str]:
+        from querido.core._utils import build_col_info, classify_columns
+
+        col_info = build_col_info(self._columns)
+        stats = [
+            {
+                "column_name": str(column.get("name", "")),
+                "column_type": str(column.get("type", "")),
+                "null_pct": column.get("null_pct") or 0,
+                "distinct_count": column.get("distinct_count") or 0,
+            }
+            for column in self._columns
+            if column.get("name")
+        ]
+        classification = classify_columns(stats, col_info, self._row_count)
+        return {
+            str(name): str(category)
+            for name, category in classification.get("column_category", {}).items()
+        }
+
+    def _refresh_status(self) -> None:
+        from querido.tui.widgets.status_bar import StatusBar
+
+        status = self.query_one("#status-bar", StatusBar)
+        selected = self._selected_column or ""
+        focus_category = self._category_label(self._column_category.get(selected))
+        status.update_status(
+            connection=self.connection_name,
+            table=self.table,
+            displayed=len(self._rows),
+            total=self._row_count,
+            filtered=self._filter_sql is not None,
+            sampled=self._sampled,
+            metadata_present=self._metadata_present,
+            sort_col=self._sort_column,
+            sort_dir="desc" if self._sort_reverse else "asc" if self._sort_column else None,
+            focus_col=self._selected_column,
+            focus_category=focus_category,
+            wide_mode=self._wide_mode_enabled(),
+        )
+
     async def _load_table_context(self) -> None:
         from querido.core.context import get_context
 
@@ -146,6 +214,7 @@ class ExploreApp(App):
             if column.get("name")
         }
         self._row_count = context["row_count"]
+        self._column_category = self._compute_column_categories()
         self._sampled = context["sampled"]
         self._metadata_present = bool(context.get("metadata"))
         self._column_quality.clear()
@@ -181,21 +250,7 @@ class ExploreApp(App):
             self._apply_sort()
 
         self._populate_table()
-
-        from querido.tui.widgets.status_bar import StatusBar
-
-        status = self.query_one("#status-bar", StatusBar)
-        status.update_status(
-            connection=self.connection_name,
-            table=self.table,
-            displayed=len(self._rows),
-            total=self._row_count,
-            filtered=self._filter_sql is not None,
-            sampled=self._sampled,
-            metadata_present=self._metadata_present,
-            sort_col=self._sort_column,
-            sort_dir="desc" if self._sort_reverse else "asc" if self._sort_column else None,
-        )
+        self._refresh_status()
         self._refresh_sidebar()
 
     def _column_is_warning(self, column_name: str) -> bool:
@@ -239,11 +294,35 @@ class ExploreApp(App):
             text.stylize("bold")
         return text
 
+    def _display_column_names(self) -> list[str]:
+        names = [str(col.get("name", "")) for col in self._columns if col.get("name")]
+        if len(names) < self._quick_threshold():
+            return names
+        if not self._column_category:
+            self._column_category = self._compute_column_categories()
+        category_rank = {
+            "time": 0,
+            "measure": 1,
+            "low_cardinality": 2,
+            "other": 3,
+            "high_cardinality": 4,
+            "sparse": 5,
+            "constant": 6,
+        }
+        indexed_names = list(enumerate(names))
+        indexed_names.sort(
+            key=lambda item: (
+                category_rank.get(self._column_category.get(item[1], "other"), 99),
+                item[0],
+            )
+        )
+        return [name for _, name in indexed_names]
+
     def _populate_table(self) -> None:
         dt = self.query_one("#data-table", DataTable)
         dt.clear(columns=True)
 
-        column_names = [str(col.get("name", "")) for col in self._columns if col.get("name")]
+        column_names = self._display_column_names()
         for column_name in column_names:
             dt.add_column(self._render_column_label(column_name), key=column_name)
 
@@ -254,6 +333,7 @@ class ExploreApp(App):
         if not column_name or column_name not in self._column_context:
             return
         self._selected_column = column_name
+        self._refresh_status()
         self._refresh_sidebar()
 
     def _get_selected_column_quality(self) -> dict[str, Any] | None:
@@ -290,6 +370,12 @@ class ExploreApp(App):
             quality=quality,
             connection_name=self.connection_name,
             metadata_present=self._metadata_present,
+            category=self._category_label(self._column_category.get(self._selected_column or "")),
+            recommended=(
+                self._column_is_recommended(self._selected_column)
+                if self._selected_column in self._column_context
+                else None
+            ),
         )
 
     def _apply_sort(self) -> None:
@@ -333,13 +419,7 @@ class ExploreApp(App):
 
         self._populate_table()
 
-        from querido.tui.widgets.status_bar import StatusBar
-
-        status = self.query_one("#status-bar", StatusBar)
-        status.update_status(
-            sort_col=self._sort_column,
-            sort_dir="desc" if self._sort_reverse else "asc" if self._sort_column else None,
-        )
+        self._refresh_status()
 
     async def on_data_table_column_highlighted(self, event: DataTable.ColumnHighlighted) -> None:
         self._set_selected_column(str(event.column_key))

@@ -89,7 +89,11 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
     (
         "Interactive",
         [
-            ("explore", "querido.cli.explore", "Interactive data exploration (TUI)."),
+            (
+                "explore",
+                "querido.cli.explore",
+                "Interactive TUI with selected-column context and wide-table triage.",
+            ),
         ],
     ),
     (

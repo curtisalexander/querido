@@ -386,7 +386,7 @@ def _build_payload() -> dict:
     global_options = [
         {
             "flag": "-f, --format",
-            "values": ["rich", "json", "csv", "markdown", "html", "yaml"],
+            "values": ["rich", "json", "agent", "csv", "markdown", "html", "yaml"],
             "default": "rich",
             "help": "Output format.",
         },

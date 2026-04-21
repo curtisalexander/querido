@@ -20,6 +20,9 @@ class StatusBar(Static):
         self._metadata_present: bool | None = None
         self._sort_col: str | None = None
         self._sort_dir: str | None = None
+        self._focus_col: str | None = None
+        self._focus_category: str | None = None
+        self._wide_mode: bool | None = None
 
     def update_status(
         self,
@@ -33,6 +36,9 @@ class StatusBar(Static):
         metadata_present: bool | None = None,
         sort_col: str | None | object = _UNSET,
         sort_dir: str | None | object = _UNSET,
+        focus_col: str | None | object = _UNSET,
+        focus_category: str | None | object = _UNSET,
+        wide_mode: bool | None = None,
     ) -> None:
         if connection is not None:
             self._connection = connection
@@ -52,21 +58,34 @@ class StatusBar(Static):
             self._sort_col = sort_col  # type: ignore[assignment]
         if sort_dir is not _UNSET:
             self._sort_dir = sort_dir  # type: ignore[assignment]
+        if focus_col is not _UNSET:
+            self._focus_col = focus_col  # type: ignore[assignment]
+        if focus_category is not _UNSET:
+            self._focus_category = focus_category  # type: ignore[assignment]
+        if wide_mode is not None:
+            self._wide_mode = wide_mode
 
         parts: list[str] = []
         if self._connection:
-            parts.append(self._connection)
+            parts.append(f"conn {self._connection}")
         if self._table:
-            parts.append(self._table)
-        parts.append(f"{self._displayed:,}/{self._total:,} rows")
+            parts.append(f"table {self._table}")
+        parts.append(f"rows {self._displayed:,}/{self._total:,}")
+        if self._wide_mode:
+            parts.append("mode triage")
         if self._filtered:
-            parts.append("filtered")
+            parts.append("filter on")
         if self._sampled is not None:
-            parts.append("sampled" if self._sampled else "exact")
+            parts.append("sample sampled" if self._sampled else "sample exact")
         if self._metadata_present is not None:
-            parts.append("metadata" if self._metadata_present else "no metadata")
+            parts.append("meta yes" if self._metadata_present else "meta no")
+        if self._focus_col:
+            focus = f"focus {self._focus_col}"
+            if self._focus_category:
+                focus += f" · {self._focus_category}"
+            parts.append(focus)
         if self._sort_col:
             arrow = "↓" if self._sort_dir == "desc" else "↑"
-            parts.append(f"sorted: {self._sort_col} {arrow}")
-        self._last_text = " | ".join(parts)
+            parts.append(f"sort {self._sort_col}{arrow}")
+        self._last_text = "  •  ".join(parts)
         self.update(self._last_text)

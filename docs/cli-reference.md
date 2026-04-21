@@ -133,7 +133,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 
 | Command | Purpose |
 |---------|---------|
-| `qdo explore -c CONN -t TABLE` | Interactive TUI explorer |
+| `qdo explore -c CONN -t TABLE` | Interactive TUI with selected-column context and wide-table triage |
 
 ### Learn
 

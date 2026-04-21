@@ -1220,6 +1220,7 @@ def test_from_session_skips_failed_and_meta_steps(tmp_path: Path) -> None:
         [
             {"args": ["inspect", "-c", "/tmp/x.db", "-t", "users"]},
             {"args": ["config", "list"]},  # meta — skipped
+            {"args": ["explore", "-c", "/tmp/x.db", "-t", "users"]},  # interactive — skipped
             {"args": ["preview", "-c", "/tmp/x.db", "-t", "users"], "exit_code": 1},  # failure
             {"args": ["profile", "-c", "/tmp/x.db", "-t", "users", "--quick"]},
         ],

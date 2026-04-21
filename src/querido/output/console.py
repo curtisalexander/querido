@@ -1022,6 +1022,7 @@ def print_context(
 ) -> None:
     """Print rich table context as a structured Rich layout."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -1034,6 +1035,16 @@ def print_context(
     table_name = result.get("table", "")
     table_desc = result.get("table_description") or result.get("table_comment") or ""
     data_owner = result.get("data_owner")
+    columns = result.get("columns", [])
+
+    primary_key_count = sum(1 for col in columns if col.get("primary_key"))
+    nullable_count = sum(1 for col in columns if col.get("nullable"))
+    metadata_count = sum(
+        1
+        for col in columns
+        if col.get("description") or col.get("valid_values") or col.get("pii")
+    )
+    sampled_columns = sum(1 for col in columns if col.get("sample_values"))
 
     # Header
     count_str = f"{row_count:,}"
@@ -1048,20 +1059,60 @@ def print_context(
         console.print(f"  [italic dim]{table_desc}[/italic dim]")
     if data_owner:
         console.print(f"  [dim]owner:[/dim] {data_owner}")
-    console.print()
+    console.print(
+        Panel(
+            "  •  ".join(
+                [
+                    f"[green]{len(columns)} columns[/green]",
+                    (
+                        f"[magenta]{primary_key_count} primary keys[/magenta]"
+                        if primary_key_count
+                        else "[dim]no primary key[/dim]"
+                    ),
+                    (
+                        f"[yellow]{nullable_count} nullable[/yellow]"
+                        if nullable_count
+                        else "[green]all not null[/green]"
+                    ),
+                    (
+                        f"[cyan]{sampled_columns} with sample values[/cyan]"
+                        if sampled_columns
+                        else "[dim]no sample values[/dim]"
+                    ),
+                    (
+                        f"[yellow]{metadata_count} enriched[/yellow]"
+                        if metadata_count
+                        else "[dim]no stored metadata[/dim]"
+                    ),
+                ]
+            ),
+            border_style="cyan",
+            title="Context Summary",
+            padding=(0, 1),
+        )
+    )
 
     # Columns table
-    grid = Table(show_lines=False, box=None, pad_edge=False, show_header=True)
-    grid.add_column("Column", style="cyan", no_wrap=True)
+    grid = Table(title="Column Detail", show_lines=True)
+    grid.add_column("Column", style="cyan bold", no_wrap=True)
     grid.add_column("Type", style="dim", no_wrap=True)
-    grid.add_column("Null%", justify="right", style="dim")
+    grid.add_column("Null %", justify="right", style="dim")
     grid.add_column("Distinct", justify="right", style="dim")
     grid.add_column("Range / Sample Values", style="dim")
     grid.add_column("Notes", style="dim")
 
-    for col in result.get("columns", []):
+    for col in columns:
         null_pct = col.get("null_pct")
-        null_str = f"{null_pct}%" if null_pct is not None else "—"
+        if isinstance(null_pct, (int, float)):
+            if float(null_pct) >= 90:
+                null_style = "red"
+            elif float(null_pct) >= 20:
+                null_style = "yellow"
+            else:
+                null_style = "dim"
+            null_str = f"[{null_style}]{float(null_pct):.1f}%[/{null_style}]"
+        else:
+            null_str = "—"
 
         distinct = col.get("distinct_count")
         distinct_str = f"{distinct:,}" if distinct is not None else "—"
@@ -1075,15 +1126,25 @@ def print_context(
             if len(sample) > 5:
                 range_str += " …"
         elif min_v is not None and max_v is not None:
-            range_str = f"{min_v}  →  {max_v}"
+            range_str = f"{fmt_value(min_v)}  →  {fmt_value(max_v)}"
         else:
             range_str = "—"
 
         notes_parts = []
         if col.get("primary_key"):
-            notes_parts.append("PK")
+            notes_parts.append("[cyan]PK[/cyan]")
+        if col.get("nullable") is False:
+            notes_parts.append("[green]not null[/green]")
         if col.get("pii"):
             notes_parts.append("[red]PII[/red]")
+        if isinstance(null_pct, (int, float)) and float(null_pct) >= 20.0:
+            notes_parts.append("[yellow]null-heavy[/yellow]")
+        valid_values = col.get("valid_values")
+        if valid_values:
+            allowed = ", ".join(str(v) for v in valid_values[:3])
+            if len(valid_values) > 3:
+                allowed += " …"
+            notes_parts.append(f"[magenta]allowed:[/magenta] {allowed}")
         if col.get("description"):
             notes_parts.append(f"[italic]{col['description']}[/italic]")
         notes_str = "  ".join(notes_parts)

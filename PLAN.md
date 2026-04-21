@@ -8,15 +8,15 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-21)
 
-**Tests:** 1102 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
+**Tests:** 1107 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
 
-**Phase 7 is now in progress.** Phases 1–4 + 6 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
+**Phase 7 is now shipped.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
 
-Remaining work is the unfinished portion of Phase 7 plus the open-ended backlog in [Deferred / future phases](#deferred--future-phases).
+Active work is now the open-ended backlog in [Deferred / future phases](#deferred--future-phases) plus routine maintenance (eval reruns, structured-error tightening when justified, docs upkeep).
 
 **Pick up next session with one of these:**
 
-1. **Continue Phase 7.** Natural next slices: bring `context` Rich output up to the new summary-panel standard, then keep tightening wide-table / triage UX in `explore`.
+1. **Pick a deferred phase and promote it.** Natural candidates: `qdo investigate <table>` as a bundled workflow, `qdo diff --since <session>`, or read-only-by-default query guardrails.
 2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
 3. **Treat structured errors as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
 
@@ -62,31 +62,38 @@ IDEAS.md proposed converting 8–10 subcommands (`template`, `sql scratch`, `piv
 - **6.1** — `qdo report session <name>` renders a session as single-file HTML. One card per step with status pills, alternating theme color, collapsed `<details>` for the full invocation, rendered stdout (JSON pretty-printed). Per-step commentary via `qdo session note <text>`, which rewrites the last record in `steps.jsonl`. Offline-readable invariants encoded as tests (no `<script>`, no `<iframe>`, no external stylesheet, no `<img src="http…">`). See `src/querido/core/report.py::build_session_report`, `src/querido/output/report_html.py::render_session_report`, `tests/test_report_session.py`.
 - **6.2 + 6.3** — `qdo serve` removed (landed via R.13; deprecation step skipped since there were no users). `tests/test_web.py` deleted with it.
 
-### Phase 7 — Human-facing output polish (in progress)
+### Phase 7 — Human-facing output polish (done)
 
 The agent-first core is in good shape. This track is about making the human experience feel intentional and high-signal too, especially in `qdo explore` and Rich terminal output.
 
 **7.1 — TUI foundation / information hierarchy**
 
 - Shipped: the `explore` sidebar is now a compact selected-column facts panel: type, null rate, distinct count, min/max, sample values, metadata description, allowed values, and quality flags.
-- Shipped: the status bar now carries connection, table, displayed/total rows, filtered state, sampled/exact state, sort state, and metadata presence.
+- Shipped: the status bar now carries connection, table, displayed/total rows, filtered state, sampled/exact state, sort state, metadata presence, and focused-column triage context.
 - Shipped: semantic highlighting in the main `DataTable` now makes PKs, sorted columns, null-heavy columns, and null cells visually obvious.
-- Remaining: continue refining wide-table readability and tighten the visual language so the main table and sidebar feel more cohesive under sustained use.
+- Shipped: the main grid, sidebar, and status bar now share the same triage story for the selected column (category + recommended/background emphasis) instead of acting like separate surfaces.
+- Outcome: the structural hierarchy work is complete; any further changes here would be optional aesthetic follow-up, not unfinished scope.
 
 **7.2 — Human-readable scan output**
 
 - Shipped: Rich output for `quality`, `profile`, `catalog`, `inspect`, `preview`, `values`, and `dist` now uses compact headers, summary panels, and clearer section titles.
-- Remaining: bring `context` to the same level, then decide whether any lightweight inline bars / sparklines are still worth adding.
+- Shipped: `context` now matches the same summary-panel / detail-table standard as the rest of the human-facing scan commands.
+- Outcome: the main presentation gap is closed. Lightweight inline bars / sparklines can stay a future nice-to-have unless a concrete use case appears.
 - Keep the JSON / agent shapes unchanged; this phase is about human presentation, not output-contract churn.
 
 **7.3 — Wide-table and triage UX**
 
-- Surface the existing tiered profiling story visually: category chips, recommended-first columns, clearer quick-mode vs full-mode transitions.
-- Make `explore` feel useful on wide tables without dumping a wall of equal-weight columns.
+- Shipped: the wide-table profile path now explains quick triage, shows recommendation defaults, and labels the selector so the fast-path/full-path transition is legible.
+- Shipped: the profile modal now explains whether the user is in quick mode or a full profile, and whether full stats are scoped to all columns or a chosen subset.
+- Shipped: the main `explore` grid now orders wide tables recommended-first, pushing sparse/constant columns to the back instead of treating every field as equal-weight.
+- Outcome: the missing workflow problem is solved; further work here would be small ergonomic tuning only.
 
 **7.4 — Visual coherence**
 
-- Align the TUI, Rich terminal output, and HTML reports so they feel like the same product: shared palette, badges, density choices, and emphasis rules.
+- Shipped: the TUI and Rich terminal output now share more of the same emphasis rules (summary-first framing, status badges, triage language, recommended/background distinctions).
+- Shipped: reproducible `qdo explore` screenshots now live under `docs/examples/screenshots/`, and the README / examples / cheatsheet reference them directly.
+- Shipped: the docs consistency sweep removed stale `serve` / `web` references and brought the public TUI descriptions in line with the current product.
+- Outcome: the obvious cross-surface inconsistencies are gone. A later aesthetic pass is optional, not part of the committed Phase 7 tranche.
 - Preserve the existing CLI / workflow surface; this is a presentation pass, not a redesign of command semantics.
 
 ---

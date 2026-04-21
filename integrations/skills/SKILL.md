@@ -337,7 +337,7 @@ Not in the common workflow, but worth knowing about:
 - **Portability of metadata** — a local metadata YAML's `connection:` field stores whatever was passed to `-c` (possibly an absolute path). Don't rely on that field for cross-machine work. The portability boundary is `qdo bundle export` — bundles match tables by a `schema_fingerprint` (hash of columns+types), so an export from one machine imports cleanly onto another regardless of local paths.
 - **metadata refresh vs init** — `init` creates a new file and will error if one already exists. `refresh` updates machine fields in an existing file. Use `init --force` to overwrite.
 - **pivot aggregations** — the `-a` argument is a SQL aggregate expression: `"count(*)"`, `"avg(price)"`, `"sum(revenue)"`. Quote it to prevent shell interpretation.
-- **Wide tables** — `--quick` auto-engages at 50+ columns (only null counts + distinct counts). Use `--classify` for a category breakdown. Use `--column-set` to reuse a saved selection. Configurable threshold: `export QDO_QUICK_THRESHOLD=100`.
+- **Wide tables** — `--quick` auto-engages at 50+ columns (only null counts + distinct counts). Use `--classify` for a category breakdown and `--column-set` to reuse a saved selection. If you're exploring interactively, `qdo explore` now opens quick triage first when you press `p` on a wide table, with recommended columns pre-selected before full profiling. Configurable threshold: `export QDO_QUICK_THRESHOLD=100`.
 
 ## Workflows — author, run, share
 

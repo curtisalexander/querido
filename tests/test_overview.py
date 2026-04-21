@@ -33,3 +33,9 @@ def test_overview_json_uses_structured_envelope() -> None:
     assert payload["command"] == "overview"
     assert payload["data"]["tool"] == "qdo"
     assert payload["data"]["commands"]
+    format_option = next(
+        option
+        for option in payload["data"]["global_options"]
+        if option.get("flag") == "-f, --format"
+    )
+    assert "agent" in format_option["values"]

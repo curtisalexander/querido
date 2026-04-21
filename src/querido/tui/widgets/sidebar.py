@@ -20,8 +20,15 @@ class MetadataSidebar(Static):
         quality: dict[str, Any] | None = None,
         connection_name: str = "",
         metadata_present: bool = False,
+        category: str | None = None,
+        recommended: bool | None = None,
     ) -> None:
         from rich.markup import escape
+
+        def add_section(title: str) -> None:
+            if lines and lines[-1] != "":
+                lines.append("")
+            lines.append(f"[bold]{title}[/bold]")
 
         lines: list[str] = []
         lines.append(f"[bold]{escape(table)}[/bold]")
@@ -45,16 +52,21 @@ class MetadataSidebar(Static):
         nullable = "nullable" if column.get("nullable") else "not null"
         pk = " [PK]" if column.get("primary_key") else ""
         lines.append(f"[bold cyan]{escape(name)}[/bold cyan]{pk}")
-        lines.append(f"{escape(ctype)} | {nullable}")
+        badge_parts = [escape(ctype), nullable]
+        if category:
+            badge_parts.append(escape(category))
+        if recommended is not None:
+            badge_parts.append("recommended" if recommended else "background")
+        lines.append("  •  ".join(badge_parts))
 
         description = column.get("description") or column.get("comment")
         if description:
             lines.append(f"[dim]{escape(str(description))}[/dim]")
-        lines.append("")
 
         null_pct = column.get("null_pct")
         null_count = column.get("null_count")
         distinct_count = column.get("distinct_count")
+        add_section("Profile")
         if null_pct is not None:
             lines.append(f"null rate: {float(null_pct):.1f}% ({int(null_count or 0):,})")
         if distinct_count is not None:
@@ -71,6 +83,14 @@ class MetadataSidebar(Static):
             lines.append(f"samples: {rendered}")
 
         valid_values = column.get("valid_values") or []
+        has_signals = (
+            bool(valid_values)
+            or bool(column.get("temporal"))
+            or bool(column.get("likely_sparse"))
+            or bool(column.get("pii"))
+        )
+        if has_signals:
+            add_section("Signals")
         if valid_values:
             rendered = ", ".join(escape(str(value)) for value in valid_values[:8])
             lines.append(f"allowed: {rendered}")
@@ -83,7 +103,7 @@ class MetadataSidebar(Static):
             lines.append("flag: pii")
 
         if quality:
-            lines.append("")
+            add_section("Quality")
             status = str(quality.get("status", "ok"))
             status_style = {"ok": "green", "warn": "yellow", "fail": "red"}.get(status, "cyan")
             lines.append(f"quality: [{status_style}]{escape(status)}[/{status_style}]")

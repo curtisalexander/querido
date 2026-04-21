@@ -209,6 +209,10 @@ qdo explore -c my-db -t orders               # terminal UI (requires querido[tui
 and semantic table highlighting so PKs, sorted columns, null-heavy columns, and null
 cells are easier to spot at a glance.
 
+Example captures live under [`docs/examples/`](docs/examples/README.md):
+
+![qdo explore sidebar example](docs/examples/screenshots/explore-orders-sidebar.svg)
+
 ### Learn — built-in tutorials
 
 ```bash
@@ -335,9 +339,9 @@ qdo config column-set show -c my-db -t wide_table -n default
 qdo config column-set delete -c my-db -t wide_table -n default
 ```
 
-**How quick mode works:** At 50+ columns (configurable via `QDO_QUICK_THRESHOLD`), `profile` automatically switches to quick mode, computing only null counts, null percentages, and distinct counts. Use `--no-quick` to force full stats. Use `--classify` to see columns grouped by type (constant, sparse, high cardinality, time dimensions, measures, low cardinality).
+**How quick mode works:** At 50+ columns (configurable via `QDO_QUICK_THRESHOLD`), `profile` automatically switches to quick mode, computing only null counts, null percentages, and distinct counts. Use `--no-quick` to force full stats. Use `--classify` to group columns into practical triage categories such as constant, sparse, high-cardinality, time, measure, and low-cardinality.
 
-**TUI workflow:** In `qdo explore`, press `p` on a wide table to see a column selector with checkboxes, grouped by classification. Select the columns you care about, optionally save the selection, then get full stats for just those columns.
+**TUI workflow:** In `qdo explore`, press `p` on a wide table to open quick triage first. qdo pre-selects the recommended columns, pushes sparse and constant fields to the back, and lets you save the final selection as a column set before running full stats on just that subset.
 
 ## Using qdo with a coding agent
 

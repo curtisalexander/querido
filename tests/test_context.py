@@ -71,6 +71,11 @@ def test_context_sqlite_rich(sqlite_path: str) -> None:
     result = runner.invoke(app, ["context", "-c", sqlite_path, "-t", "orders"])
     assert result.exit_code == 0, result.output
     assert "orders" in result.output
+    assert "Context Summary" in result.output
+    assert "Column Detail" in result.output
+    assert "4 columns" in result.output
+    assert "with sample values" in result.output
+    assert "status" in result.output
 
 
 def test_context_sqlite_json(sqlite_path: str) -> None:
@@ -129,6 +134,11 @@ def test_context_duckdb_rich(duckdb_path: str) -> None:
     result = runner.invoke(app, ["context", "-c", duckdb_path, "-t", "orders"])
     assert result.exit_code == 0, result.output
     assert "orders" in result.output
+    assert "Context Summary" in result.output
+    assert "Column Detail" in result.output
+    assert "4 columns" in result.output
+    assert "with sample values" in result.output
+    assert "status" in result.output
 
 
 def test_context_duckdb_json(duckdb_path: str) -> None:

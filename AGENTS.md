@@ -116,7 +116,12 @@ Generates a documentation template with auto-populated metadata (column name, ty
 ```bash
 qdo explore -c <connection> -t <table> [-r <rows>]
 ```
-Interactive terminal UI for data exploration. Requires `uv pip install 'querido[tui]'`. Key bindings: `q` quit, `?` help, `i` inspect metadata, `m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
+Interactive terminal UI for data exploration. Requires `uv pip install 'querido[tui]'`.
+Key bindings: `q` quit, `?` help, `i` inspect metadata, `p` profile, `d` distribution,
+`m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
+The main grid uses semantic highlighting so PKs, sorted columns, null-heavy columns,
+and null cells are obvious at a glance. On wide tables, `p` opens a quick-triage flow
+first so you can select the most useful columns before running a full profile.
 
 ### catalog — full schema overview (also searches)
 ```bash
