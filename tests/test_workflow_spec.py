@@ -43,6 +43,7 @@ def test_load_examples_returns_nonempty_yaml() -> None:
         "feature-target-exploration.yaml",
         "migration-safety.yaml",
         "schema-compare.yaml",
+        "table-investigate.yaml",
         "table-handoff.yaml",
         "table-summary.yaml",
         "wide-table-triage.yaml",

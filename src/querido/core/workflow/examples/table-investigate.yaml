@@ -1,0 +1,77 @@
+# why: this is the "returning analyst / agent" table workflow. It combines
+# the richest single-table scan (`context`), anomaly surfacing (`quality`),
+# optional change detection (`diff --since <session>`), and optional
+# single-column drill-down (`values` + `dist`) behind one invocation.
+#
+# The teaching patterns are:
+#   1. optional investigation branches gated by null-safe `when:` checks
+#   2. composing a bundled workflow with another bundled-style primitive
+#      (`qdo diff --since`) instead of inventing snapshot storage
+#   3. keeping outputs honest — omitted optional inputs degrade to null
+name: table-investigate
+description: Investigate a table with context, quality, optional session diff, and optional focus-column drill-down.
+version: 1
+inputs:
+  connection:
+    type: connection
+    required: true
+    description: Target connection (named or file path).
+  table:
+    type: table
+    required: true
+    description: Table to investigate.
+  baseline_session:
+    type: string
+    required: false
+    description: Optional session name to diff against using the latest structured inspect/context snapshot.
+  focus_column:
+    type: string
+    required: false
+    description: Optional column to inspect more deeply with values and distribution.
+  top_n:
+    type: integer
+    default: 20
+    description: Maximum distinct values to return for the optional focus-column values step.
+steps:
+  # why: `context` is the densest single table call — schema, null rates,
+  # distinct counts, sample values, and stored metadata when present.
+  - id: context
+    run: qdo -f json context -c ${connection} -t ${table}
+    capture: context
+
+  # why: `quality` adds anomaly framing (null-heavy, duplicate-prone,
+  # suspicious columns) that context alone intentionally does not label.
+  - id: quality
+    run: qdo -f json quality -c ${connection} -t ${table}
+    capture: quality
+
+  # why: the baseline session is optional. When the caller provides one,
+  # reuse the existing session-backed schema diff primitive rather than
+  # carrying snapshot logic inside the workflow itself.
+  - id: since
+    when: ${baseline_session} != null
+    run: qdo -f json diff -c ${connection} -t ${table} --since ${baseline_session}
+    capture: since
+
+  # why: the focus-column branch is optional too. `values` gives the top-N
+  # distinct values / frequencies; `dist` auto-detects numeric vs categorical.
+  - id: focus_values
+    when: ${focus_column} != null
+    run: qdo -f json values -c ${connection} -t ${table} -C ${focus_column} --max ${top_n}
+    capture: focus_values
+
+  - id: focus_dist
+    when: ${focus_column} != null
+    run: qdo -f json dist -c ${connection} -t ${table} -C ${focus_column}
+    capture: focus_dist
+outputs:
+  table: ${context.data.table}
+  row_count: ${context.data.row_count}
+  columns: ${context.data.columns}
+  metadata: ${context.data.metadata}
+  quality_columns: ${quality.data.columns}
+  baseline_diff: ${since.data}
+  baseline_row_count_delta: ${since.data.row_count_delta}
+  focus_values: ${focus_values.data.values}
+  focus_distribution_mode: ${focus_dist.data.mode}
+  focus_distribution: ${focus_dist.data}
