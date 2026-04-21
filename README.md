@@ -380,6 +380,9 @@ qdo assert -c my-db --sql "..." --expect 0 -f json
 qdo report table -c my-db -t orders -o orders-report.html
 ```
 
+Curated example artifacts live under [docs/examples](docs/examples/README.md),
+including an enriched `orders` metadata file and a generated sample report.
+
 The `context` command is the anchor for agent workflows: it returns everything
 an LLM needs to write correct SQL for a table in one call, and metadata turns
 that understanding into durable context for later runs and other teammates.

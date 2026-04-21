@@ -1,0 +1,3 @@
+[connections.test]
+type = "duckdb"
+path = "data/test.duckdb"
