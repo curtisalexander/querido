@@ -92,6 +92,7 @@ def print_profile(
 ) -> None:
     """Print data profile as Rich tables (numeric and string sections)."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -106,8 +107,31 @@ def print_profile(
     classified = {r["column_name"] for r in numeric_rows} | {r["column_name"] for r in string_rows}
     other_rows = [r for r in data if r["column_name"] not in classified]
 
+    title_parts = [f"[bold cyan]{table_name}[/bold cyan]", f"[dim]{row_count:,} rows[/dim]"]
+    if sampled and sample_size:
+        title_parts.append(f"[dim]sampled {sample_size:,}[/dim]")
+    console.print("  " + "  ·  ".join(title_parts))
+
+    summary_parts = [
+        f"[green]{len(numeric_rows)} numeric[/green]",
+        f"[cyan]{len(string_rows)} string[/cyan]",
+        f"[magenta]{len(other_rows)} other[/magenta]" if other_rows else "[dim]0 other[/dim]",
+        f"[bold]{len(data)} columns[/bold]",
+    ]
+    if sampled and sample_size:
+        summary_parts.append(f"[dim]sampled {sample_size:,}[/dim]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Profile Summary",
+            padding=(0, 1),
+        )
+    )
+
     if numeric_rows:
-        grid = Table(title=f"Profile: {table_name} — Numeric Columns", show_lines=True)
+        grid = Table(title="Numeric Columns", show_lines=True)
         grid.add_column("Column", style="cyan bold")
         grid.add_column("Type", style="green")
         grid.add_column("Min", justify="right")
@@ -135,7 +159,7 @@ def print_profile(
         console.print(grid)
 
     if string_rows:
-        grid = Table(title=f"Profile: {table_name} — String Columns", show_lines=True)
+        grid = Table(title="String Columns", show_lines=True)
         grid.add_column("Column", style="cyan bold")
         grid.add_column("Type", style="green")
         grid.add_column("Min Len", justify="right")
@@ -157,7 +181,7 @@ def print_profile(
         console.print(grid)
 
     if other_rows:
-        grid = Table(title=f"Profile: {table_name} — Other Columns", show_lines=True)
+        grid = Table(title="Other Columns", show_lines=True)
         grid.add_column("Column", style="cyan bold")
         grid.add_column("Type", style="green")
         grid.add_column("Nulls", justify="right", style="yellow")
@@ -577,6 +601,7 @@ def print_quality(
 ) -> None:
     """Print data quality summary as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -587,12 +612,46 @@ def print_quality(
         console.print("[dim]No columns to check.[/dim]")
         return
 
-    row_str = f"{result['row_count']:,} rows"
-    if result.get("sampled") and result.get("sample_size"):
-        row_str += f" — sampled {result['sample_size']:,}"
+    row_count = result["row_count"]
+    sampled = result.get("sampled", False)
+    sample_size = result.get("sample_size")
+
+    row_str = f"{row_count:,} rows"
+    if sampled and sample_size:
+        row_str += f" — sampled {sample_size:,}"
+
+    failed = [col for col in columns if col.get("status") == "fail"]
+    warned = [col for col in columns if col.get("status") == "warn"]
+    ok_count = sum(1 for col in columns if col.get("status") == "ok")
+    duplicate_rows = result.get("duplicate_rows")
+
+    title_parts = [f"[bold cyan]{result['table']}[/bold cyan]", f"[dim]{row_str}[/dim]"]
+    console.print("  " + "  ·  ".join(title_parts))
+
+    summary_parts = [
+        f"[green]{ok_count} ok[/green]",
+        f"[yellow]{len(warned)} warn[/yellow]",
+        f"[red]{len(failed)} fail[/red]",
+    ]
+    if duplicate_rows is not None:
+        if duplicate_rows > 0:
+            summary_parts.append(f"[yellow]{duplicate_rows:,} duplicate rows[/yellow]")
+        else:
+            summary_parts.append("[green]no duplicate rows[/green]")
+    if sampled and sample_size:
+        summary_parts.append(f"[dim]sampled {sample_size:,}[/dim]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Quality Summary",
+            padding=(0, 1),
+        )
+    )
 
     grid = Table(
-        title=f"Quality: {result['table']} ({row_str})",
+        title="Column Detail",
         show_lines=True,
     )
     grid.add_column("Column", style="cyan bold")
@@ -605,34 +664,37 @@ def print_quality(
     grid.add_column("Issues", style="dim")
 
     status_styles = {
-        "ok": "[green]ok[/green]",
-        "warn": "[yellow]warn[/yellow]",
-        "fail": "[red]fail[/red]",
+        "ok": "[green]OK[/green]",
+        "warn": "[yellow]WARN[/yellow]",
+        "fail": "[red]FAIL[/red]",
     }
 
     for col in columns:
+        null_pct = float(col["null_pct"])
+        uniqueness_pct = float(col["uniqueness_pct"])
+        null_style = "red" if null_pct >= 90 else "yellow" if null_pct >= 20 else "dim"
+        unique_style = (
+            "red"
+            if col["status"] == "fail"
+            else "yellow"
+            if col["status"] == "warn"
+            else "dim"
+        )
         grid.add_row(
             col["name"],
             col["type"],
             f"{col['null_count']:,}",
-            f"{col['null_pct']}%",
+            f"[{null_style}]{null_pct:.1f}%[/{null_style}]",
             f"{col['distinct_count']:,}",
-            f"{col['uniqueness_pct']}%",
+            f"[{unique_style}]{uniqueness_pct:.1f}%[/{unique_style}]",
             status_styles.get(col["status"], col["status"]),
             "; ".join(col["issues"]) if col["issues"] else "",
         )
 
     console.print(grid)
 
-    if result.get("sampled"):
+    if sampled:
         console.print("\n  [dim]Sampled — use --no-sample for exact results (slower)[/dim]")
-
-    if result["duplicate_rows"] is not None:
-        dup = result["duplicate_rows"]
-        if dup > 0:
-            console.print(f"\n  [yellow]{dup:,} duplicate row(s)[/yellow]")
-        else:
-            console.print("\n  [green]No duplicate rows[/green]")
 
 
 def print_assert_check(
@@ -728,6 +790,7 @@ def print_catalog(
 ) -> None:
     """Print the database catalog as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -738,16 +801,61 @@ def print_catalog(
         console.print("[dim]No tables found.[/dim]")
         return
 
-    grid = Table(title=f"Catalog ({catalog['table_count']} tables)")
+    table_count = catalog["table_count"]
+    view_count = sum(1 for t in tables if t.get("type") == "view")
+    base_table_count = sum(1 for t in tables if t.get("type") == "table")
+    enriched_count = sum(1 for t in tables if t.get("table_description") or t.get("data_owner"))
+    total_columns = sum(len(t.get("columns") or []) for t in tables)
+    largest = max(
+        (t for t in tables if t.get("row_count") is not None),
+        key=lambda t: int(t.get("row_count") or 0),
+        default=None,
+    )
+
+    console.print(f"  [bold cyan]Catalog[/bold cyan]  ·  [dim]{table_count} objects[/dim]")
+
+    summary_parts = [
+        f"[green]{base_table_count} tables[/green]",
+        f"[cyan]{view_count} views[/cyan]" if view_count else "[dim]0 views[/dim]",
+        (
+            f"[magenta]{total_columns:,} columns[/magenta]"
+            if total_columns
+            else "[dim]columns unavailable[/dim]"
+        ),
+    ]
+    if enriched_count:
+        summary_parts.append(f"[yellow]{enriched_count} enriched[/yellow]")
+    if largest is not None:
+        summary_parts.append(
+            f"[dim]largest: {largest['name']} ({int(largest['row_count']):,} rows)[/dim]"
+        )
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Catalog Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Object Detail")
     grid.add_column("Table", style="cyan bold")
     grid.add_column("Type", style="green")
     grid.add_column("Columns", justify="right")
     grid.add_column("Rows", justify="right")
+    grid.add_column("Notes", style="dim")
 
     for t in tables:
         col_count = str(len(t["columns"])) if t["columns"] is not None else "-"
         row_count = f"{t['row_count']:,}" if t["row_count"] is not None else "-"
-        grid.add_row(t["name"], t["type"], col_count, row_count)
+        notes_parts = []
+        if t.get("table_description"):
+            notes_parts.append(str(t["table_description"]))
+        if t.get("data_owner"):
+            notes_parts.append(f"owner: {t['data_owner']}")
+        notes = "  |  ".join(notes_parts)
+        grid.add_row(t["name"], t["type"], col_count, row_count, notes)
 
     console.print(grid)
 

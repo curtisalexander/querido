@@ -200,3 +200,95 @@ def test_compute_column_quality_clamps_approx_distinct_to_row_count() -> None:
     assert row_count == 5
     assert result[0]["distinct_count"] == 5
     assert result[0]["uniqueness_pct"] == 100.0
+
+
+def test_print_quality_rich_summary_uses_status_counts() -> None:
+    """Rich quality output should include a compact summary before the detail table."""
+    from rich.console import Console
+
+    from querido.output.console import print_quality
+
+    console = Console(record=True, width=120)
+    print_quality(
+        {
+            "table": "orders",
+            "row_count": 1000,
+            "sampled": False,
+            "sample_size": None,
+            "duplicate_rows": 3,
+            "columns": [
+                {
+                    "name": "id",
+                    "type": "INTEGER",
+                    "null_count": 0,
+                    "null_pct": 0.0,
+                    "distinct_count": 1000,
+                    "uniqueness_pct": 100.0,
+                    "status": "ok",
+                    "issues": [],
+                },
+                {
+                    "name": "status",
+                    "type": "TEXT",
+                    "null_count": 200,
+                    "null_pct": 20.0,
+                    "distinct_count": 4,
+                    "uniqueness_pct": 0.4,
+                    "status": "warn",
+                    "issues": ["20.0% null"],
+                },
+                {
+                    "name": "notes",
+                    "type": "TEXT",
+                    "null_count": 1000,
+                    "null_pct": 100.0,
+                    "distinct_count": 0,
+                    "uniqueness_pct": 0.0,
+                    "status": "fail",
+                    "issues": ["100.0% null", "0 distinct values (all null)"],
+                },
+            ],
+        },
+        console=console,
+    )
+    text = console.export_text()
+    assert "Quality Summary" in text
+    assert "1 ok" in text.lower()
+    assert "1 warn" in text.lower()
+    assert "1 fail" in text.lower()
+    assert "3 duplicate rows" in text.lower()
+    assert "Column Detail" in text
+
+
+def test_print_quality_rich_sample_note() -> None:
+    """Rich quality output should surface sampling context."""
+    from rich.console import Console
+
+    from querido.output.console import print_quality
+
+    console = Console(record=True, width=120)
+    print_quality(
+        {
+            "table": "users",
+            "row_count": 50000,
+            "sampled": True,
+            "sample_size": 1000,
+            "duplicate_rows": None,
+            "columns": [
+                {
+                    "name": "email",
+                    "type": "TEXT",
+                    "null_count": 0,
+                    "null_pct": 0.0,
+                    "distinct_count": 50000,
+                    "uniqueness_pct": 100.0,
+                    "status": "ok",
+                    "issues": [],
+                }
+            ],
+        },
+        console=console,
+    )
+    text = console.export_text()
+    assert "sampled 1,000" in text.lower()
+    assert "use --no-sample for exact results" in text.lower()

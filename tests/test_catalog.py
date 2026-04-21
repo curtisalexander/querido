@@ -192,3 +192,74 @@ def test_catalog_enrich_no_metadata(sqlite_path: str, tmp_path: Path, monkeypatc
     # Should work fine, just no enrichment
     assert payload["table_count"] == 1
     assert "table_description" not in payload["tables"][0]
+
+
+def test_print_catalog_rich_summary_includes_counts() -> None:
+    """Rich catalog output should summarize object counts before the detail table."""
+    from rich.console import Console
+
+    from querido.output.console import print_catalog
+
+    console = Console(record=True, width=120)
+    print_catalog(
+        {
+            "table_count": 3,
+            "tables": [
+                {
+                    "name": "orders",
+                    "type": "table",
+                    "row_count": 5000,
+                    "columns": [{"name": "id"}, {"name": "amount"}, {"name": "status"}],
+                },
+                {
+                    "name": "customers",
+                    "type": "table",
+                    "row_count": 1000,
+                    "columns": [{"name": "id"}, {"name": "email"}],
+                },
+                {
+                    "name": "active_orders",
+                    "type": "view",
+                    "row_count": None,
+                    "columns": [{"name": "id"}, {"name": "status"}],
+                },
+            ],
+        },
+        console=console,
+    )
+    text = console.export_text()
+    assert "Catalog Summary" in text
+    assert "2 tables" in text
+    assert "1 views" in text
+    assert "7 columns" in text
+    assert "largest: orders (5,000 rows)" in text
+    assert "Object Detail" in text
+
+
+def test_print_catalog_rich_enriched_notes() -> None:
+    """Enriched catalog output should surface descriptions and owners in notes."""
+    from rich.console import Console
+
+    from querido.output.console import print_catalog
+
+    console = Console(record=True, width=120)
+    print_catalog(
+        {
+            "table_count": 1,
+            "tables": [
+                {
+                    "name": "users",
+                    "type": "table",
+                    "row_count": 2,
+                    "columns": [{"name": "id"}, {"name": "name"}],
+                    "table_description": "Application user accounts",
+                    "data_owner": "Identity team",
+                }
+            ],
+        },
+        console=console,
+    )
+    text = console.export_text()
+    assert "1 enriched" in text
+    assert "Application user accounts" in text
+    assert "owner: Identity team" in text
