@@ -16,7 +16,8 @@ Active work is now the open-ended backlog in [Deferred / future phases](#deferre
 
 **Pick up next session with one of these:**
 
-1. **Pick a deferred phase and promote it.** Natural candidates: `qdo freshness`, `--plan` dry-runs, or `qdo catalog functions`.
+1. **Pick a deferred phase and promote it.** Natural candidates: `qdo catalog functions`, `qdo freshness`, or `--plan` dry-runs.
+   Next likely slice: `qdo catalog functions` as a bounded read-only catalog surface. The clean shape is `qdo catalog functions -c <connection> [--pattern ...]`, implemented as a `catalog` subcommand group extension, with primary support for DuckDB and Snowflake and a graceful unsupported path for SQLite.
 2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
 3. **Treat structured errors and query guardrails as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`, and `qdo query` is read-only by default unless `--allow-write` is explicit; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
 
@@ -163,6 +164,7 @@ Capture but don't start. Each is standalone and non-blocking.
 - `--plan` dry-run flag on `export`, `query`, `metadata write`.
 - `qdo search "<intent>"` — BM25 over command docstrings.
 - `qdo catalog functions` — list DuckDB / Snowflake SQL functions.
+  Likely implementation: catalog query in `core/catalog.py`, thin CLI in `cli/catalog.py`, rich/json/html formatting reuse via the existing catalog dispatch path, and tests covering DuckDB happy path plus SQLite unsupported behavior.
 - Embedding-based semantic search across metadata.
 - `--from` flag to reference prior session step outputs (e.g., `qdo query --sql-from session1.step3`).
 - Session replay (`qdo session replay <name>`).
