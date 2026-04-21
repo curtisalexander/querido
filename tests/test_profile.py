@@ -172,6 +172,28 @@ def test_profile_short_C_flag(sqlite_path: str):
     assert col_names == ["name"]
 
 
+def test_profile_columns_and_column_set_conflict_json(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "profile",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--columns",
+            "name",
+            "--column-set",
+            "default",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "MUTUALLY_EXCLUSIVE_OPTIONS"
+
+
 @pytest.fixture
 def string_only_sqlite(tmp_path: Path) -> str:
     db_path = str(tmp_path / "strings.db")

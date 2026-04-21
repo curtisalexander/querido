@@ -1,5 +1,7 @@
 """Tests for qdo explain command."""
 
+import json
+
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -124,6 +126,13 @@ def test_explain_no_sql(sqlite_path: str):
     )
     assert result.exit_code != 0
     assert "No SQL provided" in result.output
+
+
+def test_explain_no_sql_json(sqlite_path: str):
+    result = runner.invoke(app, ["-f", "json", "explain", "-c", sqlite_path])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SQL_REQUIRED"
 
 
 def test_explain_sql_error(sqlite_path: str):

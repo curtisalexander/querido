@@ -175,6 +175,16 @@ def test_export_no_table_or_sql(sqlite_path: str):
     assert "Must provide" in result.output
 
 
+def test_export_no_table_or_sql_json(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        ["-f", "json", "export", "-c", sqlite_path, "-o", "out.csv"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "TABLE_OR_SQL_REQUIRED"
+
+
 def test_export_invalid_format(sqlite_path: str, tmp_path: Path):
     result = runner.invoke(
         app,
@@ -192,6 +202,27 @@ def test_export_invalid_format(sqlite_path: str, tmp_path: Path):
     )
     assert result.exit_code != 0
 
+
+def test_export_invalid_format_json(sqlite_path: str, tmp_path: Path):
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "export",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "-o",
+            str(tmp_path / "x"),
+            "-e",
+            "badformat",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "EXPORT_FORMAT_INVALID"
 
 def test_export_clipboard(sqlite_path: str):
     """--clipboard should export TSV and call copy_to_clipboard."""

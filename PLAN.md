@@ -6,9 +6,9 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ---
 
-## Status (as of 2026-04-20)
+## Status (as of 2026-04-21)
 
-**Tests:** 1043 passing, 25 skipped. `ruff format`, `ruff check`, `ty check` all green. Zero `TODO` / `FIXME` tags.
+**Tests:** 1085 passing, 25 skipped. `ruff check` and `ty check` are green. Zero `TODO` / `FIXME` tags.
 
 **Every planned phase is shipped.** Phases 1–4 + 6; Phase 5 dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
 
@@ -16,9 +16,9 @@ Remaining work is the open-ended backlog in [Deferred / future phases](#deferred
 
 **Pick up next session with one of these:**
 
-1. **Pick an item from the deferred backlog.** Natural next candidates: `qdo investigate <table>` (bundled workflow on top of existing primitives), read-only-by-default guardrail on `query` (safety), or `qdo diff --since <session>` (synergizes with the Phase 6.1 session reports).
+1. **Start Phase 7.** Human-facing output / TUI polish now has an explicit plan below. Natural first slice: richer `explore` sidebar + status bar, then semantic highlighting in the main table.
 2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
-3. **Fix the `qdo context` date-bug** surfaced during the 4.6 eval — see Deferred below.
+3. **Treat structured errors as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
 
 ---
 
@@ -48,7 +48,7 @@ The four pieces that create the "tool gets better the more it's used" compoundin
 
 - Workflow spec (JSON Schema), runner, lint, list, `show`, `spec --examples`, `from-session` — `src/querido/core/workflow/`, `src/querido/cli/workflow.py`.
 - `WORKFLOW_AUTHORING.md` + `SKILL.md` + `AGENTS.md` — the docs an agent loads to author a workflow without repo access.
-- Bundled workflows under `src/querido/workflows/` serve as the worked-example corpus.
+- Bundled workflows under `src/querido/core/workflow/examples/` serve as the worked-example corpus.
 - Self-hosting eval (`scripts/eval_workflow_authoring.py`, plus the broader `scripts/eval_skill_files_claude.py` added in Wave 3) — refuses to run with `ANTHROPIC_API_KEY` set; per-model timeouts; budget guardrails.
 
 **Canonical invocation is `qdo workflow run <name>`.** The "CLI sugar shim" idea (Phase 4.4; `qdo <workflow-name>` as a top-level alias) was dropped — one invocation pattern is better than two parallel paths. See [IDEAS.md](IDEAS.md) "subcommand-to-workflow sugar" for the rejected analysis.
@@ -61,6 +61,31 @@ IDEAS.md proposed converting 8–10 subcommands (`template`, `sql scratch`, `piv
 
 - **6.1** — `qdo report session <name>` renders a session as single-file HTML. One card per step with status pills, alternating theme color, collapsed `<details>` for the full invocation, rendered stdout (JSON pretty-printed). Per-step commentary via `qdo session note <text>`, which rewrites the last record in `steps.jsonl`. Offline-readable invariants encoded as tests (no `<script>`, no `<iframe>`, no external stylesheet, no `<img src="http…">`). See `src/querido/core/report.py::build_session_report`, `src/querido/output/report_html.py::render_session_report`, `tests/test_report_session.py`.
 - **6.2 + 6.3** — `qdo serve` removed (landed via R.13; deprecation step skipped since there were no users). `tests/test_web.py` deleted with it.
+
+### Phase 7 — Human-facing output polish (planned)
+
+The agent-first core is in good shape. The next committed track is making the human experience feel intentional and high-signal too, especially in `qdo explore` and Rich terminal output.
+
+**7.1 — TUI foundation / information hierarchy**
+
+- Upgrade the `explore` sidebar from a text dump into a compact facts panel: type, null rate, distinct count, min/max, sample values, metadata description, and quality flags for the selected column.
+- Make the status bar carry more real context: connection, table, displayed/total rows, filtered state, sampled/exact state, sort state, metadata presence.
+- Add semantic highlighting in the main `DataTable` so PKs, sorted columns, null-heavy columns, and warning states are visually obvious.
+
+**7.2 — Human-readable scan output**
+
+- Improve Rich output for `context`, `quality`, `profile`, and `catalog` so important signals are easier to scan: clearer section hierarchy, badges, callouts, small inline bars / sparklines where appropriate.
+- Keep the JSON / agent shapes unchanged; this phase is about human presentation, not output-contract churn.
+
+**7.3 — Wide-table and triage UX**
+
+- Surface the existing tiered profiling story visually: category chips, recommended-first columns, clearer quick-mode vs full-mode transitions.
+- Make `explore` feel useful on wide tables without dumping a wall of equal-weight columns.
+
+**7.4 — Visual coherence**
+
+- Align the TUI, Rich terminal output, and HTML reports so they feel like the same product: shared palette, badges, density choices, and emphasis rules.
+- Preserve the existing CLI / workflow surface; this is a presentation pass, not a redesign of command semantics.
 
 ---
 
@@ -95,7 +120,7 @@ Each is a parametrized case list; extending is a one-line addition:
 
 - **`_ENVELOPE_CASES`** in `tests/test_next_steps.py` — asserts every scanning command emits the uniform `{command, data, next_steps, meta}` envelope. Add a new scanning command → wire through `emit_envelope()`, append a row, done.
 - **`_READBACK_CASES`** in `tests/test_readback_loop.py` — asserts every `--connection`-accepting scan surfaces stored metadata on the next call. Template for future metadata-driven invariants.
-- **`test_validation_error_contract`** in `tests/test_errors.py` (parametrized across 6 commands) — centralizes the prose-matching error tests. Rewritable against structured output once `typer.BadParameter` stops bypassing the envelope (see "Open items" below).
+- **`tests/test_errors.py` validation contract cases** — central place to extend structured error assertions as more commands gain stable codes. Prefer asserting on `code` / `try_next`, not human-readable prose.
 
 ### Don't touch — already good
 
@@ -111,11 +136,12 @@ Files to resist future pressure to shrink:
 1. **Scenario coverage ≠ redundancy.** The 2026-04-17 cleanup pitched ~145 deletions and delivered ~40. Three tests per lint rule / classifier branch / error path are each doing real work. Parametrize only when assertions are genuinely symmetric.
 2. **Spec-conformance suites are honest.** A file with 118 tests may be one parametrize over 118 fixture entries — appropriate for the shape.
 3. **The real wins weren't deletions.** Shared fixtures (T.1, −7s wall time), envelope contract (3→11 commands), readback contract (extensible) moved the needle more than any individual trim.
-4. **Brittle-prose tests often reflect product gaps.** Validation errors go through `typer.BadParameter` and bypass the structured envelope; fix the product, not just the tests.
+4. **Brittle-prose tests often reflect product gaps.** The right fix was routing common validation failures through the structured envelope for `-f json` / `-f agent`, then rewriting tests around stable codes instead of prose.
 
 ### Open items the test cleanup deferred
 
-- Structured-envelope rewrites of `test_validation_error_contract` / `test_missing_connection_file_contract` — one-file change after `typer.BadParameter` gets routed through the envelope.
+- Keep rewriting lingering prose-oriented validation tests against structured payloads whenever a command now emits a stable code under `-f json` / `-f agent`.
+- Only promote additional validation failures from generic `VALIDATION_ERROR` into named codes when the failure shape is durable, actionable, and likely to matter to agents.
 
 ---
 
@@ -139,8 +165,6 @@ Capture but don't start. Each is standalone and non-blocking.
 - Snowflake `RESULT_SCAN` reuse for chained queries.
 - Pyodide `querido-lite` browser demo (only if concrete adoption pulls for it).
 - MCP thin wrapper (defer; keep CLI surface MCP-ready — stable flags, structured errors, no TTY-required behaviors).
-
-**Known bug:** `qdo context` on date/datetime columns raises `TypeError: 'datetime.date' object is not subscriptable`. Surfaced by the 4.6 self-hosting eval (2026-04-14, task T2). Repro: `uv run qdo -f json context -c data/test.duckdb -t customers`.
 
 ---
 

@@ -42,6 +42,34 @@ def test_config_add_duplicate_rejected(tmp_path):
     assert result.exit_code != 0
 
 
+def test_config_add_duplicate_rejected_json(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "mydb", "--type", "sqlite", "--path", "/tmp/test.db"],
+        env=env,
+    )
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "config",
+            "add",
+            "--name",
+            "mydb",
+            "--type",
+            "sqlite",
+            "--path",
+            "/tmp/other.db",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "CONNECTION_EXISTS"
+
+
 def test_config_add_requires_path_for_sqlite(tmp_path):
     env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
     result = runner.invoke(
@@ -182,6 +210,19 @@ def test_config_clone_missing_source(tmp_path):
         env=env,
     )
     assert result.exit_code != 0
+
+
+def test_config_clone_missing_source_json(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(
+        app,
+        ["-f", "json", "config", "clone", "--source", "nonexistent", "--name", "new"],
+        env=env,
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "CONNECTION_NOT_FOUND"
+    assert any("qdo config list" in step["cmd"] for step in payload["try_next"])
 
 
 def test_config_clone_duplicate_name(tmp_path):

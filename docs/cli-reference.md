@@ -5,7 +5,7 @@ title: CLI Reference
 
 # qdo CLI Reference
 
-`qdo` is a CLI data-analysis toolkit for SQLite, DuckDB, and Snowflake databases.
+`qdo` is an agent-first data exploration CLI for SQLite, DuckDB, Snowflake, and Parquet files.
 
 ## Installation
 
@@ -30,13 +30,31 @@ qdo preview -c ./file.parquet -t file   # DuckDB auto-registers parquet
 
 Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/Application Support/qdo/connections.toml` (macOS), or `%LOCALAPPDATA%\qdo\connections.toml` (Windows). Override with `QDO_CONFIG` env var.
 
+## Promoted Workflow
+
+qdo is optimized around this path:
+
+`catalog -> context -> metadata -> query/assert -> report/bundle`
+
+Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values`, `dist`, `joins`, and `diff` when that default path leaves a specific gap.
+
 ## Commands
 
-### Explore
+### Start Here
 
 | Command | Purpose |
 |---------|---------|
+| `qdo catalog -c CONN [--pattern P] [--tables-only]` | Discover tables, columns, and row counts |
 | `qdo context -c CONN -t TABLE` | Schema + stats + sample values in one call |
+| `qdo metadata init -c CONN -t TABLE` | Create metadata YAML for shared table knowledge |
+| `qdo metadata show -c CONN -t TABLE` | Read stored metadata back into the workflow |
+| `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
+| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
+| `qdo report table -c CONN -t TABLE -o report.html` | Generate a shareable HTML hand-off report |
+| `qdo bundle export -c CONN -t TABLE -o bundle.zip` | Export portable team knowledge |
+
+### Investigate Deeper
+
 | `qdo inspect -c CONN -t TABLE` | Column metadata and row count |
 | `qdo preview -c CONN -t TABLE [-r ROWS]` | Preview rows (default 20) |
 | `qdo profile -c CONN -t TABLE [--top N]` | Statistical profile (min/max/mean/nulls/distinct) |
@@ -49,15 +67,12 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo diff -c CONN -t A --target B` | Compare schemas between two tables |
 | `qdo joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
 
-### Query
+### Query And Validate
 
 | Command | Purpose |
 |---------|---------|
-| `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
-| `qdo catalog -c CONN [--pattern P] [--tables-only]` | Full database catalog |
 | `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
-| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
 | `qdo export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |
 
 ### Generate
@@ -70,7 +85,20 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo template -c CONN -t TABLE` | Generate documentation template |
 | `qdo view-def -c CONN -v VIEW` | View SQL definition |
 
-### Manage
+### Automate And Share
+
+| Command | Purpose |
+|---------|---------|
+| `qdo workflow list` | List bundled, project, and user workflows |
+| `qdo workflow run NAME key=value` | Execute a declarative workflow |
+| `qdo workflow lint NAME` | Lint a workflow before running it |
+| `qdo workflow from-session NAME` | Draft a workflow from a recorded session |
+| `qdo session start NAME` | Create a new session directory |
+| `qdo session list` | List recorded sessions |
+| `qdo session show NAME` | Review recorded steps in a session |
+| `qdo report session NAME -o report.html` | Generate a shareable HTML session narrative |
+
+### Setup
 
 | Command | Purpose |
 |---------|---------|
@@ -82,9 +110,13 @@ Connections are stored in `~/.config/qdo/connections.toml` (Linux), `~/Library/A
 | `qdo config column-set show` | Show columns in a set |
 | `qdo config column-set delete` | Delete a column set |
 | `qdo cache sync -c CONN` | Cache metadata locally |
+| `qdo cache status [-c CONN]` | Show cache age and coverage |
+| `qdo cache clear [-c CONN]` | Clear cached metadata |
 | `qdo metadata init -c CONN -t TABLE` | Generate metadata YAML template |
 | `qdo metadata show -c CONN -t TABLE` | Show stored metadata |
 | `qdo metadata list -c CONN` | List metadata files |
+| `qdo metadata score -c CONN` | Rank metadata completeness |
+| `qdo metadata suggest -c CONN -t TABLE [--apply]` | Propose deterministic metadata additions |
 | `qdo metadata refresh -c CONN -t TABLE` | Refresh machine fields, keep human fields |
 | `qdo completion show SHELL` | Generate shell completion scripts |
 
@@ -119,7 +151,7 @@ qdo inspect -c mydb -t users -f markdown # Markdown table
 qdo inspect -c mydb -t users -f html    # Opens in browser
 ```
 
-Default format is `rich` (pretty terminal tables). Use `--format json` or `--format csv` for machine-readable output that can be piped to other tools.
+Default format is `rich` (pretty terminal tables). The shared structured envelope is available in `json` and `agent` format for the main scan/query commands and an expanding set of management/reference commands. File-producing commands such as `report table` and `export` keep their artifact-oriented behavior.
 
 ## Piping & Scripting
 
@@ -135,7 +167,7 @@ qdo profile -c mydb -t orders -f csv > profile.csv
 
 | Flag | Description |
 |------|-------------|
-| `--format`, `-f` | Output format: `rich`, `json`, `csv`, `markdown`, `html`, `yaml` |
+| `--format`, `-f` | Output format: `rich`, `json`, `agent`, `csv`, `markdown`, `html`, `yaml` |
 | `--show-sql` | Print rendered SQL to stderr before executing |
 | `--debug` | Enable debug logging to stderr |
 | `--version`, `-V` | Show version |

@@ -71,6 +71,7 @@ def status(
     """Show cache status (age, table count, staleness)."""
     from querido.cache import MetadataCache
     from querido.cli._context import get_output_format
+    from querido.output.envelope import emit_envelope, is_structured_format
 
     cache = MetadataCache()
     try:
@@ -80,22 +81,21 @@ def status(
 
     fmt = get_output_format()
 
-    if not entries:
-        if fmt == "json":
-            import json
-
-            print(json.dumps({"entries": []}, indent=2))
-        else:
-            from rich.console import Console
-
-            Console(stderr=True).print("[dim]No cached metadata found.[/dim]")
+    if is_structured_format():
+        emit_envelope(
+            command="cache status",
+            data={"entries": entries},
+            connection=connection,
+        )
         return
 
-    if fmt == "json":
-        import json
+    if not entries:
+        from rich.console import Console
 
-        print(json.dumps({"entries": entries}, indent=2, default=str))
-    elif fmt in ("markdown", "csv"):
+        Console(stderr=True).print("[dim]No cached metadata found.[/dim]")
+        return
+
+    if fmt in ("markdown", "csv"):
         from querido.output.formats import dicts_to_csv, to_markdown_table
 
         if fmt == "csv":

@@ -74,9 +74,21 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
 
         import typer
 
+        from querido.cli._context import get_output_format
+
         try:
             return fn(*args, **kwargs)
-        except (typer.Exit, typer.BadParameter, typer.Abort, SystemExit):
+        except typer.BadParameter as exc:
+            fmt = get_output_format()
+            if fmt not in ("json", "agent"):
+                raise
+
+            msg = str(exc)
+            code = _bad_parameter_code(msg)
+            try_next = _try_next_for(code)
+            _emit_structured_error(msg, code, None, None, try_next, fmt)
+            raise typer.Exit(code=1) from None
+        except (typer.Exit, typer.Abort, SystemExit):
             raise
         except KeyboardInterrupt:
             # QueryCancelled is a subclass of KeyboardInterrupt
@@ -89,8 +101,6 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
 
             with _last_sql_lock:
                 last = _last_sql
-
-            from querido.cli._context import get_output_format
 
             fmt = get_output_format()
             if fmt in ("json", "agent"):
@@ -193,6 +203,64 @@ def _is_db_error(exc: Exception) -> bool:
         return True
     module = type(exc).__module__ or ""
     return "duckdb" in module or "snowflake" in module
+
+
+def _bad_parameter_code(msg: str) -> str:
+    """Infer a structured error code from a ``typer.BadParameter`` message."""
+    lower = msg.lower()
+    if lower.startswith("table '") and " not found" in lower:
+        return "TABLE_NOT_FOUND"
+    if lower.startswith("column '") and " not found" in lower:
+        return "COLUMN_NOT_FOUND"
+    if lower.startswith("session not found:"):
+        return "SESSION_NOT_FOUND"
+    if lower.startswith("no session specified."):
+        return "SESSION_REQUIRED"
+    if lower.startswith("no metadata found"):
+        return "METADATA_NOT_FOUND"
+    if lower.startswith("column set '") and " not found " in lower:
+        return "COLUMN_SET_NOT_FOUND"
+    if lower.startswith("sql file not found:"):
+        return "SQL_FILE_NOT_FOUND"
+    if lower.startswith("no sql provided."):
+        return "SQL_REQUIRED"
+    if "requires a snowflake connection" in lower:
+        return "SNOWFLAKE_REQUIRED"
+    if lower.startswith("unknown shell:"):
+        return "SHELL_INVALID"
+    if lower.startswith("unsupported db type:"):
+        return "DB_TYPE_INVALID"
+    if lower.startswith("connection '") and " already exists." in lower:
+        return "CONNECTION_EXISTS"
+    if lower.startswith("source connection '") and " not found." in lower:
+        return "CONNECTION_NOT_FOUND"
+    if lower.startswith("--path is required for "):
+        return "PATH_REQUIRED"
+    if lower.startswith("must provide --table or --sql."):
+        return "TABLE_OR_SQL_REQUIRED"
+    if lower.startswith("--export-format must be one of:"):
+        return "EXPORT_FORMAT_INVALID"
+    if lower.startswith("--direction must be one of:"):
+        return "LINEAGE_DIRECTION_INVALID"
+    if lower.startswith("--domain must be one of:"):
+        return "LINEAGE_DOMAIN_INVALID"
+    if lower.startswith("--sort must be one of:"):
+        return "SORT_INVALID"
+    if lower.startswith("must provide one of: --expect"):
+        return "ASSERT_COMPARISON_REQUIRED"
+    if lower.startswith("only one comparison allowed, got:"):
+        return "ASSERT_COMPARISON_CONFLICT"
+    if lower.startswith("cannot use both --columns and --column-set."):
+        return "MUTUALLY_EXCLUSIVE_OPTIONS"
+    if lower.startswith("--group-by must specify at least one column."):
+        return "GROUP_BY_REQUIRED"
+    if lower.startswith("--agg must specify at least one aggregation."):
+        return "AGG_REQUIRED"
+    if lower.startswith("invalid aggregation expression:"):
+        return "AGG_INVALID"
+    if lower.startswith("all aggregations must use the same function."):
+        return "AGG_MIXED_FUNCTIONS"
+    return "VALIDATION_ERROR"
 
 
 def _classify_error(exc: Exception) -> str:

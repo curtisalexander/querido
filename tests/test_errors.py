@@ -1,5 +1,6 @@
 """Tests for error messages, fuzzy suggestions, and input validation across the CLI."""
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -49,14 +50,11 @@ def duckdb_path(tmp_path: Path) -> str:
 # Validation-error contract
 # ---------------------------------------------------------------------------
 #
-# Validation errors (table / column not found, missing connection file) raise
-# ``typer.BadParameter``, which bypasses the structured JSON error envelope —
-# Typer formats them as human-readable prose on stderr.  Until R.22 / R.23
-# route these through the envelope, the test surface is unavoidably prose-
-# matched.  These tests therefore assert on *content* (identifier names,
-# expected candidates) rather than prose framing where we can avoid it, and
-# the whole contract is centralized here so reshaping the error path later
-# is a one-file change.
+# Validation errors still use Typer's human-facing prose path in rich mode, but
+# the important agent-facing cases now emit structured errors under
+# ``--format json`` / ``--format agent``. Rich-mode tests below therefore keep
+# asserting on user-visible content, while the JSON-specific tests assert on
+# the stable machine-readable error contract.
 #
 # Every validation error must: exit non-zero, not leak a Python traceback,
 # and echo the offending identifier back to the user.
@@ -129,6 +127,164 @@ def test_missing_connection_file_contract(tmp_path: Path) -> None:
     # wording, worth asserting on until R.22/R.23 route this through the
     # structured envelope.
     assert "qdo config add" in result.output
+
+
+def test_validation_error_json_table_not_found_uses_structured_error(sqlite_path: str) -> None:
+    result = runner.invoke(app, ["-f", "json", "inspect", "-c", sqlite_path, "-t", "nonexistent"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "TABLE_NOT_FOUND"
+    assert "nonexistent" in payload["message"]
+    assert any("qdo catalog" in step["cmd"] for step in payload["try_next"])
+
+
+def test_validation_error_json_column_not_found_uses_structured_error(sqlite_path: str) -> None:
+    result = runner.invoke(
+        app,
+        ["-f", "json", "dist", "-c", sqlite_path, "-t", "users", "-C", "nonexistent"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "COLUMN_NOT_FOUND"
+    assert "nonexistent" in payload["message"]
+    assert any("qdo inspect" in step["cmd"] for step in payload["try_next"])
+
+
+def test_validation_error_json_session_not_found_uses_structured_error(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["-f", "json", "session", "show", "nope"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "SESSION_NOT_FOUND"
+    assert any("qdo session list" in step["cmd"] for step in payload["try_next"])
+
+
+def test_validation_error_json_metadata_not_found_uses_structured_error(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "show", "-c", sqlite_path, "-t", "users"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "METADATA_NOT_FOUND"
+    assert any("qdo metadata init" in step["cmd"] for step in payload["try_next"])
+
+
+def test_validation_error_json_column_set_not_found_uses_structured_error(
+    sqlite_path: str,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "profile",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--column-set",
+            "missing",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "COLUMN_SET_NOT_FOUND"
+    assert any("qdo config column-set list" in step["cmd"] for step in payload["try_next"])
+
+
+def test_validation_error_json_sql_required_uses_structured_error(sqlite_path: str) -> None:
+    result = runner.invoke(app, ["-f", "json", "assert", "-c", sqlite_path])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "SQL_REQUIRED"
+
+
+def test_validation_error_json_sql_file_not_found_uses_structured_error(sqlite_path: str) -> None:
+    result = runner.invoke(
+        app,
+        ["-f", "json", "query", "-c", sqlite_path, "--file", "/nonexistent/path.sql"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "SQL_FILE_NOT_FOUND"
+
+
+def test_validation_error_json_completion_invalid_shell_uses_structured_error() -> None:
+    result = runner.invoke(app, ["-f", "json", "completion", "show", "nushell"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "SHELL_INVALID"
+
+
+def test_validation_error_json_profile_mutually_exclusive_options(
+    sqlite_path: str,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "profile",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--columns",
+            "id",
+            "--column-set",
+            "default",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "MUTUALLY_EXCLUSIVE_OPTIONS"
+
+
+def test_validation_error_json_assert_comparison_conflict(sqlite_path: str) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select 1",
+            "--expect",
+            "1",
+            "--expect-gt",
+            "0",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "ASSERT_COMPARISON_CONFLICT"
+
+
+def test_validation_error_json_snowflake_required_uses_structured_error(sqlite_path: str) -> None:
+    result = runner.invoke(
+        app,
+        ["-f", "json", "snowflake", "lineage", "-c", sqlite_path, "--object", "DB.SCHEMA.TBL"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "SNOWFLAKE_REQUIRED"
+    assert any("qdo config list" in step["cmd"] for step in payload["try_next"])
 
 
 # ---------------------------------------------------------------------------

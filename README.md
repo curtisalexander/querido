@@ -112,7 +112,7 @@ Need more detail while investigating? Use `inspect`, `preview`, `profile`,
 `quality`, `values`, `dist`, `joins`, and `diff` as drill-down tools inside
 that workflow.
 
-All commands support `--format json` (or `csv`, `markdown`, `html`, `yaml`). Output goes to stdout; spinners go to stderr so piping is safe:
+The core data-inspection commands, plus many management/reference commands, support structured output via `--format json` (and some also support `csv`, `markdown`, `html`, or `yaml`). Artifact-oriented commands such as `report table` still write files rather than emitting a shared stdout payload. Output goes to stdout; spinners go to stderr so piping is safe:
 
 ```bash
 qdo context -c my-db -t orders -f json | jq '.columns[].name'

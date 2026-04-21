@@ -2,6 +2,8 @@
 
 ## Completed
 
+- Verified current repo health on 2026-04-21:
+  `1085 passed, 25 skipped`, `ruff check`, and `ty check` all green.
 - Repositioned qdo around the promoted workflow:
   `catalog -> context -> metadata -> query/assert -> report/bundle`.
 - Updated the top-level product framing in [README.md](README.md) to use the
@@ -38,6 +40,12 @@
 - Hardened the Codex benchmark harness so artifact-producing tasks can still be
   scored as successful when Codex times out after the expected side effect has
   already happened.
+- Extended the shared structured envelope to more management/reference commands,
+  including `cache status`, `session show`, and `overview`.
+- Routed common `typer.BadParameter` validation failures through the structured
+  error path for `-f json` / `-f agent`, including durable named codes for
+  table/column/session/metadata lookup, config lookup, Snowflake-only commands,
+  and high-value `pivot` / lineage validation cases.
 
 ## Latest Eval State
 
@@ -55,14 +63,15 @@
 
 ### Near Term
 
+- Start Phase 7 human-facing output polish:
+  richer `explore` sidebar + status bar first, then semantic highlighting and
+  stronger Rich terminal scan output.
 - Rerun the full Codex benchmark with the hardened timeout/artifact logic so the
   official score reflects the current harness behavior.
 - Run the Claude benchmark under the same updated workflow and compare failure
   patterns against the Codex run.
-- Finish the structured-output pass for remaining management/reporting commands
-  that still bypass the standard envelope.
-- Continue simplifying the “start here” surface in docs and help text so
-  `context` remains the obvious first deep-dive command.
+- Keep trimming documentation drift so the planning docs, README, and CLI
+  reference stay aligned with the current command surface and output contract.
 
 ### Medium Term
 

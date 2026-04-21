@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -102,10 +103,27 @@ def test_query_no_sql_provided(sqlite_path: str):
     assert "No SQL provided" in result.output
 
 
+def test_query_no_sql_provided_json(sqlite_path: str):
+    result = runner.invoke(app, ["-f", "json", "query", "-c", sqlite_path])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SQL_REQUIRED"
+
+
 def test_query_file_not_found(sqlite_path: str):
     result = runner.invoke(app, ["query", "-c", sqlite_path, "--file", "/nonexistent/path.sql"])
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
+
+
+def test_query_file_not_found_json(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        ["-f", "json", "query", "-c", sqlite_path, "--file", "/nonexistent/path.sql"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SQL_FILE_NOT_FOUND"
 
 
 def test_query_format_json(sqlite_path: str):

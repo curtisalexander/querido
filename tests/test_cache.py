@@ -232,8 +232,9 @@ def test_cli_cache_status_json(cache_sqlite: str, tmp_path: Path, monkeypatch: p
     runner.invoke(app, ["cache", "sync", "-c", cache_sqlite])
     result = runner.invoke(app, ["--format", "json", "cache", "status"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
-    assert "entries" in data
+    payload = json.loads(result.output)
+    assert payload["command"] == "cache status"
+    assert "entries" in payload["data"]
 
 
 def test_cli_cache_clear(cache_sqlite: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

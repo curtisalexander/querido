@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 
@@ -252,6 +253,28 @@ def test_pivot_invalid_agg_format(orders_path: str):
     assert result.exit_code != 0
 
 
+def test_pivot_invalid_agg_format_json(orders_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "pivot",
+            "-c",
+            orders_path,
+            "-t",
+            "orders",
+            "-g",
+            "region",
+            "-a",
+            "badformat",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "AGG_INVALID"
+
+
 def test_pivot_mixed_functions_rejected(orders_path: str):
     result = runner.invoke(
         app,
@@ -269,6 +292,28 @@ def test_pivot_mixed_functions_rejected(orders_path: str):
     )
     assert result.exit_code != 0
     assert "same function" in result.output.lower()
+
+
+def test_pivot_mixed_functions_rejected_json(orders_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "pivot",
+            "-c",
+            orders_path,
+            "-t",
+            "orders",
+            "-g",
+            "region",
+            "-a",
+            "sum(amount),count(id)",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "AGG_MIXED_FUNCTIONS"
 
 
 def test_pivot_duckdb(tmp_path: Path):

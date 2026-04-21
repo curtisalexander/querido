@@ -167,6 +167,7 @@ def show(
 ) -> None:
     """Print a readable summary of the steps in a session."""
     from querido.core.session import iter_steps, session_dir
+    from querido.output.envelope import emit_envelope, is_structured_format
 
     dir_ = session_dir(name)
     if not dir_.is_dir():
@@ -174,11 +175,22 @@ def show(
 
     steps = list(iter_steps(name))
     if not steps:
+        if is_structured_format():
+            emit_envelope(command="session show", data={"name": name, "steps": []})
+            return
         typer.echo(f"Session {name!r} has no steps yet.")
         return
 
     if limit > 0:
         steps = steps[-limit:]
+
+    if is_structured_format():
+        emit_envelope(
+            command="session show",
+            data={"name": name, "steps": steps},
+            extra_meta={"session": name},
+        )
+        return
 
     typer.echo(f"Session: {name}   ({len(steps)} step{'s' if len(steps) != 1 else ''})")
     typer.echo("")

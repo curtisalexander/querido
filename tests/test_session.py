@@ -239,6 +239,21 @@ def test_session_show_prints_steps(tmp_path: Path, sqlite_path: str) -> None:
     assert "[  2]" in result.output
 
 
+def test_session_show_json_uses_structured_envelope(tmp_path: Path, sqlite_path: str) -> None:
+    _run(
+        ["preview", "--connection", sqlite_path, "--table", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "s1"},
+    )
+    result = _run(["-f", "json", "session", "show", "s1"], cwd=tmp_path)
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["command"] == "session show"
+    assert payload["meta"]["session"] == "s1"
+    assert payload["data"]["name"] == "s1"
+    assert len(payload["data"]["steps"]) == 1
+
+
 def test_session_show_missing(tmp_path: Path) -> None:
     result = _run(["session", "show", "nope"], cwd=tmp_path)
     assert result.exit_code != 0

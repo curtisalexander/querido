@@ -32,8 +32,10 @@ def overview() -> None:
 
     fmt = get_output_format()
 
-    if fmt == "json":
-        _print_json()
+    if fmt in ("json", "agent"):
+        from querido.output.envelope import emit_envelope
+
+        emit_envelope(command="overview", data=_build_payload())
         return
 
     docs = Path(__file__).resolve().parents[3] / "docs" / "cli-reference.md"
@@ -360,10 +362,8 @@ def _introspect_command(name: str, module_path: str) -> dict:
     return result
 
 
-def _print_json() -> None:
-    """Emit structured JSON describing all commands, auto-generated from Typer metadata."""
-    import json
-
+def _build_payload() -> dict:
+    """Build structured command metadata from Typer introspection."""
     from querido import __version__
     from querido.cli.main import _COMMAND_CATEGORIES
 
@@ -417,7 +417,7 @@ def _print_json() -> None:
         },
     }
 
-    payload = {
+    return {
         "version": __version__,
         "tool": "qdo",
         "description": "CLI data analysis toolkit for SQLite, DuckDB, and Snowflake.",
@@ -442,5 +442,3 @@ def _print_json() -> None:
             ],
         },
     }
-
-    print(json.dumps(payload, indent=2))

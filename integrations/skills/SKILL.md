@@ -6,7 +6,7 @@ compatibility: Requires qdo CLI (pip install querido). DuckDB support requires q
 
 # Using querido (qdo)
 
-qdo is an agent-first data exploration CLI that turns one-off investigation into reusable team knowledge. Use `--format json` (or `export QDO_FORMAT=json`) to get machine-readable output for every command.
+qdo is an agent-first data exploration CLI that turns one-off investigation into reusable team knowledge. Use `--format json` (or `export QDO_FORMAT=json`) to get machine-readable output for the main scan/query commands and the management/reference commands that support structured output.
 
 ## Quick Setup
 

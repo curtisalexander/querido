@@ -1,5 +1,7 @@
 """Tests for the qdo overview command."""
 
+import json
+
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -22,3 +24,12 @@ def test_overview_contains_expected_content() -> None:
         assert cmd in result.output, f"missing command '{cmd}' in overview output"
     assert "--format" in result.output
     assert "--show-sql" in result.output
+
+
+def test_overview_json_uses_structured_envelope() -> None:
+    result = runner.invoke(app, ["-f", "json", "overview"])
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["command"] == "overview"
+    assert payload["data"]["tool"] == "qdo"
+    assert payload["data"]["commands"]

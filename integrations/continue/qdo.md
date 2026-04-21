@@ -181,6 +181,8 @@ Errors go to stderr as structured JSON when `--format json` is set:
 {"error": true, "code": "TABLE_NOT_FOUND", "message": "...", "hint": "..."}
 ```
 
+Most scan/query commands and many management/reference commands support `--format json`; artifact-oriented commands such as `report table` still keep their file-writing behavior.
+
 ## Metadata workflow
 
 Metadata files live at `.qdo/metadata/<connection>/<table>.yaml` and contain both machine-populated statistics and human-written business context. Rich metadata dramatically improves AI-generated SQL.

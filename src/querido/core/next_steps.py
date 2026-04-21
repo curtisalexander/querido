@@ -931,6 +931,46 @@ def for_error(
             _step(["qdo", "config", "list"], "List configured connections to find the right path.")
         )
 
+    elif code == "SESSION_NOT_FOUND":
+        steps.append(
+            _step(
+                ["qdo", "session", "list"],
+                "List recorded sessions to find the right name.",
+            )
+        )
+
+    elif code == "METADATA_NOT_FOUND" and connection and table:
+        steps.append(
+            _step(
+                ["qdo", "metadata", "init", "-c", connection, "-t", table],
+                "Create the metadata YAML before trying to read it.",
+            )
+        )
+
+    elif code == "COLUMN_SET_NOT_FOUND" and connection and table:
+        steps.append(
+            _step(
+                ["qdo", "config", "column-set", "list", "-c", connection, "-t", table],
+                "List saved column sets for this table.",
+            )
+        )
+
+    elif code == "SNOWFLAKE_REQUIRED":
+        steps.append(
+            _step(
+                ["qdo", "config", "list"],
+                "List configured connections and pick a Snowflake one.",
+            )
+        )
+
+    elif code == "CONNECTION_NOT_FOUND":
+        steps.append(
+            _step(
+                ["qdo", "config", "list"],
+                "List configured connections to find the right source name.",
+            )
+        )
+
     return steps
 
 
