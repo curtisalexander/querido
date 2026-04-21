@@ -683,6 +683,15 @@ def format_diff_html(
         f"{len(added)} added, {len(removed)} removed, "
         f"{len(changed)} changed, {result['unchanged_count']} unchanged"
     )
+    if isinstance(result.get("previous_row_count"), int) and isinstance(
+        result.get("current_row_count"), int
+    ):
+        delta = result.get("row_count_delta")
+        delta_text = f"{delta:+,}" if isinstance(delta, int) else "n/a"
+        summary += (
+            f" · rows {result['previous_row_count']:,} → "
+            f"{result['current_row_count']:,} ({delta_text})"
+        )
     return _html_page(
         title=f"Diff: {result['left']} → {result['right']}",
         subtitle=summary,

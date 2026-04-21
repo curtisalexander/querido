@@ -197,6 +197,61 @@ def iter_steps(name: str, cwd: Path | None = None) -> Iterator[dict]:
                 continue
 
 
+def read_step_stdout(step: dict, cwd: Path | None = None) -> str:
+    """Return the saved stdout for *step*, or ``""`` if it can't be read."""
+    rel = step.get("stdout_path")
+    if not isinstance(rel, str) or not rel:
+        return ""
+    path = (cwd or Path.cwd()) / ".qdo" / rel
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def find_latest_table_snapshot(
+    name: str,
+    *,
+    connection: str,
+    table: str,
+    cwd: Path | None = None,
+) -> dict | None:
+    """Return the latest structured inspect/context snapshot for *table*."""
+    steps = list(iter_steps(name, cwd))
+    for step in reversed(steps):
+        payload = _parse_structured_stdout(read_step_stdout(step, cwd))
+        if payload is None:
+            continue
+        if payload.get("command") not in {"inspect", "context"}:
+            continue
+
+        meta = payload.get("meta")
+        data = payload.get("data")
+        if not isinstance(meta, dict) or not isinstance(data, dict):
+            continue
+        if meta.get("connection") != connection:
+            continue
+
+        snapshot_table = data.get("table") or meta.get("table")
+        columns = data.get("columns")
+        row_count = data.get("row_count")
+        if not isinstance(snapshot_table, str) or snapshot_table.lower() != table.lower():
+            continue
+        if not isinstance(columns, list):
+            continue
+
+        return {
+            "session": name,
+            "step_index": step.get("index"),
+            "timestamp": step.get("timestamp"),
+            "command": payload.get("command"),
+            "table": snapshot_table,
+            "columns": columns,
+            "row_count": row_count if isinstance(row_count, int) else None,
+        }
+    return None
+
+
 def next_step_index(dir_: Path) -> int:
     """Return the 1-based index for the next step in the given session dir."""
     path = dir_ / STEPS_FILE
@@ -318,14 +373,8 @@ def _derive_cmd(argv: list[str]) -> str:
 
 def _extract_row_count(stdout: str) -> int | None:
     """Best-effort row count extraction from a JSON envelope in *stdout*."""
-    stripped = stdout.strip()
-    if not stripped or not stripped.startswith("{"):
-        return None
-    try:
-        payload = json.loads(stripped)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(payload, dict):
+    payload = _parse_structured_stdout(stdout)
+    if payload is None:
         return None
 
     meta = payload.get("meta")
@@ -343,6 +392,19 @@ def _extract_row_count(stdout: str) -> int | None:
             if isinstance(seq, list):
                 return len(seq)
     return None
+
+
+def _parse_structured_stdout(stdout: str) -> dict | None:
+    stripped = stdout.strip()
+    if not stripped or not stripped.startswith("{"):
+        return None
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
 
 
 def active_session_name() -> str | None:

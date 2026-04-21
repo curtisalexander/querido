@@ -214,6 +214,8 @@ def _bad_parameter_code(msg: str) -> str:
         return "COLUMN_NOT_FOUND"
     if lower.startswith("session not found:"):
         return "SESSION_NOT_FOUND"
+    if lower.startswith("no structured inspect/context snapshot found for table '"):
+        return "SESSION_SNAPSHOT_NOT_FOUND"
     if lower.startswith("no session specified."):
         return "SESSION_REQUIRED"
     if lower.startswith("no metadata found"):

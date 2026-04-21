@@ -515,7 +515,7 @@ def for_diff(
     *,
     connection: str,
     left_table: str,
-    right_table: str,
+    right_table: str | None,
     target_connection: str | None = None,
 ) -> list[dict]:
     """Rules for ``qdo diff``.
@@ -528,6 +528,7 @@ def for_diff(
     removed = result.get("removed") or []
     changed = result.get("changed") or []
     right_conn = target_connection or connection
+    right_target = right_table or result.get("right") or left_table
 
     if not added and not removed and not changed:
         steps.append(
@@ -546,8 +547,8 @@ def for_diff(
     )
     steps.append(
         _step(
-            ["qdo", "inspect", "-c", right_conn, "-t", right_table],
-            f"Full schema for right side ('{right_table}').",
+            ["qdo", "inspect", "-c", right_conn, "-t", right_target],
+            f"Full schema for right side ('{right_target}').",
         )
     )
     return steps
@@ -936,6 +937,21 @@ def for_error(
             _step(
                 ["qdo", "session", "list"],
                 "List recorded sessions to find the right name.",
+            )
+        )
+
+    elif code == "SESSION_SNAPSHOT_NOT_FOUND":
+        if connection and table:
+            steps.append(
+                _step(
+                    ["qdo", "-f", "json", "inspect", "-c", connection, "-t", table],
+                    "Record a structured snapshot before diffing against a session.",
+                )
+            )
+        steps.append(
+            _step(
+                ["qdo", "session", "show", "<session>"],
+                "Inspect the session to confirm it captured this table in structured form.",
             )
         )
 

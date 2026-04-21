@@ -569,6 +569,15 @@ def print_diff(
     console.print(
         f"\n  Schema diff: [cyan]{result['left']}[/cyan] → [cyan]{result['right']}[/cyan]"
     )
+    if isinstance(result.get("previous_row_count"), int) and isinstance(
+        result.get("current_row_count"), int
+    ):
+        delta = result.get("row_count_delta")
+        delta_text = f"{delta:+,}" if isinstance(delta, int) else "n/a"
+        console.print(
+            f"  Row count: [cyan]{result['previous_row_count']:,}[/cyan] → "
+            f"[cyan]{result['current_row_count']:,}[/cyan]  ([bold]{delta_text}[/bold])"
+        )
 
     if not added and not removed and not changed:
         console.print("  [green]Schemas are identical.[/green]")

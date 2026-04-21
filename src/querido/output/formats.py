@@ -803,6 +803,16 @@ def format_diff(
         f"## Diff: {result['left']} → {result['right']}",
         "",
     ]
+    if isinstance(result.get("previous_row_count"), int) and isinstance(
+        result.get("current_row_count"), int
+    ):
+        delta = result.get("row_count_delta")
+        delta_text = f"{delta:+,}" if isinstance(delta, int) else "n/a"
+        lines.append(
+            "Row count: "
+            f"{result['previous_row_count']:,} → {result['current_row_count']:,} ({delta_text})"
+        )
+        lines.append("")
     if not added and not removed and not changed:
         lines.append("Schemas are identical.")
         return "\n".join(lines)

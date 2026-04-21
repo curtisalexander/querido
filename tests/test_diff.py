@@ -1,14 +1,27 @@
 """Tests for qdo diff command."""
 
+import json
+import os
 import sqlite3
 from pathlib import Path
 
 import pytest
+from click.testing import Result
 from typer.testing import CliRunner
 
 from querido.cli.main import app
 
 runner = CliRunner()
+
+
+def _run(args: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> Result:
+    env_full = {**os.environ, **(env or {})}
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(cwd)
+        return runner.invoke(app, args, env=env_full)
+    finally:
+        os.chdir(old_cwd)
 
 
 @pytest.fixture
@@ -39,7 +52,6 @@ def test_diff_added_column(diff_db: str):
         ["-f", "json", "diff", "-c", diff_db, "-t", "users_v1", "--target", "users_v2"],
     )
     assert result.exit_code == 0
-    import json
 
     payload = json.loads(result.output)["data"]
     added_names = [c["name"] for c in payload["added"]]
@@ -53,7 +65,6 @@ def test_diff_removed_column(diff_db: str):
         ["-f", "json", "diff", "-c", diff_db, "-t", "users_v2", "--target", "users_v1"],
     )
     assert result.exit_code == 0
-    import json
 
     payload = json.loads(result.output)["data"]
     removed_names = [c["name"] for c in payload["removed"]]
@@ -67,7 +78,6 @@ def test_diff_changed_type(diff_db: str):
         ["-f", "json", "diff", "-c", diff_db, "-t", "users_v1", "--target", "users_v2"],
     )
     assert result.exit_code == 0
-    import json
 
     payload = json.loads(result.output)["data"]
     # age or name may have changed (type or nullable)
@@ -80,7 +90,6 @@ def test_diff_unchanged_count(diff_db: str):
         ["-f", "json", "diff", "-c", diff_db, "-t", "users_v1", "--target", "users_v2"],
     )
     assert result.exit_code == 0
-    import json
 
     payload = json.loads(result.output)["data"]
     assert payload["unchanged_count"] >= 0
@@ -158,8 +167,65 @@ def test_diff_cross_connection(tmp_path: Path):
         ],
     )
     assert result.exit_code == 0
-    import json
 
     payload = json.loads(result.output)["data"]
     added_names = [c["name"] for c in payload["added"]]
     assert "extra" in added_names
+
+
+def test_diff_since_session_snapshot(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "since.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute("INSERT INTO users VALUES (1, 'Alice')")
+    conn.commit()
+    conn.close()
+
+    snap = _run(
+        ["-f", "json", "inspect", "-c", db_path, "-t", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "baseline"},
+    )
+    assert snap.exit_code == 0, snap.output
+
+    conn = sqlite3.connect(db_path)
+    conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    conn.execute("INSERT INTO users VALUES (2, 'Bob', 'bob@example.com')")
+    conn.commit()
+    conn.close()
+
+    result = _run(
+        ["-f", "json", "diff", "-c", db_path, "-t", "users", "--since", "baseline"],
+        cwd=tmp_path,
+    )
+    assert result.exit_code == 0, result.output
+
+    payload = json.loads(result.output)["data"]
+    assert payload["since"]["session"] == "baseline"
+    assert payload["previous_row_count"] == 1
+    assert payload["current_row_count"] == 2
+    assert payload["row_count_delta"] == 1
+    assert [c["name"] for c in payload["added"]] == ["email"]
+
+
+def test_diff_since_session_missing_snapshot_structured_error(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "since.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+    conn.commit()
+    conn.close()
+
+    _run(
+        ["inspect", "-c", db_path, "-t", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "baseline"},
+    )
+
+    result = _run(
+        ["-f", "json", "diff", "-c", db_path, "-t", "users", "--since", "baseline"],
+        cwd=tmp_path,
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SESSION_SNAPSHOT_NOT_FOUND"
+    assert any("inspect" in step["cmd"] for step in payload["try_next"])
