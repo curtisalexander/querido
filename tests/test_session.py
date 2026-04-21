@@ -206,6 +206,25 @@ def test_session_list_shows_sessions(tmp_path: Path, sqlite_path: str) -> None:
     assert "1 step" in result.output
 
 
+def test_session_list_json_uses_structured_envelope(tmp_path: Path, sqlite_path: str) -> None:
+    _run(
+        ["inspect", "--connection", sqlite_path, "--table", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "alpha"},
+    )
+    result = _run(["-f", "json", "session", "list"], cwd=tmp_path)
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["command"] == "session list"
+    assert payload["data"]["sessions"] == [
+        {
+            "name": "alpha",
+            "step_count": 1,
+            "last_timestamp": payload["data"]["sessions"][0]["last_timestamp"],
+        }
+    ]
+
+
 def test_session_show_prints_steps(tmp_path: Path, sqlite_path: str) -> None:
     for _ in range(2):
         _run(

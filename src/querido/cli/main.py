@@ -22,9 +22,18 @@ from querido.cli.argv_hoist import hoist_format_flag
 # order in the help output.
 _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
     (
-        "Explore",
+        "Start Here",
         [
-            ("context", "querido.cli.context", "Rich table context for agents and humans."),
+            ("catalog", "querido.cli.catalog", "Discover tables, columns, and row counts."),
+            ("context", "querido.cli.context", "Understand one table in a single call."),
+            ("metadata", "querido.cli.metadata", "Capture and read shared table knowledge."),
+            ("query", "querido.cli.query", "Answer a question with ad-hoc SQL."),
+            ("report", "querido.cli.report", "Generate a shareable HTML hand-off report."),
+        ],
+    ),
+    (
+        "Investigate Deeper",
+        [
             ("inspect", "querido.cli.inspect", "Inspect table structure."),
             ("preview", "querido.cli.preview", "Preview rows from a table."),
             ("profile", "querido.cli.profile", "Profile table data."),
@@ -33,13 +42,6 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
             ("quality", "querido.cli.quality", "Data quality summary for a table."),
             ("diff", "querido.cli.diff", "Compare schemas between two tables."),
             ("joins", "querido.cli.joins", "Discover likely join keys between tables."),
-        ],
-    ),
-    (
-        "Query",
-        [
-            ("query", "querido.cli.query", "Execute ad-hoc SQL queries."),
-            ("catalog", "querido.cli.catalog", "Show full database catalog."),
             ("pivot", "querido.cli.pivot", "Pivot / aggregate table data."),
             ("explain", "querido.cli.explain", "Show query execution plan (EXPLAIN)."),
             ("assert", "querido.cli.assert_cmd", "Assert conditions on query results."),
@@ -47,20 +49,8 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
         ],
     ),
     (
-        "Generate",
+        "Automate And Share",
         [
-            ("sql", "querido.cli.sql", "Generate SQL statements for a table."),
-            ("template", "querido.cli.template", "Generate documentation templates for tables."),
-            ("view-def", "querido.cli.view_def", "Show SQL definition of a view."),
-            ("report", "querido.cli.report", "Generate a single-file HTML report."),
-        ],
-    ),
-    (
-        "Manage",
-        [
-            ("config", "querido.cli.config", "Manage connections."),
-            ("cache", "querido.cli.cache", "Manage local metadata cache."),
-            ("metadata", "querido.cli.metadata", "Manage enriched table metadata."),
             (
                 "bundle",
                 "querido.cli.bundle",
@@ -72,6 +62,21 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
                 "Run, lint, list, or show declarative workflows.",
             ),
             ("session", "querido.cli.session", "Manage agent-workflow sessions."),
+            ("template", "querido.cli.template", "Generate documentation templates for tables."),
+        ],
+    ),
+    (
+        "Generate",
+        [
+            ("sql", "querido.cli.sql", "Generate SQL statements for a table."),
+            ("view-def", "querido.cli.view_def", "Show SQL definition of a view."),
+        ],
+    ),
+    (
+        "Setup",
+        [
+            ("config", "querido.cli.config", "Manage connections."),
+            ("cache", "querido.cli.cache", "Manage local metadata cache."),
             ("completion", "querido.cli.completion", "Generate shell completion scripts."),
         ],
     ),
@@ -191,10 +196,11 @@ class LazyGroup(TyperGroup):
         with formatter.section("Quick start"):
             formatter.write_dl(
                 [
-                    ("catalog -c my.db", "List all tables"),
-                    ("inspect -c my.db -t users", "Show table columns"),
-                    ("preview -c my.db -t users", "See sample rows"),
-                    ("profile -c my.db -t users", "Profile statistics"),
+                    ("catalog -c my.db", "Discover tables to investigate."),
+                    ("context -c my.db -t users", "Understand one table in depth."),
+                    ("metadata init -c my.db -t users", "Capture what you've learned."),
+                    ("query -c my.db --sql 'select ...'", "Answer a concrete question."),
+                    ("report table -c my.db -t users", "Hand off a shareable report."),
                 ]
             )
 
@@ -205,7 +211,10 @@ class LazyGroup(TyperGroup):
 
 app = typer.Typer(
     name="qdo",
-    help="CLI data analysis toolkit for SQLite, DuckDB, and Snowflake.",
+    help=(
+        "Agent-first data exploration CLI for discovering data, capturing understanding, "
+        "and sharing it."
+    ),
     no_args_is_help=True,
     cls=LazyGroup,
     invoke_without_command=True,

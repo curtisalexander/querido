@@ -1,3 +1,4 @@
+import json
 import os
 
 from typer.testing import CliRunner
@@ -69,6 +70,21 @@ def test_config_list_shows_connections(tmp_path):
     assert result.exit_code == 0
     assert "testdb" in result.output
     assert "duckdb" in result.output
+
+
+def test_config_list_json_uses_structured_envelope(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "testdb", "--type", "duckdb", "--path", "/data/my.duckdb"],
+        env=env,
+    )
+    result = runner.invoke(app, ["-f", "json", "config", "list"], env=env)
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["command"] == "config list"
+    assert payload["data"]["connections"][0]["name"] == "testdb"
+    assert payload["data"]["connections"][0]["path"] == "/data/my.duckdb"
 
 
 def test_config_list_snowflake_columns(tmp_path):

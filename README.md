@@ -4,7 +4,7 @@
 >
 > Also: **queri**-**do** — your data is dear to you, and you want to query it. `qdo` = query, do.
 
-A CLI toolkit for common data analysis tasks against SQLite, DuckDB, Snowflake, and Parquet files.
+qdo is an agent-first data exploration CLI that turns one-off investigation into reusable team knowledge.
 
 ## Install
 
@@ -85,25 +85,32 @@ uv pip install 'querido[all]'        # Everything
 
 ## Quick Start
 
+The opinionated qdo workflow is:
+
+`discover -> understand -> capture -> answer -> hand off`
+
 ```bash
-# 1. See all tables and columns
+# 1. Discover what exists
 qdo catalog -c my-db
 
-# 2. Get everything about a table at once (schema + stats + sample values)
+# 2. Understand one table in depth
 qdo context -c my-db --table orders
 
-# 3. Drill into structure
-qdo inspect -c my-db --table orders
+# 3. Capture what you learned
+qdo metadata init -c my-db --table orders
+qdo metadata suggest -c my-db --table orders --apply
 
-# 4. See real rows
-qdo preview -c my-db --table orders --rows 20
-
-# 5. Statistical summary
-qdo profile -c my-db --table orders
-
-# 6. Run a query
+# 4. Answer a question and verify it
 qdo query -c my-db --sql "select status, count(*) from orders group by 1"
+qdo assert -c my-db --sql "select count(*) from orders where status is null" --expect 0
+
+# 5. Hand it off
+qdo report table -c my-db --table orders -o orders-report.html
 ```
+
+Need more detail while investigating? Use `inspect`, `preview`, `profile`,
+`quality`, `values`, `dist`, `joins`, and `diff` as drill-down tools inside
+that workflow.
 
 All commands support `--format json` (or `csv`, `markdown`, `html`, `yaml`). Output goes to stdout; spinners go to stderr so piping is safe:
 
@@ -115,10 +122,22 @@ qdo profile -c my-db -t orders -f csv > stats.csv
 
 ## Commands
 
-### Explore — understand your data
+### Start Here — promoted workflow
 
 ```bash
+qdo catalog   -c my-db                       # discover tables and row counts
 qdo context   -c my-db -t orders              # schema + stats + sample values in one call
+qdo metadata  init -c my-db -t orders         # create metadata YAML
+qdo metadata  suggest -c my-db -t orders --apply  # capture deterministic additions
+qdo query     -c my-db --sql "select ..."     # answer a question
+qdo assert    -c my-db --sql "..." --expect 0 # verify an invariant
+qdo report    table -c my-db -t orders        # single-file hand-off report
+qdo bundle    export -c my-db -t orders -o bundle.zip  # portable knowledge bundle
+```
+
+### Investigate Deeper — specialist tools
+
+```bash
 qdo inspect   -c my-db -t orders              # column types, nullable, PK, row count
 qdo preview   -c my-db -t orders -r 20        # see rows
 qdo profile   -c my-db -t orders --top 10     # stats + top frequent values
@@ -134,12 +153,10 @@ qdo joins     -c my-db -t orders              # suggest likely join keys
 ### Query — run and validate SQL
 
 ```bash
-qdo query     -c my-db --sql "select ..."                    # ad-hoc SQL
 qdo catalog   -c my-db                                       # all tables and columns
 qdo catalog   -c my-db --pattern order                       # filter tables/columns by name
 qdo pivot     -c my-db -t orders -g region -a "sum(amount)"  # GROUP BY
 qdo explain   -c my-db --sql "select ..."                    # query execution plan
-qdo assert    -c my-db --sql "..." --expect 0                # assert a condition (CI-friendly)
 qdo export    -c my-db -t orders -o out.csv                  # export to file
 ```
 
@@ -345,20 +362,27 @@ Ready-made context files live in the `integrations/` directory. Copy the one tha
 **Recommended agent workflow:**
 
 ```bash
-# 1. Give the agent a schema overview
+# 1. Discover
 qdo catalog -c my-db -f json
 
-# 2. For each relevant table, get full context
+# 2. Understand
 qdo context -c my-db -t orders -f json
 
-# 3. Run queries the agent generates
-qdo query -c my-db --sql "..." -f json
-
-# 4. If needed, enriched metadata gives the agent more signal
+# 3. Load or capture prior knowledge
 qdo metadata show -c my-db -t orders -f json
+qdo metadata suggest -c my-db -t orders --apply
+
+# 4. Answer and verify
+qdo query -c my-db --sql "..." -f json
+qdo assert -c my-db --sql "..." --expect 0 -f json
+
+# 5. Hand off
+qdo report table -c my-db -t orders -o orders-report.html
 ```
 
-The `context` command is especially useful for agent workflows: it returns everything an LLM needs to write correct SQL for a table (column types, nullable flags, null rates, sample values for categoricals, min/max for numerics) in a single call.
+The `context` command is the anchor for agent workflows: it returns everything
+an LLM needs to write correct SQL for a table in one call, and metadata turns
+that understanding into durable context for later runs and other teammates.
 
 ## Configuration
 

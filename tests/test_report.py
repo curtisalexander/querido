@@ -43,10 +43,38 @@ def test_report_table_writes_html(sqlite_path: str, tmp_path: Path):
 def test_report_table_empty_metadata_panel(sqlite_path: str, tmp_path: Path):
     """Tables without metadata get an explicit empty-state, not a silent omission."""
     out = tmp_path / "report.html"
-    runner.invoke(app, ["report", "table", "-c", sqlite_path, "-t", "users", "-o", str(out)])
+    result = runner.invoke(
+        app,
+        ["report", "table", "-c", sqlite_path, "-t", "users", "-o", str(out)],
+        env={"QDO_METADATA_DIR": str(tmp_path / "meta")},
+    )
+    assert result.exit_code == 0, result.output
     html = out.read_text(encoding="utf-8")
     assert "No metadata recorded yet" in html
     assert "qdo metadata init" in html
+
+
+def test_report_table_with_initialized_metadata(sqlite_path: str, tmp_path: Path):
+    """Initialized metadata should render without assuming nested dict shapes."""
+    env = {"QDO_METADATA_DIR": str(tmp_path / "meta")}
+    init_result = runner.invoke(
+        app,
+        ["metadata", "init", "-c", sqlite_path, "-t", "users"],
+        env=env,
+    )
+    assert init_result.exit_code == 0, init_result.output
+
+    out = tmp_path / "report.html"
+    result = runner.invoke(
+        app,
+        ["report", "table", "-c", sqlite_path, "-t", "users", "-o", str(out)],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    html = out.read_text(encoding="utf-8")
+    assert "coverage" in html
+    assert "&lt;data_owner&gt;" in html
 
 
 def test_report_table_no_joins_panel_on_single_table_db(tmp_path: Path):

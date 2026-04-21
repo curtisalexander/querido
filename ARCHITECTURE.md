@@ -29,7 +29,7 @@ querido/
 │   ├── check_deps.py              # Dependency checker with supply-chain quarantine
 │   ├── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
 │   ├── eval_workflow_authoring.py # Self-hosting eval: claude -p writes workflows (Phase 4.6)
-│   ├── eval_skill_files.py        # Self-hosting eval: claude -p answers data questions via SKILL.md (EV.Build)
+│   ├── eval_skill_files_claude.py # Self-hosting eval: claude -p answers data questions via SKILL.md (EV.Build)
 │   └── retag.sh                   # Move release tag to current commit
 ├── src/
 │   └── querido/

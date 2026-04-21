@@ -415,13 +415,17 @@ uv run python scripts/init_test_data.py   # creates data/test.db and data/test.d
 
 ## Self-hosting evaluations
 
-Two optional eval scripts live under `scripts/`. Both require a Claude Code Max subscription (`claude -p`) and refuse to run when `ANTHROPIC_API_KEY` is set so billing can't leak to the API.
+Three optional eval scripts live under `scripts/`. Two are Claude-backed; one
+uses Codex. All are opt-in and intended for local runs after docs or command-surface
+changes.
 
 - **`eval_workflow_authoring.py`** — Phase 4.6. Feeds `WORKFLOW_AUTHORING.md` + `qdo workflow spec` + bundled examples to `claude -p`, asks the model to author three workflows it hasn't seen, and checks lint + run + shape assertions. Signals whether the authoring doc is pedagogically complete.
 
-- **`eval_skill_files.py`** — EV.Build. Feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 11 realistic data-exploration questions across four categories (discovery, column-level, quality, metadata/SQL). Each task has required-command / content-regex / preferred-command checks and categorizes failures (qdo-bug / model-mistake / envelope-mismatch / timeout / auth-error). Supports Haiku / Sonnet / Opus; per-model pass gates (70 / 85 / 95 %). Per-run JSON results land in `scripts/eval_results/` (gitignored).
+- **`eval_skill_files_claude.py`** — EV.Build for Claude Code. Feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 15 realistic data-exploration questions across four categories aligned to the promoted workflow (`catalog -> context -> metadata -> query/assert -> report/bundle`). Each task has required-command / content-regex / preferred-command checks; some tasks also require multiple workflow steps to appear. Failures are categorized (qdo-bug / model-mistake / envelope-mismatch / timeout / auth-error). Supports Haiku / Sonnet / Opus; per-model pass gates (70 / 85 / 95 %). Per-run JSON results land in `scripts/eval_results/` (gitignored).
 
-Both are opt-in. Run locally after doc or implementation changes; failures that cluster in a category point at specific docs to tighten.
+- **`eval_skill_files_codex.py`** — EV.Build for Codex. Runs the same task catalog and pass/fail logic through `codex exec` so the benchmark corpus stays comparable across agents. Produces the same JSON result shape under `scripts/eval_results/`.
+
+Run them locally after doc or implementation changes; failures that cluster in a category point at specific docs to tighten.
 
 ## Dependency Management
 

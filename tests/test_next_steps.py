@@ -111,7 +111,18 @@ def test_for_catalog_picks_largest_table() -> None:
 def test_for_catalog_empty_nudges_to_config_test() -> None:
     steps = ns.for_catalog({"tables": []}, connection="c", enriched=False)
     assert len(steps) == 1
-    assert "qdo config test" in steps[0]["cmd"]
+    assert steps[0]["cmd"] == "qdo config test c"
+
+
+def test_for_catalog_join_suggestion_includes_source_table() -> None:
+    result = {
+        "tables": [
+            {"name": "small", "row_count": 10},
+            {"name": "big", "row_count": 10_000},
+        ]
+    }
+    steps = ns.for_catalog(result, connection="c", enriched=False)
+    assert any(s["cmd"] == "qdo joins -c c -t big" for s in steps)
 
 
 def test_for_catalog_already_enriched_skips_enrich_suggestion() -> None:
@@ -324,6 +335,16 @@ def test_error_json_file_not_found_includes_try_next(tmp_path) -> None:
     assert err["code"] == "FILE_NOT_FOUND"
     assert err["try_next"], err
     assert err["try_next"][0]["cmd"].startswith("qdo ")
+
+
+def test_for_error_database_open_failed_uses_positional_config_test() -> None:
+    steps = ns.for_error("DATABASE_OPEN_FAILED", connection="demo")
+    assert steps[0]["cmd"] == "qdo config test demo"
+
+
+def test_for_error_auth_failed_uses_positional_config_test() -> None:
+    steps = ns.for_error("AUTH_FAILED", connection="demo")
+    assert steps[0]["cmd"] == "qdo config test demo"
 
 
 def test_for_error_table_not_found_includes_catalog_suggestion() -> None:

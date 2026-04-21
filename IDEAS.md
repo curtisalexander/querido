@@ -205,7 +205,7 @@ Our hot paths are:
 
 ## Agent tutorial: separate from skill file?
 
-> **[IMPLEMENTED — Phase 4.5 + Wave 3.]** Both artifacts kept and deepened. `qdo tutorial agent` survives for human+agent pairing; `SKILL.md` is the agent-context reference. The "playbook doc" idea is partially covered by `WORKFLOW_AUTHORING.md` + bundled workflows serving as the worked-example corpus. Self-hosting eval (`scripts/eval_skill_files.py`, `scripts/eval_workflow_authoring.py`) is the quality signal — 33/33 on the first live baseline.
+> **[IMPLEMENTED — Phase 4.5 + Wave 3.]** Both artifacts kept and deepened. `qdo tutorial agent` survives for human+agent pairing; `SKILL.md` is the agent-context reference. The "playbook doc" idea is partially covered by `WORKFLOW_AUTHORING.md` + bundled workflows serving as the worked-example corpus. Self-hosting eval (`scripts/eval_skill_files_claude.py`, `scripts/eval_workflow_authoring.py`) is the quality signal — 33/33 on the first live baseline.
 
 We already have `qdo tutorial agent` (13 lessons) and `integrations/skills/SKILL.md`. Different purposes:
 
@@ -689,7 +689,7 @@ This is roughly one additional week on top of Principle 11's week, assuming no s
 
 ## Agent-authoring documentation: the prerequisite for workflow extensibility
 
-> **[IMPLEMENTED — Phase 4.5 + Wave 3 + Wave 4.]** `WORKFLOW_AUTHORING.md`, `SKILL.md`, bundled workflows as worked examples, `qdo workflow spec [--examples]` all ship. Self-hosting eval shipped twice: `scripts/eval_workflow_authoring.py` (Phase 4.6) and the broader `scripts/eval_skill_files.py` (Wave 3, 11 tasks × 3 models). Option 1 (claude -p single-shot) is what's wired; Option 2 (Agent SDK with restricted tools) and Option 3 (hermetic Docker) remain available if the doc gap shifts.
+> **[IMPLEMENTED — Phase 4.5 + Wave 3 + Wave 4.]** `WORKFLOW_AUTHORING.md`, `SKILL.md`, bundled workflows as worked examples, `qdo workflow spec [--examples]` all ship. Self-hosting eval shipped twice: `scripts/eval_workflow_authoring.py` (Phase 4.6) and the broader `scripts/eval_skill_files_claude.py` (Wave 3, 11 tasks × 3 models). Option 1 (claude -p single-shot) is what's wired; Option 2 (Agent SDK with restricted tools) and Option 3 (hermetic Docker) remain available if the doc gap shifts.
 
 The Claude Code skills pattern only works if the agent has *everything it needs to author a correct extension on the first try*. For querido, that means a dedicated, authoritative body of documentation aimed at agents writing workflows — not aimed at humans reading prose about workflows. This is a feature, not a chore. Without it, Principle 11 degrades to "agents generate plausible-looking YAML that doesn't run."
 

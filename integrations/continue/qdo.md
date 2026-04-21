@@ -7,7 +7,7 @@ alwaysApply: false
 
 # Using querido (qdo)
 
-qdo is a CLI toolkit for data exploration and SQL generation. It speaks to SQLite, DuckDB, Snowflake, and Parquet files through a uniform interface. Use `--format json` (or `export QDO_FORMAT=json`) to get machine-readable output for every command.
+qdo is an agent-first data exploration CLI that turns one-off investigation into reusable team knowledge. Use `--format json` (or `export QDO_FORMAT=json`) to get machine-readable output for every command.
 
 ## Quick Setup
 
@@ -16,6 +16,34 @@ Run this once per session (or add to your shell profile):
 ```bash
 export QDO_FORMAT=json   # all commands output JSON — no --format flag on every call
 ```
+
+## Default agent workflow
+
+Unless the user clearly asks for something else, use this path:
+
+```bash
+qdo catalog -c <connection>                 # discover candidate tables
+qdo context -c <connection> -t <table>      # understand one table deeply
+qdo metadata show -c <connection> -t <table> -f json
+                                             # load existing shared knowledge
+qdo query -c <connection> --sql "select ..."
+                                             # answer a concrete question
+qdo assert -c <connection> --sql "select ..." --expect ...
+                                             # verify an invariant when useful
+qdo report table -c <connection> -t <table> -o report.html
+                                             # hand off a shareable artifact
+```
+
+Treat `catalog -> context -> metadata -> query/assert -> report/bundle` as the default path.
+
+## Agent rules
+
+- Do not start with `qdo --help` or `qdo overview` for normal exploration tasks.
+- Prefer `qdo context` over stitching together `inspect` + `preview` + `profile` for first-pass understanding.
+- Use `qdo query` only after `context` unless the user asks for a narrowly scoped SQL answer immediately.
+- Use drill-down commands only when the default workflow leaves a specific gap.
+- Prefer `-f json` when you need to inspect output programmatically.
+- When the connection is a DuckDB file, run `qdo` commands sequentially against that file. Do not overlap multiple `qdo` processes on the same `.duckdb` database unless you explicitly need concurrent writes and have planned for locking.
 
 **For a new database, start here:**
 
@@ -40,60 +68,48 @@ qdo catalog -c ./data.parquet
 
 The `-c` flag accepts either a named connection or a direct file path.
 
-## Quick exploration workflow
+## Promoted workflow
 
-For any new database or table, follow this sequence:
+For most analyst and agent tasks, use this sequence:
 
 ```bash
-# 1. See all tables, column counts, and row counts
+# 1. Discover candidate tables
 qdo catalog -c <connection>
 
-# 2. Discover likely join keys across all tables (before you pick one)
-qdo joins -c <connection> -t <table>
-
-# 3. Full context for a table — schema + stats + sample values in one call
+# 2. Build context for one table
 qdo context -c <connection> -t <table>
 
-# 4. Drill into structure (if you need PK/nullable/default details)
-qdo inspect -c <connection> -t <table>
+# 3. Load or capture shared understanding
+qdo metadata show -c <connection> -t <table> -f json
+qdo metadata init -c <connection> -t <table>
+qdo metadata suggest -c <connection> -t <table> --apply
 
-# 5. See sample rows
-qdo preview -c <connection> -t <table> -r 10
-
-# 6. Statistical summary — min/max/mean/null_count/distinct_count
-qdo profile -c <connection> -t <table>
-
-# 6b. Wide tables (50+ cols): classify first, then profile a subset
-qdo profile -c <connection> -t <table> --classify          # categorize columns
-qdo profile -c <connection> -t <table> --columns <cols>    # full stats on selected
-qdo config column-set save -c <conn> -t <table> -n default --columns "<cols>"  # persist
-qdo profile -c <connection> -t <table> --column-set default  # reuse
-
-# 7. Top values for specific categorical columns
-qdo profile -c <connection> -t <table> --columns <col1>,<col2> --top 5
-
-# 8. Full value list with counts for an enum-like column — write to metadata
-qdo values -c <connection> -t <table> -C <column> --write-metadata
-
-# 9. Histogram for a numeric column
-qdo dist -c <connection> -t <table> -C <column>
-
-# 10. Data quality report — null rates, uniqueness, invariant violations
-qdo quality -c <connection> -t <table>
-
-# 11. Run ad-hoc SQL
+# 4. Answer a concrete question
 qdo query -c <connection> --sql "select ..."
 
-# 12. GROUP BY aggregation without writing SQL
-qdo pivot -c <connection> -t <table> -g <group_col> -a "sum(<value_col>)"
+# 5. Verify or hand off
+qdo assert -c <connection> --sql "select ..." --expect ...
+qdo report table -c <connection> -t <table> -o report.html
+qdo bundle export -c <connection> -t <table> -o bundle.zip
 ```
 
-**`profile` vs `quality`.** Both scan a table but surface different signals:
-`profile` is statistical (min/max/mean/null_pct/distinct_count — use when you
-want *distributions*). `quality` is invariant-oriented (elevates columns
-whose null rate, uniqueness, or stored `valid_values` enum is violated — use
-when you want *what's wrong*). They're complementary; run both on a new
-table.
+This is the main story qdo is optimized for: discover data, understand it, capture what you learned, answer the question, then share the result.
+
+## Drill-down commands
+
+Use these only when the promoted workflow leaves a specific unanswered question:
+
+- `qdo joins` for likely foreign-key relationships.
+- `qdo inspect` for PK / nullable / default details.
+- `qdo preview` for example rows.
+- `qdo profile` for focused numeric or multi-column statistics.
+- `qdo quality` for anomaly-oriented review.
+- `qdo values` for enumerating low-cardinality columns and writing `valid_values`.
+- `qdo dist` for histograms or categorical distributions.
+- `qdo pivot` for quick aggregations without writing SQL.
+
+**`context` vs `profile` vs `quality`.**
+`context` is the default first call. `profile` is for deeper statistical detail on selected columns. `quality` is for anomaly-oriented checks and invariant violations.
 
 **`values --write-metadata` closes the compounding loop.** It enumerates a
 column's distinct values *and* writes them into the metadata YAML as
@@ -109,7 +125,7 @@ queries. Stored metadata is loaded from disk concurrently.
 
 ```bash
 qdo context -c <connection> -t <table>
-qdo context -c <connection> -t <table> -f json          # machine-readable
+qdo -f json context -c <connection> -t <table>          # machine-readable
 qdo context -c <connection> -t <table> --sample-values 10   # more samples
 qdo context -c <connection> -t <table> --no-sample      # exact counts, no sampling
 ```
@@ -146,9 +162,7 @@ JSON output shape (trimmed):
 }
 ```
 
-Use `context` as the primary tool call when you need to understand a table
-before writing SQL. It replaces separate calls to `inspect`, `profile`, and
-`values` for most workflows.
+Use `context` as the primary tool call when you need to understand a table before writing SQL. It replaces separate calls to `inspect`, `preview`, and much of `profile` for most workflows.
 
 ## JSON output for programmatic use
 
@@ -158,8 +172,8 @@ export QDO_FORMAT=json
 
 # Or per-command
 qdo --format json catalog -c mydb
-qdo --format json inspect -c mydb -t orders
-qdo --format json profile -c mydb -t events
+qdo --format json context -c mydb -t orders
+qdo --format json metadata show -c mydb -t orders
 ```
 
 Errors go to stderr as structured JSON when `--format json` is set:
@@ -185,6 +199,9 @@ qdo metadata edit -c <connection> -t <table>
 
 # Read back the enriched metadata
 qdo metadata show -c <connection> -t <table>
+
+# Deterministically propose additions from scans
+qdo metadata suggest -c <connection> -t <table>
 
 # Check completeness across all documented tables
 qdo metadata list -c <connection>
@@ -232,7 +249,7 @@ Requirements:
 - Respect pii: true columns (do not expose in output unless asked)
 ```
 
-The metadata tells the agent what schema alone cannot: valid enum values for filters, which columns are nullable (use LEFT JOIN or IS NOT NULL guards), date columns that need EXTRACT for year comparisons, and PII columns to avoid.
+The metadata tells the agent what schema alone cannot: valid enum values for filters, which columns are nullable, business meaning, ownership, and PII flags. Read it before writing nontrivial SQL.
 
 ## SQL generation
 

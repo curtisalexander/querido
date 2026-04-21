@@ -71,21 +71,35 @@ def start(
 def list_cmd() -> None:
     """List session names under ``.qdo/sessions/`` with step counts."""
     from querido.core.session import iter_steps, list_sessions
+    from querido.output.envelope import emit_envelope, is_structured_format
 
     names = list_sessions()
-    if not names:
-        typer.echo("No sessions found under .qdo/sessions/")
-        return
-
-    rows: list[tuple[str, int, str]] = []
+    rows: list[dict[str, str | int | None]] = []
     for n in names:
         steps = list(iter_steps(n))
         count = len(steps)
         last = steps[-1].get("timestamp", "") if steps else ""
-        rows.append((n, count, last))
+        rows.append({"name": n, "step_count": count, "last_timestamp": last or None})
 
-    width = max(len(n) for n, _, _ in rows)
-    for name, count, last in rows:
+    if is_structured_format():
+        emit_envelope(command="session list", data={"sessions": rows})
+        return
+
+    if not names:
+        typer.echo("No sessions found under .qdo/sessions/")
+        return
+
+    display_rows: list[tuple[str, int, str]] = [
+        (
+            str(row["name"]),
+            row["step_count"] if isinstance(row["step_count"], int) else 0,
+            str(row["last_timestamp"] or ""),
+        )
+        for row in rows
+    ]
+
+    width = max(len(str(n)) for n, _, _ in display_rows)
+    for name, count, last in display_rows:
         suffix = f"  last: {last}" if last else ""
         typer.echo(f"{name.ljust(width)}  {count} step{'s' if count != 1 else ''}{suffix}")
 

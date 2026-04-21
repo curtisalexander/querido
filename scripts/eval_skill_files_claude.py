@@ -2,8 +2,12 @@
 
 Feeds ``SKILL.md`` + ``WORKFLOW_EXAMPLES.md`` + ``AGENTS.md`` as context to
 ``claude -p`` and asks the model to answer realistic data-exploration
-questions using only the qdo CLI against ``data/test.duckdb``. Each task
-has:
+questions using only the qdo CLI against ``data/test.duckdb``. The task set
+leans on qdo's promoted workflow:
+
+``catalog -> context -> metadata -> query/assert -> report/bundle``
+
+Each task has:
 
 - A natural-language prompt (the model must pick qdo commands itself)
 - A set of required ``qdo <subcommand>`` prefixes (at least one must be used)
@@ -16,10 +20,10 @@ Failures are categorized so a docs gap can be told apart from a qdo bug
 Usage::
 
     unset ANTHROPIC_API_KEY            # avoid silent API billing
-    uv run python scripts/eval_skill_files.py                       # haiku only
-    uv run python scripts/eval_skill_files.py --models all          # haiku+sonnet+opus
-    uv run python scripts/eval_skill_files.py --tasks A1_list_tables,B1_enumerate_enum
-    uv run python scripts/eval_skill_files.py --budget 5.00
+    uv run python scripts/eval_skill_files_claude.py                       # haiku only
+    uv run python scripts/eval_skill_files_claude.py --models all          # haiku+sonnet+opus
+    uv run python scripts/eval_skill_files_claude.py --tasks A1_list_tables,B1_enumerate_enum
+    uv run python scripts/eval_skill_files_claude.py --budget 5.00
 
 Local-only by default. Requires Claude Code Max (``claude -p`` uses the
 subscription, not ANTHROPIC_API_KEY). Refuses to run if the API key is set
@@ -79,19 +83,24 @@ ESTIMATED_TOKENS_PER_TASK = {"prompt": 15_000, "output": 1_500}
 
 SYSTEM_PROMPT_TMPL = textwrap.dedent(
     """
-    You are pairing with a data analyst who uses the qdo CLI to explore a
-    local database. Answer the user's question by running qdo commands and
-    synthesizing their output. Use the reference docs below to pick the
-    right commands.
+You are pairing with a data analyst who uses the qdo CLI to explore a
+local database. Answer the user's question by running qdo commands and
+synthesizing their output. Use the reference docs below to pick the
+right commands.
 
-    Ground rules:
-    - Use qdo commands — do not write custom SQL unless the user explicitly
-      asks for it, and do not install extra tools.
-    - Run commands with ``-f json`` when you need structured output.
-    - Be concise in your final answer. The user cares about the data, not
-      a running commentary.
-    - The database you are exploring is at the exact path the user gives
-      you — pass it verbatim as ``-c <path>``.
+Ground rules:
+- Follow qdo's opinionated workflow when it fits the task:
+  ``catalog -> context -> metadata -> query/assert -> report/bundle``.
+- Prefer `qdo context` over stitching together multiple lower-level
+  commands when the goal is to understand one table.
+- Use qdo commands — do not install extra tools.
+- Use `qdo query` only when the task requires answering a concrete
+  question that the higher-level commands do not already answer.
+- Run commands with ``-f json`` when you need structured output.
+- Be concise in your final answer. The user cares about the data, not
+  a running commentary.
+- The database you are exploring is at the exact path the user gives
+  you — pass it verbatim as ``-c <path>``.
 
     ## Reference: qdo skill files
 
@@ -120,6 +129,10 @@ class Task:
     matches, the path was "clean"; if not, the task still passes but we
     log the preferred-vs-actual gap for docs tightening.
 
+    ``required_all_commands`` is stricter: every listed prefix must appear
+    somewhere in the Bash tool-call stream. This lets the eval reward the
+    promoted multi-step workflow instead of any one locally-plausible call.
+
     ``pre_task`` is a list of qdo argvs to run before the model sees the
     prompt — for tasks like D1 (show stored metadata) that need a
     ``metadata init`` first.
@@ -131,6 +144,7 @@ class Task:
     required_commands: list[str]
     content_regex: list[str]
     preferred_commands: list[str] = field(default_factory=list)
+    required_all_commands: list[str] = field(default_factory=list)
     max_commands: int = 12
     pre_task: list[list[str]] = field(default_factory=list)
     # Short note on the Wave 1 gotcha this task exercises (for the report).
@@ -138,7 +152,7 @@ class Task:
 
 
 TASKS: list[Task] = [
-    # ---- Category A: Database discovery ----
+    # ---- Category A: Discovery and first-pass understanding ----
     Task(
         id="A1_list_tables",
         category="A",
@@ -152,7 +166,20 @@ TASKS: list[Task] = [
         gotcha="CS.1 — fixture must have orders for this to pass.",
     ),
     Task(
-        id="A2_join_keys",
+        id="A2_pick_table_then_context",
+        category="A",
+        prompt=(
+            "I'm new to {db}. If my end goal is understanding customer orders, "
+            "which table should I start with, and give me a concise summary of it."
+        ),
+        required_commands=["qdo catalog", "qdo context"],
+        required_all_commands=["qdo catalog", "qdo context"],
+        content_regex=[r"(?i)orders", r"(?i)(status|amount|region|order_date)"],
+        preferred_commands=["qdo catalog", "qdo context"],
+        gotcha="Rewards the promoted discover -> understand path instead of ad-hoc probing.",
+    ),
+    Task(
+        id="A3_join_keys",
         category="A",
         prompt=(
             "In {db}, what are the likely join keys between the orders table "
@@ -161,25 +188,20 @@ TASKS: list[Task] = [
         required_commands=["qdo joins"],
         content_regex=[r"customer_id", r"product_id"],
         preferred_commands=["qdo joins"],
-        gotcha="CS.7 — joins was missing from SKILL.md quick workflow pre-Wave-1.",
+        gotcha="Secondary discovery skill — useful, but not the primary workflow anchor.",
     ),
     Task(
-        id="A3_summarize_table",
+        id="A4_summarize_orders",
         category="A",
         prompt=(
-            "In {db}, give me a full summary of the orders table — schema, "
-            "basic stats, and any obvious data-quality issues."
+            "In {db}, give me a full summary of the orders table and call out "
+            "any obvious quality issues."
         ),
-        required_commands=[
-            "qdo workflow run",
-            "qdo context",
-            "qdo inspect",
-            "qdo profile",
-            "qdo quality",
-        ],
-        content_regex=[r"(?i)orders", r"(?i)(status|amount|region|order_date)"],
-        preferred_commands=["qdo workflow run table-summary", "qdo context"],
-        gotcha="Discovers whether agent finds table-summary bundled workflow or hand-composes.",
+        required_commands=["qdo context", "qdo quality"],
+        required_all_commands=["qdo context", "qdo quality"],
+        content_regex=[r"(?i)(status|amount|null|negative|quality|issue)"],
+        preferred_commands=["qdo context", "qdo quality"],
+        gotcha="Ensures summary tasks lean on context first, then a quality pass.",
     ),
     # ---- Category B: Column-level exploration ----
     Task(
@@ -201,10 +223,28 @@ TASKS: list[Task] = [
             "In {db}, describe the distribution of orders.amount. I want "
             "min, max, mean, and null count at minimum."
         ),
-        required_commands=["qdo profile", "qdo dist", "qdo context"],
+        required_commands=["qdo context", "qdo profile"],
         content_regex=[r"(?i)(min|max|mean|average)"],
-        preferred_commands=["qdo profile", "qdo dist"],
-        gotcha="Model might reach for qdo query with custom SQL instead.",
+        preferred_commands=["qdo context", "qdo profile"],
+        gotcha=(
+            "The promoted workflow should allow context to answer "
+            "minimum numeric summaries cleanly."
+        ),
+    ),
+    Task(
+        id="B4_profile_deep_numeric",
+        category="B",
+        prompt=(
+            "In {db}, give me a deeper numeric profile of orders.amount. "
+            "Include at least the median and standard deviation, not just min/max."
+        ),
+        required_commands=["qdo profile"],
+        content_regex=[r"(?i)(median|stddev|standard deviation)"],
+        preferred_commands=["qdo profile"],
+        gotcha=(
+            "This is the column-level case where profile should beat "
+            "context because deeper stats are required."
+        ),
     ),
     Task(
         id="B3_null_rates",
@@ -215,10 +255,10 @@ TASKS: list[Task] = [
         ),
         required_commands=["qdo profile", "qdo quality", "qdo context"],
         content_regex=[r"(?i)(phone2|company|website)"],
-        preferred_commands=["qdo profile", "qdo quality"],
+        preferred_commands=["qdo context", "qdo quality"],
         gotcha="CS.10 — quality vs profile roles weren't disambiguated pre-Wave-1.",
     ),
-    # ---- Category C: Data quality & invariants ----
+    # ---- Category C: Answering and verification ----
     Task(
         id="C1_quality_issues",
         category="C",
@@ -233,16 +273,19 @@ TASKS: list[Task] = [
         gotcha="Fixture has ~0.8% bad status + 1.5% negative amount — quality should flag.",
     ),
     Task(
-        id="C2_schema_drift",
+        id="C2_query_total_by_region",
         category="C",
         prompt=(
-            "In {db}, compare the schemas of the customers and products "
-            "tables. Which columns are different?"
+            "In {db}, what is the total order amount by region, and which "
+            "region has the highest total?"
         ),
-        required_commands=["qdo diff"],
-        content_regex=[r"(?i)(added|removed|changed|differ|only in)"],
-        preferred_commands=["qdo diff"],
-        gotcha="CA.4 — diff -f json was absent pre-Wave-1 (verified wired, false positive).",
+        required_commands=["qdo context", "qdo query", "qdo catalog"],
+        content_regex=[r"(?i)(north|south|east|west|region)"],
+        preferred_commands=["qdo context", "qdo query"],
+        gotcha=(
+            "Simple aggregation questions may reasonably go straight to query "
+            "after light orientation."
+        ),
     ),
     Task(
         id="C3_assert_row_count",
@@ -256,7 +299,7 @@ TASKS: list[Task] = [
         preferred_commands=["qdo assert"],
         gotcha="CA.3 — assert was invisible to SKILL.md pre-Wave-2.",
     ),
-    # ---- Category D: Metadata & SQL generation ----
+    # ---- Category D: Metadata capture and hand-off artifacts ----
     Task(
         id="D1_stored_metadata",
         category="D",
@@ -273,15 +316,47 @@ TASKS: list[Task] = [
         gotcha="CS.3 — metadata show envelope wired in Wave 1.",
     ),
     Task(
-        id="D2_sql_scaffold",
+        id="D2_init_metadata",
         category="D",
         prompt=(
-            "In {db}, generate a SELECT statement for the orders table that includes every column."
+            "In {db}, initialize metadata for the orders table and tell me "
+            "where the YAML file was written."
         ),
-        required_commands=["qdo sql select"],
-        content_regex=[r"(?is)select.+from.+orders"],
-        preferred_commands=["qdo sql select"],
-        gotcha="CA.1 — qdo sql group doesn't surface -c; discoverability test.",
+        required_commands=["qdo metadata init"],
+        content_regex=[r"(?i)(\.qdo/metadata|orders\.yaml|created)"],
+        preferred_commands=["qdo metadata init"],
+        gotcha="Tests the capture step directly instead of treating metadata as an afterthought.",
+    ),
+    Task(
+        id="D3_table_report",
+        category="D",
+        prompt=(
+            "In {db}, create a hand-off HTML report for the orders table at "
+            "./orders-report.html and tell me what you created."
+        ),
+        required_commands=["qdo report table"],
+        content_regex=[r"(?i)(orders-report\.html|html report)"],
+        preferred_commands=["qdo report table"],
+        pre_task=[
+            ["qdo", "metadata", "init", "-c", str(FIXTURE_DB), "-t", "orders", "--force"],
+        ],
+        gotcha="Validates the hand-off step of the promoted workflow.",
+    ),
+    Task(
+        id="D4_bundle_export",
+        category="D",
+        prompt=(
+            "In {db}, export a knowledge bundle for the orders table to "
+            "./orders-bundle.zip, inspect it, and tell me what it contains."
+        ),
+        required_commands=["qdo bundle export", "qdo bundle inspect"],
+        required_all_commands=["qdo bundle export", "qdo bundle inspect"],
+        content_regex=[r"(?i)(orders-bundle\.zip|bundle|orders)"],
+        preferred_commands=["qdo bundle export", "qdo bundle inspect"],
+        pre_task=[
+            ["qdo", "metadata", "init", "-c", str(FIXTURE_DB), "-t", "orders", "--force"],
+        ],
+        gotcha="Tests the portable hand-off artifact, not just local exploration.",
     ),
 ]
 
@@ -750,6 +825,14 @@ def check_pass(
                 "reason": f"{len(tool_errors)} qdo invocation(s) had bad argv (click usage error)",
                 "path_ok": False,
             }
+        lock_errs = [e for e in tool_errors if _is_database_lock_error(e)]
+        if lock_errs:
+            return {
+                "status": "fail",
+                "failure_category": "database-lock",
+                "reason": f"{len(lock_errs)} qdo invocation(s) hit a database lock",
+                "path_ok": False,
+            }
         return {
             "status": "fail",
             "failure_category": "qdo-bug",
@@ -768,6 +851,20 @@ def check_pass(
             "reason": f"no required command used (expected any of: {expected}; got: {actual})",
             "path_ok": False,
         }
+
+    if task.required_all_commands:
+        missing = [
+            prefix
+            for prefix in task.required_all_commands
+            if not _any_prefix_match([prefix], qdo_commands)
+        ]
+        if missing:
+            return {
+                "status": "fail",
+                "failure_category": "model-mistake",
+                "reason": f"missing required workflow step(s): {', '.join(missing)}",
+                "path_ok": False,
+            }
 
     # Content check against the final answer.
     content_hit = any(re.search(pat, final_text) for pat in task.content_regex)
@@ -840,6 +937,12 @@ def _is_click_usage_error(text: str) -> bool:
     if not text:
         return False
     return bool(_USAGE_PREAMBLE_RE.search(text)) and bool(_USAGE_ERROR_PHRASE_RE.search(text))
+
+
+def _is_database_lock_error(text: str) -> bool:
+    if not text:
+        return False
+    return "Could not set lock on file" in text or "DATABASE_LOCKED" in text
 
 
 def _is_auth_error(final_text: str, stderr: str) -> bool:

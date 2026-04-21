@@ -131,7 +131,7 @@ def for_catalog(
     if not tables:
         steps.append(
             _step(
-                ["qdo", "config", "test", "-c", connection],
+                ["qdo", "config", "test", connection],
                 "No tables visible — verify the connection works.",
             )
         )
@@ -146,11 +146,12 @@ def for_catalog(
             )
         )
 
-    if len(tables) >= 2:
+    join_source = largest or next((t.get("name") for t in tables if t.get("name")), None)
+    if len(tables) >= 2 and join_source:
         steps.append(
             _step(
-                ["qdo", "joins", "-c", connection],
-                "Discover likely join keys across tables.",
+                ["qdo", "joins", "-c", connection, "-t", join_source],
+                "Discover likely join keys from a representative table.",
             )
         )
 
@@ -898,7 +899,7 @@ def for_error(
     elif code == "DATABASE_OPEN_FAILED" and connection:
         steps.append(
             _step(
-                ["qdo", "config", "test", "-c", connection],
+                ["qdo", "config", "test", connection],
                 "Verify the connection's path or credentials.",
             )
         )
@@ -906,7 +907,7 @@ def for_error(
     elif code == "AUTH_FAILED" and connection:
         steps.append(
             _step(
-                ["qdo", "config", "test", "-c", connection],
+                ["qdo", "config", "test", connection],
                 "Re-authenticate and verify the connection.",
             )
         )

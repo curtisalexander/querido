@@ -50,6 +50,22 @@ def test_factory_duckdb(duckdb_path: str):
         assert rows[0]["cnt"] == 2
 
 
+def test_duckdb_file_backed_connector_uses_read_only(tmp_path):
+    import duckdb
+
+    db_path = str(tmp_path / "shared.duckdb")
+    bootstrap = duckdb.connect(db_path)
+    bootstrap.execute("create table users(id integer, name varchar)")
+    bootstrap.execute("insert into users values (1, 'Alice')")
+    bootstrap.close()
+
+    with DuckDBConnector(db_path) as left, DuckDBConnector(db_path) as right:
+        left_rows = left.execute("select count(*) as cnt from users")
+        right_rows = right.execute("select count(*) as cnt from users")
+        assert left_rows[0]["cnt"] == 1
+        assert right_rows[0]["cnt"] == 1
+
+
 # ---------------------------------------------------------------------------
 # ConnectorError hierarchy (R.23) — driver exceptions surface as typed errors
 # so CLI and core code can isinstance-check instead of parsing messages.

@@ -93,9 +93,9 @@ def _section_metadata(report: dict) -> str:
         )
 
     rows: list[str] = []
-    table_desc = meta.get("description") or meta.get("table", {}).get("description")
-    owner = meta.get("owner") or meta.get("table", {}).get("owner")
-    tags = meta.get("tags") or meta.get("table", {}).get("tags") or []
+    table_desc = meta.get("table_description") or meta.get("description")
+    owner = meta.get("data_owner") or meta.get("owner")
+    tags = meta.get("tags") or []
 
     if table_desc:
         rows.append(
@@ -107,8 +107,9 @@ def _section_metadata(report: dict) -> str:
         tag_html = " ".join(f'<span class="tag">{html.escape(str(t))}</span>' for t in tags)
         rows.append(f'<tr><td class="k">tags</td><td>{tag_html}</td></tr>')
 
-    col_meta = meta.get("columns", {}) or {}
-    documented = sum(1 for v in col_meta.values() if isinstance(v, dict) and v.get("description"))
+    col_meta = meta.get("columns") or []
+    col_iter = col_meta.values() if isinstance(col_meta, dict) else col_meta
+    documented = sum(1 for v in col_iter if isinstance(v, dict) and v.get("description"))
     total = len(report.get("columns", []))
     coverage = f"{documented}/{total} columns documented" if total else "—"
     rows.append(f'<tr><td class="k">coverage</td><td>{coverage}</td></tr>')

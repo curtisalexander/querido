@@ -17,7 +17,7 @@ Remaining work is the open-ended backlog in [Deferred / future phases](#deferred
 **Pick up next session with one of these:**
 
 1. **Pick an item from the deferred backlog.** Natural next candidates: `qdo investigate <table>` (bundled workflow on top of existing primitives), read-only-by-default guardrail on `query` (safety), or `qdo diff --since <session>` (synergizes with the Phase 6.1 session reports).
-2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
+2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
 3. **Fix the `qdo context` date-bug** surfaced during the 4.6 eval — see Deferred below.
 
 ---
@@ -49,7 +49,7 @@ The four pieces that create the "tool gets better the more it's used" compoundin
 - Workflow spec (JSON Schema), runner, lint, list, `show`, `spec --examples`, `from-session` — `src/querido/core/workflow/`, `src/querido/cli/workflow.py`.
 - `WORKFLOW_AUTHORING.md` + `SKILL.md` + `AGENTS.md` — the docs an agent loads to author a workflow without repo access.
 - Bundled workflows under `src/querido/workflows/` serve as the worked-example corpus.
-- Self-hosting eval (`scripts/eval_workflow_authoring.py`, plus the broader `scripts/eval_skill_files.py` added in Wave 3) — refuses to run with `ANTHROPIC_API_KEY` set; per-model timeouts; budget guardrails.
+- Self-hosting eval (`scripts/eval_workflow_authoring.py`, plus the broader `scripts/eval_skill_files_claude.py` added in Wave 3) — refuses to run with `ANTHROPIC_API_KEY` set; per-model timeouts; budget guardrails.
 
 **Canonical invocation is `qdo workflow run <name>`.** The "CLI sugar shim" idea (Phase 4.4; `qdo <workflow-name>` as a top-level alias) was dropped — one invocation pattern is better than two parallel paths. See [IDEAS.md](IDEAS.md) "subcommand-to-workflow sugar" for the rejected analysis.
 
@@ -70,7 +70,7 @@ Four waves of audit + sharpening, shipped 2026-04-18 through 2026-04-20.
 
 - **Wave 1** — cold-start + command-surface audit (CS.x + CA.x findings). Established the eval idea.
 - **Wave 2** — docs + code consistency (DC.x + CC.x findings). Landed CC.6 and CC.10; scheduled CC.5 (TypedDicts).
-- **Wave 3** — eval design + build. Shipped `scripts/eval_skill_files.py` (EV.Build) — 11 tasks × 3 models, 39 harness unit tests, billing guardrails.
+- **Wave 3** — eval design + build. Shipped `scripts/eval_skill_files_claude.py` (EV.Build) — 11 tasks × 3 models, 39 harness unit tests, billing guardrails.
 - **Wave 4** — first live baseline + scaffolding sharpening. Got to **33/33 perfect**. The tightenings:
   - `src/querido/cli/argv_hoist.py` + `cli/main.py::run` entrypoint — `-f/--format` now works anywhere in argv; workflow runner shares `split_format_flag`.
   - SKILL.md: six broken `-f json` examples corrected, flag-placement rule documented, `qdo export --format csv` → `-e csv`, `qdo diff` promoted into the Quick Exploration Workflow.
