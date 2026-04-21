@@ -18,12 +18,40 @@ def print_inspect(
 ) -> None:
     """Print table metadata as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
         console = Console()
 
-    grid = Table(title=f"Table: {table_name}", show_lines=True)
+    nullable_count = sum(1 for col in columns if col["nullable"])
+    pk_count = sum(1 for col in columns if col.get("primary_key"))
+
+    title_parts = [f"[bold cyan]{table_name}[/bold cyan]", f"[dim]{row_count:,} rows[/dim]"]
+    console.print("  " + "  ·  ".join(title_parts))
+
+    summary_parts = [
+        f"[green]{len(columns)} columns[/green]",
+        f"[magenta]{pk_count} primary keys[/magenta]" if pk_count else "[dim]no primary key[/dim]",
+        (
+            f"[yellow]{nullable_count} nullable[/yellow]"
+            if nullable_count
+            else "[green]all not null[/green]"
+        ),
+    ]
+    if verbose and table_comment:
+        summary_parts.append("[cyan]table comment[/cyan]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Inspect Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Column Detail", show_lines=True)
     grid.add_column("Column", style="cyan bold")
     grid.add_column("Type", style="green")
     grid.add_column("Nullable", style="yellow")
@@ -62,6 +90,7 @@ def print_preview(
 ) -> None:
     """Print row data as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -71,7 +100,21 @@ def print_preview(
         console.print(f"[dim]No rows found in {table_name}.[/dim]")
         return
 
-    grid = Table(title=f"Preview: {table_name} (limit {limit})")
+    console.print(f"  [bold cyan]{table_name}[/bold cyan]  ·  [dim]preview[/dim]")
+    console.print(
+        Panel(
+            (
+                f"[green]{len(data)} shown[/green]  •  "
+                f"[magenta]limit {limit}[/magenta]  •  "
+                f"[dim]{len(data[0])} columns[/dim]"
+            ),
+            border_style="cyan",
+            title="Preview Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Preview Rows")
     for key in data[0]:
         grid.add_column(key, style="cyan")
 
@@ -212,6 +255,7 @@ def print_dist(
 ) -> None:
     """Print a distribution (numeric or categorical) as a horizontal bar chart."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
 
@@ -233,7 +277,31 @@ def print_dist(
     max_count = max(item["count"] for item in items)
     item_total = sum(item["count"] for item in items)
 
-    grid = Table(title=f"Distribution: {table_name}.{column}", show_lines=True)
+    title_parts = [
+        f"[bold cyan]{table_name}.{column}[/bold cyan]",
+        f"[dim]{dist_result['mode']}[/dim]",
+        f"[dim]{total_rows:,} rows[/dim]",
+    ]
+    if dist_result.get("sampled") and dist_result.get("sample_size"):
+        title_parts.append(f"[dim]sampled {dist_result['sample_size']:,}[/dim]")
+    console.print("  " + "  ·  ".join(title_parts))
+
+    summary_parts = [
+        f"[green]{len(items)} {'buckets' if is_numeric else 'values'}[/green]",
+        f"[magenta]{item_total:,} non-null rows[/magenta]",
+        f"[yellow]{null_count:,} nulls[/yellow]" if null_count else "[dim]0 nulls[/dim]",
+    ]
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Distribution Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Distribution Detail", show_lines=True)
     grid.add_column("Bucket" if is_numeric else "Value", style="cyan")
     grid.add_column("Count", justify="right")
     grid.add_column("%", justify="right")
@@ -752,6 +820,7 @@ def print_values(
 ) -> None:
     """Print distinct values as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -762,11 +831,35 @@ def print_values(
     tbl = result["table"]
     truncated = result["truncated"]
 
-    title = f"Values: {tbl}.{col}"
+    title_parts = [f"[bold cyan]{tbl}.{col}[/bold cyan]"]
     if truncated:
-        title += f" (top {len(values)} of {result['distinct_count']:,})"
+        title_parts.append(f"[yellow]top {len(values)} of {result['distinct_count']:,}[/yellow]")
+    else:
+        title_parts.append(f"[dim]{result['distinct_count']:,} distinct[/dim]")
+    console.print("  " + "  ·  ".join(title_parts))
 
-    grid = Table(title=title)
+    summary_parts = [
+        f"[green]{len(values)} shown[/green]",
+        f"[magenta]{result['distinct_count']:,} distinct[/magenta]",
+        (
+            f"[yellow]{result['null_count']:,} nulls[/yellow]"
+            if result["null_count"] > 0
+            else "[dim]0 nulls[/dim]"
+        ),
+    ]
+    if truncated:
+        summary_parts.append("[yellow]truncated[/yellow]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Values Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Value Detail")
     grid.add_column("Value", style="cyan")
     grid.add_column("Count", justify="right")
 

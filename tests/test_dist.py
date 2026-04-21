@@ -218,6 +218,37 @@ def test_dist_single_value_numeric(single_value_sqlite: str):
     assert data["mode"] == "numeric"
 
 
+def test_print_dist_rich_summary() -> None:
+    """Rich distribution output should summarize mode, bucket/value count, and nulls."""
+    from rich.console import Console
+
+    from querido.output.console import print_dist
+
+    console = Console(record=True, width=120)
+    print_dist(
+        {
+            "table": "sales",
+            "column": "category",
+            "mode": "categorical",
+            "total_rows": 102,
+            "null_count": 2,
+            "values": [
+                {"value": "electronics", "count": 40},
+                {"value": "clothing", "count": 30},
+                {"value": "food", "count": 20},
+                {"value": "other", "count": 10},
+            ],
+        },
+        console=console,
+    )
+    text = console.export_text()
+    assert "Distribution Summary" in text
+    assert "4 values" in text
+    assert "100 non-null rows" in text
+    assert "2 nulls" in text
+    assert "Distribution Detail" in text
+
+
 def test_dist_single_value_categorical(single_value_sqlite: str):
     result = runner.invoke(
         app,

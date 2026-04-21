@@ -53,3 +53,24 @@ def test_preview_empty_table(tmp_path: Path):
     result = runner.invoke(app, ["preview", "-c", db_path, "-t", "empty_t"])
     assert result.exit_code == 0
     assert "No rows found" in result.output
+
+
+def test_print_preview_rich_summary() -> None:
+    """Rich preview output should summarize shown rows and limit before the table."""
+    from rich.console import Console
+
+    from querido.output.console import print_preview
+
+    console = Console(record=True, width=120)
+    print_preview(
+        "users",
+        [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}],
+        limit=20,
+        console=console,
+    )
+    text = console.export_text()
+    assert "Preview Summary" in text
+    assert "2 shown" in text
+    assert "limit 20" in text
+    assert "2 columns" in text
+    assert "Preview Rows" in text
