@@ -24,7 +24,12 @@ def sqlite_connector(tmp_path: Path):
     for i in range(1, 51):
         conn.execute(
             "INSERT INTO products VALUES (?, ?, ?, ?)",
-            (i, f"Product {i}", 10.0 + i * 0.5, "A" if i % 2 == 0 else "B"),
+            (
+                i,
+                f"Product {i}",
+                10.0 + i * 0.5,
+                None if i % 4 == 0 else ("A" if i % 2 == 0 else "B"),
+            ),
         )
     conn.commit()
     conn.close()
@@ -49,7 +54,12 @@ def duckdb_connector(tmp_path: Path):
     for i in range(1, 51):
         conn.execute(
             "INSERT INTO products VALUES (?, ?, ?, ?)",
-            (i, f"Product {i}", 10.0 + i * 0.5, "A" if i % 2 == 0 else "B"),
+            (
+                i,
+                f"Product {i}",
+                10.0 + i * 0.5,
+                None if i % 4 == 0 else ("A" if i % 2 == 0 else "B"),
+            ),
         )
     conn.close()
 
@@ -389,3 +399,48 @@ columns:
         assert "Product grouping" in sidebar._last_text
         assert "allowed: A, B" in sidebar._last_text
         assert "metadata" in status._last_text
+
+
+async def test_table_headers_show_semantic_badges(sqlite_connector):
+    """DataTable headers expose PK and warning badges."""
+    from textual.widgets import DataTable
+
+    from querido.tui.app import ExploreApp
+
+    app = ExploreApp(connector=sqlite_connector, table="products")
+    async with app.run_test():
+        dt = app.query_one("#data-table", DataTable)
+        columns = list(dt.columns.values())
+        id_label = columns[0].label
+        category_label = columns[3].label
+        assert id_label.plain == "id [PK]"
+        assert category_label.plain == "category [!]"
+
+
+async def test_sort_updates_header_and_null_rendering(sqlite_connector):
+    """Sorted columns get an arrow and null cells render explicitly."""
+    from textual.coordinate import Coordinate
+    from textual.widgets import DataTable
+
+    from querido.tui.app import ExploreApp
+
+    app = ExploreApp(connector=sqlite_connector, table="products")
+    async with app.run_test(size=(120, 40)) as pilot:
+        dt = app.query_one("#data-table", DataTable)
+        app._sort_column = "category"
+        app._sort_reverse = False
+        app._apply_sort()
+        app._populate_table()
+        await pilot.pause()
+
+        category_label = list(dt.columns.values())[3].label
+        assert category_label.plain == "category [!] ↑"
+        rendered_values = [
+            getattr(
+                dt.get_cell_at(Coordinate(row_index, 3)),
+                "plain",
+                str(dt.get_cell_at(Coordinate(row_index, 3))),
+            )
+            for row_index in range(dt.row_count)
+        ]
+        assert "NULL" in rendered_values

@@ -7,6 +7,8 @@ from textual.binding import Binding, BindingType
 from textual.widgets import DataTable
 
 if TYPE_CHECKING:
+    from rich.text import Text
+
     from querido.connectors.base import Connector
     from querido.tui.widgets.filter_bar import FilterBar
 
@@ -178,14 +180,7 @@ class ExploreApp(App):
         if self._sort_column:
             self._apply_sort()
 
-        dt = self.query_one("#data-table", DataTable)
-        dt.clear(columns=True)
-
-        if self._rows:
-            for col_name in self._rows[0]:
-                dt.add_column(col_name, key=col_name)
-            for row in self._rows:
-                dt.add_row(*row.values())
+        self._populate_table()
 
         from querido.tui.widgets.status_bar import StatusBar
 
@@ -202,6 +197,58 @@ class ExploreApp(App):
             sort_dir="desc" if self._sort_reverse else "asc" if self._sort_column else None,
         )
         self._refresh_sidebar()
+
+    def _column_is_warning(self, column_name: str) -> bool:
+        column = self._column_context.get(column_name, {})
+        null_pct = column.get("null_pct")
+        likely_sparse = bool(column.get("likely_sparse"))
+        if likely_sparse:
+            return True
+        return isinstance(null_pct, (int, float)) and float(null_pct) >= 20.0
+
+    def _render_column_label(self, column_name: str) -> Text:
+        from rich.text import Text
+
+        column = self._column_context.get(column_name, {})
+        text = Text(column_name)
+        if column.get("primary_key"):
+            text.append(" [PK]", style="bold cyan")
+            text.stylize("bold cyan", 0, len(column_name))
+        if self._column_is_warning(column_name):
+            text.append(" [!]", style="bold yellow")
+            text.stylize("yellow", 0, len(column_name))
+        if self._sort_column == column_name:
+            arrow = " ↓" if self._sort_reverse else " ↑"
+            text.append(arrow, style="bold magenta")
+            text.stylize("bold underline", 0, len(text))
+        return text
+
+    def _render_cell_value(self, column_name: str, value: object) -> Text:
+        from rich.text import Text
+
+        if value is None:
+            return Text("NULL", style="italic dim red")
+
+        text = Text(str(value))
+        column = self._column_context.get(column_name, {})
+        if column.get("primary_key"):
+            text.stylize("bold cyan")
+        elif self._column_is_warning(column_name):
+            text.stylize("yellow")
+        if self._sort_column == column_name:
+            text.stylize("bold")
+        return text
+
+    def _populate_table(self) -> None:
+        dt = self.query_one("#data-table", DataTable)
+        dt.clear(columns=True)
+
+        column_names = [str(col.get("name", "")) for col in self._columns if col.get("name")]
+        for column_name in column_names:
+            dt.add_column(self._render_column_label(column_name), key=column_name)
+
+        for row in self._rows:
+            dt.add_row(*(self._render_cell_value(name, row.get(name)) for name in column_names))
 
     def _set_selected_column(self, column_name: str | None) -> None:
         if not column_name or column_name not in self._column_context:
@@ -284,10 +331,7 @@ class ExploreApp(App):
             await self._load_data()
             return
 
-        dt = self.query_one("#data-table", DataTable)
-        dt.clear()
-        for row in self._rows:
-            dt.add_row(*row.values())
+        self._populate_table()
 
         from querido.tui.widgets.status_bar import StatusBar
 
