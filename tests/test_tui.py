@@ -173,12 +173,20 @@ async def test_status_bar_shows_info(sqlite_connector):
     from querido.tui.app import ExploreApp
     from querido.tui.widgets.status_bar import StatusBar
 
-    app = ExploreApp(connector=sqlite_connector, table="products", max_rows=100)
+    app = ExploreApp(
+        connector=sqlite_connector,
+        table="products",
+        max_rows=100,
+        connection_name="demo",
+    )
     async with app.run_test():
         status = app.query_one("#status-bar", StatusBar)
         text = status._last_text
+        assert "demo" in text
         assert "products" in text
         assert "50" in text
+        assert "exact" in text
+        assert "no metadata" in text
 
 
 async def test_filter_bar_focus(sqlite_connector):
@@ -271,11 +279,22 @@ def test_status_bar_widget():
     from querido.tui.widgets.status_bar import StatusBar
 
     sb = StatusBar()
-    sb.update_status(table="users", displayed=100, total=5000, filtered=False)
+    sb.update_status(
+        connection="warehouse",
+        table="users",
+        displayed=100,
+        total=5000,
+        filtered=False,
+        sampled=False,
+        metadata_present=True,
+    )
     text = sb._last_text
+    assert "warehouse" in text
     assert "users" in text
     assert "100" in text
     assert "5,000" in text
+    assert "exact" in text
+    assert "metadata" in text
 
 
 def test_status_bar_filtered():
@@ -299,3 +318,74 @@ def test_status_bar_sorted():
     text = sb._last_text
     assert "age" in text
     assert "↑" in text
+
+
+def test_metadata_sidebar_widget():
+    """Sidebar renders selected-column facts and quality flags."""
+    from querido.tui.widgets.sidebar import MetadataSidebar
+
+    sidebar = MetadataSidebar()
+    sidebar.show_column(
+        table="products",
+        connection_name="demo",
+        metadata_present=True,
+        column={
+            "name": "category",
+            "type": "TEXT",
+            "nullable": False,
+            "distinct_count": 2,
+            "null_count": 0,
+            "null_pct": 0.0,
+            "sample_values": ["A", "B"],
+            "description": "Product grouping",
+            "valid_values": ["A", "B"],
+        },
+        quality={
+            "status": "warn",
+            "issues": ["unexpected category values present"],
+        },
+    )
+    text = sidebar._last_text
+    assert "products" in text
+    assert "demo" in text
+    assert "category" in text
+    assert "Product grouping" in text
+    assert "allowed: A, B" in text
+    assert "unexpected category values present" in text
+
+
+async def test_sidebar_shows_selected_column_metadata(sqlite_connector, tmp_path, monkeypatch):
+    """Sidebar reflects selected-column context and stored metadata."""
+    from querido.tui.app import ExploreApp
+    from querido.tui.widgets.sidebar import MetadataSidebar
+    from querido.tui.widgets.status_bar import StatusBar
+
+    monkeypatch.chdir(tmp_path)
+    meta_dir = tmp_path / ".qdo" / "metadata" / "demo"
+    meta_dir.mkdir(parents=True)
+    (meta_dir / "products.yaml").write_text(
+        """
+table: products
+connection: demo
+columns:
+  - name: category
+    description: Product grouping
+    valid_values:
+      - A
+      - B
+""".strip()
+        + "\n"
+    )
+
+    app = ExploreApp(connector=sqlite_connector, table="products", connection_name="demo")
+    async with app.run_test(size=(120, 40)) as pilot:
+        app._set_selected_column("category")
+        app.action_sidebar()
+        await pilot.pause()
+
+        sidebar = app.query_one("#sidebar", MetadataSidebar)
+        status = app.query_one("#status-bar", StatusBar)
+        assert "category" in sidebar._last_text
+        assert "Product grouping" in sidebar._last_text
+        assert "allowed: A, B" in sidebar._last_text
+        assert "metadata" in status._last_text
