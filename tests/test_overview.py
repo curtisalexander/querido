@@ -20,7 +20,7 @@ def test_overview_contains_expected_content() -> None:
     """
     result = runner.invoke(app, ["overview"])
     assert result.exit_code == 0
-    for cmd in ("search", "inspect", "preview", "profile", "dist", "catalog", "view-def"):
+    for cmd in ("inspect", "preview", "profile", "dist", "catalog", "view-def"):
         assert cmd in result.output, f"missing command '{cmd}' in overview output"
     assert "--format" in result.output
     assert "--show-sql" in result.output

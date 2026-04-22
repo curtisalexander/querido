@@ -24,11 +24,6 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
     (
         "Start Here",
         [
-            (
-                "search",
-                "querido.cli.search",
-                "Find the right qdo command from a natural-language intent.",
-            ),
             ("catalog", "querido.cli.catalog", "Discover tables, columns, and row counts."),
             ("context", "querido.cli.context", "Understand one table in a single call."),
             ("metadata", "querido.cli.metadata", "Capture and read shared table knowledge."),

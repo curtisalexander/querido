@@ -39,7 +39,7 @@ def cache_duckdb(tmp_path: Path) -> str:
 # -- MetadataCache unit tests -------------------------------------------------
 
 
-def test_cache_sync_and_search(tmp_path: Path, cache_sqlite: str):
+def test_cache_sync(tmp_path: Path, cache_sqlite: str):
     from querido.cache import MetadataCache
     from querido.connectors.sqlite import SQLiteConnector
 
@@ -51,22 +51,6 @@ def test_cache_sync_and_search(tmp_path: Path, cache_sqlite: str):
         assert summary["tables"] == 3  # users, orders, user_summary view
         assert summary["columns"] > 0
         assert summary["elapsed"] >= 0
-
-        # Search by table name
-        results = cache.search("test-conn", "user", "table")
-        table_names = [r["table_name"] for r in results]
-        assert "users" in table_names
-        assert "user_summary" in table_names
-
-        # Search by column name
-        results = cache.search("test-conn", "email", "column")
-        assert len(results) == 1
-        assert results[0]["column_name"] == "email"
-        assert results[0]["table_name"] == "users"
-
-        # Search all
-        results = cache.search("test-conn", "name", "all")
-        assert len(results) > 0
 
 
 def test_cache_status(tmp_path: Path, cache_sqlite: str):

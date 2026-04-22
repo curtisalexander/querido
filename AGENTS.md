@@ -148,13 +148,6 @@ Cache-first by default; use `--live` to bypass. `--pattern` does a case-insensit
 match across both table and column names. `catalog functions` is currently supported for
 DuckDB and Snowflake; SQLite returns a graceful unsupported result.
 
-### search — discover the right command
-```bash
-qdo search "compare schemas between tables"
-qdo search "show distinct values for a column" --limit 3
-```
-Cheap BM25 ranking over command names, descriptions, subcommands, and output-shape metadata.
-
 ### sql — generate SQL statements
 ```bash
 qdo sql select -c <conn> -t <table>     # SELECT with all columns

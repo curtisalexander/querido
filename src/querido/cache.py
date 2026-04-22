@@ -1,8 +1,8 @@
-"""Local metadata cache for fast table/column search.
+"""Local metadata cache for fast table / column lookups.
 
 Stores table and column metadata in a local SQLite database so that
-operations like search, fuzzy suggestions, and tab completion can be
-instant — especially for large Snowflake databases.
+fuzzy suggestions and tab completion are instant — especially for
+large Snowflake databases.
 """
 
 from __future__ import annotations
@@ -236,64 +236,6 @@ class MetadataCache:
 
         self._conn.commit()
         return count
-
-    def search(
-        self,
-        connection_name: str,
-        pattern: str,
-        search_type: str = "all",
-    ) -> list[dict]:
-        """Search cached metadata for pattern matches.
-
-        Returns results in the same format as cli/search.py's _search_metadata.
-        """
-        escaped = pattern.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        pat = f"%{escaped}%"
-        results: list[dict] = []
-
-        search_tables = search_type in ("table", "all")
-        search_columns = search_type in ("column", "all")
-
-        if search_tables:
-            rows = self._conn.execute(
-                "select table_name, table_type from cached_tables "
-                "where connection = ? and lower(table_name) like ? escape '\\'",
-                (connection_name, pat),
-            ).fetchall()
-            results.extend(
-                {
-                    "table_name": r["table_name"],
-                    "table_type": r["table_type"],
-                    "match_type": "table",
-                    "column_name": None,
-                    "column_type": None,
-                }
-                for r in rows
-            )
-
-        if search_columns:
-            rows = self._conn.execute(
-                "select t.table_name, t.table_type, "
-                "c.column_name, c.column_type "
-                "from cached_columns c "
-                "join cached_tables t "
-                "on c.connection = t.connection "
-                "and c.table_name = t.table_name "
-                "where c.connection = ? and lower(c.column_name) like ? escape '\\'",
-                (connection_name, pat),
-            ).fetchall()
-            results.extend(
-                {
-                    "table_name": r["table_name"],
-                    "table_type": r["table_type"],
-                    "match_type": "column",
-                    "column_name": r["column_name"],
-                    "column_type": r["column_type"],
-                }
-                for r in rows
-            )
-
-        return results
 
     def has_table(self, connection_name: str, table: str) -> bool | None:
         """Check if a table exists in the cache.

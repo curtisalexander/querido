@@ -1018,40 +1018,6 @@ def format_estimate_html(
     )
 
 
-def format_search_html(
-    result: dict,
-) -> str:
-    """Render ranked command-search results as standalone HTML."""
-    matches = result.get("results") or []
-    if not matches:
-        return _html_page(
-            title="Search",
-            subtitle=f"No strong matches for: {result.get('query', '')}",
-            table_html="<p>No data.</p>",
-            footer_text="qdo search",
-        )
-
-    headers = ["Command", "Category", "Score", "Description", "Why", "Help"]
-    rows = [
-        [
-            match.get("name", ""),
-            match.get("category", ""),
-            match.get("score", ""),
-            match.get("description", ""),
-            match.get("rationale", ""),
-            match.get("help_command", ""),
-        ]
-        for match in matches
-    ]
-
-    return _html_page(
-        title="Search",
-        subtitle=f"{result.get('result_count', 0)} match(es) for: {result.get('query', '')}",
-        table_html=_build_table(headers, rows),
-        footer_text="qdo search",
-    )
-
-
 def format_context_html(
     result: dict,
 ) -> str:
@@ -1234,7 +1200,6 @@ def format_query_html(
 # Registry — maps command names to HTML output functions for dispatch_output()
 # ---------------------------------------------------------------------------
 REGISTRY: dict[str, object] = {
-    "search": format_search_html,
     "inspect": format_inspect_html,
     "preview": format_preview_html,
     "profile": format_profile_html,

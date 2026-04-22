@@ -45,15 +45,13 @@ One tight paragraph + a diagram of the compounding loop, placed near the top of 
 
 Exit: a reader who only reads the first page of README knows what makes qdo different.
 
-### 3. Decide on the marginal commands
+### 3. Decide on the marginal commands — decided 2026-04-22
 
-Three commands don't clearly earn their keep. Each gets a yes/no decision:
+- **`qdo search "<intent>"`** — CUT. Removed; see IDEAS.md "Rejected Or Dropped". Competes with `qdo --help` without a demonstrated win.
+- **`qdo overview`** — KEEP. Infrastructure: generates `docs/cli-reference.md`. Position in docs as the reference generator, not a user-facing discovery command.
+- **`qdo tutorial agent`** — KEEP. Teaches the differentiating metadata-compounding workflow; low cost of keeping. Consider adding one line to `qdo tutorial --help` on when to pick which tutorial.
 
-- `qdo search "<intent>"` — BM25 over command docs. Not in SKILL.md's promoted path. Does it appear in eval traces? If not, hide or remove.
-- `qdo overview` — markdown CLI reference. Arguably redundant with `qdo --help -f json`. Keep only if eval shows actual use.
-- `qdo tutorial agent` — second tutorial runner. Consolidate or keep as-is.
-
-Exit: a written decision for each, with SKILL.md / README / AGENTS.md updated accordingly.
+Exit: `search` is gone from code and docs ✓; `overview` and `tutorial agent` decisions recorded ✓.
 
 ### 4. Harmonize sampling flags across `context` / `profile` / `quality`
 

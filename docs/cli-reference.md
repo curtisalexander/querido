@@ -44,7 +44,6 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 
 | Command | Purpose |
 |---------|---------|
-| `qdo search "intent"` | Discover the right command from plain language |
 | `qdo catalog -c CONN [--pattern P] [--tables-only]` | Discover tables, columns, and row counts |
 | `qdo context -c CONN -t TABLE` | Schema + stats + sample values in one call |
 | `qdo metadata init -c CONN -t TABLE` | Create metadata YAML for shared table knowledge |

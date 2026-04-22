@@ -81,6 +81,12 @@ No hosted viewer, no plugin marketplace, no server-first direction. Files remain
 
 Natural-language-to-SQL inside qdo and similar LLM-in-the-loop features remain out of scope. Deterministic heuristics and stable outputs are the intended product boundary.
 
+### `qdo search "<intent>"` (BM25 command discovery)
+
+**Status:** built then cut (2026-04-22).
+
+Shipped as a lightweight BM25 ranker over command docs / descriptions. Cut during the pre-release polish pass because it never entered SKILL.md's promoted workflow, competed with `qdo --help` / `qdo <cmd> --help` for the same job, and showed no adoption in eval traces. Agents with context-cached `--help` output do not hit a "which command does this?" problem often enough to justify maintaining a search layer. Don't re-propose without evidence of a real discovery gap that cached help doesn't solve.
+
 ---
 
 ## Deferred Ideas
@@ -89,7 +95,6 @@ These ideas are not committed. Some also appear in `PLAN.md`'s deferred section 
 
 ### Discovery and navigation
 
-- **`qdo search "<intent>"`** — BM25-style ranking over command docs / descriptions. Still attractive because it improves agent and human tool discovery without external dependencies.
 - **Visible command graph / `qdo next` / `qdo explain <command>`** — helpful for agents and onboarding, but not yet committed enough to leave the archive.
 
 ### Metadata and memory
