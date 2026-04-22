@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
@@ -208,6 +208,164 @@ def filter_catalog(catalog: dict, pattern: str) -> dict:
         if table_match or column_match:
             filtered.append(table)
     return {"tables": filtered, "table_count": len(filtered)}
+
+
+def get_function_catalog(
+    connector: Connector,
+    *,
+    pattern: str | None = None,
+    schema: str | None = None,
+) -> dict[str, Any]:
+    """Return a function catalog for dialects that expose one."""
+    if connector.dialect == "sqlite":
+        return {
+            "dialect": connector.dialect,
+            "supported": False,
+            "reason": "Function catalog is not supported for sqlite connections.",
+            "schema": None,
+            "function_count": 0,
+            "functions": [],
+            "sql": None,
+        }
+
+    sql, resolved_schema = _render_function_catalog_sql(connector, schema=schema)
+    raw_functions = connector.execute(sql)
+    functions = _summarize_function_rows(connector.dialect, raw_functions)
+    if pattern:
+        functions = filter_function_catalog(functions, pattern)
+
+    return {
+        "dialect": connector.dialect,
+        "supported": True,
+        "reason": None,
+        "schema": resolved_schema,
+        "function_count": len(functions),
+        "functions": functions,
+        "sql": sql,
+    }
+
+
+def filter_function_catalog(functions: list[dict[str, Any]], pattern: str) -> list[dict[str, Any]]:
+    """Filter function entries by a case-insensitive substring pattern."""
+    pat = pattern.lower()
+    return [
+        entry
+        for entry in functions
+        if pat in str(entry.get("name", "")).lower() or pat in str(entry.get("schema", "")).lower()
+    ]
+
+
+def _render_function_catalog_sql(
+    connector: Connector, *, schema: str | None
+) -> tuple[str, str | None]:
+    from querido.connectors.base import validate_object_name
+    from querido.sql.renderer import render_template
+
+    if connector.dialect == "duckdb":
+        return render_template("catalog_functions", "duckdb"), schema or "main"
+
+    if connector.dialect == "snowflake":
+        database = str(getattr(connector, "_database", "") or "")
+        resolved_schema = str(schema or getattr(connector, "_schema", "") or "")
+        if not database or not resolved_schema:
+            missing = []
+            if not database:
+                missing.append("'database'")
+            if not resolved_schema:
+                missing.append("'schema'")
+            raise ValueError(
+                f"Cannot list functions — {' and '.join(missing)} not set. "
+                "Set them in your connection config or pass --schema with a configured database."
+            )
+        validate_object_name(database)
+        validate_object_name(resolved_schema)
+        return (
+            render_template(
+                "catalog_functions",
+                "snowflake",
+                database=database,
+                schema=resolved_schema.upper(),
+            ),
+            resolved_schema.upper(),
+        )
+
+    raise ValueError(f"Function catalog is not supported for {connector.dialect} connections.")
+
+
+def _summarize_function_rows(dialect: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+    for row in rows:
+        schema = str(row.get("schema", "") or "")
+        name = str(row.get("name", "") or "")
+        fn_type = str(row.get("type", "") or "function")
+        if not name:
+            continue
+
+        key = (schema, name, fn_type)
+        entry = grouped.setdefault(
+            key,
+            {
+                "schema": schema,
+                "name": name,
+                "type": fn_type,
+                "overload_count": 0,
+                "return_types": set(),
+                "notes": set(),
+                "_languages": set(),
+            },
+        )
+        entry["overload_count"] += 1
+
+        return_type = row.get("return_type")
+        if return_type:
+            entry["return_types"].add(str(return_type))
+
+        description = row.get("description")
+        if description and "description" not in entry:
+            entry["description"] = str(description)
+
+        if row.get("internal"):
+            entry["notes"].add("internal")
+        if row.get("has_side_effects"):
+            entry["notes"].add("side effects")
+
+        stability = row.get("stability")
+        if stability:
+            entry["notes"].add(str(stability))
+
+        for category in row.get("categories") or []:
+            entry["notes"].add(str(category))
+
+        language = row.get("language")
+        if language:
+            entry["_languages"].add(str(language))
+
+    summarized = []
+    for entry in grouped.values():
+        out = {
+            "schema": entry["schema"],
+            "name": entry["name"],
+            "type": entry["type"],
+            "overload_count": entry["overload_count"],
+            "return_types": sorted(entry["return_types"]),
+        }
+        if entry.get("description"):
+            out["description"] = entry["description"]
+        if entry["notes"]:
+            out["notes"] = sorted(entry["notes"])
+        if dialect == "snowflake" and entry["_languages"]:
+            out["languages"] = sorted(entry["_languages"])
+        summarized.append(out)
+
+    return sorted(
+        summarized,
+        key=lambda entry: (
+            str(entry.get("schema", "")),
+            str(entry.get("name", "")),
+            str(entry.get("type", "")),
+        ),
+    )
 
 
 def _fetch_table_detail(

@@ -869,6 +869,155 @@ def format_values_html(
     )
 
 
+def format_freshness_html(
+    result: dict,
+) -> str:
+    """Render freshness results as a standalone HTML page."""
+    candidates = result.get("candidates") or []
+    subtitle = f"{result.get('status', 'unknown')} — {result.get('row_count', 0):,} rows"
+
+    if not candidates:
+        return _html_page(
+            title=f"Freshness: {result.get('table', '')}",
+            subtitle=subtitle,
+            table_html=(
+                f"<p>{html.escape(str(result.get('reason') or 'No temporal columns found.'))}</p>"
+            ),
+            footer_text="qdo freshness",
+        )
+
+    headers = ["Column", "Type", "Null %", "Earliest", "Latest", "Age Days", "Signals"]
+    rows = [
+        [
+            candidate.get("name", ""),
+            candidate.get("type", ""),
+            f"{float(candidate.get('null_pct', 0.0)):.2f}",
+            candidate.get("earliest_value") or "",
+            candidate.get("latest_value") or "",
+            (
+                f"{float(candidate['latest_age_days']):.2f}"
+                if candidate.get("latest_age_days") is not None
+                else ""
+            ),
+            ", ".join(candidate.get("reasons") or []),
+        ]
+        for candidate in candidates
+    ]
+
+    return _html_page(
+        title=f"Freshness: {result.get('table', '')}",
+        subtitle=subtitle,
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo freshness — {result.get('selected_column') or 'no selected column'}",
+    )
+
+
+def format_plan_html(
+    result: dict,
+) -> str:
+    """Render a dry-run plan as a standalone HTML page."""
+    headers = ["Field", "Value"]
+    rows = []
+    for key in (
+        "action",
+        "mode",
+        "summary",
+        "executable",
+        "destination",
+        "format",
+        "table",
+        "output_path",
+        "limit",
+    ):
+        value = result.get(key)
+        if value not in (None, "", []):
+            rows.append([key, str(value)])
+    if result.get("sql"):
+        rows.append(["sql", str(result["sql"])])
+    if result.get("effects"):
+        rows.append(["effects", " | ".join(str(x) for x in result["effects"])])
+    if result.get("writes"):
+        rows.append(["writes", " | ".join(str(x) for x in result["writes"])])
+
+    return _html_page(
+        title=f"Plan: {result.get('action', 'plan')}",
+        subtitle=str(result.get("summary", "")),
+        table_html=_build_table(headers, rows),
+        footer_text="qdo --plan",
+    )
+
+
+def format_estimate_html(
+    result: dict,
+) -> str:
+    """Render an estimate as a standalone HTML page."""
+    headers = ["Field", "Value"]
+    rows = []
+    for key in (
+        "action",
+        "dialect",
+        "complexity",
+        "cost_hint",
+        "row_estimate",
+        "row_estimate_source",
+        "output_row_ceiling",
+        "destination",
+        "format",
+        "table",
+        "output_path",
+    ):
+        value = result.get(key)
+        if value not in (None, "", []):
+            rows.append([key, str(value)])
+    if result.get("notes"):
+        rows.append(["notes", " | ".join(str(x) for x in result["notes"])])
+    if result.get("sql"):
+        rows.append(["sql", str(result["sql"])])
+    if result.get("explain_plan"):
+        rows.append(["explain_plan", str(result["explain_plan"])])
+
+    return _html_page(
+        title=f"Estimate: {result.get('action', 'estimate')}",
+        subtitle=str(result.get("summary", "")),
+        table_html=_build_table(headers, rows),
+        footer_text="qdo --estimate",
+    )
+
+
+def format_search_html(
+    result: dict,
+) -> str:
+    """Render ranked command-search results as standalone HTML."""
+    matches = result.get("results") or []
+    if not matches:
+        return _html_page(
+            title="Search",
+            subtitle=f"No strong matches for: {result.get('query', '')}",
+            table_html="<p>No data.</p>",
+            footer_text="qdo search",
+        )
+
+    headers = ["Command", "Category", "Score", "Description", "Why", "Help"]
+    rows = [
+        [
+            match.get("name", ""),
+            match.get("category", ""),
+            match.get("score", ""),
+            match.get("description", ""),
+            match.get("rationale", ""),
+            match.get("help_command", ""),
+        ]
+        for match in matches
+    ]
+
+    return _html_page(
+        title="Search",
+        subtitle=f"{result.get('result_count', 0)} match(es) for: {result.get('query', '')}",
+        table_html=_build_table(headers, rows),
+        footer_text="qdo search",
+    )
+
+
 def format_context_html(
     result: dict,
 ) -> str:
@@ -969,6 +1118,56 @@ def format_catalog_html(
     )
 
 
+def format_catalog_functions_html(
+    result: dict,
+) -> str:
+    """Render function catalog as a standalone HTML page."""
+    if not result.get("supported", True):
+        return _html_page(
+            title="Function Catalog",
+            subtitle=str(result.get("reason") or "Function catalog unavailable."),
+            table_html="<p>No data.</p>",
+        )
+
+    functions = result.get("functions") or []
+    if not functions:
+        return _html_page(
+            title="Function Catalog",
+            subtitle="No functions found.",
+            table_html="<p>No data.</p>",
+        )
+
+    headers = ["Name", "Schema", "Type", "Overloads", "Returns", "Notes"]
+    rows = []
+    for entry in functions:
+        notes_parts = []
+        languages = entry.get("languages") or []
+        if languages:
+            notes_parts.append(f"lang: {', '.join(languages)}")
+        notes = entry.get("notes") or []
+        if notes:
+            notes_parts.append(", ".join(notes))
+        if entry.get("description"):
+            notes_parts.append(str(entry["description"]))
+        rows.append(
+            [
+                entry.get("name", ""),
+                entry.get("schema", ""),
+                entry.get("type", ""),
+                entry.get("overload_count", 0),
+                ", ".join(entry.get("return_types") or []),
+                " | ".join(notes_parts),
+            ]
+        )
+
+    return _html_page(
+        title="Function Catalog",
+        subtitle=f"{result['function_count']} functions",
+        table_html=_build_table(headers, rows),
+        footer_text=f"qdo catalog functions — {result['function_count']} functions",
+    )
+
+
 def format_query_html(
     columns: list[str],
     rows: list[dict],
@@ -1001,11 +1200,15 @@ def format_query_html(
 # Registry — maps command names to HTML output functions for dispatch_output()
 # ---------------------------------------------------------------------------
 REGISTRY: dict[str, object] = {
+    "search": format_search_html,
     "inspect": format_inspect_html,
     "preview": format_preview_html,
     "profile": format_profile_html,
+    "estimate": format_estimate_html,
+    "plan": format_plan_html,
     "context": format_context_html,
     "dist": format_dist_html,
+    "freshness": format_freshness_html,
     "template": format_template_html,
     "lineage": format_lineage_html,
     "snowflake_lineage": format_snowflake_lineage_html,
@@ -1019,6 +1222,7 @@ REGISTRY: dict[str, object] = {
     "pivot": format_pivot_html,
     "values": format_values_html,
     "catalog": format_catalog_html,
+    "catalog_functions": format_catalog_functions_html,
     "query": format_query_html,
     "frequencies": format_frequencies_html,
 }

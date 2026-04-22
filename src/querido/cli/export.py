@@ -43,6 +43,16 @@ def export(
         "--clipboard",
         help="Copy TSV to clipboard (for pasting into Excel).",
     ),
+    plan: bool = typer.Option(
+        False,
+        "--plan",
+        help="Preview the export SQL and destination without executing it.",
+    ),
+    estimate: bool = typer.Option(
+        False,
+        "--estimate",
+        help="Estimate export cost/shape without executing it.",
+    ),
 ) -> None:
     """Export table or query results to a file or clipboard.
 
@@ -55,8 +65,10 @@ def export(
     """
     import sys
 
-    from querido.cli._pipeline import database_command
+    from querido.cli._pipeline import database_command, dispatch_output
 
+    if plan and estimate:
+        raise typer.BadParameter("Cannot use both --plan and --estimate.")
     if not table and not sql:
         raise typer.BadParameter("Must provide --table or --sql.")
 
@@ -74,6 +86,110 @@ def export(
     from querido.cli._options import parse_column_list
 
     col_list = parse_column_list(columns)
+
+    if plan:
+        from querido.core.export import build_export_query
+        from querido.core.plan import build_export_plan
+        from querido.output.envelope import cmd, emit_envelope, is_structured_format
+
+        query_sql = build_export_query(
+            table=table,
+            sql=sql,
+            limit=limit,
+            filter_expr=filter_expr,
+            columns=col_list,
+        )
+        destination = "file" if output else "clipboard" if clipboard else "stdout"
+        payload = build_export_plan(
+            sql=query_sql,
+            fmt=export_format,
+            destination=destination,
+            output_path=output,
+            clipboard=clipboard,
+            table=table,
+            columns=col_list,
+            limit=limit,
+            filter_expr=filter_expr,
+        )
+
+        run_cmd = ["qdo", "export", "-c", connection]
+        if table:
+            run_cmd += ["-t", table]
+        if sql:
+            run_cmd += ["--sql", sql]
+        if output:
+            run_cmd += ["-o", output]
+        if export_format != "csv":
+            run_cmd += ["-e", export_format]
+        if filter_expr:
+            run_cmd += ["--filter", filter_expr]
+        if limit is not None:
+            run_cmd += ["--limit", str(limit)]
+        if columns:
+            run_cmd += ["--columns", columns]
+        if clipboard:
+            run_cmd.append("--clipboard")
+
+        steps = [{"cmd": cmd(run_cmd), "why": "Run the planned export for real."}]
+        if is_structured_format():
+            emit_envelope(command="export", data=payload, next_steps=steps, connection=connection)
+            return
+
+        dispatch_output("plan", payload)
+        return
+
+    if estimate:
+        from querido.core.estimate import estimate_export
+        from querido.core.export import build_export_query
+        from querido.output.envelope import cmd, emit_envelope, is_structured_format
+
+        query_sql = build_export_query(
+            table=table,
+            sql=sql,
+            limit=limit,
+            filter_expr=filter_expr,
+            columns=col_list,
+        )
+        destination = "file" if output else "clipboard" if clipboard else "stdout"
+        with database_command(connection=connection, db_type=db_type) as ctx:
+            payload = estimate_export(
+                ctx.connector,
+                sql=query_sql,
+                table=table,
+                fmt=export_format,
+                destination=destination,
+                output_path=output,
+                clipboard=clipboard,
+                columns=col_list,
+                limit=limit,
+                filter_expr=filter_expr,
+            )
+
+        run_cmd = ["qdo", "export", "-c", connection]
+        if table:
+            run_cmd += ["-t", table]
+        if sql:
+            run_cmd += ["--sql", sql]
+        if output:
+            run_cmd += ["-o", output]
+        if export_format != "csv":
+            run_cmd += ["-e", export_format]
+        if filter_expr:
+            run_cmd += ["--filter", filter_expr]
+        if limit is not None:
+            run_cmd += ["--limit", str(limit)]
+        if columns:
+            run_cmd += ["--columns", columns]
+        if clipboard:
+            run_cmd.append("--clipboard")
+
+        steps = [{"cmd": cmd(run_cmd), "why": "Run the estimated export for real."}]
+        if is_structured_format():
+            emit_envelope(command="export", data=payload, next_steps=steps, connection=connection)
+            return
+
+        dispatch_output("estimate", payload)
+        return
 
     with database_command(connection=connection, db_type=db_type) as ctx:
         from querido.core.export import export_data

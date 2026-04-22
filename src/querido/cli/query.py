@@ -22,6 +22,16 @@ def query(
         "--allow-write",
         help="Allow INSERT/UPDATE/DELETE/DDL statements. Read-only by default.",
     ),
+    plan: bool = typer.Option(
+        False,
+        "--plan",
+        help="Preview the SQL and side effects without executing it.",
+    ),
+    estimate: bool = typer.Option(
+        False,
+        "--estimate",
+        help="Estimate query cost/shape without executing it.",
+    ),
     limit: int = typer.Option(
         1000, "--limit", "-l", min=0, help="Max rows to return (0 = no limit)."
     ),
@@ -45,6 +55,96 @@ def query(
     from querido.cli._pipeline import database_command, dispatch_output
 
     query_sql = resolve_sql(sql, file, sys.stdin)
+    if plan and estimate:
+        raise typer.BadParameter("Cannot use both --plan and --estimate.")
+
+    from querido.core.query import _apply_limit
+    from querido.core.sql_safety import any_statement_is_destructive
+
+    destructive = any_statement_is_destructive(query_sql)
+    effective_sql = _apply_limit(query_sql, limit) if limit > 0 and not destructive else query_sql
+
+    if plan:
+        from querido.core.plan import build_query_plan
+        from querido.output.envelope import cmd, emit_envelope, is_structured_format
+
+        maybe_show_sql(effective_sql)
+        set_last_sql(effective_sql)
+        payload = build_query_plan(
+            sql=query_sql,
+            effective_sql=effective_sql,
+            allow_write=allow_write,
+            limit=limit,
+            destructive=destructive,
+        )
+        run_cmd = [
+            "qdo",
+            "query",
+            "-c",
+            connection,
+            "--sql",
+            query_sql,
+        ]
+        if allow_write:
+            run_cmd.append("--allow-write")
+        if limit != 1000:
+            run_cmd += ["--limit", str(limit)]
+
+        steps = []
+        if payload["executable"]:
+            steps.append({"cmd": cmd(run_cmd), "why": "Run the planned query for real."})
+        else:
+            steps.append(
+                {
+                    "cmd": cmd([*run_cmd, "--allow-write"]),
+                    "why": "Allow the write explicitly, then rerun the planned query.",
+                }
+            )
+        if is_structured_format():
+            emit_envelope(command="query", data=payload, next_steps=steps, connection=connection)
+            return
+        from querido.cli._pipeline import dispatch_output
+
+        dispatch_output("plan", payload)
+        return
+
+    if estimate:
+        from querido.core.estimate import estimate_query
+        from querido.output.envelope import cmd, emit_envelope, is_structured_format
+
+        with database_command(connection=connection, db_type=db_type) as ctx:
+            maybe_show_sql(effective_sql)
+            set_last_sql(effective_sql)
+            payload = estimate_query(
+                ctx.connector,
+                query_sql,
+                effective_sql=effective_sql,
+                limit=limit,
+                allow_write=allow_write,
+                destructive=destructive,
+            )
+
+        run_cmd = ["qdo", "query", "-c", connection, "--sql", query_sql]
+        if allow_write:
+            run_cmd.append("--allow-write")
+        if limit != 1000:
+            run_cmd += ["--limit", str(limit)]
+
+        steps = [{"cmd": cmd(run_cmd), "why": "Run the estimated query for real."}]
+        if destructive and not allow_write:
+            steps.insert(
+                0,
+                {
+                    "cmd": cmd([*run_cmd, "--allow-write"]),
+                    "why": "Allow the write explicitly before running the estimated query.",
+                },
+            )
+        if is_structured_format():
+            emit_envelope(command="query", data=payload, next_steps=steps, connection=connection)
+            return
+
+        dispatch_output("estimate", payload)
+        return
 
     from querido.cli._validation import require_allow_write
 

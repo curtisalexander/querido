@@ -116,6 +116,23 @@ def _print_fallback() -> None:
 # These are maintained manually because they describe runtime output, not
 # CLI parameters.  Keys map to command names.
 _OUTPUT_SHAPES: dict[str, dict] = {
+    "search": {
+        "query": "string",
+        "searched_command_count": "integer",
+        "result_count": "integer",
+        "results": [
+            {
+                "name": "string",
+                "description": "string",
+                "category": "string",
+                "score": "float",
+                "rationale": "string",
+                "matched_terms": ["string"],
+                "subcommands": ["string"],
+                "help_command": "string",
+            }
+        ],
+    },
     "inspect": {
         "table": "string",
         "row_count": "integer",
@@ -239,6 +256,27 @@ _OUTPUT_SHAPES: dict[str, dict] = {
                 "uniqueness_pct": "float",
                 "status": "ok|warn|fail",
                 "issues": ["string"],
+            }
+        ],
+    },
+    "freshness": {
+        "table": "string",
+        "row_count": "integer",
+        "status": "fresh|stale|unknown",
+        "selected_column": "string|null",
+        "latest_value": "string|null",
+        "earliest_value": "string|null",
+        "latest_age_days": "float|null",
+        "stale_after_days": "integer",
+        "candidates": [
+            {
+                "name": "string",
+                "type": "string",
+                "non_null_count": "integer",
+                "null_pct": "float",
+                "earliest_value": "string|null",
+                "latest_value": "string|null",
+                "latest_age_days": "float|null",
             }
         ],
     },

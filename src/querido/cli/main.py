@@ -24,6 +24,11 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
     (
         "Start Here",
         [
+            (
+                "search",
+                "querido.cli.search",
+                "Find the right qdo command from a natural-language intent.",
+            ),
             ("catalog", "querido.cli.catalog", "Discover tables, columns, and row counts."),
             ("context", "querido.cli.context", "Understand one table in a single call."),
             ("metadata", "querido.cli.metadata", "Capture and read shared table knowledge."),
@@ -39,6 +44,11 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
             ("profile", "querido.cli.profile", "Profile table data."),
             ("dist", "querido.cli.dist", "Column distribution visualization."),
             ("values", "querido.cli.values", "Show distinct values for a column."),
+            (
+                "freshness",
+                "querido.cli.freshness",
+                "Detect timestamp columns and summarize recency.",
+            ),
             ("quality", "querido.cli.quality", "Data quality summary for a table."),
             ("diff", "querido.cli.diff", "Compare schemas between two tables."),
             ("joins", "querido.cli.joins", "Discover likely join keys between tables."),

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 from typing import cast
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -331,3 +333,50 @@ def test_apply_updates_skips_unknown_column(tmp_path: Path, monkeypatch):
     assert summary["skipped"] == [
         {"column": "ghost", "field": "temporal", "reason": "column_not_found"}
     ]
+
+
+@pytest.mark.parametrize(
+    ("argv", "meta_relpath"),
+    [
+        (
+            ["profile", "-t", "orders", "--write-metadata", "--plan"],
+            Path(".qdo/metadata/shop/orders.yaml"),
+        ),
+        (
+            ["values", "-t", "orders", "-C", "status", "--write-metadata", "--plan"],
+            Path(".qdo/metadata/shop/orders.yaml"),
+        ),
+        (
+            ["quality", "-t", "t", "--write-metadata", "--plan"],
+            Path(".qdo/metadata/shop/t.yaml"),
+        ),
+    ],
+)
+def test_metadata_write_plan_previews_without_writing(
+    tmp_path: Path,
+    monkeypatch,
+    argv: list[str],
+    meta_relpath: Path,
+):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    if argv[0] == "quality":
+        db_path = tmp_path / "shop.db"
+        conn = sqlite3.connect(db_path)
+        conn.execute("DROP TABLE IF EXISTS t")
+        conn.execute("CREATE TABLE t (id INTEGER, notes TEXT)")
+        rows: list[tuple[int, str | None]] = [(i, None) for i in range(99)]
+        rows.append((99, "only one note"))
+        conn.executemany("INSERT INTO t VALUES (?, ?)", rows)
+        conn.commit()
+        conn.close()
+        db = str(db_path)
+
+    result = runner.invoke(app, ["-f", "json", argv[0], "-c", db, *argv[1:]])
+    assert result.exit_code == 0, result.output
+
+    payload = json.loads(result.output)["data"]
+    summary = payload["metadata_write"]
+    assert summary["applied"] is False
+    assert not (tmp_path / meta_relpath).exists()

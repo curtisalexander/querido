@@ -239,3 +239,84 @@ def test_query_allow_write_persists_sqlite_mutation(sqlite_path: str):
     finally:
         conn.close()
     assert age == 41
+
+
+def test_query_plan_json_read_only(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        ["-f", "json", "query", "-c", sqlite_path, "--sql", "select * from users", "--plan"],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "query"
+    assert payload["data"]["mode"] == "plan"
+    assert payload["data"]["action"] == "query"
+    assert payload["data"]["executable"] is True
+
+
+def test_query_plan_write_without_allow_write_is_preview_only(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "query",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "update users set age = 99 where id = 1",
+            "--plan",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["data"]["mode"] == "plan"
+    assert payload["data"]["destructive"] is True
+    assert payload["data"]["executable"] is False
+
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        age = conn.execute("select age from users where id = 1").fetchone()[0]
+    finally:
+        conn.close()
+    assert age == 30
+
+
+def test_query_estimate_json_read_only(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        ["-f", "json", "query", "-c", sqlite_path, "--sql", "select * from users", "--estimate"],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "query"
+    assert payload["data"]["mode"] == "estimate"
+    assert payload["data"]["action"] == "query"
+    assert payload["data"]["cost_hint"] in {"low", "medium", "high"}
+
+
+def test_query_estimate_write_does_not_mutate(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "query",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "update users set age = 99 where id = 1",
+            "--estimate",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["data"]["mode"] == "estimate"
+    assert payload["data"]["destructive"] is True
+
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        age = conn.execute("select age from users where id = 1").fetchone()[0]
+    finally:
+        conn.close()
+    assert age == 30

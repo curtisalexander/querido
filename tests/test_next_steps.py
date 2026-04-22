@@ -131,6 +131,24 @@ def test_for_catalog_already_enriched_skips_enrich_suggestion() -> None:
     assert not any("--enrich" in s["cmd"] for s in steps)
 
 
+def test_for_catalog_functions_sqlite_steps_back_to_catalog() -> None:
+    steps = ns.for_catalog_functions(
+        {"supported": False, "functions": []},
+        connection="c",
+        pattern=None,
+    )
+    assert steps[0]["cmd"] == "qdo catalog -c c"
+
+
+def test_for_catalog_functions_empty_pattern_suggests_broadening() -> None:
+    steps = ns.for_catalog_functions(
+        {"supported": True, "functions": []},
+        connection="c",
+        pattern="geo",
+    )
+    assert any(s["cmd"] == "qdo catalog functions -c c" for s in steps)
+
+
 # -- context rules ------------------------------------------------------------
 
 
@@ -161,6 +179,26 @@ def test_for_context_numeric_suggests_dist() -> None:
     assert any("qdo dist" in s["cmd"] and "--columns amount" in s["cmd"] for s in steps)
 
 
+def test_for_freshness_without_selected_column_points_to_schema() -> None:
+    steps = ns.for_freshness(
+        {"selected_column": None, "status": "unknown"},
+        connection="c",
+        table="t",
+    )
+    assert any("qdo inspect" in s["cmd"] for s in steps)
+    assert any("qdo context" in s["cmd"] for s in steps)
+
+
+def test_for_freshness_stale_suggests_latest_rows_query() -> None:
+    steps = ns.for_freshness(
+        {"selected_column": "updated_at", "status": "stale"},
+        connection="c",
+        table="t",
+    )
+    assert any("order by \"updated_at\" desc limit 20" in s["cmd"] for s in steps)
+    assert any("qdo quality" in s["cmd"] for s in steps)
+
+
 # -- envelope contract --------------------------------------------------------
 #
 # Every command listed here must emit a uniform ``{command, data, next_steps,
@@ -177,6 +215,7 @@ _ENVELOPE_CASES: list[tuple[str, list[str], str]] = [
     ("context", ["context", "-t", "users"], "context"),
     ("preview", ["preview", "-t", "users"], "preview"),
     ("profile", ["profile", "-t", "users"], "profile"),
+    ("freshness", ["freshness", "-t", "users"], "freshness"),
     ("quality", ["quality", "-t", "users"], "quality"),
     ("values", ["values", "-t", "users", "--columns", "name"], "values"),
     ("dist", ["dist", "-t", "users", "--columns", "age"], "dist"),
@@ -316,6 +355,15 @@ def test_envelope_command_matches_argv_for_multiword_commands(
     assert r.exit_code == 0, r.output
     payload = json.loads(r.output)
     assert payload["command"] == expected_command
+
+
+def test_catalog_functions_emits_envelope(duckdb_path: str) -> None:
+    r = runner.invoke(app, ["-f", "json", "catalog", "functions", "-c", duckdb_path])
+    assert r.exit_code == 0, r.output
+    payload = json.loads(r.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload["command"] == "catalog functions"
+    assert payload["meta"]["connection"] == duckdb_path
 
 
 # -- try_next on errors -------------------------------------------------------

@@ -257,3 +257,44 @@ def test_export_reports_size(sqlite_path: str, tmp_path: Path):
     )
     assert result.exit_code == 0
     assert "bytes" in result.output.lower()
+
+
+def test_export_plan_json_file_not_written(sqlite_path: str, tmp_path: Path):
+    out = str(tmp_path / "planned.csv")
+    result = runner.invoke(
+        app,
+        ["-f", "json", "export", "-c", sqlite_path, "-t", "users", "-o", out, "--plan"],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "export"
+    assert payload["data"]["mode"] == "plan"
+    assert payload["data"]["destination"] == "file"
+    assert not Path(out).exists()
+
+
+def test_export_plan_clipboard_does_not_copy(sqlite_path: str):
+    """--plan should describe clipboard output without calling the clipboard helper."""
+    with patch("querido.core.export.copy_to_clipboard") as mock_copy:
+        result = runner.invoke(
+            app,
+            ["-f", "json", "export", "-c", sqlite_path, "-t", "users", "--clipboard", "--plan"],
+        )
+        assert result.exit_code == 0, result.output
+        mock_copy.assert_not_called()
+        payload = json.loads(result.output)
+        assert payload["data"]["destination"] == "clipboard"
+
+
+def test_export_estimate_json_file_not_written(sqlite_path: str, tmp_path: Path):
+    out = str(tmp_path / "estimate.csv")
+    result = runner.invoke(
+        app,
+        ["-f", "json", "export", "-c", sqlite_path, "-t", "users", "-o", out, "--estimate"],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "export"
+    assert payload["data"]["mode"] == "estimate"
+    assert payload["data"]["row_estimate"] == 2
+    assert not Path(out).exists()

@@ -122,6 +122,50 @@ def test_catalog_live_flag(sqlite_path: str):
     assert payload["table_count"] == 1
 
 
+def test_catalog_functions_duckdb_json(duckdb_path: str):
+    result = runner.invoke(app, ["-f", "json", "catalog", "functions", "-c", duckdb_path])
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)["data"]
+    assert payload["supported"] is True
+    assert payload["dialect"] == "duckdb"
+    assert payload["function_count"] > 0
+    assert any(entry["name"] == "lower" for entry in payload["functions"])
+
+
+def test_catalog_functions_duckdb_pattern_filters(duckdb_path: str):
+    result = runner.invoke(
+        app,
+        ["-f", "json", "catalog", "functions", "-c", duckdb_path, "--pattern", "lower"],
+    )
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)["data"]
+    assert payload["supported"] is True
+    assert payload["function_count"] >= 1
+    assert all("lower" in entry["name"].lower() for entry in payload["functions"])
+
+
+def test_catalog_functions_sqlite_is_gracefully_unsupported(sqlite_path: str):
+    result = runner.invoke(app, ["-f", "json", "catalog", "functions", "-c", sqlite_path])
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)["data"]
+    assert payload["supported"] is False
+    assert payload["dialect"] == "sqlite"
+    assert payload["function_count"] == 0
+    assert "not supported" in payload["reason"].lower()
+
+
+def test_catalog_functions_rich_unsupported_message(sqlite_path: str):
+    result = runner.invoke(app, ["catalog", "functions", "-c", sqlite_path])
+    assert result.exit_code == 0
+    assert "Function catalog unavailable" in result.output
+
+
 def test_catalog_column_details(sqlite_path: str):
     """Columns should include type and nullable info."""
     result = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path])

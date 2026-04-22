@@ -166,6 +166,41 @@ def for_catalog(
     return steps
 
 
+def for_catalog_functions(
+    result: dict,
+    *,
+    connection: str,
+    pattern: str | None,
+) -> list[dict]:
+    """Rules for ``qdo catalog functions``."""
+    if not result.get("supported", True):
+        return [
+            _step(
+                ["qdo", "catalog", "-c", connection],
+                "SQLite catalogs tables and views, but not backend SQL functions.",
+            )
+        ]
+
+    if not result.get("functions") and pattern:
+        return [
+            _step(
+                ["qdo", "catalog", "functions", "-c", connection],
+                "No functions matched that filter; rerun without --pattern to browse everything.",
+            ),
+            _step(
+                ["qdo", "catalog", "-c", connection],
+                "Step back to tables/views if you meant data objects rather than SQL functions.",
+            ),
+        ]
+
+    return [
+        _step(
+            ["qdo", "catalog", "-c", connection],
+            "Step back to tables/views if you meant data objects rather than SQL functions.",
+        )
+    ]
+
+
 def for_context(
     result: ContextResult,
     *,
@@ -234,6 +269,60 @@ def for_context(
         steps.append(pointer)
 
     return steps
+
+
+def for_freshness(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo freshness``."""
+    selected = result.get("selected_column")
+    status = result.get("status")
+
+    if not selected:
+        return [
+            _step(
+                ["qdo", "inspect", "-c", connection, "-t", table],
+                "Check the schema to confirm whether the table has any usable timestamp columns.",
+            ),
+            _step(
+                ["qdo", "context", "-c", connection, "-t", table],
+                "Review column types and sample values to find a better freshness signal.",
+            ),
+        ]
+
+    if status == "stale":
+        sql = f'select * from {table} order by "{selected}" desc limit 20'
+        return [
+            _step(
+                ["qdo", "query", "-c", connection, "--sql", sql],
+                f"Inspect the newest rows by '{selected}' to see why freshness looks stale.",
+            ),
+            _step(
+                ["qdo", "quality", "-c", connection, "-t", table, "--columns", selected],
+                f"Check nulls and anomalies in the freshness column '{selected}'.",
+            ),
+        ]
+
+    return [
+        _step(
+            [
+                "qdo",
+                "query",
+                "-c",
+                connection,
+                "--sql",
+                f'select max("{selected}") as latest_ts from {table}',
+            ],
+            f"Verify the latest value in '{selected}' directly.",
+        ),
+        _step(
+            ["qdo", "context", "-c", connection, "-t", table],
+            "Step out to the broader table context if you need more than recency.",
+        ),
+    ]
 
 
 def for_preview(

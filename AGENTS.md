@@ -106,6 +106,16 @@ qdo dist -c <connection> -t <table> -C <column> [--buckets N] [--top N]
 ```
 Numeric: histogram with N buckets (default 20). Categorical: top N values by frequency (default 20).
 
+### freshness — table recency
+```bash
+qdo freshness -c <connection> -t <table>
+qdo freshness -c <connection> -t <table> --column updated_at
+qdo freshness -c <connection> -t <table> --stale-after 14
+```
+Auto-detects likely temporal columns from schema names/types, summarizes earliest/latest
+values, and marks the table `fresh`, `stale`, or `unknown` from the newest detected
+timestamp. Use `--column` to override the detector when you know the right freshness field.
+
 ### template — documentation template
 ```bash
 qdo template -c <connection> -t <table> [--sample-values N]
@@ -129,9 +139,19 @@ qdo catalog -c <connection>
 qdo catalog -c <connection> --pattern users   # filter by table/column name
 qdo catalog -c <connection> --tables-only     # skip columns and row counts
 qdo catalog -c <connection> --enrich          # merge stored metadata descriptions
+qdo catalog functions -c <connection>         # list SQL functions (DuckDB/Snowflake)
+qdo catalog functions -c <connection> --pattern lower
 ```
 Cache-first by default; use `--live` to bypass. `--pattern` does a case-insensitive substring
-match across both table and column names.
+match across both table and column names. `catalog functions` is currently supported for
+DuckDB and Snowflake; SQLite returns a graceful unsupported result.
+
+### search — discover the right command
+```bash
+qdo search "compare schemas between tables"
+qdo search "show distinct values for a column" --limit 3
+```
+Cheap BM25 ranking over command names, descriptions, subcommands, and output-shape metadata.
 
 ### sql — generate SQL statements
 ```bash
@@ -186,6 +206,21 @@ Priority: explicit `--format` flag > `QDO_FORMAT` env var > `rich` (default).
 
 Most scan/query commands, plus many management/reference commands, support `--format json` (or `-f json`) and emit JSON to stdout. Artifact-oriented commands such as `report table` still keep their file-writing behavior. Errors go to stderr.
 
+Use `--plan` when you want to preview side effects before running them:
+
+```bash
+qdo query -c ./my.db --sql "delete from users where id = 1" --plan
+qdo export -c ./my.db -t users -o users.csv --plan
+qdo profile -c ./my.db -t orders --write-metadata --plan
+```
+
+Use `--estimate` when you want a cheap read-only cost/shape guess before running:
+
+```bash
+qdo query -c ./my.db --sql "select * from orders join customers using (customer_id)" --estimate
+qdo export -c ./my.db -t orders -o orders.csv --estimate
+```
+
 ### Recommended exploration workflow
 
 The canonical agent workflow is: **catalog -> context -> metadata -> query/assert -> report/bundle**.
@@ -217,6 +252,7 @@ Start broad, build context, then answer and hand off.
    qdo query -c ./my.db --sql "select region, sum(amount) from orders group by region"
    qdo assert -c ./my.db --sql "select count(*) from orders where amount < 0" --expect 0
    ```
+   Use `--plan` on `query` or `export` first when you want to inspect SQL and side effects without executing.
 6. **Hand off the result** — render a report or export a bundle:
     ```bash
     qdo report table -c ./my.db -t orders -o orders-report.html

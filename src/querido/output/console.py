@@ -878,12 +878,257 @@ def print_values(
 
     console.print(grid)
 
+
+def print_freshness(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print freshness scan results as a Rich summary + candidate table."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    status = result.get("status", "unknown")
+    selected = result.get("selected_column")
+    candidates = result.get("candidates") or []
+    row_count = int(result.get("row_count", 0) or 0)
+    status_label = {
+        "fresh": "[green]FRESH[/green]",
+        "stale": "[red]STALE[/red]",
+        "unknown": "[yellow]UNKNOWN[/yellow]",
+    }.get(status, str(status).upper())
+
+    console.print(
+        "  [bold cyan]Freshness[/bold cyan]  ·  "
+        f"[dim]{result.get('table', '')}[/dim]  ·  {status_label}"
+    )
+
+    summary_parts = [
+        f"[green]{row_count:,} rows[/green]",
+        f"[cyan]{len(candidates)} candidate columns[/cyan]",
+        (
+            f"[magenta]selected: {selected}[/magenta]"
+            if selected
+            else "[dim]no selected column[/dim]"
+        ),
+    ]
+    latest_age_days = result.get("latest_age_days")
+    if latest_age_days is not None:
+        summary_parts.append(f"[yellow]{latest_age_days:.1f}d old[/yellow]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Freshness Summary",
+            padding=(0, 1),
+        )
+    )
+
+    reason = result.get("reason")
+    if reason:
+        console.print(f"  [dim]{reason}[/dim]")
+
+    if not candidates:
+        return
+
+    grid = Table(title="Temporal Candidates")
+    grid.add_column("Column", style="cyan bold")
+    grid.add_column("Type", style="dim")
+    grid.add_column("Null %", justify="right")
+    grid.add_column("Earliest")
+    grid.add_column("Latest")
+    grid.add_column("Age", justify="right")
+    grid.add_column("Signals", style="dim")
+
+    for candidate in candidates:
+        age = candidate.get("latest_age_days")
+        age_str = f"{age:.1f}d" if age is not None else "—"
+        name = str(candidate.get("name", ""))
+        if name == selected:
+            name = f"{name} [selected]"
+        grid.add_row(
+            name,
+            str(candidate.get("type", "")),
+            f"{float(candidate.get('null_pct', 0.0)):.1f}%",
+            str(candidate.get("earliest_value") or "—"),
+            str(candidate.get("latest_value") or "—"),
+            age_str,
+            ", ".join(candidate.get("reasons") or []),
+        )
+
+    console.print(grid)
+
+
+def _print_values_summary(result: dict, *, truncated: bool, console: Console) -> None:
     parts = [f"  [bold]{result['distinct_count']:,}[/bold] distinct values"]
     if result["null_count"] > 0:
         parts.append(f"[dim]{result['null_count']:,} nulls[/dim]")
     if truncated:
         parts.append("[yellow]truncated[/yellow]")
     console.print("\n" + "  |  ".join(parts))
+
+
+def print_plan(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print a generic dry-run plan payload."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    action = str(result.get("action", "plan"))
+    executable = bool(result.get("executable", True))
+    status = "[green]READY[/green]" if executable else "[yellow]BLOCKED[/yellow]"
+
+    console.print(f"  [bold cyan]Plan[/bold cyan]  ·  [dim]{action}[/dim]  ·  {status}")
+    console.print(
+        Panel(
+            str(result.get("summary", "")),
+            border_style="cyan",
+            title="Plan Summary",
+            padding=(0, 1),
+        )
+    )
+
+    details = Table(title="Plan Detail")
+    details.add_column("Field", style="cyan bold")
+    details.add_column("Value", style="dim")
+
+    for key in ("action", "mode", "destination", "format", "table", "output_path", "limit"):
+        value = result.get(key)
+        if value not in (None, "", []):
+            details.add_row(key, str(value))
+
+    sql = result.get("sql")
+    if sql:
+        details.add_row("sql", str(sql))
+
+    effects = result.get("effects") or []
+    if effects:
+        details.add_row("effects", " | ".join(str(item) for item in effects))
+
+    writes = result.get("writes") or []
+    if writes:
+        details.add_row("writes", " | ".join(str(item) for item in writes))
+
+    console.print(details)
+
+
+def print_estimate(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print a generic estimate payload."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    action = str(result.get("action", "estimate"))
+    cost_hint = str(result.get("cost_hint", "unknown")).upper()
+
+    console.print(
+        "  [bold cyan]Estimate[/bold cyan]  ·  "
+        f"[dim]{action}[/dim]  ·  [yellow]{cost_hint}[/yellow]"
+    )
+    console.print(
+        Panel(
+            str(result.get("summary", "")),
+            border_style="cyan",
+            title="Estimate Summary",
+            padding=(0, 1),
+        )
+    )
+
+    details = Table(title="Estimate Detail")
+    details.add_column("Field", style="cyan bold")
+    details.add_column("Value", style="dim")
+
+    for key in (
+        "dialect",
+        "complexity",
+        "cost_hint",
+        "row_estimate",
+        "row_estimate_source",
+        "output_row_ceiling",
+        "destination",
+        "format",
+        "table",
+        "output_path",
+    ):
+        value = result.get(key)
+        if value not in (None, "", []):
+            details.add_row(key, str(value))
+
+    if result.get("notes"):
+        details.add_row("notes", " | ".join(str(x) for x in result["notes"]))
+    if result.get("sql"):
+        details.add_row("sql", str(result["sql"]))
+
+    console.print(details)
+
+
+def print_search(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print ranked command-search results."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    query = str(result.get("query", ""))
+    matches = result.get("results") or []
+
+    console.print(f"  [bold cyan]Search[/bold cyan]  ·  [dim]{query}[/dim]")
+    console.print(
+        Panel(
+            (
+                f"{result.get('result_count', 0)} match(es) across "
+                f"{result.get('searched_command_count', 0)} commands."
+            ),
+            border_style="cyan",
+            title="Command Discovery",
+            padding=(0, 1),
+        )
+    )
+
+    if not matches:
+        console.print("[dim]No strong command matches found.[/dim]")
+        return
+
+    table = Table(title="Matches", show_lines=True)
+    table.add_column("Command", style="cyan bold", no_wrap=True)
+    table.add_column("Score", justify="right", style="dim")
+    table.add_column("Why", style="dim")
+    table.add_column("Help", style="green")
+
+    for match in matches:
+        detail = str(match.get("rationale", ""))
+        subcommands = match.get("subcommands") or []
+        if subcommands:
+            detail += f"\n[dim]subcommands:[/dim] {', '.join(str(x) for x in subcommands)}"
+        table.add_row(
+            str(match.get("name", "")),
+            f"{float(match.get('score', 0.0)):.3f}",
+            detail,
+            str(match.get("help_command", "")),
+        )
+
+    console.print(table)
 
 
 def print_catalog(
@@ -958,6 +1203,81 @@ def print_catalog(
             notes_parts.append(f"owner: {t['data_owner']}")
         notes = "  |  ".join(notes_parts)
         grid.add_row(t["name"], t["type"], col_count, row_count, notes)
+
+    console.print(grid)
+
+
+def print_catalog_functions(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print the function catalog as a Rich table."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    if not result.get("supported", True):
+        console.print("[dim]Function catalog unavailable.[/dim]")
+        if result.get("reason"):
+            console.print(f"[dim]{result['reason']}[/dim]")
+        return
+
+    functions = result.get("functions") or []
+    if not functions:
+        console.print("[dim]No functions found.[/dim]")
+        return
+
+    schema_count = len({f.get("schema", "") for f in functions})
+    overloaded = sum(1 for f in functions if int(f.get("overload_count", 0) or 0) > 1)
+
+    console.print(
+        f"  [bold cyan]Function Catalog[/bold cyan]  ·  [dim]{result['dialect']}[/dim]"
+    )
+    console.print(
+        Panel(
+            "  •  ".join(
+                [
+                    f"[green]{result['function_count']:,} functions[/green]",
+                    f"[cyan]{schema_count} schemas[/cyan]",
+                    f"[magenta]{overloaded} overloaded[/magenta]",
+                ]
+            ),
+            border_style="cyan",
+            title="Function Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Function Detail")
+    grid.add_column("Name", style="cyan bold")
+    grid.add_column("Schema", style="green")
+    grid.add_column("Type")
+    grid.add_column("Overloads", justify="right")
+    grid.add_column("Returns")
+    grid.add_column("Notes", style="dim")
+
+    for entry in functions:
+        return_types = ", ".join(entry.get("return_types") or []) or "—"
+        notes_parts = []
+        languages = entry.get("languages") or []
+        if languages:
+            notes_parts.append(f"lang: {', '.join(languages)}")
+        notes = entry.get("notes") or []
+        if notes:
+            notes_parts.append(", ".join(notes))
+        if entry.get("description"):
+            notes_parts.append(str(entry["description"]))
+        grid.add_row(
+            str(entry.get("name", "")),
+            str(entry.get("schema", "")),
+            str(entry.get("type", "")),
+            f"{int(entry.get('overload_count', 0) or 0):,}",
+            return_types,
+            "  |  ".join(notes_parts),
+        )
 
     console.print(grid)
 
@@ -1256,11 +1576,15 @@ def print_classify(
 
 
 REGISTRY: dict[str, object] = {
+    "search": print_search,
     "inspect": print_inspect,
     "preview": print_preview,
     "profile": print_profile,
+    "estimate": print_estimate,
+    "plan": print_plan,
     "context": print_context,
     "dist": print_dist,
+    "freshness": print_freshness,
     "template": print_template,
     "lineage": print_lineage,
     "snowflake_lineage": print_snowflake_lineage,
@@ -1274,6 +1598,7 @@ REGISTRY: dict[str, object] = {
     "pivot": print_pivot,
     "values": print_values,
     "catalog": print_catalog,
+    "catalog_functions": print_catalog_functions,
     "query": print_query,
     "frequencies": print_frequencies,
     "classify": print_classify,
