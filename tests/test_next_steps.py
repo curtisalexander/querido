@@ -149,6 +149,30 @@ def test_for_catalog_functions_empty_pattern_suggests_broadening() -> None:
     assert any(s["cmd"] == "qdo catalog functions -c c" for s in steps)
 
 
+def test_for_metadata_search_with_match_points_to_show_and_context() -> None:
+    steps = ns.for_metadata_search(
+        {
+            "metadata_file_count": 1,
+            "results": [{"table": "orders", "column": "customer_email"}],
+        },
+        connection="c",
+    )
+    cmds = [s["cmd"] for s in steps]
+    assert "qdo metadata show -c c -t orders" in cmds
+    assert "qdo context -c c -t orders" in cmds
+    assert any('SELECT "customer_email"' in cmd for cmd in cmds)
+
+
+def test_for_metadata_search_empty_index_points_to_list_and_catalog() -> None:
+    steps = ns.for_metadata_search(
+        {"metadata_file_count": 0, "results": []},
+        connection="c",
+    )
+    cmds = [s["cmd"] for s in steps]
+    assert "qdo metadata list -c c" in cmds
+    assert "qdo catalog -c c" in cmds
+
+
 # -- context rules ------------------------------------------------------------
 
 
@@ -286,6 +310,20 @@ def test_metadata_show_emits_envelope(sqlite_path: str, tmp_path, monkeypatch) -
         assert sqlite_path in step["cmd"]
         assert "users" in step["cmd"]
     assert payload["meta"]["table"] == "users"
+
+
+def test_metadata_search_emits_envelope(sqlite_path: str, tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    init_result = runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+    assert init_result.exit_code == 0, init_result.output
+
+    r = runner.invoke(app, ["-f", "json", "metadata", "search", "-c", sqlite_path, "alice"])
+    assert r.exit_code == 0, r.output
+    payload = json.loads(r.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload["command"] == "metadata search"
+    assert isinstance(payload["next_steps"], list)
+    assert payload["meta"]["connection"] == sqlite_path
 
 
 def test_for_metadata_show_suggests_edit_and_refresh() -> None:

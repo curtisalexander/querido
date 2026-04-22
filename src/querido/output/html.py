@@ -620,6 +620,40 @@ def format_metadata_list_html(
     )
 
 
+def format_metadata_search_html(
+    result: dict,
+) -> str:
+    """Render metadata-search results as a standalone HTML page."""
+    matches = result.get("results") or []
+    if not matches:
+        return _html_page(
+            title=f"Metadata Search: {result.get('query', '')}",
+            subtitle=f"No matches in {result.get('connection', '')}",
+            table_html="<p>No results.</p>",
+            footer_text="qdo metadata search",
+        )
+
+    headers = ["Kind", "Table", "Column", "Score", "Matched", "Excerpt"]
+    rows = [
+        [
+            str(row.get("kind", "")),
+            str(row.get("table", "")),
+            str(row.get("column") or ""),
+            str(row.get("score", "")),
+            ", ".join(str(term) for term in row.get("matched_terms") or []),
+            str(row.get("excerpt", "")),
+        ]
+        for row in matches
+    ]
+
+    return _html_page(
+        title=f"Metadata Search: {result.get('query', '')}",
+        subtitle=f"{len(matches)} result(s) in {result.get('connection', '')}",
+        table_html=_build_table(headers, rows),
+        footer_text="qdo metadata search",
+    )
+
+
 def format_explain_html(
     result: dict,
 ) -> str:
@@ -1214,6 +1248,7 @@ REGISTRY: dict[str, object] = {
     "snowflake_lineage": format_snowflake_lineage_html,
     "metadata": format_metadata_html,
     "metadata_list": format_metadata_list_html,
+    "metadata_search": format_metadata_search_html,
     "explain": format_explain_html,
     "diff": format_diff_html,
     "joins": format_joins_html,

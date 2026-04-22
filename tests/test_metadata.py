@@ -237,3 +237,70 @@ def test_metadata_env_override(sqlite_path: str, tmp_path: Path, monkeypatch):
     assert result.exit_code == 0
     # Connection path is sanitized to stem: /path/to/test.db → "test"
     assert (Path(custom_dir) / "test" / "users.yaml").exists()
+
+
+def test_metadata_search_prefers_matching_column(sqlite_path: str, tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "test" / "users.yaml"
+    meta = yaml.safe_load(meta_file.read_text())
+    meta["table_description"] = "Application users and account owners"
+    meta["data_owner"] = "Identity team"
+    meta["columns"][1]["description"] = "Customer email address for login and notifications"
+    meta["columns"][1]["pii"] = True
+    with open(meta_file, "w") as f:
+        yaml.dump(meta, f)
+
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "search", "-c", sqlite_path, "customer email pii"],
+    )
+    assert result.exit_code == 0, result.output
+
+    import json
+
+    payload = json.loads(result.output)
+    assert payload["command"] == "metadata search"
+    data = payload["data"]
+    assert data["results"]
+    top = data["results"][0]
+    assert top["kind"] == "column"
+    assert top["table"] == "users"
+    assert top["column"] == "name"
+    assert "email" in top["matched_terms"]
+    assert payload["next_steps"][0]["cmd"] == f"qdo metadata show -c '{sqlite_path}' -t users"
+
+
+def test_metadata_search_empty_index_emits_envelope(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "search", "-c", "missing-conn", "customer email"],
+    )
+    assert result.exit_code == 0, result.output
+
+    import json
+
+    payload = json.loads(result.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload["command"] == "metadata search"
+    assert payload["data"]["metadata_file_count"] == 0
+    assert payload["data"]["results"] == []
+    assert payload["next_steps"][0]["cmd"] == "qdo metadata list -c missing-conn"
+
+
+def test_metadata_search_rich_output(sqlite_path: str, tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "test" / "users.yaml"
+    meta = yaml.safe_load(meta_file.read_text())
+    meta["columns"][1]["description"] = "Customer email address"
+    with open(meta_file, "w") as f:
+        yaml.dump(meta, f)
+
+    result = runner.invoke(app, ["metadata", "search", "-c", sqlite_path, "customer email"])
+    assert result.exit_code == 0, result.output
+    assert "Metadata Search" in result.output
+    assert "name" in result.output

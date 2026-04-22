@@ -903,6 +903,70 @@ def for_metadata_show(
     return steps
 
 
+def for_metadata_search(
+    result: dict,
+    *,
+    connection: str,
+) -> list[dict]:
+    """Rules for ``qdo metadata search``."""
+    if not result.get("metadata_file_count"):
+        return [
+            _step(
+                ["qdo", "metadata", "list", "-c", connection],
+                "Check whether this connection has any stored metadata files yet.",
+            ),
+            _step(
+                ["qdo", "catalog", "-c", connection],
+                "Browse live tables, then scaffold metadata for the ones you care about.",
+            ),
+        ]
+
+    matches = result.get("results") or []
+    if not matches:
+        return [
+            _step(
+                ["qdo", "metadata", "list", "-c", connection],
+                "Browse the stored metadata corpus to refine the next search.",
+            ),
+            _step(
+                ["qdo", "catalog", "-c", connection, "--enrich"],
+                "Compare live schema names with the stored descriptions and owners.",
+            ),
+        ]
+
+    top = matches[0]
+    table = str(top.get("table") or "")
+    column = top.get("column")
+    if not table:
+        return []
+
+    steps = [
+        _step(
+            ["qdo", "metadata", "show", "-c", connection, "-t", table],
+            f"Open the stored metadata for '{table}'.",
+        ),
+        _step(
+            ["qdo", "context", "-c", connection, "-t", table],
+            f"Pull live stats and sample values for '{table}'.",
+        ),
+    ]
+    if isinstance(column, str) and column:
+        steps.append(
+            _step(
+                [
+                    "qdo",
+                    "query",
+                    "-c",
+                    connection,
+                    "--sql",
+                    _preview_column_sql(table, column),
+                ],
+                f"Inspect recent non-null values from '{table}.{column}'.",
+            )
+        )
+    return steps
+
+
 def for_template(
     result: dict,
     *,
@@ -939,6 +1003,16 @@ def for_template(
         steps.append(pointer)
 
     return steps
+
+
+def _preview_column_sql(table: str, column: str) -> str:
+    quoted_table = table.replace('"', '""')
+    quoted_column = column.replace('"', '""')
+    return (
+        f'SELECT "{quoted_column}" '
+        f'FROM "{quoted_table}" '
+        f'WHERE "{quoted_column}" IS NOT NULL LIMIT 20'
+    )
 
 
 # -- errors -------------------------------------------------------------------

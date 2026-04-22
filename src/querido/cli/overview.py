@@ -219,6 +219,55 @@ _OUTPUT_SHAPES: dict[str, dict] = {
             }
         ],
     },
+    "metadata": {
+        "subcommands": {
+            "show": {
+                "table": "string",
+                "connection": "string",
+                "row_count": "integer",
+                "table_description": "string",
+                "columns": [
+                    {
+                        "name": "string",
+                        "type": "string",
+                        "description": "string",
+                        "valid_values": "array|string|null",
+                        "pii": "boolean|string|null",
+                    }
+                ],
+            },
+            "list": {
+                "connection": "string",
+                "tables": [
+                    {
+                        "table": "string",
+                        "path": "string",
+                        "last_modified": "float",
+                        "completeness": "float",
+                    }
+                ],
+            },
+            "search": {
+                "connection": "string",
+                "query": "string",
+                "metadata_file_count": "integer",
+                "searched_document_count": "integer",
+                "result_count": "integer",
+                "results": [
+                    {
+                        "kind": "table|column",
+                        "table": "string",
+                        "column": "string|null",
+                        "score": "float",
+                        "matched_terms": ["string"],
+                        "rationale": "string",
+                        "excerpt": "string",
+                        "path": "string",
+                    }
+                ],
+            },
+        }
+    },
     "values": {
         "table": "string",
         "column": "string",
@@ -323,21 +372,6 @@ _OUTPUT_SHAPES: dict[str, dict] = {
                 "distinct_count": "integer",
                 "null_count": "integer",
                 "sample_values": "string",
-            }
-        ],
-    },
-    "metadata": {
-        "table": "string",
-        "connection": "string",
-        "row_count": "integer",
-        "table_description": "string",
-        "data_owner": "string",
-        "columns": [
-            {
-                "name": "string",
-                "type": "string",
-                "description": "string",
-                "distinct_count": "integer",
             }
         ],
     },

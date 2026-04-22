@@ -717,6 +717,60 @@ def format_metadata_list(
     return "\n".join(lines)
 
 
+def format_metadata_search(
+    result: dict,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    matches = result.get("results") or []
+    if not matches:
+        if fmt == "csv":
+            return ""
+        return (
+            f"No metadata matches for '{result.get('query', '')}' in "
+            f"{result.get('connection', '')}."
+        )
+
+    if fmt == "csv":
+        rows = [
+            {
+                "kind": row.get("kind", ""),
+                "table": row.get("table", ""),
+                "column": row.get("column", ""),
+                "score": row.get("score", ""),
+                "matched_terms": ", ".join(row.get("matched_terms") or []),
+                "excerpt": row.get("excerpt", ""),
+                "path": row.get("path", ""),
+            }
+            for row in matches
+        ]
+        return dicts_to_csv(rows)
+
+    lines = [
+        f"## Metadata Search: {result.get('query', '')}",
+        "",
+        f"Connection: {result.get('connection', '')}",
+        f"Results: {result.get('result_count', 0)}",
+        "",
+    ]
+    headers = ["Kind", "Table", "Column", "Score", "Matched", "Excerpt"]
+    rows = [
+        [
+            str(row.get("kind", "")),
+            str(row.get("table", "")),
+            str(row.get("column") or ""),
+            str(row.get("score", "")),
+            ", ".join(str(term) for term in row.get("matched_terms") or []),
+            str(row.get("excerpt", "")),
+        ]
+        for row in matches
+    ]
+    lines.append(to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
 # -- explain ------------------------------------------------------------------
 
 
@@ -1620,6 +1674,7 @@ REGISTRY: dict[str, object] = {
     "snowflake_lineage": format_snowflake_lineage,
     "metadata": format_metadata,
     "metadata_list": format_metadata_list,
+    "metadata_search": format_metadata_search,
     "explain": format_explain,
     "diff": format_diff,
     "joins": format_joins,

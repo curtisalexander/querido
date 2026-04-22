@@ -6,7 +6,9 @@ import typer
 
 from querido.cli._errors import friendly_errors
 
-app = typer.Typer(help="Manage enriched table metadata (init, show, list, edit, refresh).")
+app = typer.Typer(
+    help="Manage enriched table metadata (init, show, list, search, edit, refresh)."
+)
 
 
 @app.command()
@@ -104,6 +106,34 @@ def list_cmd(
 
     entries = list_metadata(connection)
     dispatch_output("metadata_list", connection, entries)
+
+
+@app.command("search")
+@friendly_errors
+def search_cmd(
+    query: str = typer.Argument(..., help="Meaning-based metadata search query."),
+    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+    limit: int = typer.Option(5, "--limit", min=1, max=20, help="Maximum results to return."),
+) -> None:
+    """Search stored metadata by meaning across table and column descriptions."""
+    from querido.cli._pipeline import dispatch_output
+    from querido.core.metadata import search_metadata
+    from querido.core.next_steps import for_metadata_search
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    result = search_metadata(connection, query, limit=limit)
+    steps = for_metadata_search(result, connection=connection)
+
+    if is_structured_format():
+        emit_envelope(
+            command="metadata search",
+            data=result,
+            next_steps=steps,
+            connection=connection,
+        )
+        return
+
+    dispatch_output("metadata_search", result)
 
 
 @app.command()

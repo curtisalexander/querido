@@ -523,6 +523,47 @@ def print_metadata_list(
     console.print(grid)
 
 
+def print_metadata_search(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print metadata-search results."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    matches = result.get("results") or []
+    query = result.get("query", "")
+    connection = result.get("connection", "")
+    if not matches:
+        console.print(
+            f"[dim]No metadata matches for [/dim][bold]{query}[/bold][dim] in {connection}.[/dim]"
+        )
+        return
+
+    grid = Table(title=f"Metadata Search: {query}")
+    grid.add_column("Kind", style="magenta")
+    grid.add_column("Table", style="cyan")
+    grid.add_column("Column", style="green")
+    grid.add_column("Score", justify="right")
+    grid.add_column("Matched")
+    grid.add_column("Excerpt", overflow="fold")
+
+    for row in matches:
+        grid.add_row(
+            str(row.get("kind", "")),
+            str(row.get("table", "")),
+            str(row.get("column") or ""),
+            f"{float(row.get('score', 0)):.3f}",
+            ", ".join(str(term) for term in row.get("matched_terms") or []),
+            str(row.get("excerpt", "")),
+        )
+
+    console.print(grid)
+
+
 def print_explain(
     result: dict,
     console: Console | None = None,
@@ -1590,6 +1631,7 @@ REGISTRY: dict[str, object] = {
     "snowflake_lineage": print_snowflake_lineage,
     "metadata": print_metadata,
     "metadata_list": print_metadata_list,
+    "metadata_search": print_metadata_search,
     "explain": print_explain,
     "diff": print_diff,
     "joins": print_joins,
