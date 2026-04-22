@@ -280,6 +280,7 @@ def test_export_invalid_format_json(sqlite_path: str, tmp_path: Path):
     payload = json.loads(result.output)
     assert payload["code"] == "EXPORT_FORMAT_INVALID"
 
+
 def test_export_clipboard(sqlite_path: str):
     """--clipboard should export TSV and call copy_to_clipboard."""
     with patch("querido.core.export.copy_to_clipboard") as mock_copy:

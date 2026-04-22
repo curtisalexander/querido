@@ -168,9 +168,7 @@ class ProfileScreen(ModalScreen):
                 if selected_columns is not None
                 else f"Full profile for all {len(stats)} columns."
             )
-            summary.update(
-                scope + " Includes numeric summary statistics where they apply."
-            )
+            summary.update(scope + " Includes numeric summary statistics where they apply.")
 
         dt = self.query_one("#profile-table", DataTable)
         dt.clear(columns=True)

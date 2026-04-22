@@ -287,11 +287,6 @@ def _stringify_temporal(value: object) -> str | None:
     parsed = _parse_temporal(value)
     if parsed is None:
         return str(value) if value is not None else None
-    if (
-        parsed.hour == 0
-        and parsed.minute == 0
-        and parsed.second == 0
-        and parsed.microsecond == 0
-    ):
+    if parsed.hour == 0 and parsed.minute == 0 and parsed.second == 0 and parsed.microsecond == 0:
         return parsed.date().isoformat()
     return parsed.isoformat(timespec="seconds")

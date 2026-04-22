@@ -17,9 +17,7 @@ import pytest
 # The eval script lives under scripts/, not the querido package, so we
 # load it by path. Same pattern scripts/eval_workflow_authoring.py would
 # use if it had a test file.
-_SCRIPT_PATH = (
-    Path(__file__).resolve().parent.parent / "scripts" / "eval_skill_files_claude.py"
-)
+_SCRIPT_PATH = Path(__file__).resolve().parent.parent / "scripts" / "eval_skill_files_claude.py"
 
 
 @pytest.fixture(scope="module")

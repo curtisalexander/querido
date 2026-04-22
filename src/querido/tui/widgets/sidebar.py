@@ -35,9 +35,7 @@ class MetadataSidebar(Static):
         if connection_name:
             lines.append(f"[dim]{escape(connection_name)}[/dim]")
         lines.append(
-            "[green]metadata available[/green]"
-            if metadata_present
-            else "[dim]no metadata[/dim]"
+            "[green]metadata available[/green]" if metadata_present else "[dim]no metadata[/dim]"
         )
         lines.append("")
 

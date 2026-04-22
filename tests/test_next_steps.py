@@ -219,7 +219,7 @@ def test_for_freshness_stale_suggests_latest_rows_query() -> None:
         connection="c",
         table="t",
     )
-    assert any("order by \"updated_at\" desc limit 20" in s["cmd"] for s in steps)
+    assert any('order by "updated_at" desc limit 20' in s["cmd"] for s in steps)
     assert any("qdo quality" in s["cmd"] for s in steps)
 
 

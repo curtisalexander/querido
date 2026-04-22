@@ -792,11 +792,7 @@ def print_quality(
         uniqueness_pct = float(col["uniqueness_pct"])
         null_style = "red" if null_pct >= 90 else "yellow" if null_pct >= 20 else "dim"
         unique_style = (
-            "red"
-            if col["status"] == "fail"
-            else "yellow"
-            if col["status"] == "warn"
-            else "dim"
+            "red" if col["status"] == "fail" else "yellow" if col["status"] == "warn" else "dim"
         )
         grid.add_row(
             col["name"],
@@ -1274,9 +1270,7 @@ def print_catalog_functions(
     schema_count = len({f.get("schema", "") for f in functions})
     overloaded = sum(1 for f in functions if int(f.get("overload_count", 0) or 0) > 1)
 
-    console.print(
-        f"  [bold cyan]Function Catalog[/bold cyan]  ·  [dim]{result['dialect']}[/dim]"
-    )
+    console.print(f"  [bold cyan]Function Catalog[/bold cyan]  ·  [dim]{result['dialect']}[/dim]")
     console.print(
         Panel(
             "  •  ".join(
@@ -1410,9 +1404,7 @@ def print_context(
     primary_key_count = sum(1 for col in columns if col.get("primary_key"))
     nullable_count = sum(1 for col in columns if col.get("nullable"))
     metadata_count = sum(
-        1
-        for col in columns
-        if col.get("description") or col.get("valid_values") or col.get("pii")
+        1 for col in columns if col.get("description") or col.get("valid_values") or col.get("pii")
     )
     sampled_columns = sum(1 for col in columns if col.get("sample_values"))
 

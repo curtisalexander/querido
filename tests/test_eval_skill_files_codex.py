@@ -113,9 +113,7 @@ def test_artifact_success_result_passes_metadata_init_timeout(tmp_path: Path) ->
     assert result["status"] == "pass"
     assert result["failure_category"] is None
     assert result["reason"] == "expected artifact was created before codex timed out"
-    assert result["qdo_commands"] == [
-        f"qdo metadata init -c {mod.FIXTURE_DB} -t orders"
-    ]
+    assert result["qdo_commands"] == [f"qdo metadata init -c {mod.FIXTURE_DB} -t orders"]
     assert "orders.yaml" in result["final_text_snippet"]
 
 

@@ -258,9 +258,7 @@ def undo(
 
     action = "Would restore" if dry_run else "Restored"
     target = (
-        "delete the metadata file"
-        if summary["restored"] == "delete"
-        else "the prior snapshot"
+        "delete the metadata file" if summary["restored"] == "delete" else "the prior snapshot"
     )
     print(f"{action} {target} for {summary['path']}")
 
