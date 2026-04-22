@@ -27,7 +27,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from querido.core.metadata import _read_yaml, _write_yaml, metadata_path
+from querido.core.metadata import (
+    _read_yaml,
+    _record_metadata_history,
+    _write_yaml,
+    metadata_path,
+)
 from querido.core.quality import QualityResult
 from querido.core.values import ValuesResult
 
@@ -260,7 +265,15 @@ def apply_updates(
             }
         )
 
+    before_text = path.read_text(encoding="utf-8")
     _write_yaml(path, meta)
+    _record_metadata_history(
+        connection=connection,
+        table=table,
+        command=f"metadata write ({source})",
+        before_text=before_text,
+        after_path=path,
+    )
     return {"written": written, "skipped": skipped, "path": str(path), "applied": True}
 
 

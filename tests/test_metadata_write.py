@@ -380,3 +380,110 @@ def test_metadata_write_plan_previews_without_writing(
     summary = payload["metadata_write"]
     assert summary["applied"] is False
     assert not (tmp_path / meta_relpath).exists()
+
+
+def test_metadata_undo_init_deletes_file(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["metadata", "init", "-c", db, "-t", "orders"])
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    assert meta_file.exists()
+
+    result = runner.invoke(app, ["metadata", "undo", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    assert not meta_file.exists()
+
+
+def test_metadata_undo_dry_run_does_not_modify_file(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["metadata", "init", "-c", db, "-t", "orders"])
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    before = meta_file.read_text()
+
+    result = runner.invoke(
+        app,
+        ["metadata", "undo", "-c", db, "-t", "orders", "--dry-run"],
+    )
+    assert result.exit_code == 0, result.output
+    assert meta_file.read_text() == before
+
+
+def test_metadata_undo_restores_previous_snapshot_after_write_metadata(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["metadata", "init", "-c", db, "-t", "orders"])
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    scaffold = yaml.safe_load(meta_file.read_text())
+
+    runner.invoke(
+        app,
+        ["values", "-c", db, "-t", "orders", "-C", "status", "--write-metadata"],
+    )
+    changed = yaml.safe_load(meta_file.read_text())
+    changed_cols = {c["name"]: c for c in changed["columns"]}
+    assert "valid_values" in changed_cols["status"]
+
+    result = runner.invoke(app, ["metadata", "undo", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    restored = yaml.safe_load(meta_file.read_text())
+    assert restored == scaffold
+
+
+def test_metadata_undo_steps_two_reverts_init_and_write(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["metadata", "init", "-c", db, "-t", "orders"])
+    runner.invoke(
+        app,
+        ["values", "-c", db, "-t", "orders", "-C", "status", "--write-metadata"],
+    )
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    assert meta_file.exists()
+    result = runner.invoke(app, ["metadata", "undo", "-c", db, "-t", "orders", "--steps", "2"])
+    assert result.exit_code == 0, result.output
+    assert not meta_file.exists()
+
+
+def test_metadata_undo_refresh_restores_prior_machine_fields(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["metadata", "init", "-c", db, "-t", "orders"])
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    before = yaml.safe_load(meta_file.read_text())
+    assert before["row_count"] == 3
+
+    conn = sqlite3.connect(db)
+    conn.execute("INSERT INTO orders VALUES (?, ?, ?)", (4, "active", "2025-01-04T00:00:00"))
+    conn.commit()
+    conn.close()
+
+    runner.invoke(app, ["metadata", "refresh", "-c", db, "-t", "orders"])
+    refreshed = yaml.safe_load(meta_file.read_text())
+    assert refreshed["row_count"] == 4
+
+    result = runner.invoke(app, ["metadata", "undo", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    restored = yaml.safe_load(meta_file.read_text())
+    assert restored["row_count"] == 3
+
+
+def test_metadata_undo_json_envelope(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["metadata", "init", "-c", db, "-t", "orders"])
+    result = runner.invoke(app, ["-f", "json", "metadata", "undo", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "metadata undo"
+    assert payload["data"]["table"] == "orders"
+    assert payload["data"]["steps"] == 1

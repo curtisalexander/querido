@@ -99,6 +99,7 @@ qdo context -c my-db --table orders
 # 3. Capture what you learned
 qdo metadata init -c my-db --table orders
 qdo metadata suggest -c my-db --table orders --apply
+qdo metadata undo -c my-db --table orders --dry-run
 
 # 4. Answer a question and verify it
 qdo query -c my-db --sql "select status, count(*) from orders group by 1"
@@ -206,6 +207,7 @@ qdo metadata edit    -c my-db -t orders       # open in $EDITOR
 qdo metadata show    -c my-db -t orders       # read back metadata
 qdo metadata list    -c my-db                 # completeness overview
 qdo metadata refresh -c my-db -t orders       # re-profile, keep human fields
+qdo metadata undo    -c my-db -t orders       # restore the last qdo-managed metadata snapshot
 ```
 
 ### Snowflake — platform-specific commands

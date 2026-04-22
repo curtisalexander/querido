@@ -228,6 +228,14 @@ def _bad_parameter_code(msg: str) -> str:
         return "SESSION_REQUIRED"
     if lower.startswith("no metadata found"):
         return "METADATA_NOT_FOUND"
+    if lower.startswith("no metadata undo history for "):
+        return "METADATA_UNDO_NOT_AVAILABLE"
+    if lower.startswith("cannot undo ") and " qdo-managed write" in lower:
+        return "METADATA_UNDO_NOT_AVAILABLE"
+    if lower.startswith("metadata file has changed since the last qdo-managed write:"):
+        return "METADATA_UNDO_DRIFT"
+    if lower.startswith("metadata undo snapshot is missing for "):
+        return "METADATA_UNDO_NOT_AVAILABLE"
     if lower.startswith("column set '") and " not found " in lower:
         return "COLUMN_SET_NOT_FOUND"
     if lower.startswith("sql file not found:"):

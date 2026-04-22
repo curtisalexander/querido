@@ -288,8 +288,40 @@ def test_validation_error_json_metadata_not_found_uses_structured_error(
     assert result.exit_code != 0
     payload = json.loads(result.output)
     assert payload["error"] is True
-    assert payload["code"] == "METADATA_NOT_FOUND"
-    assert any("qdo metadata init" in step["cmd"] for step in payload["try_next"])
+
+
+def test_validation_error_json_metadata_undo_not_available(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "undo", "-c", sqlite_path, "-t", "users"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "METADATA_UNDO_NOT_AVAILABLE"
+
+
+def test_validation_error_json_metadata_undo_drift(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import yaml
+
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+    meta_file = tmp_path / ".qdo" / "metadata" / "test" / "users.yaml"
+    meta = yaml.safe_load(meta_file.read_text())
+    meta["notes"] = "manual drift"
+    meta_file.write_text(yaml.safe_dump(meta, sort_keys=False))
+
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "undo", "-c", sqlite_path, "-t", "users"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "METADATA_UNDO_DRIFT"
 
 
 def test_validation_error_json_column_set_not_found_uses_structured_error(

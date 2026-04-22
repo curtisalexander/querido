@@ -7,7 +7,7 @@ import typer
 from querido.cli._errors import friendly_errors
 
 app = typer.Typer(
-    help="Manage enriched table metadata (init, show, list, search, edit, refresh)."
+    help="Manage enriched table metadata (init, show, list, search, edit, refresh, undo)."
 )
 
 
@@ -206,6 +206,63 @@ def refresh(
 
     path = metadata_path(connection, table)
     print(f"Refreshed: {path}", file=sys.stderr)
+
+
+@app.command()
+@friendly_errors
+def undo(
+    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+    steps: int = typer.Option(1, "--steps", min=1, help="Undo the last N qdo-managed writes."),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview what would be undone without restoring the file.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Restore the recorded snapshot even if the current file has drifted.",
+    ),
+) -> None:
+    """Undo the last qdo-managed metadata write(s) for one table."""
+    from querido.core.metadata import undo_metadata
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    try:
+        summary = undo_metadata(
+            connection,
+            table,
+            steps=steps,
+            dry_run=dry_run,
+            force=force,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from None
+
+    if is_structured_format():
+        next_steps = [
+            {
+                "cmd": f"qdo metadata show -c {connection} -t {table}",
+                "why": "Inspect the restored metadata.",
+            }
+        ]
+        emit_envelope(
+            command="metadata undo",
+            data=summary,
+            next_steps=next_steps,
+            connection=connection,
+            table=table,
+        )
+        return
+
+    action = "Would restore" if dry_run else "Restored"
+    target = (
+        "delete the metadata file"
+        if summary["restored"] == "delete"
+        else "the prior snapshot"
+    )
+    print(f"{action} {target} for {summary['path']}")
 
 
 @app.command()

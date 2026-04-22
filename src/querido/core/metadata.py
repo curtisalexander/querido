@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+import os
 import re
 from collections import Counter
+from contextlib import suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -86,6 +91,101 @@ def metadata_path(connection: str, table: str) -> Path:
     return get_metadata_dir(connection) / f"{table}.yaml"
 
 
+def metadata_history_dir(connection: str, table: str) -> Path:
+    """Return the history directory for a table's metadata file."""
+    safe_name = _sanitize_connection_name(connection)
+    base = os.environ.get("QDO_METADATA_DIR")
+    if base:
+        return Path(base) / "_history" / safe_name / table
+    return Path(".qdo") / "metadata_history" / safe_name / table
+
+
+def undo_metadata(
+    connection: str,
+    table: str,
+    *,
+    steps: int = 1,
+    dry_run: bool = False,
+    force: bool = False,
+) -> dict:
+    """Undo the last *steps* qdo-managed metadata writes for one table."""
+    if steps <= 0:
+        raise ValueError("--steps must be greater than 0.")
+
+    path = metadata_path(connection, table)
+    records = _read_history_records(connection, table)
+    if not records:
+        raise ValueError(
+            f"No metadata undo history for {connection}/{table}. "
+            "Only qdo-managed metadata writes can be undone."
+        )
+    if steps > len(records):
+        raise ValueError(
+            f"Cannot undo {steps} step(s) for {connection}/{table}; only {len(records)} "
+            "qdo-managed write(s) are recorded."
+        )
+
+    target = records[-steps:]
+    earliest = target[0]
+    latest = target[-1]
+    current_exists = path.exists()
+    current_text = path.read_text(encoding="utf-8") if current_exists else None
+    current_fingerprint = _fingerprint_text(current_text)
+    expected_fingerprint = latest.get("after_fingerprint")
+    if (
+        not force
+        and isinstance(expected_fingerprint, str)
+        and current_fingerprint != expected_fingerprint
+    ):
+        raise ValueError(
+            f"Metadata file has changed since the last qdo-managed write: {path}. "
+            "Re-run with --force to restore the recorded snapshot."
+        )
+
+    restore_exists = bool(earliest.get("before_exists"))
+    snapshot_rel = earliest.get("before_snapshot_path")
+    restore_path = metadata_history_dir(connection, table) / str(snapshot_rel or "")
+    restore_text: str | None = None
+    if restore_exists:
+        try:
+            restore_text = restore_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(
+                f"Metadata undo snapshot is missing for {connection}/{table}: {restore_path}"
+            ) from exc
+
+    summary = {
+        "connection": connection,
+        "table": table,
+        "path": str(path),
+        "steps": steps,
+        "dry_run": dry_run,
+        "restored": "delete" if not restore_exists else "snapshot",
+        "writes_undone": [
+            {
+                "timestamp": record.get("timestamp"),
+                "command": record.get("command"),
+                "session": record.get("session"),
+            }
+            for record in reversed(target)
+        ],
+    }
+
+    if dry_run:
+        return summary
+
+    if restore_exists:
+        assert restore_text is not None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(restore_text, encoding="utf-8")
+    else:
+        with suppress(FileNotFoundError):
+            path.unlink()
+
+    _write_history_records(connection, table, records[:-steps])
+    return summary
+
+
 def init_metadata(
     connector: Connector,
     connection: str,
@@ -110,7 +210,15 @@ def init_metadata(
     # Build the YAML-ready dict
     meta = _template_to_metadata(template, connection)
 
+    before_text = path.read_text(encoding="utf-8") if path.exists() else None
     _write_yaml(path, meta)
+    _record_metadata_history(
+        connection=connection,
+        table=table,
+        command="metadata init",
+        before_text=before_text,
+        after_path=path,
+    )
     return meta
 
 
@@ -302,7 +410,15 @@ def refresh_metadata(
 
     merged = _merge_metadata(existing, fresh)
 
+    before_text = path.read_text(encoding="utf-8")
     _write_yaml(path, merged)
+    _record_metadata_history(
+        connection=connection,
+        table=table,
+        command="metadata refresh",
+        before_text=before_text,
+        after_path=path,
+    )
     return merged
 
 
@@ -670,3 +786,79 @@ def _read_yaml(path: Path) -> dict | None:
             return yaml.safe_load(f)
     except (OSError, yaml.YAMLError):
         return None
+
+
+def _history_log_path(connection: str, table: str) -> Path:
+    return metadata_history_dir(connection, table) / "history.jsonl"
+
+
+def _read_history_records(connection: str, table: str) -> list[dict]:
+    path = _history_log_path(connection, table)
+    if not path.exists():
+        return []
+    records: list[dict] = []
+    try:
+        with path.open(encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(payload, dict):
+                    records.append(payload)
+    except OSError:
+        return []
+    return records
+
+
+def _write_history_records(connection: str, table: str, records: list[dict]) -> None:
+    path = _history_log_path(connection, table)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        for record in records:
+            f.write(json.dumps(record) + "\n")
+
+
+def _record_metadata_history(
+    *,
+    connection: str,
+    table: str,
+    command: str,
+    before_text: str | None,
+    after_path: Path,
+) -> None:
+    history_dir = metadata_history_dir(connection, table)
+    history_dir.mkdir(parents=True, exist_ok=True)
+    after_text = after_path.read_text(encoding="utf-8")
+    timestamp = datetime.now(UTC).isoformat(timespec="seconds")
+    snapshot_name = (
+        f"{len(_read_history_records(connection, table)) + 1:04d}-"
+        f"{timestamp.replace(':', '').replace('+00:00', 'Z')}.yaml"
+    )
+    snapshot_rel: str | None = None
+    if before_text is not None:
+        snapshot_path = history_dir / snapshot_name
+        snapshot_path.write_text(before_text, encoding="utf-8")
+        snapshot_rel = snapshot_path.name
+
+    record = {
+        "timestamp": timestamp,
+        "command": command,
+        "session": os.environ.get("QDO_SESSION", "").strip() or None,
+        "before_exists": before_text is not None,
+        "before_snapshot_path": snapshot_rel,
+        "before_fingerprint": _fingerprint_text(before_text),
+        "after_fingerprint": _fingerprint_text(after_text),
+    }
+    records = _read_history_records(connection, table)
+    records.append(record)
+    _write_history_records(connection, table, records)
+
+
+def _fingerprint_text(text: str | None) -> str | None:
+    if text is None:
+        return None
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()

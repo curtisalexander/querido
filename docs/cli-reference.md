@@ -122,6 +122,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo metadata score -c CONN` | Rank metadata completeness |
 | `qdo metadata suggest -c CONN -t TABLE [--apply]` | Propose deterministic metadata additions |
 | `qdo metadata refresh -c CONN -t TABLE` | Refresh machine fields, keep human fields |
+| `qdo metadata undo -c CONN -t TABLE [--dry-run]` | Restore the last qdo-managed metadata snapshot |
 | `qdo completion show SHELL` | Generate shell completion scripts |
 
 ### Snowflake
@@ -190,6 +191,18 @@ qdo session replay scratch --last 3
 ```
 
 By default replay stops on the first failed rerun. Use `--continue-on-error` to keep going, and `qdo session show <replay-session>` to inspect the replayed run afterward.
+
+## Metadata Undo
+
+Metadata undo restores the previous on-disk YAML snapshot for one table, but only for qdo-managed writes such as `metadata init`, `metadata refresh`, `metadata suggest --apply`, and `--write-metadata` flows:
+
+```bash
+qdo metadata undo -c mydb -t orders
+qdo metadata undo -c mydb -t orders --dry-run
+qdo metadata undo -c mydb -t orders --steps 2
+```
+
+Undo is table-scoped and guarded: if the current file has drifted since the last qdo-managed write, qdo refuses to restore unless you pass `--force`.
 
 ## Global Options
 
