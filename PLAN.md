@@ -14,9 +14,32 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 **Current eval baseline: 42/45 passing (93%)** across haiku / sonnet / opus on 15 tasks — up from the previous 33/33 on 11 tasks once the task set was expanded and the harness began isolating metadata state per run. The three remaining failures are all `model-mistake` (strict required-command grading), zero `qdo-bug`.
 
-**Only pre-release item left is item 7 — dogfood.** Use qdo on a real project for a week and triage whatever surfaces. After that, active work returns to the open-ended backlog in [Deferred / future phases](#deferred--future-phases).
+**Only pre-release item left is item 7 — dogfood.** Use qdo on a real project for a week and triage whatever surfaces.
 
 Positioning and "what sets qdo apart" live in [DIFFERENTIATION.md](./DIFFERENTIATION.md). That's the cold-start doc for humans and agents re-entering the project.
+
+---
+
+## Picking up after dogfood
+
+When you return from dogfooding, start here. In order:
+
+1. **Triage dogfood findings first.** Anything that made you wince while using qdo on a real project is signal. Drop each finding into one of three buckets and record it:
+   - **Bug** — something obviously wrong. Open an issue or write the fix; high priority.
+   - **Friction** — workflow was technically possible but awkward. Add to this file as a new line in the relevant place (either promote to an active track if it's small, or queue under "Deferred / future phases" with a one-sentence description of the frustration).
+   - **Desire** — "wish qdo could do X." Add to [IDEAS.md](./IDEAS.md) under the appropriate subsection; don't promote until there's a second data point that confirms it matters.
+
+2. **If nothing major surfaced, tighten the known follow-ups below.** The Pre-release polish eval surfaced three small items worth picking up before any new feature work. See "Known non-blocker follow-ups" under the Pre-release polish pass section.
+
+3. **If you want to ship a real next feature, these are the top candidates** (ordered by differentiation payoff, not implementation cost):
+   - **Snowflake `RESULT_SCAN` reuse for chained queries** — meaningful perf win for the Snowflake depth story (one of qdo's ranked differentiators).
+   - **`qdo freshness` + `qdo diff --since <snapshot>`** — "what changed since last time?" is a recurring agent question that qdo is uniquely positioned to answer cheaply (freshness is already shipped; `--since` on diff is the promotion).
+   - **MCP thin wrapper** — unlocks a whole new integration surface without fragmenting the CLI. Keep the CLI MCP-ready meanwhile (stable flags, structured errors, no TTY-required behaviors).
+   - **Embedding layer on `metadata search`** — only if the lexical baseline shows actual user pain. Not speculative.
+
+4. **Re-run the eval** after any SKILL.md change or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 7 --confirm-spend`. Current baseline is 42/45 (93%); any regression is signal.
+
+5. **Re-read [DIFFERENTIATION.md](./DIFFERENTIATION.md)** before agreeing to anything large. The "filter for future changes" there is the first thing to apply to any proposed feature.
 
 ---
 
@@ -119,6 +142,16 @@ Key commits from this pass (`main`):
 - `88b6ba9`, `abf7dbf` — Sampling flag + `-s` harmonization
 - `e2ce1ed` — Envelope on sql + snowflake
 - `d8e1a2d` — Eval metadata isolation + non-qdo error filter + SKILL values/dist sentence
+
+### Known non-blocker follow-ups from the eval
+
+Surfaced by the final 42/45 run. None are release blockers. Pick up opportunistically, ideally alongside related work.
+
+- **Strengthen `values` vs `dist` guidance further.** The SKILL.md sentence landed in `d8e1a2d` helped haiku pass B1 but didn't shift sonnet off `dist` for an enum-listing task. If the next eval re-run still has sonnet on B1, consider a concrete "for enum-style tasks, `qdo values --counts` is the answer" phrasing — or teach `values` to emit counts natively so the path ambiguity disappears.
+- **`quality` vs `context+values+query` on quality-issue prompts.** Opus regressed from 15/15 to 14/15 by taking a manual answer path (context → values → query) instead of `qdo quality` on C1. This is run-to-run model variance more than a SKILL bug, but if it repeats the fix is either a stronger "for anomaly-oriented review use `quality`" nudge in SKILL, or loosening C1's `required_commands` to accept any of `[quality, context, values]`.
+- **Bundle workflow completeness on haiku.** D4 requires `qdo bundle inspect` as a workflow step after `export`. Haiku skipped it. SKILL could spell out "bundles are meaningful to hand off only after `inspect` confirms the contents" — a one-sentence tweak in the bundles section.
+- **Eval task definitions — alternative-command support.** Currently `required_commands` is a hard list. A `required_any_of` / `required_one_of` primitive would let us accept `values` OR `dist` for B1-style questions without losing the gate. Cheap harness change.
+- **`QDO_SESSION_DIR` env var.** The eval harness currently isolates metadata via `QDO_METADATA_DIR` but can't isolate sessions the same way — the session recorder uses `Path.cwd()`. Adding a parallel env var would close the last remaining cross-run-pollution hole in the eval; also useful for any tool that spawns qdo.
 
 ---
 
