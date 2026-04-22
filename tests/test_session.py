@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -15,15 +14,6 @@ from querido.cli.main import app
 from querido.core import session
 
 runner = CliRunner()
-
-# `session replay` spawns child `qdo` processes, which currently fail on
-# Windows with SQLite connections (child exit 1 — subprocess path handling
-# under investigation). Skip the affected replay tests there until fixed.
-# Tracked in PLAN.md "Deferred / future phases".
-_WINDOWS_REPLAY_SKIP = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="session replay child subprocess fails on Windows paths; see PLAN.md",
-)
 
 
 def _run(args: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> Result:
@@ -269,7 +259,6 @@ def test_session_show_missing(tmp_path: Path) -> None:
     assert result.exit_code != 0
 
 
-@_WINDOWS_REPLAY_SKIP
 def test_session_replay_reexecutes_successful_steps(tmp_path: Path, sqlite_path: str) -> None:
     _run(
         ["-f", "json", "preview", "--connection", sqlite_path, "--table", "users", "--rows", "1"],
@@ -345,7 +334,6 @@ def test_session_replay_json_uses_structured_envelope(tmp_path: Path, sqlite_pat
     assert any("qdo session show rerun" in step["cmd"] for step in payload["next_steps"])
 
 
-@_WINDOWS_REPLAY_SKIP
 def test_session_replay_stops_on_first_failure(tmp_path: Path, sqlite_path: str) -> None:
     _run(
         ["preview", "--connection", sqlite_path, "--table", "users"],

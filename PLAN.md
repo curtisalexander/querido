@@ -217,7 +217,6 @@ Files to resist future pressure to shrink:
 
 Capture but don't start. Each is standalone and non-blocking.
 
-- Windows `session replay` subprocess failure — `tests/test_session.py::test_session_replay_reexecutes_successful_steps` and `::test_session_replay_stops_on_first_failure` are skipped on Windows because the child `qdo preview` process exits 1 when invoked via `subprocess.run` with a Windows-style SQLite path. The feature works on macOS / Linux; low priority until there's evidence of actual Windows user impact.
 - Optional embedding/reranker layer for `qdo metadata search` if the lexical baseline proves insufficient.
 - Progressive disclosure `--level 1..3` on expensive commands.
 - Snowflake `RESULT_SCAN` reuse for chained queries.

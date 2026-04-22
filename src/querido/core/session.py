@@ -13,7 +13,6 @@ from __future__ import annotations
 import io
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -536,10 +535,14 @@ def replay_session(
 
 
 def _qdo_argv() -> list[str]:
-    """Return the argv prefix that invokes qdo as a subprocess."""
-    binary = shutil.which("qdo")
-    if binary:
-        return [binary]
+    """Return the argv prefix that invokes qdo as a subprocess.
+
+    Uses ``sys.executable -m querido`` unconditionally rather than looking up
+    ``qdo`` on PATH.  This guarantees the child runs the same interpreter and
+    module code as the parent and sidesteps Windows launcher / PATHEXT quirks
+    that caused `shutil.which("qdo")` to resolve to an `.exe` whose argument
+    forwarding broke ``session replay`` on Windows CI.
+    """
     return [sys.executable, "-m", "querido"]
 
 
