@@ -1,3 +1,4 @@
+import json
 import os
 
 from typer.testing import CliRunner
@@ -41,6 +42,34 @@ def test_config_add_duplicate_rejected(tmp_path):
     assert result.exit_code != 0
 
 
+def test_config_add_duplicate_rejected_json(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "mydb", "--type", "sqlite", "--path", "/tmp/test.db"],
+        env=env,
+    )
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "config",
+            "add",
+            "--name",
+            "mydb",
+            "--type",
+            "sqlite",
+            "--path",
+            "/tmp/other.db",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "CONNECTION_EXISTS"
+
+
 def test_config_add_requires_path_for_sqlite(tmp_path):
     env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
     result = runner.invoke(
@@ -69,6 +98,21 @@ def test_config_list_shows_connections(tmp_path):
     assert result.exit_code == 0
     assert "testdb" in result.output
     assert "duckdb" in result.output
+
+
+def test_config_list_json_uses_structured_envelope(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "testdb", "--type", "duckdb", "--path", "/data/my.duckdb"],
+        env=env,
+    )
+    result = runner.invoke(app, ["-f", "json", "config", "list"], env=env)
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["command"] == "config list"
+    assert payload["data"]["connections"][0]["name"] == "testdb"
+    assert payload["data"]["connections"][0]["path"] == "/data/my.duckdb"
 
 
 def test_config_list_snowflake_columns(tmp_path):
@@ -166,6 +210,19 @@ def test_config_clone_missing_source(tmp_path):
         env=env,
     )
     assert result.exit_code != 0
+
+
+def test_config_clone_missing_source_json(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(
+        app,
+        ["-f", "json", "config", "clone", "--source", "nonexistent", "--name", "new"],
+        env=env,
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "CONNECTION_NOT_FOUND"
+    assert any("qdo config list" in step["cmd"] for step in payload["try_next"])
 
 
 def test_config_clone_duplicate_name(tmp_path):

@@ -36,6 +36,11 @@ def values(
         "--force",
         help="With --write-metadata: overwrite human-authored fields (confidence 1.0).",
     ),
+    plan: bool = typer.Option(
+        False,
+        "--plan",
+        help="With --write-metadata: preview metadata changes without writing the YAML.",
+    ),
 ) -> None:
     """Show all distinct values for a column.
 
@@ -48,6 +53,8 @@ def values(
     valid_sorts = {"value", "frequency"}
     if sort not in valid_sorts:
         raise typer.BadParameter(f"--sort must be one of: {', '.join(sorted(valid_sorts))}")
+    if plan and not write_metadata:
+        raise typer.BadParameter("--plan requires --write-metadata.")
 
     col_names = parse_column_list(columns) or []
     if len(col_names) != 1:
@@ -76,11 +83,16 @@ def values(
 
         metadata_write_summary = None
         if write_metadata:
-            from querido.core.metadata_write import write_from_values
+            from querido.core.metadata_write import preview_from_values, write_from_values
 
-            metadata_write_summary = write_from_values(
-                ctx.connector, connection, ctx.table, result, force=force
-            )
+            if plan:
+                metadata_write_summary = preview_from_values(
+                    ctx.connector, connection, ctx.table, result, force=force
+                )
+            else:
+                metadata_write_summary = write_from_values(
+                    ctx.connector, connection, ctx.table, result, force=force
+                )
 
         from querido.output.envelope import emit_envelope, is_structured_format
 

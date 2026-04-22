@@ -111,13 +111,66 @@ def test_for_catalog_picks_largest_table() -> None:
 def test_for_catalog_empty_nudges_to_config_test() -> None:
     steps = ns.for_catalog({"tables": []}, connection="c", enriched=False)
     assert len(steps) == 1
-    assert "qdo config test" in steps[0]["cmd"]
+    assert steps[0]["cmd"] == "qdo config test c"
+
+
+def test_for_catalog_join_suggestion_includes_source_table() -> None:
+    result = {
+        "tables": [
+            {"name": "small", "row_count": 10},
+            {"name": "big", "row_count": 10_000},
+        ]
+    }
+    steps = ns.for_catalog(result, connection="c", enriched=False)
+    assert any(s["cmd"] == "qdo joins -c c -t big" for s in steps)
 
 
 def test_for_catalog_already_enriched_skips_enrich_suggestion() -> None:
     result = {"tables": [{"name": "t", "row_count": 1}]}
     steps = ns.for_catalog(result, connection="c", enriched=True)
     assert not any("--enrich" in s["cmd"] for s in steps)
+
+
+def test_for_catalog_functions_sqlite_steps_back_to_catalog() -> None:
+    steps = ns.for_catalog_functions(
+        {"supported": False, "functions": []},
+        connection="c",
+        pattern=None,
+    )
+    assert steps[0]["cmd"] == "qdo catalog -c c"
+
+
+def test_for_catalog_functions_empty_pattern_suggests_broadening() -> None:
+    steps = ns.for_catalog_functions(
+        {"supported": True, "functions": []},
+        connection="c",
+        pattern="geo",
+    )
+    assert any(s["cmd"] == "qdo catalog functions -c c" for s in steps)
+
+
+def test_for_metadata_search_with_match_points_to_show_and_context() -> None:
+    steps = ns.for_metadata_search(
+        {
+            "metadata_file_count": 1,
+            "results": [{"table": "orders", "column": "customer_email"}],
+        },
+        connection="c",
+    )
+    cmds = [s["cmd"] for s in steps]
+    assert "qdo metadata show -c c -t orders" in cmds
+    assert "qdo context -c c -t orders" in cmds
+    assert any('SELECT "customer_email"' in cmd for cmd in cmds)
+
+
+def test_for_metadata_search_empty_index_points_to_list_and_catalog() -> None:
+    steps = ns.for_metadata_search(
+        {"metadata_file_count": 0, "results": []},
+        connection="c",
+    )
+    cmds = [s["cmd"] for s in steps]
+    assert "qdo metadata list -c c" in cmds
+    assert "qdo catalog -c c" in cmds
 
 
 # -- context rules ------------------------------------------------------------
@@ -150,6 +203,26 @@ def test_for_context_numeric_suggests_dist() -> None:
     assert any("qdo dist" in s["cmd"] and "--columns amount" in s["cmd"] for s in steps)
 
 
+def test_for_freshness_without_selected_column_points_to_schema() -> None:
+    steps = ns.for_freshness(
+        {"selected_column": None, "status": "unknown"},
+        connection="c",
+        table="t",
+    )
+    assert any("qdo inspect" in s["cmd"] for s in steps)
+    assert any("qdo context" in s["cmd"] for s in steps)
+
+
+def test_for_freshness_stale_suggests_latest_rows_query() -> None:
+    steps = ns.for_freshness(
+        {"selected_column": "updated_at", "status": "stale"},
+        connection="c",
+        table="t",
+    )
+    assert any("order by \"updated_at\" desc limit 20" in s["cmd"] for s in steps)
+    assert any("qdo quality" in s["cmd"] for s in steps)
+
+
 # -- envelope contract --------------------------------------------------------
 #
 # Every command listed here must emit a uniform ``{command, data, next_steps,
@@ -166,6 +239,7 @@ _ENVELOPE_CASES: list[tuple[str, list[str], str]] = [
     ("context", ["context", "-t", "users"], "context"),
     ("preview", ["preview", "-t", "users"], "preview"),
     ("profile", ["profile", "-t", "users"], "profile"),
+    ("freshness", ["freshness", "-t", "users"], "freshness"),
     ("quality", ["quality", "-t", "users"], "quality"),
     ("values", ["values", "-t", "users", "--columns", "name"], "values"),
     ("dist", ["dist", "-t", "users", "--columns", "age"], "dist"),
@@ -238,6 +312,20 @@ def test_metadata_show_emits_envelope(sqlite_path: str, tmp_path, monkeypatch) -
     assert payload["meta"]["table"] == "users"
 
 
+def test_metadata_search_emits_envelope(sqlite_path: str, tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    init_result = runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+    assert init_result.exit_code == 0, init_result.output
+
+    r = runner.invoke(app, ["-f", "json", "metadata", "search", "-c", sqlite_path, "alice"])
+    assert r.exit_code == 0, r.output
+    payload = json.loads(r.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload["command"] == "metadata search"
+    assert isinstance(payload["next_steps"], list)
+    assert payload["meta"]["connection"] == sqlite_path
+
+
 def test_for_metadata_show_suggests_edit_and_refresh() -> None:
     """Unit: the rule always returns edit + refresh; placeholders add suggest."""
     from querido.core.next_steps import for_metadata_show
@@ -307,6 +395,15 @@ def test_envelope_command_matches_argv_for_multiword_commands(
     assert payload["command"] == expected_command
 
 
+def test_catalog_functions_emits_envelope(duckdb_path: str) -> None:
+    r = runner.invoke(app, ["-f", "json", "catalog", "functions", "-c", duckdb_path])
+    assert r.exit_code == 0, r.output
+    payload = json.loads(r.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload["command"] == "catalog functions"
+    assert payload["meta"]["connection"] == duckdb_path
+
+
 # -- try_next on errors -------------------------------------------------------
 
 
@@ -324,6 +421,16 @@ def test_error_json_file_not_found_includes_try_next(tmp_path) -> None:
     assert err["code"] == "FILE_NOT_FOUND"
     assert err["try_next"], err
     assert err["try_next"][0]["cmd"].startswith("qdo ")
+
+
+def test_for_error_database_open_failed_uses_positional_config_test() -> None:
+    steps = ns.for_error("DATABASE_OPEN_FAILED", connection="demo")
+    assert steps[0]["cmd"] == "qdo config test demo"
+
+
+def test_for_error_auth_failed_uses_positional_config_test() -> None:
+    steps = ns.for_error("AUTH_FAILED", connection="demo")
+    assert steps[0]["cmd"] == "qdo config test demo"
 
 
 def test_for_error_table_not_found_includes_catalog_suggestion() -> None:

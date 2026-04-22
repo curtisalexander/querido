@@ -71,21 +71,35 @@ def start(
 def list_cmd() -> None:
     """List session names under ``.qdo/sessions/`` with step counts."""
     from querido.core.session import iter_steps, list_sessions
+    from querido.output.envelope import emit_envelope, is_structured_format
 
     names = list_sessions()
-    if not names:
-        typer.echo("No sessions found under .qdo/sessions/")
-        return
-
-    rows: list[tuple[str, int, str]] = []
+    rows: list[dict[str, str | int | None]] = []
     for n in names:
         steps = list(iter_steps(n))
         count = len(steps)
         last = steps[-1].get("timestamp", "") if steps else ""
-        rows.append((n, count, last))
+        rows.append({"name": n, "step_count": count, "last_timestamp": last or None})
 
-    width = max(len(n) for n, _, _ in rows)
-    for name, count, last in rows:
+    if is_structured_format():
+        emit_envelope(command="session list", data={"sessions": rows})
+        return
+
+    if not names:
+        typer.echo("No sessions found under .qdo/sessions/")
+        return
+
+    display_rows: list[tuple[str, int, str]] = [
+        (
+            str(row["name"]),
+            row["step_count"] if isinstance(row["step_count"], int) else 0,
+            str(row["last_timestamp"] or ""),
+        )
+        for row in rows
+    ]
+
+    width = max(len(str(n)) for n, _, _ in display_rows)
+    for name, count, last in display_rows:
         suffix = f"  last: {last}" if last else ""
         typer.echo(f"{name.ljust(width)}  {count} step{'s' if count != 1 else ''}{suffix}")
 
@@ -153,6 +167,7 @@ def show(
 ) -> None:
     """Print a readable summary of the steps in a session."""
     from querido.core.session import iter_steps, session_dir
+    from querido.output.envelope import emit_envelope, is_structured_format
 
     dir_ = session_dir(name)
     if not dir_.is_dir():
@@ -160,11 +175,22 @@ def show(
 
     steps = list(iter_steps(name))
     if not steps:
+        if is_structured_format():
+            emit_envelope(command="session show", data={"name": name, "steps": []})
+            return
         typer.echo(f"Session {name!r} has no steps yet.")
         return
 
     if limit > 0:
         steps = steps[-limit:]
+
+    if is_structured_format():
+        emit_envelope(
+            command="session show",
+            data={"name": name, "steps": steps},
+            extra_meta={"session": name},
+        )
+        return
 
     typer.echo(f"Session: {name}   ({len(steps)} step{'s' if len(steps) != 1 else ''})")
     typer.echo("")
@@ -182,3 +208,94 @@ def show(
         rows_part = f"  rows={rows}" if rows is not None else ""
         typer.echo(f"[{idx:>3}] {ts}  qdo {' '.join(args)}")
         typer.echo(f"      {status}  {duration:.2f}s{rows_part}   cmd={cmd}")
+
+
+@app.command()
+@friendly_errors
+def replay(
+    name: str = typer.Argument(..., help="Session name to replay."),
+    last: int = typer.Option(
+        0,
+        "--last",
+        help="Replay only the last N successful recorded steps (0 = all).",
+    ),
+    into: str = typer.Option(
+        "",
+        "--into",
+        help="Replay into this session name. Defaults to replay-<name>-<timestamp>.",
+    ),
+    continue_on_error: bool = typer.Option(
+        False,
+        "--continue-on-error",
+        help="Keep replaying later steps even if one step fails.",
+    ),
+) -> None:
+    """Re-execute a prior investigation from the session log."""
+    from querido.core.session import replay_session
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    structured = is_structured_format()
+
+    def _announce(step: dict, position: int, total: int) -> None:
+        args = step.get("args") or []
+        if not structured:
+            typer.echo(f"[{position}/{total}] qdo {' '.join(args)}", err=True)
+
+    result = replay_session(
+        name,
+        last=last if last > 0 else None,
+        into=into or None,
+        continue_on_error=continue_on_error,
+        stream_output=not structured,
+        stderr=typer.get_text_stream("stderr"),
+        on_step_start=_announce,
+    )
+
+    failed = result.failed_step
+    data = {
+        "source_session": result.source_session,
+        "replay_session": result.replay_session,
+        "step_count": result.step_count,
+        "failed": failed is not None,
+        "steps": [
+            {
+                "source_index": step.source_index,
+                "cmd": step.cmd,
+                "args": step.args,
+                "exit_code": step.exit_code,
+                "duration": step.duration,
+            }
+            for step in result.steps
+        ],
+    }
+
+    next_steps = [
+        {"cmd": f"qdo session show {result.replay_session}", "why": "Inspect the replayed steps."},
+        {
+            "cmd": f"qdo report session {result.replay_session}",
+            "why": "Render the replay as a shareable session report.",
+        },
+    ]
+    if failed is None:
+        next_steps.append(
+            {
+                "cmd": f"qdo workflow from-session {result.replay_session}",
+                "why": "Draft a reusable workflow from the replayed investigation.",
+            }
+        )
+
+    if structured:
+        emit_envelope(
+            command="session replay",
+            data=data,
+            next_steps=next_steps,
+            extra_meta={"session": result.source_session, "replay_session": result.replay_session},
+        )
+        return
+
+    status = "completed" if failed is None else f"stopped at step {failed.source_index or '?'}"
+    typer.echo("")
+    typer.echo(
+        f"Replay {status}: {result.step_count} step{'s' if result.step_count != 1 else ''} "
+        f"into session {result.replay_session!r}."
+    )

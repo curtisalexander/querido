@@ -170,3 +170,30 @@ def test_values_rejects_multi_column_list(sqlite_path: str):
     )
     assert result.exit_code != 0
     assert "exactly one column" in result.output
+
+
+def test_print_values_rich_summary() -> None:
+    """Rich values output should summarize shown/distinct/null counts before the detail table."""
+    from rich.console import Console
+
+    from querido.output.console import print_values
+
+    console = Console(record=True, width=120)
+    print_values(
+        {
+            "table": "users",
+            "column": "status",
+            "values": [{"value": "active", "count": 10}, {"value": "inactive", "count": 3}],
+            "distinct_count": 5,
+            "null_count": 2,
+            "truncated": True,
+        },
+        console=console,
+    )
+    text = console.export_text()
+    assert "Values Summary" in text
+    assert "2 shown" in text
+    assert "5 distinct" in text
+    assert "2 nulls" in text
+    assert "truncated" in text.lower()
+    assert "Value Detail" in text

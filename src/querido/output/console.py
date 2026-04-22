@@ -18,12 +18,40 @@ def print_inspect(
 ) -> None:
     """Print table metadata as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
         console = Console()
 
-    grid = Table(title=f"Table: {table_name}", show_lines=True)
+    nullable_count = sum(1 for col in columns if col["nullable"])
+    pk_count = sum(1 for col in columns if col.get("primary_key"))
+
+    title_parts = [f"[bold cyan]{table_name}[/bold cyan]", f"[dim]{row_count:,} rows[/dim]"]
+    console.print("  " + "  ·  ".join(title_parts))
+
+    summary_parts = [
+        f"[green]{len(columns)} columns[/green]",
+        f"[magenta]{pk_count} primary keys[/magenta]" if pk_count else "[dim]no primary key[/dim]",
+        (
+            f"[yellow]{nullable_count} nullable[/yellow]"
+            if nullable_count
+            else "[green]all not null[/green]"
+        ),
+    ]
+    if verbose and table_comment:
+        summary_parts.append("[cyan]table comment[/cyan]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Inspect Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Column Detail", show_lines=True)
     grid.add_column("Column", style="cyan bold")
     grid.add_column("Type", style="green")
     grid.add_column("Nullable", style="yellow")
@@ -62,6 +90,7 @@ def print_preview(
 ) -> None:
     """Print row data as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -71,7 +100,21 @@ def print_preview(
         console.print(f"[dim]No rows found in {table_name}.[/dim]")
         return
 
-    grid = Table(title=f"Preview: {table_name} (limit {limit})")
+    console.print(f"  [bold cyan]{table_name}[/bold cyan]  ·  [dim]preview[/dim]")
+    console.print(
+        Panel(
+            (
+                f"[green]{len(data)} shown[/green]  •  "
+                f"[magenta]limit {limit}[/magenta]  •  "
+                f"[dim]{len(data[0])} columns[/dim]"
+            ),
+            border_style="cyan",
+            title="Preview Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Preview Rows")
     for key in data[0]:
         grid.add_column(key, style="cyan")
 
@@ -92,6 +135,7 @@ def print_profile(
 ) -> None:
     """Print data profile as Rich tables (numeric and string sections)."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -106,8 +150,31 @@ def print_profile(
     classified = {r["column_name"] for r in numeric_rows} | {r["column_name"] for r in string_rows}
     other_rows = [r for r in data if r["column_name"] not in classified]
 
+    title_parts = [f"[bold cyan]{table_name}[/bold cyan]", f"[dim]{row_count:,} rows[/dim]"]
+    if sampled and sample_size:
+        title_parts.append(f"[dim]sampled {sample_size:,}[/dim]")
+    console.print("  " + "  ·  ".join(title_parts))
+
+    summary_parts = [
+        f"[green]{len(numeric_rows)} numeric[/green]",
+        f"[cyan]{len(string_rows)} string[/cyan]",
+        f"[magenta]{len(other_rows)} other[/magenta]" if other_rows else "[dim]0 other[/dim]",
+        f"[bold]{len(data)} columns[/bold]",
+    ]
+    if sampled and sample_size:
+        summary_parts.append(f"[dim]sampled {sample_size:,}[/dim]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Profile Summary",
+            padding=(0, 1),
+        )
+    )
+
     if numeric_rows:
-        grid = Table(title=f"Profile: {table_name} — Numeric Columns", show_lines=True)
+        grid = Table(title="Numeric Columns", show_lines=True)
         grid.add_column("Column", style="cyan bold")
         grid.add_column("Type", style="green")
         grid.add_column("Min", justify="right")
@@ -135,7 +202,7 @@ def print_profile(
         console.print(grid)
 
     if string_rows:
-        grid = Table(title=f"Profile: {table_name} — String Columns", show_lines=True)
+        grid = Table(title="String Columns", show_lines=True)
         grid.add_column("Column", style="cyan bold")
         grid.add_column("Type", style="green")
         grid.add_column("Min Len", justify="right")
@@ -157,7 +224,7 @@ def print_profile(
         console.print(grid)
 
     if other_rows:
-        grid = Table(title=f"Profile: {table_name} — Other Columns", show_lines=True)
+        grid = Table(title="Other Columns", show_lines=True)
         grid.add_column("Column", style="cyan bold")
         grid.add_column("Type", style="green")
         grid.add_column("Nulls", justify="right", style="yellow")
@@ -188,6 +255,7 @@ def print_dist(
 ) -> None:
     """Print a distribution (numeric or categorical) as a horizontal bar chart."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
 
@@ -209,7 +277,31 @@ def print_dist(
     max_count = max(item["count"] for item in items)
     item_total = sum(item["count"] for item in items)
 
-    grid = Table(title=f"Distribution: {table_name}.{column}", show_lines=True)
+    title_parts = [
+        f"[bold cyan]{table_name}.{column}[/bold cyan]",
+        f"[dim]{dist_result['mode']}[/dim]",
+        f"[dim]{total_rows:,} rows[/dim]",
+    ]
+    if dist_result.get("sampled") and dist_result.get("sample_size"):
+        title_parts.append(f"[dim]sampled {dist_result['sample_size']:,}[/dim]")
+    console.print("  " + "  ·  ".join(title_parts))
+
+    summary_parts = [
+        f"[green]{len(items)} {'buckets' if is_numeric else 'values'}[/green]",
+        f"[magenta]{item_total:,} non-null rows[/magenta]",
+        f"[yellow]{null_count:,} nulls[/yellow]" if null_count else "[dim]0 nulls[/dim]",
+    ]
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Distribution Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Distribution Detail", show_lines=True)
     grid.add_column("Bucket" if is_numeric else "Value", style="cyan")
     grid.add_column("Count", justify="right")
     grid.add_column("%", justify="right")
@@ -431,6 +523,47 @@ def print_metadata_list(
     console.print(grid)
 
 
+def print_metadata_search(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print metadata-search results."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    matches = result.get("results") or []
+    query = result.get("query", "")
+    connection = result.get("connection", "")
+    if not matches:
+        console.print(
+            f"[dim]No metadata matches for [/dim][bold]{query}[/bold][dim] in {connection}.[/dim]"
+        )
+        return
+
+    grid = Table(title=f"Metadata Search: {query}")
+    grid.add_column("Kind", style="magenta")
+    grid.add_column("Table", style="cyan")
+    grid.add_column("Column", style="green")
+    grid.add_column("Score", justify="right")
+    grid.add_column("Matched")
+    grid.add_column("Excerpt", overflow="fold")
+
+    for row in matches:
+        grid.add_row(
+            str(row.get("kind", "")),
+            str(row.get("table", "")),
+            str(row.get("column") or ""),
+            f"{float(row.get('score', 0)):.3f}",
+            ", ".join(str(term) for term in row.get("matched_terms") or []),
+            str(row.get("excerpt", "")),
+        )
+
+    console.print(grid)
+
+
 def print_explain(
     result: dict,
     console: Console | None = None,
@@ -477,6 +610,15 @@ def print_diff(
     console.print(
         f"\n  Schema diff: [cyan]{result['left']}[/cyan] → [cyan]{result['right']}[/cyan]"
     )
+    if isinstance(result.get("previous_row_count"), int) and isinstance(
+        result.get("current_row_count"), int
+    ):
+        delta = result.get("row_count_delta")
+        delta_text = f"{delta:+,}" if isinstance(delta, int) else "n/a"
+        console.print(
+            f"  Row count: [cyan]{result['previous_row_count']:,}[/cyan] → "
+            f"[cyan]{result['current_row_count']:,}[/cyan]  ([bold]{delta_text}[/bold])"
+        )
 
     if not added and not removed and not changed:
         console.print("  [green]Schemas are identical.[/green]")
@@ -577,6 +719,7 @@ def print_quality(
 ) -> None:
     """Print data quality summary as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -587,12 +730,46 @@ def print_quality(
         console.print("[dim]No columns to check.[/dim]")
         return
 
-    row_str = f"{result['row_count']:,} rows"
-    if result.get("sampled") and result.get("sample_size"):
-        row_str += f" — sampled {result['sample_size']:,}"
+    row_count = result["row_count"]
+    sampled = result.get("sampled", False)
+    sample_size = result.get("sample_size")
+
+    row_str = f"{row_count:,} rows"
+    if sampled and sample_size:
+        row_str += f" — sampled {sample_size:,}"
+
+    failed = [col for col in columns if col.get("status") == "fail"]
+    warned = [col for col in columns if col.get("status") == "warn"]
+    ok_count = sum(1 for col in columns if col.get("status") == "ok")
+    duplicate_rows = result.get("duplicate_rows")
+
+    title_parts = [f"[bold cyan]{result['table']}[/bold cyan]", f"[dim]{row_str}[/dim]"]
+    console.print("  " + "  ·  ".join(title_parts))
+
+    summary_parts = [
+        f"[green]{ok_count} ok[/green]",
+        f"[yellow]{len(warned)} warn[/yellow]",
+        f"[red]{len(failed)} fail[/red]",
+    ]
+    if duplicate_rows is not None:
+        if duplicate_rows > 0:
+            summary_parts.append(f"[yellow]{duplicate_rows:,} duplicate rows[/yellow]")
+        else:
+            summary_parts.append("[green]no duplicate rows[/green]")
+    if sampled and sample_size:
+        summary_parts.append(f"[dim]sampled {sample_size:,}[/dim]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Quality Summary",
+            padding=(0, 1),
+        )
+    )
 
     grid = Table(
-        title=f"Quality: {result['table']} ({row_str})",
+        title="Column Detail",
         show_lines=True,
     )
     grid.add_column("Column", style="cyan bold")
@@ -605,34 +782,37 @@ def print_quality(
     grid.add_column("Issues", style="dim")
 
     status_styles = {
-        "ok": "[green]ok[/green]",
-        "warn": "[yellow]warn[/yellow]",
-        "fail": "[red]fail[/red]",
+        "ok": "[green]OK[/green]",
+        "warn": "[yellow]WARN[/yellow]",
+        "fail": "[red]FAIL[/red]",
     }
 
     for col in columns:
+        null_pct = float(col["null_pct"])
+        uniqueness_pct = float(col["uniqueness_pct"])
+        null_style = "red" if null_pct >= 90 else "yellow" if null_pct >= 20 else "dim"
+        unique_style = (
+            "red"
+            if col["status"] == "fail"
+            else "yellow"
+            if col["status"] == "warn"
+            else "dim"
+        )
         grid.add_row(
             col["name"],
             col["type"],
             f"{col['null_count']:,}",
-            f"{col['null_pct']}%",
+            f"[{null_style}]{null_pct:.1f}%[/{null_style}]",
             f"{col['distinct_count']:,}",
-            f"{col['uniqueness_pct']}%",
+            f"[{unique_style}]{uniqueness_pct:.1f}%[/{unique_style}]",
             status_styles.get(col["status"], col["status"]),
             "; ".join(col["issues"]) if col["issues"] else "",
         )
 
     console.print(grid)
 
-    if result.get("sampled"):
+    if sampled:
         console.print("\n  [dim]Sampled — use --no-sample for exact results (slower)[/dim]")
-
-    if result["duplicate_rows"] is not None:
-        dup = result["duplicate_rows"]
-        if dup > 0:
-            console.print(f"\n  [yellow]{dup:,} duplicate row(s)[/yellow]")
-        else:
-            console.print("\n  [green]No duplicate rows[/green]")
 
 
 def print_assert_check(
@@ -690,6 +870,7 @@ def print_values(
 ) -> None:
     """Print distinct values as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -700,11 +881,35 @@ def print_values(
     tbl = result["table"]
     truncated = result["truncated"]
 
-    title = f"Values: {tbl}.{col}"
+    title_parts = [f"[bold cyan]{tbl}.{col}[/bold cyan]"]
     if truncated:
-        title += f" (top {len(values)} of {result['distinct_count']:,})"
+        title_parts.append(f"[yellow]top {len(values)} of {result['distinct_count']:,}[/yellow]")
+    else:
+        title_parts.append(f"[dim]{result['distinct_count']:,} distinct[/dim]")
+    console.print("  " + "  ·  ".join(title_parts))
 
-    grid = Table(title=title)
+    summary_parts = [
+        f"[green]{len(values)} shown[/green]",
+        f"[magenta]{result['distinct_count']:,} distinct[/magenta]",
+        (
+            f"[yellow]{result['null_count']:,} nulls[/yellow]"
+            if result["null_count"] > 0
+            else "[dim]0 nulls[/dim]"
+        ),
+    ]
+    if truncated:
+        summary_parts.append("[yellow]truncated[/yellow]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Values Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Value Detail")
     grid.add_column("Value", style="cyan")
     grid.add_column("Count", justify="right")
 
@@ -714,6 +919,92 @@ def print_values(
 
     console.print(grid)
 
+
+def print_freshness(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print freshness scan results as a Rich summary + candidate table."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    status = result.get("status", "unknown")
+    selected = result.get("selected_column")
+    candidates = result.get("candidates") or []
+    row_count = int(result.get("row_count", 0) or 0)
+    status_label = {
+        "fresh": "[green]FRESH[/green]",
+        "stale": "[red]STALE[/red]",
+        "unknown": "[yellow]UNKNOWN[/yellow]",
+    }.get(status, str(status).upper())
+
+    console.print(
+        "  [bold cyan]Freshness[/bold cyan]  ·  "
+        f"[dim]{result.get('table', '')}[/dim]  ·  {status_label}"
+    )
+
+    summary_parts = [
+        f"[green]{row_count:,} rows[/green]",
+        f"[cyan]{len(candidates)} candidate columns[/cyan]",
+        (
+            f"[magenta]selected: {selected}[/magenta]"
+            if selected
+            else "[dim]no selected column[/dim]"
+        ),
+    ]
+    latest_age_days = result.get("latest_age_days")
+    if latest_age_days is not None:
+        summary_parts.append(f"[yellow]{latest_age_days:.1f}d old[/yellow]")
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Freshness Summary",
+            padding=(0, 1),
+        )
+    )
+
+    reason = result.get("reason")
+    if reason:
+        console.print(f"  [dim]{reason}[/dim]")
+
+    if not candidates:
+        return
+
+    grid = Table(title="Temporal Candidates")
+    grid.add_column("Column", style="cyan bold")
+    grid.add_column("Type", style="dim")
+    grid.add_column("Null %", justify="right")
+    grid.add_column("Earliest")
+    grid.add_column("Latest")
+    grid.add_column("Age", justify="right")
+    grid.add_column("Signals", style="dim")
+
+    for candidate in candidates:
+        age = candidate.get("latest_age_days")
+        age_str = f"{age:.1f}d" if age is not None else "—"
+        name = str(candidate.get("name", ""))
+        if name == selected:
+            name = f"{name} [selected]"
+        grid.add_row(
+            name,
+            str(candidate.get("type", "")),
+            f"{float(candidate.get('null_pct', 0.0)):.1f}%",
+            str(candidate.get("earliest_value") or "—"),
+            str(candidate.get("latest_value") or "—"),
+            age_str,
+            ", ".join(candidate.get("reasons") or []),
+        )
+
+    console.print(grid)
+
+
+def _print_values_summary(result: dict, *, truncated: bool, console: Console) -> None:
     parts = [f"  [bold]{result['distinct_count']:,}[/bold] distinct values"]
     if result["null_count"] > 0:
         parts.append(f"[dim]{result['null_count']:,} nulls[/dim]")
@@ -722,12 +1013,172 @@ def print_values(
     console.print("\n" + "  |  ".join(parts))
 
 
+def print_plan(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print a generic dry-run plan payload."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    action = str(result.get("action", "plan"))
+    executable = bool(result.get("executable", True))
+    status = "[green]READY[/green]" if executable else "[yellow]BLOCKED[/yellow]"
+
+    console.print(f"  [bold cyan]Plan[/bold cyan]  ·  [dim]{action}[/dim]  ·  {status}")
+    console.print(
+        Panel(
+            str(result.get("summary", "")),
+            border_style="cyan",
+            title="Plan Summary",
+            padding=(0, 1),
+        )
+    )
+
+    details = Table(title="Plan Detail")
+    details.add_column("Field", style="cyan bold")
+    details.add_column("Value", style="dim")
+
+    for key in ("action", "mode", "destination", "format", "table", "output_path", "limit"):
+        value = result.get(key)
+        if value not in (None, "", []):
+            details.add_row(key, str(value))
+
+    sql = result.get("sql")
+    if sql:
+        details.add_row("sql", str(sql))
+
+    effects = result.get("effects") or []
+    if effects:
+        details.add_row("effects", " | ".join(str(item) for item in effects))
+
+    writes = result.get("writes") or []
+    if writes:
+        details.add_row("writes", " | ".join(str(item) for item in writes))
+
+    console.print(details)
+
+
+def print_estimate(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print a generic estimate payload."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    action = str(result.get("action", "estimate"))
+    cost_hint = str(result.get("cost_hint", "unknown")).upper()
+
+    console.print(
+        "  [bold cyan]Estimate[/bold cyan]  ·  "
+        f"[dim]{action}[/dim]  ·  [yellow]{cost_hint}[/yellow]"
+    )
+    console.print(
+        Panel(
+            str(result.get("summary", "")),
+            border_style="cyan",
+            title="Estimate Summary",
+            padding=(0, 1),
+        )
+    )
+
+    details = Table(title="Estimate Detail")
+    details.add_column("Field", style="cyan bold")
+    details.add_column("Value", style="dim")
+
+    for key in (
+        "dialect",
+        "complexity",
+        "cost_hint",
+        "row_estimate",
+        "row_estimate_source",
+        "output_row_ceiling",
+        "destination",
+        "format",
+        "table",
+        "output_path",
+    ):
+        value = result.get(key)
+        if value not in (None, "", []):
+            details.add_row(key, str(value))
+
+    if result.get("notes"):
+        details.add_row("notes", " | ".join(str(x) for x in result["notes"]))
+    if result.get("sql"):
+        details.add_row("sql", str(result["sql"]))
+
+    console.print(details)
+
+
+def print_search(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print ranked command-search results."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    query = str(result.get("query", ""))
+    matches = result.get("results") or []
+
+    console.print(f"  [bold cyan]Search[/bold cyan]  ·  [dim]{query}[/dim]")
+    console.print(
+        Panel(
+            (
+                f"{result.get('result_count', 0)} match(es) across "
+                f"{result.get('searched_command_count', 0)} commands."
+            ),
+            border_style="cyan",
+            title="Command Discovery",
+            padding=(0, 1),
+        )
+    )
+
+    if not matches:
+        console.print("[dim]No strong command matches found.[/dim]")
+        return
+
+    table = Table(title="Matches", show_lines=True)
+    table.add_column("Command", style="cyan bold", no_wrap=True)
+    table.add_column("Score", justify="right", style="dim")
+    table.add_column("Why", style="dim")
+    table.add_column("Help", style="green")
+
+    for match in matches:
+        detail = str(match.get("rationale", ""))
+        subcommands = match.get("subcommands") or []
+        if subcommands:
+            detail += f"\n[dim]subcommands:[/dim] {', '.join(str(x) for x in subcommands)}"
+        table.add_row(
+            str(match.get("name", "")),
+            f"{float(match.get('score', 0.0)):.3f}",
+            detail,
+            str(match.get("help_command", "")),
+        )
+
+    console.print(table)
+
+
 def print_catalog(
     catalog: dict,
     console: Console | None = None,
 ) -> None:
     """Print the database catalog as a Rich table."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -738,16 +1189,136 @@ def print_catalog(
         console.print("[dim]No tables found.[/dim]")
         return
 
-    grid = Table(title=f"Catalog ({catalog['table_count']} tables)")
+    table_count = catalog["table_count"]
+    view_count = sum(1 for t in tables if t.get("type") == "view")
+    base_table_count = sum(1 for t in tables if t.get("type") == "table")
+    enriched_count = sum(1 for t in tables if t.get("table_description") or t.get("data_owner"))
+    total_columns = sum(len(t.get("columns") or []) for t in tables)
+    largest = max(
+        (t for t in tables if t.get("row_count") is not None),
+        key=lambda t: int(t.get("row_count") or 0),
+        default=None,
+    )
+
+    console.print(f"  [bold cyan]Catalog[/bold cyan]  ·  [dim]{table_count} objects[/dim]")
+
+    summary_parts = [
+        f"[green]{base_table_count} tables[/green]",
+        f"[cyan]{view_count} views[/cyan]" if view_count else "[dim]0 views[/dim]",
+        (
+            f"[magenta]{total_columns:,} columns[/magenta]"
+            if total_columns
+            else "[dim]columns unavailable[/dim]"
+        ),
+    ]
+    if enriched_count:
+        summary_parts.append(f"[yellow]{enriched_count} enriched[/yellow]")
+    if largest is not None:
+        summary_parts.append(
+            f"[dim]largest: {largest['name']} ({int(largest['row_count']):,} rows)[/dim]"
+        )
+
+    console.print(
+        Panel(
+            "  •  ".join(summary_parts),
+            border_style="cyan",
+            title="Catalog Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Object Detail")
     grid.add_column("Table", style="cyan bold")
     grid.add_column("Type", style="green")
     grid.add_column("Columns", justify="right")
     grid.add_column("Rows", justify="right")
+    grid.add_column("Notes", style="dim")
 
     for t in tables:
         col_count = str(len(t["columns"])) if t["columns"] is not None else "-"
         row_count = f"{t['row_count']:,}" if t["row_count"] is not None else "-"
-        grid.add_row(t["name"], t["type"], col_count, row_count)
+        notes_parts = []
+        if t.get("table_description"):
+            notes_parts.append(str(t["table_description"]))
+        if t.get("data_owner"):
+            notes_parts.append(f"owner: {t['data_owner']}")
+        notes = "  |  ".join(notes_parts)
+        grid.add_row(t["name"], t["type"], col_count, row_count, notes)
+
+    console.print(grid)
+
+
+def print_catalog_functions(
+    result: dict,
+    console: Console | None = None,
+) -> None:
+    """Print the function catalog as a Rich table."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    if not result.get("supported", True):
+        console.print("[dim]Function catalog unavailable.[/dim]")
+        if result.get("reason"):
+            console.print(f"[dim]{result['reason']}[/dim]")
+        return
+
+    functions = result.get("functions") or []
+    if not functions:
+        console.print("[dim]No functions found.[/dim]")
+        return
+
+    schema_count = len({f.get("schema", "") for f in functions})
+    overloaded = sum(1 for f in functions if int(f.get("overload_count", 0) or 0) > 1)
+
+    console.print(
+        f"  [bold cyan]Function Catalog[/bold cyan]  ·  [dim]{result['dialect']}[/dim]"
+    )
+    console.print(
+        Panel(
+            "  •  ".join(
+                [
+                    f"[green]{result['function_count']:,} functions[/green]",
+                    f"[cyan]{schema_count} schemas[/cyan]",
+                    f"[magenta]{overloaded} overloaded[/magenta]",
+                ]
+            ),
+            border_style="cyan",
+            title="Function Summary",
+            padding=(0, 1),
+        )
+    )
+
+    grid = Table(title="Function Detail")
+    grid.add_column("Name", style="cyan bold")
+    grid.add_column("Schema", style="green")
+    grid.add_column("Type")
+    grid.add_column("Overloads", justify="right")
+    grid.add_column("Returns")
+    grid.add_column("Notes", style="dim")
+
+    for entry in functions:
+        return_types = ", ".join(entry.get("return_types") or []) or "—"
+        notes_parts = []
+        languages = entry.get("languages") or []
+        if languages:
+            notes_parts.append(f"lang: {', '.join(languages)}")
+        notes = entry.get("notes") or []
+        if notes:
+            notes_parts.append(", ".join(notes))
+        if entry.get("description"):
+            notes_parts.append(str(entry["description"]))
+        grid.add_row(
+            str(entry.get("name", "")),
+            str(entry.get("schema", "")),
+            str(entry.get("type", "")),
+            f"{int(entry.get('overload_count', 0) or 0):,}",
+            return_types,
+            "  |  ".join(notes_parts),
+        )
 
     console.print(grid)
 
@@ -821,6 +1392,7 @@ def print_context(
 ) -> None:
     """Print rich table context as a structured Rich layout."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     if console is None:
@@ -833,6 +1405,16 @@ def print_context(
     table_name = result.get("table", "")
     table_desc = result.get("table_description") or result.get("table_comment") or ""
     data_owner = result.get("data_owner")
+    columns = result.get("columns", [])
+
+    primary_key_count = sum(1 for col in columns if col.get("primary_key"))
+    nullable_count = sum(1 for col in columns if col.get("nullable"))
+    metadata_count = sum(
+        1
+        for col in columns
+        if col.get("description") or col.get("valid_values") or col.get("pii")
+    )
+    sampled_columns = sum(1 for col in columns if col.get("sample_values"))
 
     # Header
     count_str = f"{row_count:,}"
@@ -847,20 +1429,60 @@ def print_context(
         console.print(f"  [italic dim]{table_desc}[/italic dim]")
     if data_owner:
         console.print(f"  [dim]owner:[/dim] {data_owner}")
-    console.print()
+    console.print(
+        Panel(
+            "  •  ".join(
+                [
+                    f"[green]{len(columns)} columns[/green]",
+                    (
+                        f"[magenta]{primary_key_count} primary keys[/magenta]"
+                        if primary_key_count
+                        else "[dim]no primary key[/dim]"
+                    ),
+                    (
+                        f"[yellow]{nullable_count} nullable[/yellow]"
+                        if nullable_count
+                        else "[green]all not null[/green]"
+                    ),
+                    (
+                        f"[cyan]{sampled_columns} with sample values[/cyan]"
+                        if sampled_columns
+                        else "[dim]no sample values[/dim]"
+                    ),
+                    (
+                        f"[yellow]{metadata_count} enriched[/yellow]"
+                        if metadata_count
+                        else "[dim]no stored metadata[/dim]"
+                    ),
+                ]
+            ),
+            border_style="cyan",
+            title="Context Summary",
+            padding=(0, 1),
+        )
+    )
 
     # Columns table
-    grid = Table(show_lines=False, box=None, pad_edge=False, show_header=True)
-    grid.add_column("Column", style="cyan", no_wrap=True)
+    grid = Table(title="Column Detail", show_lines=True)
+    grid.add_column("Column", style="cyan bold", no_wrap=True)
     grid.add_column("Type", style="dim", no_wrap=True)
-    grid.add_column("Null%", justify="right", style="dim")
+    grid.add_column("Null %", justify="right", style="dim")
     grid.add_column("Distinct", justify="right", style="dim")
     grid.add_column("Range / Sample Values", style="dim")
     grid.add_column("Notes", style="dim")
 
-    for col in result.get("columns", []):
+    for col in columns:
         null_pct = col.get("null_pct")
-        null_str = f"{null_pct}%" if null_pct is not None else "—"
+        if isinstance(null_pct, (int, float)):
+            if float(null_pct) >= 90:
+                null_style = "red"
+            elif float(null_pct) >= 20:
+                null_style = "yellow"
+            else:
+                null_style = "dim"
+            null_str = f"[{null_style}]{float(null_pct):.1f}%[/{null_style}]"
+        else:
+            null_str = "—"
 
         distinct = col.get("distinct_count")
         distinct_str = f"{distinct:,}" if distinct is not None else "—"
@@ -874,15 +1496,25 @@ def print_context(
             if len(sample) > 5:
                 range_str += " …"
         elif min_v is not None and max_v is not None:
-            range_str = f"{min_v}  →  {max_v}"
+            range_str = f"{fmt_value(min_v)}  →  {fmt_value(max_v)}"
         else:
             range_str = "—"
 
         notes_parts = []
         if col.get("primary_key"):
-            notes_parts.append("PK")
+            notes_parts.append("[cyan]PK[/cyan]")
+        if col.get("nullable") is False:
+            notes_parts.append("[green]not null[/green]")
         if col.get("pii"):
             notes_parts.append("[red]PII[/red]")
+        if isinstance(null_pct, (int, float)) and float(null_pct) >= 20.0:
+            notes_parts.append("[yellow]null-heavy[/yellow]")
+        valid_values = col.get("valid_values")
+        if valid_values:
+            allowed = ", ".join(str(v) for v in valid_values[:3])
+            if len(valid_values) > 3:
+                allowed += " …"
+            notes_parts.append(f"[magenta]allowed:[/magenta] {allowed}")
         if col.get("description"):
             notes_parts.append(f"[italic]{col['description']}[/italic]")
         notes_str = "  ".join(notes_parts)
@@ -985,16 +1617,21 @@ def print_classify(
 
 
 REGISTRY: dict[str, object] = {
+    "search": print_search,
     "inspect": print_inspect,
     "preview": print_preview,
     "profile": print_profile,
+    "estimate": print_estimate,
+    "plan": print_plan,
     "context": print_context,
     "dist": print_dist,
+    "freshness": print_freshness,
     "template": print_template,
     "lineage": print_lineage,
     "snowflake_lineage": print_snowflake_lineage,
     "metadata": print_metadata,
     "metadata_list": print_metadata_list,
+    "metadata_search": print_metadata_search,
     "explain": print_explain,
     "diff": print_diff,
     "joins": print_joins,
@@ -1003,6 +1640,7 @@ REGISTRY: dict[str, object] = {
     "pivot": print_pivot,
     "values": print_values,
     "catalog": print_catalog,
+    "catalog_functions": print_catalog_functions,
     "query": print_query,
     "frequencies": print_frequencies,
     "classify": print_classify,

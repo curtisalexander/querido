@@ -6,19 +6,19 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ---
 
-## Status (as of 2026-04-20)
+## Status (as of 2026-04-22)
 
-**Tests:** 1043 passing, 25 skipped. `ruff format`, `ruff check`, `ty check` all green. Zero `TODO` / `FIXME` tags.
+**Tests:** 1144 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
 
-**Every planned phase is shipped.** Phases 1–4 + 6; Phase 5 dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
+**Phase 7 is now shipped.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
 
-Remaining work is the open-ended backlog in [Deferred / future phases](#deferred--future-phases).
+Active work is now the open-ended backlog in [Deferred / future phases](#deferred--future-phases) plus routine maintenance (eval reruns, structured-error tightening when justified, docs upkeep). `qdo catalog functions`, `qdo freshness`, `--plan` dry-runs, cost/time `--estimate` for `query` / `export`, `qdo search "<intent>"`, the lexical `qdo metadata search` MVP, `--from` session-step reuse for `query` / `export`, `qdo session replay <name>`, and `qdo metadata undo` all shipped on 2026-04-21 / 2026-04-22 and are no longer deferred items.
 
 **Pick up next session with one of these:**
 
-1. **Pick an item from the deferred backlog.** Natural next candidates: `qdo investigate <table>` (bundled workflow on top of existing primitives), read-only-by-default guardrail on `query` (safety), or `qdo diff --since <session>` (synergizes with the Phase 6.1 session reports).
-2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
-3. **Fix the `qdo context` date-bug** surfaced during the 4.6 eval — see Deferred below.
+1. **Promote the next deferred slice deliberately.** Best next candidate: Snowflake `RESULT_SCAN` reuse for chained queries.
+2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
+3. **Treat structured errors and query guardrails as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`, and `qdo query` is read-only by default unless `--allow-write` is explicit; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
 
 ---
 
@@ -48,8 +48,8 @@ The four pieces that create the "tool gets better the more it's used" compoundin
 
 - Workflow spec (JSON Schema), runner, lint, list, `show`, `spec --examples`, `from-session` — `src/querido/core/workflow/`, `src/querido/cli/workflow.py`.
 - `WORKFLOW_AUTHORING.md` + `SKILL.md` + `AGENTS.md` — the docs an agent loads to author a workflow without repo access.
-- Bundled workflows under `src/querido/workflows/` serve as the worked-example corpus.
-- Self-hosting eval (`scripts/eval_workflow_authoring.py`, plus the broader `scripts/eval_skill_files.py` added in Wave 3) — refuses to run with `ANTHROPIC_API_KEY` set; per-model timeouts; budget guardrails.
+- Bundled workflows under `src/querido/core/workflow/examples/` serve as the worked-example corpus.
+- Self-hosting eval (`scripts/eval_workflow_authoring.py`, plus the broader `scripts/eval_skill_files_claude.py` added in Wave 3) — refuses to run with `ANTHROPIC_API_KEY` set; per-model timeouts; budget guardrails.
 
 **Canonical invocation is `qdo workflow run <name>`.** The "CLI sugar shim" idea (Phase 4.4; `qdo <workflow-name>` as a top-level alias) was dropped — one invocation pattern is better than two parallel paths. See [IDEAS.md](IDEAS.md) "subcommand-to-workflow sugar" for the rejected analysis.
 
@@ -62,6 +62,40 @@ IDEAS.md proposed converting 8–10 subcommands (`template`, `sql scratch`, `piv
 - **6.1** — `qdo report session <name>` renders a session as single-file HTML. One card per step with status pills, alternating theme color, collapsed `<details>` for the full invocation, rendered stdout (JSON pretty-printed). Per-step commentary via `qdo session note <text>`, which rewrites the last record in `steps.jsonl`. Offline-readable invariants encoded as tests (no `<script>`, no `<iframe>`, no external stylesheet, no `<img src="http…">`). See `src/querido/core/report.py::build_session_report`, `src/querido/output/report_html.py::render_session_report`, `tests/test_report_session.py`.
 - **6.2 + 6.3** — `qdo serve` removed (landed via R.13; deprecation step skipped since there were no users). `tests/test_web.py` deleted with it.
 
+### Phase 7 — Human-facing output polish (done)
+
+The agent-first core is in good shape. This track is about making the human experience feel intentional and high-signal too, especially in `qdo explore` and Rich terminal output.
+
+**7.1 — TUI foundation / information hierarchy**
+
+- Shipped: the `explore` sidebar is now a compact selected-column facts panel: type, null rate, distinct count, min/max, sample values, metadata description, allowed values, and quality flags.
+- Shipped: the status bar now carries connection, table, displayed/total rows, filtered state, sampled/exact state, sort state, metadata presence, and focused-column triage context.
+- Shipped: semantic highlighting in the main `DataTable` now makes PKs, sorted columns, null-heavy columns, and null cells visually obvious.
+- Shipped: the main grid, sidebar, and status bar now share the same triage story for the selected column (category + recommended/background emphasis) instead of acting like separate surfaces.
+- Outcome: the structural hierarchy work is complete; any further changes here would be optional aesthetic follow-up, not unfinished scope.
+
+**7.2 — Human-readable scan output**
+
+- Shipped: Rich output for `quality`, `profile`, `catalog`, `inspect`, `preview`, `values`, and `dist` now uses compact headers, summary panels, and clearer section titles.
+- Shipped: `context` now matches the same summary-panel / detail-table standard as the rest of the human-facing scan commands.
+- Outcome: the main presentation gap is closed. Lightweight inline bars / sparklines can stay a future nice-to-have unless a concrete use case appears.
+- Keep the JSON / agent shapes unchanged; this phase is about human presentation, not output-contract churn.
+
+**7.3 — Wide-table and triage UX**
+
+- Shipped: the wide-table profile path now explains quick triage, shows recommendation defaults, and labels the selector so the fast-path/full-path transition is legible.
+- Shipped: the profile modal now explains whether the user is in quick mode or a full profile, and whether full stats are scoped to all columns or a chosen subset.
+- Shipped: the main `explore` grid now orders wide tables recommended-first, pushing sparse/constant columns to the back instead of treating every field as equal-weight.
+- Outcome: the missing workflow problem is solved; further work here would be small ergonomic tuning only.
+
+**7.4 — Visual coherence**
+
+- Shipped: the TUI and Rich terminal output now share more of the same emphasis rules (summary-first framing, status badges, triage language, recommended/background distinctions).
+- Shipped: reproducible `qdo explore` screenshots now live under `docs/examples/screenshots/`, and the README / examples / cheatsheet reference them directly.
+- Shipped: the docs consistency sweep removed stale `serve` / `web` references and brought the public TUI descriptions in line with the current product.
+- Outcome: the obvious cross-surface inconsistencies are gone. A later aesthetic pass is optional, not part of the committed Phase 7 tranche.
+- Preserve the existing CLI / workflow surface; this is a presentation pass, not a redesign of command semantics.
+
 ---
 
 ## Sharpening pass (Waves 1–4) — done
@@ -70,7 +104,7 @@ Four waves of audit + sharpening, shipped 2026-04-18 through 2026-04-20.
 
 - **Wave 1** — cold-start + command-surface audit (CS.x + CA.x findings). Established the eval idea.
 - **Wave 2** — docs + code consistency (DC.x + CC.x findings). Landed CC.6 and CC.10; scheduled CC.5 (TypedDicts).
-- **Wave 3** — eval design + build. Shipped `scripts/eval_skill_files.py` (EV.Build) — 11 tasks × 3 models, 39 harness unit tests, billing guardrails.
+- **Wave 3** — eval design + build. Shipped `scripts/eval_skill_files_claude.py` (EV.Build) — 11 tasks × 3 models, 39 harness unit tests, billing guardrails.
 - **Wave 4** — first live baseline + scaffolding sharpening. Got to **33/33 perfect**. The tightenings:
   - `src/querido/cli/argv_hoist.py` + `cli/main.py::run` entrypoint — `-f/--format` now works anywhere in argv; workflow runner shares `split_format_flag`.
   - SKILL.md: six broken `-f json` examples corrected, flag-placement rule documented, `qdo export --format csv` → `-e csv`, `qdo diff` promoted into the Quick Exploration Workflow.
@@ -95,7 +129,7 @@ Each is a parametrized case list; extending is a one-line addition:
 
 - **`_ENVELOPE_CASES`** in `tests/test_next_steps.py` — asserts every scanning command emits the uniform `{command, data, next_steps, meta}` envelope. Add a new scanning command → wire through `emit_envelope()`, append a row, done.
 - **`_READBACK_CASES`** in `tests/test_readback_loop.py` — asserts every `--connection`-accepting scan surfaces stored metadata on the next call. Template for future metadata-driven invariants.
-- **`test_validation_error_contract`** in `tests/test_errors.py` (parametrized across 6 commands) — centralizes the prose-matching error tests. Rewritable against structured output once `typer.BadParameter` stops bypassing the envelope (see "Open items" below).
+- **`tests/test_errors.py` validation contract cases** — central place to extend structured error assertions as more commands gain stable codes. Prefer asserting on `code` / `try_next`, not human-readable prose.
 
 ### Don't touch — already good
 
@@ -111,11 +145,12 @@ Files to resist future pressure to shrink:
 1. **Scenario coverage ≠ redundancy.** The 2026-04-17 cleanup pitched ~145 deletions and delivered ~40. Three tests per lint rule / classifier branch / error path are each doing real work. Parametrize only when assertions are genuinely symmetric.
 2. **Spec-conformance suites are honest.** A file with 118 tests may be one parametrize over 118 fixture entries — appropriate for the shape.
 3. **The real wins weren't deletions.** Shared fixtures (T.1, −7s wall time), envelope contract (3→11 commands), readback contract (extensible) moved the needle more than any individual trim.
-4. **Brittle-prose tests often reflect product gaps.** Validation errors go through `typer.BadParameter` and bypass the structured envelope; fix the product, not just the tests.
+4. **Brittle-prose tests often reflect product gaps.** The right fix was routing common validation failures through the structured envelope for `-f json` / `-f agent`, then rewriting tests around stable codes instead of prose.
 
 ### Open items the test cleanup deferred
 
-- Structured-envelope rewrites of `test_validation_error_contract` / `test_missing_connection_file_contract` — one-file change after `typer.BadParameter` gets routed through the envelope.
+- Keep rewriting lingering prose-oriented validation tests against structured payloads whenever a command now emits a stable code under `-f json` / `-f agent`.
+- Only promote additional validation failures from generic `VALIDATION_ERROR` into named codes when the failure shape is durable, actionable, and likely to matter to agents.
 
 ---
 
@@ -123,24 +158,11 @@ Files to resist future pressure to shrink:
 
 Capture but don't start. Each is standalone and non-blocking.
 
-- `qdo investigate <table>` and friends — ship as bundled workflows on top of existing primitives.
-- `qdo diff --since <session>` — change detection for returning agents (pairs well with Phase 6.1 session reports).
-- `qdo freshness` — row freshness / staleness with auto timestamp-column detection.
-- Cost / time `--estimate` flag on `query` / `export`.
-- Read-only-by-default guardrail on `query` (`--allow-write` required).
-- `--plan` dry-run flag on `export`, `query`, `metadata write`.
-- `qdo search "<intent>"` — BM25 over command docstrings.
-- `qdo catalog functions` — list DuckDB / Snowflake SQL functions.
-- Embedding-based semantic search across metadata.
-- `--from` flag to reference prior session step outputs (e.g., `qdo query --sql-from session1.step3`).
-- Session replay (`qdo session replay <name>`).
-- Metadata undo.
+- Optional embedding/reranker layer for `qdo metadata search` if the lexical baseline proves insufficient.
 - Progressive disclosure `--level 1..3` on expensive commands.
 - Snowflake `RESULT_SCAN` reuse for chained queries.
 - Pyodide `querido-lite` browser demo (only if concrete adoption pulls for it).
 - MCP thin wrapper (defer; keep CLI surface MCP-ready — stable flags, structured errors, no TTY-required behaviors).
-
-**Known bug:** `qdo context` on date/datetime columns raises `TypeError: 'datetime.date' object is not subscriptable`. Surfaced by the 4.6 self-hosting eval (2026-04-14, task T2). Repro: `uv run qdo -f json context -c data/test.duckdb -t customers`.
 
 ---
 

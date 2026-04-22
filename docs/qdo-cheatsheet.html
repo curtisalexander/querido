@@ -207,6 +207,39 @@
   }
   .scenario .row .k { color: #be123c; }
 
+  .shot-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 10px 14px;
+    margin-top: 8px;
+  }
+  .shot-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px;
+  }
+  .shot-card img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+  }
+  .shot-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 6px;
+  }
+  .shot-caption {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+
   /* ── Print ── */
   @media print {
     body { background: #fff; font-size: 12px; }
@@ -227,6 +260,7 @@
     .grid { grid-template-columns: 1fr; }
     .wide, .full { grid-column: span 1; }
     .steps { grid-template-columns: repeat(2, 1fr); }
+    .shot-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -269,7 +303,7 @@
         <div class="step">
           <div class="step-num">4</div>
           <h3>Optional Extras</h3>
-          <p><span class="cmd">querido[duckdb]</span> <span class="cmd">querido[snowflake]</span><br><span class="cmd">querido[tui]</span> <span class="cmd">querido[web]</span></p>
+          <p><span class="cmd">querido[duckdb]</span> <span class="cmd">querido[snowflake]</span><br><span class="cmd">querido[tui]</span></p>
         </div>
       </div>
       <div class="tip" style="margin-top:10px"><strong>Tutorials:</strong> <span class="cmd">qdo tutorial explore</span> &mdash; 15-lesson core workflow &ensp;|&ensp; <span class="cmd">qdo tutorial agent</span> &mdash; 13-lesson metadata + AI-assisted SQL &ensp;|&ensp; Add <span class="cmd">--list</span> to see lessons, <span class="cmd">--lesson N</span> to jump in. Requires <span class="cmd">querido[duckdb]</span>.</div>
@@ -353,9 +387,9 @@
     </section>
 
     <!-- ── Interactive Modes ── -->
-    <section class="section wide theme-indigo">
+    <section class="section full theme-indigo">
       <h2>Interactive Modes</h2>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;">
+      <div style="display:grid; grid-template-columns: 1fr; gap: 8px 16px;">
         <div>
           <div class="sub-heading">TUI &mdash; qdo explore</div>
           <div class="row"><span class="k">qdo explore -t TABLE -c CONN</span><span class="d">Launch TUI</span></div>
@@ -368,18 +402,22 @@
           <div class="row"><span class="k">p</span><span class="d">Profile (column selector for wide tables)</span></div>
           <div class="row"><span class="k">d</span><span class="d">Distribution for a column</span></div>
           <div class="row"><span class="k">r</span><span class="d">Refresh data</span></div>
-          <div class="tip">Requires <span class="cmd">querido[tui]</span>. On wide tables (50+ cols), <span class="k">p</span> shows a column selector with checkboxes and classification. Press <span class="k">s</span> in the selector to save as a column set.</div>
-        </div>
-        <div>
-          <div class="sub-heading">Web UI &mdash; qdo serve</div>
-          <div class="row"><span class="k">qdo serve -c CONN</span><span class="d">Launch web UI (port 8888)</span></div>
-          <div class="row"><span class="k">qdo serve -c CONN --port 9999</span><span class="d">Custom port</span></div>
-          <div class="row"><span class="k">?</span><span class="d">Help (keyboard shortcut)</span></div>
-          <div class="row"><span class="k">/</span><span class="d">Focus search (keyboard shortcut)</span></div>
-          <div class="row"><span class="k">Esc</span><span class="d">Close overlay</span></div>
-          <div class="tip">Requires <span class="cmd">querido[web]</span>. HTMX-powered tabs for inspect, preview, profile, dist, template. Includes pivot builder and search.</div>
+          <div class="tip">Requires <span class="cmd">querido[tui]</span>. On wide tables (50+ cols), <span class="k">p</span> opens quick triage first so you can choose the most useful columns before running a full profile.</div>
         </div>
       </div>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <div class="shot-title">Main Grid + Sidebar</div>
+          <img src="examples/screenshots/explore-orders-sidebar.svg" alt="qdo explore showing the orders table with the selected-column sidebar open">
+          <div class="shot-caption">The main grid carries PK, sort, and null-heavy cues while the sidebar keeps the selected column's context visible.</div>
+        </div>
+        <div class="shot-card">
+          <div class="shot-title">Wide-Table Triage</div>
+          <img src="examples/screenshots/explore-wide-triage.svg" alt="qdo explore wide-table triage view before a full profile">
+          <div class="shot-caption">Wide tables switch into quick triage first, with recommended columns pre-selected and sparse or constant fields pushed out of the way.</div>
+        </div>
+      </div>
+      <div class="tip"><strong>Reproducible docs:</strong> These screenshots are generated from the test/demo databases with <span class="cmd">uv run python scripts/generate_tui_screenshots.py</span>, so the cheatsheet stays in sync with the product.</div>
     </section>
 
     <!-- ── Connection Resolution ── -->
@@ -412,6 +450,14 @@
           <div class="row"><span class="k">qdo sql scratch -t users -c mydb</span><span class="d">Reproducible test fixture</span></div>
           <div class="tip" style="margin-top:4px"><strong>Template</strong> auto-populates column stats &amp; sample values, leaving <span class="cmd">&lt;business_definition&gt;</span> placeholders to fill in.</div>
         </div>
+        <div class="scenario">
+          <div class="scenario-title">Replay an investigation</div>
+          <div class="row"><span class="k">qdo session show scratch</span><span class="d">Review recorded steps</span></div>
+          <div class="row"><span class="k">qdo session replay scratch</span><span class="d">Rerun into a fresh replay session</span></div>
+          <div class="row"><span class="k">qdo session replay scratch --into rerun</span><span class="d">Choose the replay session name</span></div>
+          <div class="row"><span class="k">qdo workflow from-session rerun</span><span class="d">Promote the replay into a workflow draft</span></div>
+          <div class="tip" style="margin-top:4px"><strong>Replay</strong> reruns successful recorded steps in order. Add <span class="cmd">--last N</span> to replay only the tail of a session.</div>
+        </div>
       </div>
     </section>
 
@@ -421,13 +467,15 @@
       <div class="row"><span class="k">qdo query -c CONN --sql "SQL"</span><span class="d">Run ad-hoc SQL</span></div>
       <div class="row"><span class="k">qdo query ... --file q.sql</span><span class="d">SQL from file</span></div>
       <div class="row"><span class="k">echo "SQL" | qdo query -c CONN</span><span class="d">SQL from stdin</span></div>
+      <div class="row"><span class="k">qdo query ... --from scratch:3</span><span class="d">Reuse SQL from a recorded query step</span></div>
       <div class="row"><span class="k">qdo query ... --limit 100</span><span class="d">Limit rows (default 1000)</span></div>
       <div class="row"><span class="k">qdo export -c CONN -t TABLE -o f.csv</span><span class="d">Export to CSV</span></div>
+      <div class="row"><span class="k">qdo export ... --from scratch:last -o f.csv</span><span class="d">Export with saved query SQL</span></div>
       <div class="row"><span class="k">qdo export ... -e tsv</span><span class="d">Export to TSV</span></div>
       <div class="row"><span class="k">qdo export ... --clipboard</span><span class="d">Copy TSV to clipboard (Excel)</span></div>
       <div class="row"><span class="k">qdo explain -c CONN --sql "SQL"</span><span class="d">Query plan (EXPLAIN)</span></div>
       <div class="row"><span class="k">qdo explain ... --analyze</span><span class="d">EXPLAIN ANALYZE (DuckDB)</span></div>
-      <div class="tip"><strong>Export formats:</strong> csv, tsv, json, jsonl. Use <span class="cmd">--clipboard</span> for direct paste into Excel/Sheets.</div>
+      <div class="tip"><strong>Export formats:</strong> csv, tsv, json, jsonl. Use <span class="cmd">--clipboard</span> for direct paste into Excel/Sheets. With <span class="cmd">QDO_SESSION</span> enabled, <span class="cmd">--from SESSION:STEP</span> reuses SQL from an earlier <span class="cmd">qdo query</span>.</div>
     </section>
 
     <!-- ── Data Quality & Analysis ── -->
@@ -454,7 +502,8 @@
       <div class="row"><span class="k">qdo metadata list -c CONN</span><span class="d">List files + completeness</span></div>
       <div class="row"><span class="k">qdo metadata edit -c CONN -t TABLE</span><span class="d">Open in $EDITOR</span></div>
       <div class="row"><span class="k">qdo metadata refresh -c CONN -t TABLE</span><span class="d">Update stats, keep descriptions</span></div>
-      <div class="tip"><strong>Storage:</strong> <span class="cmd">.qdo/metadata/&lt;conn&gt;/&lt;table&gt;.yaml</span> &mdash; version-controlled with your project. Fill in descriptions, owner, PII flags, valid values. &ensp;<strong>Learn:</strong> <span class="cmd">qdo tutorial agent</span> walks through the full enrichment → agent prompt workflow.</div>
+      <div class="row"><span class="k">qdo metadata undo -c CONN -t TABLE</span><span class="d">Restore last qdo-managed snapshot</span></div>
+      <div class="tip"><strong>Storage:</strong> <span class="cmd">.qdo/metadata/&lt;conn&gt;/&lt;table&gt;.yaml</span> &mdash; version-controlled with your project. Fill in descriptions, owner, PII flags, valid values. Use <span class="cmd">metadata undo</span> to roll back the last qdo-managed write. &ensp;<strong>Learn:</strong> <span class="cmd">qdo tutorial agent</span> walks through the full enrichment → agent prompt workflow.</div>
     </section>
 
     <!-- ── Agent Setup ── -->
@@ -469,6 +518,7 @@
           <div class="row"><span class="k">qdo metadata show -c mydb -t T</span><span class="d">Business context</span></div>
           <div class="sub-heading" style="margin-top:8px">3. Query &amp; validate</div>
           <div class="row"><span class="k">qdo query -c mydb --sql "..."</span><span class="d">Run queries</span></div>
+          <div class="row"><span class="k">qdo query -c mydb --from scratch:last</span><span class="d">Reuse recorded SQL</span></div>
           <div class="row"><span class="k">qdo assert -c mydb --sql "..." --expect N</span><span class="d">Verify results</span></div>
         </div>
         <div>
@@ -503,7 +553,7 @@
   <!-- Footer -->
   <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:8px; border-top:2px solid #e2e8f0; font-size:0.72rem; color:#94a3b8;">
     <span><strong style="color:#6366f1">Backends:</strong> SQLite (built-in) &ensp;|&ensp; <span class="cmd">querido[duckdb]</span> DuckDB + Parquet &ensp;|&ensp; <span class="cmd">querido[snowflake]</span> Snowflake</span>
-    <span><span class="cmd">querido[tui]</span> Textual TUI &ensp;|&ensp; <span class="cmd">querido[web]</span> Web UI &ensp;|&ensp; Python 3.12+</span>
+    <span><span class="cmd">querido[tui]</span> Textual TUI &ensp;|&ensp; Python 3.12+</span>
   </div>
 
 </div>

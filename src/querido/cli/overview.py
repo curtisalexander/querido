@@ -32,8 +32,10 @@ def overview() -> None:
 
     fmt = get_output_format()
 
-    if fmt == "json":
-        _print_json()
+    if fmt in ("json", "agent"):
+        from querido.output.envelope import emit_envelope
+
+        emit_envelope(command="overview", data=_build_payload())
         return
 
     docs = Path(__file__).resolve().parents[3] / "docs" / "cli-reference.md"
@@ -114,6 +116,23 @@ def _print_fallback() -> None:
 # These are maintained manually because they describe runtime output, not
 # CLI parameters.  Keys map to command names.
 _OUTPUT_SHAPES: dict[str, dict] = {
+    "search": {
+        "query": "string",
+        "searched_command_count": "integer",
+        "result_count": "integer",
+        "results": [
+            {
+                "name": "string",
+                "description": "string",
+                "category": "string",
+                "score": "float",
+                "rationale": "string",
+                "matched_terms": ["string"],
+                "subcommands": ["string"],
+                "help_command": "string",
+            }
+        ],
+    },
     "inspect": {
         "table": "string",
         "row_count": "integer",
@@ -200,6 +219,55 @@ _OUTPUT_SHAPES: dict[str, dict] = {
             }
         ],
     },
+    "metadata": {
+        "subcommands": {
+            "show": {
+                "table": "string",
+                "connection": "string",
+                "row_count": "integer",
+                "table_description": "string",
+                "columns": [
+                    {
+                        "name": "string",
+                        "type": "string",
+                        "description": "string",
+                        "valid_values": "array|string|null",
+                        "pii": "boolean|string|null",
+                    }
+                ],
+            },
+            "list": {
+                "connection": "string",
+                "tables": [
+                    {
+                        "table": "string",
+                        "path": "string",
+                        "last_modified": "float",
+                        "completeness": "float",
+                    }
+                ],
+            },
+            "search": {
+                "connection": "string",
+                "query": "string",
+                "metadata_file_count": "integer",
+                "searched_document_count": "integer",
+                "result_count": "integer",
+                "results": [
+                    {
+                        "kind": "table|column",
+                        "table": "string",
+                        "column": "string|null",
+                        "score": "float",
+                        "matched_terms": ["string"],
+                        "rationale": "string",
+                        "excerpt": "string",
+                        "path": "string",
+                    }
+                ],
+            },
+        }
+    },
     "values": {
         "table": "string",
         "column": "string",
@@ -237,6 +305,27 @@ _OUTPUT_SHAPES: dict[str, dict] = {
                 "uniqueness_pct": "float",
                 "status": "ok|warn|fail",
                 "issues": ["string"],
+            }
+        ],
+    },
+    "freshness": {
+        "table": "string",
+        "row_count": "integer",
+        "status": "fresh|stale|unknown",
+        "selected_column": "string|null",
+        "latest_value": "string|null",
+        "earliest_value": "string|null",
+        "latest_age_days": "float|null",
+        "stale_after_days": "integer",
+        "candidates": [
+            {
+                "name": "string",
+                "type": "string",
+                "non_null_count": "integer",
+                "null_pct": "float",
+                "earliest_value": "string|null",
+                "latest_value": "string|null",
+                "latest_age_days": "float|null",
             }
         ],
     },
@@ -283,21 +372,6 @@ _OUTPUT_SHAPES: dict[str, dict] = {
                 "distinct_count": "integer",
                 "null_count": "integer",
                 "sample_values": "string",
-            }
-        ],
-    },
-    "metadata": {
-        "table": "string",
-        "connection": "string",
-        "row_count": "integer",
-        "table_description": "string",
-        "data_owner": "string",
-        "columns": [
-            {
-                "name": "string",
-                "type": "string",
-                "description": "string",
-                "distinct_count": "integer",
             }
         ],
     },
@@ -360,10 +434,8 @@ def _introspect_command(name: str, module_path: str) -> dict:
     return result
 
 
-def _print_json() -> None:
-    """Emit structured JSON describing all commands, auto-generated from Typer metadata."""
-    import json
-
+def _build_payload() -> dict:
+    """Build structured command metadata from Typer introspection."""
     from querido import __version__
     from querido.cli.main import _COMMAND_CATEGORIES
 
@@ -386,7 +458,7 @@ def _print_json() -> None:
     global_options = [
         {
             "flag": "-f, --format",
-            "values": ["rich", "json", "csv", "markdown", "html", "yaml"],
+            "values": ["rich", "json", "agent", "csv", "markdown", "html", "yaml"],
             "default": "rich",
             "help": "Output format.",
         },
@@ -417,7 +489,7 @@ def _print_json() -> None:
         },
     }
 
-    payload = {
+    return {
         "version": __version__,
         "tool": "qdo",
         "description": "CLI data analysis toolkit for SQLite, DuckDB, and Snowflake.",
@@ -442,5 +514,3 @@ def _print_json() -> None:
             ],
         },
     }
-
-    print(json.dumps(payload, indent=2))

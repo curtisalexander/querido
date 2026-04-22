@@ -35,6 +35,11 @@ class ProfileScreen(ModalScreen):
         padding-bottom: 1;
     }
 
+    #profile-summary {
+        padding: 0 1 1 1;
+        color: $text-muted;
+    }
+
     #profile-table {
         height: 1fr;
     }
@@ -62,6 +67,7 @@ class ProfileScreen(ModalScreen):
 
         with Vertical(id="profile-container"):
             yield Static(f"Profile — {self.table}", id="profile-title")
+            yield Static("", id="profile-summary")
             yield DataTable(id="profile-table", cursor_type="row")
 
     def on_mount(self) -> None:
@@ -91,7 +97,11 @@ class ProfileScreen(ModalScreen):
             self._show_error(str(exc))
             return
 
-        self._populate_table(result)
+        selected_columns = None
+        if columns:
+            selected_columns = len([name for name in columns.split(",") if name.strip()])
+
+        self._populate_table(result, selected_columns=selected_columns)
 
     async def _tiered_profile(self) -> None:
         """Wide table: quick profile -> classify -> column selector -> full profile."""
@@ -129,7 +139,12 @@ class ProfileScreen(ModalScreen):
             callback=_on_columns_selected,
         )
 
-    def _populate_table(self, result: ProfileResult) -> None:
+    def _populate_table(
+        self,
+        result: ProfileResult,
+        *,
+        selected_columns: int | None = None,
+    ) -> None:
         stats = result["stats"]
         row_count = result["row_count"]
         sampled = result["sampled"]
@@ -137,9 +152,25 @@ class ProfileScreen(ModalScreen):
         quick = result.get("quick", False)
 
         title = self.query_one("#profile-title", Static)
+        summary = self.query_one("#profile-summary", Static)
         sample_note = f"  (sampled {sample_size:,})" if sampled and sample_size else ""
         quick_note = "  [dim](quick mode)[/dim]" if quick else ""
         title.update(f"Profile — {self.table}  ({row_count:,} rows{sample_note}){quick_note}")
+
+        if quick:
+            summary.update(
+                "Quick profile: nulls and distinct counts only. "
+                "Use the selector to focus full stats on the most useful columns."
+            )
+        else:
+            scope = (
+                f"Full profile for {selected_columns} selected columns."
+                if selected_columns is not None
+                else f"Full profile for all {len(stats)} columns."
+            )
+            summary.update(
+                scope + " Includes numeric summary statistics where they apply."
+            )
 
         dt = self.query_one("#profile-table", DataTable)
         dt.clear(columns=True)
@@ -175,7 +206,9 @@ class ProfileScreen(ModalScreen):
 
     def _show_error(self, msg: str) -> None:
         title = self.query_one("#profile-title", Static)
+        summary = self.query_one("#profile-summary", Static)
         title.update(f"Profile — {self.table}\n[red]Error: {msg}[/red]")
+        summary.update("")
 
     async def action_dismiss(self, result: object = None) -> None:
         self.app.pop_screen()

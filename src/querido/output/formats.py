@@ -717,6 +717,60 @@ def format_metadata_list(
     return "\n".join(lines)
 
 
+def format_metadata_search(
+    result: dict,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    matches = result.get("results") or []
+    if not matches:
+        if fmt == "csv":
+            return ""
+        return (
+            f"No metadata matches for '{result.get('query', '')}' in "
+            f"{result.get('connection', '')}."
+        )
+
+    if fmt == "csv":
+        rows = [
+            {
+                "kind": row.get("kind", ""),
+                "table": row.get("table", ""),
+                "column": row.get("column", ""),
+                "score": row.get("score", ""),
+                "matched_terms": ", ".join(row.get("matched_terms") or []),
+                "excerpt": row.get("excerpt", ""),
+                "path": row.get("path", ""),
+            }
+            for row in matches
+        ]
+        return dicts_to_csv(rows)
+
+    lines = [
+        f"## Metadata Search: {result.get('query', '')}",
+        "",
+        f"Connection: {result.get('connection', '')}",
+        f"Results: {result.get('result_count', 0)}",
+        "",
+    ]
+    headers = ["Kind", "Table", "Column", "Score", "Matched", "Excerpt"]
+    rows = [
+        [
+            str(row.get("kind", "")),
+            str(row.get("table", "")),
+            str(row.get("column") or ""),
+            str(row.get("score", "")),
+            ", ".join(str(term) for term in row.get("matched_terms") or []),
+            str(row.get("excerpt", "")),
+        ]
+        for row in matches
+    ]
+    lines.append(to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
 # -- explain ------------------------------------------------------------------
 
 
@@ -803,6 +857,16 @@ def format_diff(
         f"## Diff: {result['left']} → {result['right']}",
         "",
     ]
+    if isinstance(result.get("previous_row_count"), int) and isinstance(
+        result.get("current_row_count"), int
+    ):
+        delta = result.get("row_count_delta")
+        delta_text = f"{delta:+,}" if isinstance(delta, int) else "n/a"
+        lines.append(
+            "Row count: "
+            f"{result['previous_row_count']:,} → {result['current_row_count']:,} ({delta_text})"
+        )
+        lines.append("")
     if not added and not removed and not changed:
         lines.append("Schemas are identical.")
         return "\n".join(lines)
@@ -1068,6 +1132,236 @@ def format_values(
     return "\n".join(lines)
 
 
+def format_freshness(
+    result: dict,
+    fmt: str,
+) -> str:
+    candidates = result.get("candidates") or []
+
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        rows = [
+            {
+                "column": candidate.get("name", ""),
+                "type": candidate.get("type", ""),
+                "null_pct": candidate.get("null_pct"),
+                "earliest_value": candidate.get("earliest_value"),
+                "latest_value": candidate.get("latest_value"),
+                "latest_age_days": candidate.get("latest_age_days"),
+                "selected": candidate.get("name") == result.get("selected_column"),
+                "signals": "|".join(candidate.get("reasons") or []),
+            }
+            for candidate in candidates
+        ]
+        return dicts_to_csv(rows) if rows else ""
+
+    lines = [
+        f"## Freshness: {result['table']} ({result['status']})",
+        "",
+        f"- row_count: {result['row_count']:,}",
+        f"- selected_column: {result.get('selected_column') or '—'}",
+        f"- latest_value: {result.get('latest_value') or '—'}",
+        f"- earliest_value: {result.get('earliest_value') or '—'}",
+        (
+            f"- latest_age_days: {result['latest_age_days']:.2f}"
+            if result.get("latest_age_days") is not None
+            else "- latest_age_days: —"
+        ),
+        f"- stale_after_days: {result['stale_after_days']}",
+    ]
+
+    if result.get("reason"):
+        lines.extend(["", result["reason"]])
+
+    if candidates:
+        headers = ["Column", "Type", "Null %", "Earliest", "Latest", "Age Days", "Signals"]
+        rows = [
+            [
+                candidate.get("name", ""),
+                candidate.get("type", ""),
+                f"{float(candidate.get('null_pct', 0.0)):.2f}",
+                candidate.get("earliest_value") or "",
+                candidate.get("latest_value") or "",
+                (
+                    f"{float(candidate['latest_age_days']):.2f}"
+                    if candidate.get("latest_age_days") is not None
+                    else ""
+                ),
+                ", ".join(candidate.get("reasons") or []),
+            ]
+            for candidate in candidates
+        ]
+        lines.extend(["", to_markdown_table(headers, rows)])
+
+    return "\n".join(lines)
+
+
+def format_plan(
+    result: dict,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        return dicts_to_csv(
+            [
+                {
+                    "action": result.get("action", ""),
+                    "mode": result.get("mode", ""),
+                    "summary": result.get("summary", ""),
+                    "executable": result.get("executable", True),
+                    "destination": result.get("destination", ""),
+                    "format": result.get("format", ""),
+                    "table": result.get("table", ""),
+                    "output_path": result.get("output_path", ""),
+                    "limit": result.get("limit", ""),
+                    "sql": result.get("sql", ""),
+                    "effects": "|".join(str(x) for x in result.get("effects") or []),
+                    "writes": "|".join(str(x) for x in result.get("writes") or []),
+                }
+            ]
+        )
+
+    lines = [
+        f"## Plan: {result.get('action', 'plan')}",
+        "",
+        f"- summary: {result.get('summary', '')}",
+        f"- executable: {result.get('executable', True)}",
+    ]
+
+    for key in ("destination", "format", "table", "output_path", "limit"):
+        value = result.get(key)
+        if value not in (None, "", []):
+            lines.append(f"- {key}: {value}")
+
+    if result.get("sql"):
+        lines.extend(["", "```sql", str(result["sql"]), "```"])
+
+    effects = result.get("effects") or []
+    if effects:
+        lines.extend(["", "Effects:"])
+        lines.extend(f"- {effect}" for effect in effects)
+
+    writes = result.get("writes") or []
+    if writes:
+        lines.extend(["", "Writes:"])
+        lines.extend(f"- {item}" for item in writes)
+
+    return "\n".join(lines)
+
+
+def format_estimate(
+    result: dict,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        return dicts_to_csv(
+            [
+                {
+                    "action": result.get("action", ""),
+                    "dialect": result.get("dialect", ""),
+                    "complexity": result.get("complexity", ""),
+                    "cost_hint": result.get("cost_hint", ""),
+                    "row_estimate": result.get("row_estimate", ""),
+                    "row_estimate_source": result.get("row_estimate_source", ""),
+                    "output_row_ceiling": result.get("output_row_ceiling", ""),
+                    "destination": result.get("destination", ""),
+                    "format": result.get("format", ""),
+                    "table": result.get("table", ""),
+                    "output_path": result.get("output_path", ""),
+                    "sql": result.get("sql", ""),
+                    "notes": "|".join(str(x) for x in result.get("notes") or []),
+                }
+            ]
+        )
+
+    lines = [
+        f"## Estimate: {result.get('action', 'estimate')}",
+        "",
+        f"- summary: {result.get('summary', '')}",
+        f"- dialect: {result.get('dialect', '')}",
+        f"- complexity: {result.get('complexity', '')}",
+        f"- cost_hint: {result.get('cost_hint', '')}",
+    ]
+
+    for key in (
+        "row_estimate",
+        "row_estimate_source",
+        "output_row_ceiling",
+        "destination",
+        "format",
+        "table",
+        "output_path",
+    ):
+        value = result.get(key)
+        if value not in (None, "", []):
+            lines.append(f"- {key}: {value}")
+
+    if result.get("notes"):
+        lines.extend(["", "Notes:"])
+        lines.extend(f"- {note}" for note in result["notes"])
+
+    if result.get("sql"):
+        lines.extend(["", "```sql", str(result["sql"]), "```"])
+
+    if result.get("explain_plan"):
+        lines.extend(["", "```text", str(result["explain_plan"]), "```"])
+
+    return "\n".join(lines)
+
+
+def format_search(
+    result: dict,
+    fmt: str,
+) -> str:
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    matches = result.get("results") or []
+    if fmt == "csv":
+        rows = [
+            {
+                "query": result.get("query", ""),
+                "name": match.get("name", ""),
+                "category": match.get("category", ""),
+                "score": match.get("score", ""),
+                "description": match.get("description", ""),
+                "rationale": match.get("rationale", ""),
+                "help_command": match.get("help_command", ""),
+                "subcommands": "|".join(str(x) for x in match.get("subcommands") or []),
+            }
+            for match in matches
+        ]
+        return dicts_to_csv(rows) if rows else ""
+
+    lines = [f"## Search: {result.get('query', '')}", ""]
+    if not matches:
+        lines.append("No strong command matches found.")
+        return "\n".join(lines)
+
+    headers = ["Command", "Category", "Score", "Description", "Why", "Help"]
+    rows = []
+    for match in matches:
+        rows.append(
+            [
+                str(match.get("name", "")),
+                str(match.get("category", "")),
+                str(match.get("score", "")),
+                str(match.get("description", "")),
+                str(match.get("rationale", "")),
+                str(match.get("help_command", "")),
+            ]
+        )
+    lines.append(to_markdown_table(headers, rows))
+    return "\n".join(lines)
+
+
 # -- catalog ------------------------------------------------------------------
 
 
@@ -1129,6 +1423,64 @@ def format_catalog(
             lines.append(to_markdown_table(headers, rows))
             lines.append("")
 
+    return "\n".join(lines)
+
+
+def format_catalog_functions(
+    result: dict,
+    fmt: str,
+) -> str:
+    if not result.get("supported", True):
+        return "" if fmt == "csv" else str(result.get("reason") or "Function catalog unavailable.")
+
+    functions = result.get("functions") or []
+    if not functions:
+        return "" if fmt == "csv" else "No functions found."
+
+    if fmt == "json":
+        return json.dumps(result, indent=2, default=str)
+
+    if fmt == "csv":
+        rows = [
+            {
+                "name": entry.get("name", ""),
+                "schema": entry.get("schema", ""),
+                "type": entry.get("type", ""),
+                "overload_count": entry.get("overload_count", 0),
+                "return_types": "|".join(entry.get("return_types") or []),
+                "languages": "|".join(entry.get("languages") or []),
+                "notes": "|".join(entry.get("notes") or []),
+                "description": entry.get("description", ""),
+            }
+            for entry in functions
+        ]
+        return dicts_to_csv(rows) if rows else ""
+
+    lines = [f"## Function Catalog ({result['function_count']} functions)", ""]
+    headers = ["Name", "Schema", "Type", "Overloads", "Returns", "Notes"]
+    rows = []
+    for entry in functions:
+        notes_parts = []
+        languages = entry.get("languages") or []
+        if languages:
+            notes_parts.append(f"lang: {', '.join(languages)}")
+        notes = entry.get("notes") or []
+        if notes:
+            notes_parts.append(", ".join(notes))
+        if entry.get("description"):
+            notes_parts.append(str(entry["description"]))
+        rows.append(
+            [
+                entry.get("name", ""),
+                entry.get("schema", ""),
+                entry.get("type", ""),
+                str(entry.get("overload_count", 0)),
+                ", ".join(entry.get("return_types") or []),
+                " | ".join(notes_parts),
+            ]
+        )
+    lines.append(to_markdown_table(headers, rows))
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -1308,16 +1660,21 @@ def format_classify(
 # Registry — maps command names to text format functions for dispatch_output()
 # ---------------------------------------------------------------------------
 REGISTRY: dict[str, object] = {
+    "search": format_search,
     "inspect": format_inspect,
     "preview": format_preview,
     "profile": format_profile,
+    "estimate": format_estimate,
+    "plan": format_plan,
     "context": format_context,
     "dist": format_dist,
+    "freshness": format_freshness,
     "template": format_template,
     "lineage": format_lineage,
     "snowflake_lineage": format_snowflake_lineage,
     "metadata": format_metadata,
     "metadata_list": format_metadata_list,
+    "metadata_search": format_metadata_search,
     "explain": format_explain,
     "diff": format_diff,
     "joins": format_joins,
@@ -1326,6 +1683,7 @@ REGISTRY: dict[str, object] = {
     "pivot": format_pivot,
     "values": format_values,
     "catalog": format_catalog,
+    "catalog_functions": format_catalog_functions,
     "query": format_query,
     "frequencies": format_frequencies,
     "classify": format_classify,

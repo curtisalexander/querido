@@ -59,6 +59,11 @@ def profile(
         "--force",
         help="With --write-metadata: overwrite human-authored fields (confidence 1.0).",
     ),
+    plan: bool = typer.Option(
+        False,
+        "--plan",
+        help="With --write-metadata: preview metadata changes without writing the YAML.",
+    ),
 ) -> None:
     """Statistical profile of table columns."""
     from querido.cli._context import maybe_show_sql
@@ -67,6 +72,8 @@ def profile(
 
     if columns and column_set:
         raise typer.BadParameter("Cannot use both --columns and --column-set.")
+    if plan and not write_metadata:
+        raise typer.BadParameter("--plan requires --write-metadata.")
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         # Resolve --column-set to a comma-separated column string.
@@ -142,16 +149,26 @@ def profile(
 
         metadata_write_summary = None
         if write_metadata:
-            from querido.core.metadata_write import write_from_profile
+            from querido.core.metadata_write import preview_from_profile, write_from_profile
 
-            metadata_write_summary = write_from_profile(
-                ctx.connector,
-                connection,
-                ctx.table,
-                result["stats"],
-                result["col_info"],
-                force=force,
-            )
+            if plan:
+                metadata_write_summary = preview_from_profile(
+                    ctx.connector,
+                    connection,
+                    ctx.table,
+                    result["stats"],
+                    result["col_info"],
+                    force=force,
+                )
+            else:
+                metadata_write_summary = write_from_profile(
+                    ctx.connector,
+                    connection,
+                    ctx.table,
+                    result["stats"],
+                    result["col_info"],
+                    force=force,
+                )
 
         freq_data = None
         if top > 0:

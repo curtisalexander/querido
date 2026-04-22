@@ -106,6 +106,16 @@ qdo dist -c <connection> -t <table> -C <column> [--buckets N] [--top N]
 ```
 Numeric: histogram with N buckets (default 20). Categorical: top N values by frequency (default 20).
 
+### freshness — table recency
+```bash
+qdo freshness -c <connection> -t <table>
+qdo freshness -c <connection> -t <table> --column updated_at
+qdo freshness -c <connection> -t <table> --stale-after 14
+```
+Auto-detects likely temporal columns from schema names/types, summarizes earliest/latest
+values, and marks the table `fresh`, `stale`, or `unknown` from the newest detected
+timestamp. Use `--column` to override the detector when you know the right freshness field.
+
 ### template — documentation template
 ```bash
 qdo template -c <connection> -t <table> [--sample-values N]
@@ -116,7 +126,12 @@ Generates a documentation template with auto-populated metadata (column name, ty
 ```bash
 qdo explore -c <connection> -t <table> [-r <rows>]
 ```
-Interactive terminal UI for data exploration. Requires `uv pip install 'querido[tui]'`. Key bindings: `q` quit, `?` help, `i` inspect metadata, `m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
+Interactive terminal UI for data exploration. Requires `uv pip install 'querido[tui]'`.
+Key bindings: `q` quit, `?` help, `i` inspect metadata, `p` profile, `d` distribution,
+`m` toggle sidebar, `/` filter, `Escape` clear, `r` refresh. Click column headers to sort.
+The main grid uses semantic highlighting so PKs, sorted columns, null-heavy columns,
+and null cells are obvious at a glance. On wide tables, `p` opens a quick-triage flow
+first so you can select the most useful columns before running a full profile.
 
 ### catalog — full schema overview (also searches)
 ```bash
@@ -124,9 +139,19 @@ qdo catalog -c <connection>
 qdo catalog -c <connection> --pattern users   # filter by table/column name
 qdo catalog -c <connection> --tables-only     # skip columns and row counts
 qdo catalog -c <connection> --enrich          # merge stored metadata descriptions
+qdo catalog functions -c <connection>         # list SQL functions (DuckDB/Snowflake)
+qdo catalog functions -c <connection> --pattern lower
 ```
 Cache-first by default; use `--live` to bypass. `--pattern` does a case-insensitive substring
-match across both table and column names.
+match across both table and column names. `catalog functions` is currently supported for
+DuckDB and Snowflake; SQLite returns a graceful unsupported result.
+
+### search — discover the right command
+```bash
+qdo search "compare schemas between tables"
+qdo search "show distinct values for a column" --limit 3
+```
+Cheap BM25 ranking over command names, descriptions, subcommands, and output-shape metadata.
 
 ### sql — generate SQL statements
 ```bash
@@ -169,9 +194,9 @@ qdo config column-set delete -c CONN -t TABLE -n NAME
 
 If you are a coding agent using qdo to analyze data (rather than developing qdo itself), this section describes the recommended workflow and output formats.
 
-### Agent mode — set once, get JSON everywhere
+### Agent mode — set once, prefer JSON everywhere
 
-Set `QDO_FORMAT=json` in your environment to get structured JSON from all commands by default:
+Set `QDO_FORMAT=json` in your environment to make structured output the default where a command supports it:
 
 ```bash
 export QDO_FORMAT=json
@@ -179,12 +204,27 @@ export QDO_FORMAT=json
 
 Priority: explicit `--format` flag > `QDO_FORMAT` env var > `rich` (default).
 
-All commands support `--format json` (or `-f json`). JSON output goes to stdout; errors go to stderr.
+Most scan/query commands, plus many management/reference commands, support `--format json` (or `-f json`) and emit JSON to stdout. Artifact-oriented commands such as `report table` still keep their file-writing behavior. Errors go to stderr.
+
+Use `--plan` when you want to preview side effects before running them:
+
+```bash
+qdo query -c ./my.db --sql "delete from users where id = 1" --plan
+qdo export -c ./my.db -t users -o users.csv --plan
+qdo profile -c ./my.db -t orders --write-metadata --plan
+```
+
+Use `--estimate` when you want a cheap read-only cost/shape guess before running:
+
+```bash
+qdo query -c ./my.db --sql "select * from orders join customers using (customer_id)" --estimate
+qdo export -c ./my.db -t orders -o orders.csv --estimate
+```
 
 ### Recommended exploration workflow
 
-The canonical agent workflow is: **catalog -> inspect -> profile -> query**.
-Start broad, then narrow.
+The canonical agent workflow is: **catalog -> context -> metadata -> query/assert -> report/bundle**.
+Start broad, build context, then answer and hand off.
 
 1. **Get full schema** — see everything in one call:
    ```bash
@@ -194,68 +234,32 @@ Start broad, then narrow.
    ```
    Returns: `{"table_count", "tables": [{"name", "type", "row_count", "columns": [...]}]}`
 
-3. **Inspect structure** — understand columns and types:
+3. **Build context** — understand a table in one call:
    ```bash
-   qdo inspect -c ./my.db -t orders
+   qdo context -c ./my.db -t orders
    ```
-   Returns: `{"table", "row_count", "columns": [{"name", "type", "nullable", "default", "primary_key"}]}`
+   Returns: `{"table", "row_count", "columns": [{"name", "type", "null_pct", "distinct_count", "sample_values", ...}]}`
 
-4. **Preview data** — see sample rows:
+4. **Load or capture shared knowledge** — read or create metadata:
    ```bash
-   qdo preview -c ./my.db -t orders -r 5
-   ```
-   Returns: `{"table", "limit", "row_count", "rows": [...]}`
-
-5. **Profile statistics** — understand distributions and quality:
-   ```bash
-   qdo profile -c ./my.db -t orders --top 3
-   ```
-   Returns: `{"table", "row_count", "sampled", "columns": [{"column_name", "min_val", "max_val", "null_count", "distinct_count", ...}]}`
-
-   **For wide tables (50+ columns)**, use the tiered workflow:
-   ```bash
-   # Step 1: Classify columns (fast — only null counts + distinct counts)
-   qdo profile -c ./my.db -t wide_table --classify
-   # Returns: {"categories": {"measure": [...], "sparse": [...], ...}, "column_category": {...}}
-
-   # Step 2: Profile only the columns you need (full stats)
-   qdo profile -c ./my.db -t wide_table --columns "col1,col2,col3"
-
-   # Step 3: Save the selection for reuse
-   qdo config column-set save -c ./my.db -t wide_table -n default --columns "col1,col2,col3"
-
-   # Step 4: Reuse in future commands
-   qdo profile -c ./my.db -t wide_table --column-set default
+   qdo metadata show -c ./my.db -t orders -f json
+   qdo metadata init -c ./my.db -t orders
+   qdo metadata suggest -c ./my.db -t orders --apply
    ```
 
-6. **Distinct values** — enumerate valid values for a column:
-   ```bash
-   qdo values -c ./my.db -t orders -C status
-   ```
-   Returns: `{"column", "distinct_count", "truncated", "values": [{"value", "count"}]}`
-
-7. **Run ad-hoc SQL** — answer specific questions:
+5. **Answer and verify** — run SQL and check an invariant:
    ```bash
    qdo query -c ./my.db --sql "select region, sum(amount) from orders group by region"
+   qdo assert -c ./my.db --sql "select count(*) from orders where amount < 0" --expect 0
    ```
-   Returns: `{"columns", "rows", "row_count", "limited"}`
-
-8. **Aggregate data** — quick GROUP BY without writing SQL:
-   ```bash
-   qdo pivot -c ./my.db -t orders -g region -a "sum(amount)"
-   ```
-   Returns: `{"headers", "rows", "row_count", "sql"}`
-
-9. **Drill into columns** — distribution detail:
-   ```bash
-   qdo dist -c ./my.db -t orders -C status
-   ```
-
-10. **Generate documentation** — full metadata for prompting:
+   Use `--plan` on `query` or `export` first when you want to inspect SQL and side effects without executing.
+6. **Hand off the result** — render a report or export a bundle:
     ```bash
-    qdo template -c ./my.db -t orders
+    qdo report table -c ./my.db -t orders -o orders-report.html
+    qdo bundle export -c ./my.db -t orders -o orders-bundle.zip
     ```
-    Returns column metadata with sample values — useful as context for LLM prompts.
+
+Use drill-down commands such as `inspect`, `preview`, `profile`, `quality`, `values`, `dist`, `joins`, `diff`, and `pivot` when this promoted path leaves a specific gap.
 
 ### Metadata workflow — enriched context for intelligent queries
 
@@ -328,7 +332,7 @@ When `--format json` is active, errors are emitted as structured JSON to stderr:
 {"error": true, "code": "TABLE_NOT_FOUND", "message": "Table not found: ...", "hint": "Try: qdo catalog -c <connection> --pattern <name>"}
 ```
 
-Error codes: `TABLE_NOT_FOUND`, `COLUMN_NOT_FOUND`, `DATABASE_LOCKED`, `DATABASE_OPEN_FAILED`, `AUTH_FAILED`, `DATABASE_ERROR`, `FILE_NOT_FOUND`, `VALIDATION_ERROR`, `MISSING_DEPENDENCY`, `PERMISSION_DENIED`.
+Representative error codes include `TABLE_NOT_FOUND`, `COLUMN_NOT_FOUND`, `SESSION_NOT_FOUND`, `METADATA_NOT_FOUND`, `COLUMN_SET_NOT_FOUND`, `CONNECTION_NOT_FOUND`, `CONNECTION_EXISTS`, `SQL_REQUIRED`, `SQL_FILE_NOT_FOUND`, `SNOWFLAKE_REQUIRED`, `VALIDATION_ERROR`, `DATABASE_ERROR`, `MISSING_DEPENDENCY`, and `PERMISSION_DENIED`. Treat the public contract as "stable code plus actionable `hint` / `try_next` when available", not as a promise that every validation edge case has its own named code.
 
 Exit codes: `0` success, `1` error, `130` interrupted.
 
@@ -415,13 +419,17 @@ uv run python scripts/init_test_data.py   # creates data/test.db and data/test.d
 
 ## Self-hosting evaluations
 
-Two optional eval scripts live under `scripts/`. Both require a Claude Code Max subscription (`claude -p`) and refuse to run when `ANTHROPIC_API_KEY` is set so billing can't leak to the API.
+Three optional eval scripts live under `scripts/`. Two are Claude-backed; one
+uses Codex. All are opt-in and intended for local runs after docs or command-surface
+changes.
 
 - **`eval_workflow_authoring.py`** — Phase 4.6. Feeds `WORKFLOW_AUTHORING.md` + `qdo workflow spec` + bundled examples to `claude -p`, asks the model to author three workflows it hasn't seen, and checks lint + run + shape assertions. Signals whether the authoring doc is pedagogically complete.
 
-- **`eval_skill_files.py`** — EV.Build. Feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 11 realistic data-exploration questions across four categories (discovery, column-level, quality, metadata/SQL). Each task has required-command / content-regex / preferred-command checks and categorizes failures (qdo-bug / model-mistake / envelope-mismatch / timeout / auth-error). Supports Haiku / Sonnet / Opus; per-model pass gates (70 / 85 / 95 %). Per-run JSON results land in `scripts/eval_results/` (gitignored).
+- **`eval_skill_files_claude.py`** — EV.Build for Claude Code. Feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 15 realistic data-exploration questions across four categories aligned to the promoted workflow (`catalog -> context -> metadata -> query/assert -> report/bundle`). Each task has required-command / content-regex / preferred-command checks; some tasks also require multiple workflow steps to appear. Failures are categorized (qdo-bug / model-mistake / envelope-mismatch / timeout / auth-error). Supports Haiku / Sonnet / Opus; per-model pass gates (70 / 85 / 95 %). Per-run JSON results land in `scripts/eval_results/` (gitignored).
 
-Both are opt-in. Run locally after doc or implementation changes; failures that cluster in a category point at specific docs to tighten.
+- **`eval_skill_files_codex.py`** — EV.Build for Codex. Runs the same task catalog and pass/fail logic through `codex exec` so the benchmark corpus stays comparable across agents. Produces the same JSON result shape under `scripts/eval_results/`.
+
+Run them locally after doc or implementation changes; failures that cluster in a category point at specific docs to tighten.
 
 ## Dependency Management
 

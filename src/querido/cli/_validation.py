@@ -8,40 +8,19 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
-_DESTRUCTIVE_KEYWORDS = frozenset({"drop", "delete", "truncate", "alter", "update"})
-
-
-def warn_if_destructive(sql: str) -> None:
-    """Prompt the user for confirmation if *sql* starts with a destructive keyword.
-
-    Skipped when output format is not ``rich`` (i.e. agent / piped workflows)
-    or when stdin is not a tty.
-    """
-    import re
-    import sys
-
-    # Strip SQL comments and leading whitespace to find the real first keyword
-    stripped = re.sub(r"--[^\n]*", "", sql).strip()
-    stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.DOTALL).strip()
-    first_word = stripped.split()[0].lower() if stripped.split() else ""
-
-    if first_word not in _DESTRUCTIVE_KEYWORDS:
+def require_allow_write(sql: str, *, allow_write: bool) -> None:
+    """Require ``--allow-write`` for SQL that can mutate state."""
+    if allow_write:
         return
 
-    # Only warn in interactive terminal sessions (rich format, tty)
-    from querido.cli._context import get_output_format
+    from querido.core.sql_safety import any_statement_is_destructive
 
-    if get_output_format() != "rich":
-        return
-    if not sys.stderr.isatty():
-        return
+    if any_statement_is_destructive(sql):
+        import typer
 
-    import typer
-
-    typer.confirm(
-        f"This looks like a destructive operation ({first_word.upper()}). Continue?",
-        abort=True,
-    )
+        raise typer.BadParameter(
+            "Write queries require --allow-write. qdo query is read-only by default."
+        )
 
 
 def require_snowflake(dialect: str, command: str) -> None:

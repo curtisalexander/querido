@@ -96,3 +96,68 @@ def test_inspect_empty_table(tmp_path: Path):
     assert "name" in result.output
     assert "score" in result.output
     assert "0" in result.output
+
+
+def test_print_inspect_rich_summary() -> None:
+    """Rich inspect output should summarize schema shape before the detail table."""
+    from rich.console import Console
+
+    from querido.output.console import print_inspect
+
+    console = Console(record=True, width=120)
+    print_inspect(
+        "users",
+        [
+            {
+                "name": "id",
+                "type": "INTEGER",
+                "nullable": False,
+                "default": None,
+                "primary_key": True,
+            },
+            {
+                "name": "email",
+                "type": "TEXT",
+                "nullable": True,
+                "default": None,
+                "primary_key": False,
+            },
+        ],
+        row_count=2,
+        console=console,
+    )
+    text = console.export_text()
+    assert "Inspect Summary" in text
+    assert "2 columns" in text
+    assert "1 primary keys" in text
+    assert "1 nullable" in text
+    assert "Column Detail" in text
+
+
+def test_print_inspect_rich_verbose_comment_note() -> None:
+    """Verbose inspect output should surface the table comment in the summary and footer."""
+    from rich.console import Console
+
+    from querido.output.console import print_inspect
+
+    console = Console(record=True, width=120)
+    print_inspect(
+        "users",
+        [
+            {
+                "name": "id",
+                "type": "INTEGER",
+                "nullable": False,
+                "default": None,
+                "primary_key": True,
+                "comment": None,
+            }
+        ],
+        row_count=2,
+        console=console,
+        verbose=True,
+        table_comment="Application user accounts",
+    )
+    text = console.export_text()
+    assert "table comment" in text.lower()
+    assert "Application user accounts" in text

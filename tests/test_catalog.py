@@ -122,6 +122,50 @@ def test_catalog_live_flag(sqlite_path: str):
     assert payload["table_count"] == 1
 
 
+def test_catalog_functions_duckdb_json(duckdb_path: str):
+    result = runner.invoke(app, ["-f", "json", "catalog", "functions", "-c", duckdb_path])
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)["data"]
+    assert payload["supported"] is True
+    assert payload["dialect"] == "duckdb"
+    assert payload["function_count"] > 0
+    assert any(entry["name"] == "lower" for entry in payload["functions"])
+
+
+def test_catalog_functions_duckdb_pattern_filters(duckdb_path: str):
+    result = runner.invoke(
+        app,
+        ["-f", "json", "catalog", "functions", "-c", duckdb_path, "--pattern", "lower"],
+    )
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)["data"]
+    assert payload["supported"] is True
+    assert payload["function_count"] >= 1
+    assert all("lower" in entry["name"].lower() for entry in payload["functions"])
+
+
+def test_catalog_functions_sqlite_is_gracefully_unsupported(sqlite_path: str):
+    result = runner.invoke(app, ["-f", "json", "catalog", "functions", "-c", sqlite_path])
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)["data"]
+    assert payload["supported"] is False
+    assert payload["dialect"] == "sqlite"
+    assert payload["function_count"] == 0
+    assert "not supported" in payload["reason"].lower()
+
+
+def test_catalog_functions_rich_unsupported_message(sqlite_path: str):
+    result = runner.invoke(app, ["catalog", "functions", "-c", sqlite_path])
+    assert result.exit_code == 0
+    assert "Function catalog unavailable" in result.output
+
+
 def test_catalog_column_details(sqlite_path: str):
     """Columns should include type and nullable info."""
     result = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path])
@@ -192,3 +236,74 @@ def test_catalog_enrich_no_metadata(sqlite_path: str, tmp_path: Path, monkeypatc
     # Should work fine, just no enrichment
     assert payload["table_count"] == 1
     assert "table_description" not in payload["tables"][0]
+
+
+def test_print_catalog_rich_summary_includes_counts() -> None:
+    """Rich catalog output should summarize object counts before the detail table."""
+    from rich.console import Console
+
+    from querido.output.console import print_catalog
+
+    console = Console(record=True, width=120)
+    print_catalog(
+        {
+            "table_count": 3,
+            "tables": [
+                {
+                    "name": "orders",
+                    "type": "table",
+                    "row_count": 5000,
+                    "columns": [{"name": "id"}, {"name": "amount"}, {"name": "status"}],
+                },
+                {
+                    "name": "customers",
+                    "type": "table",
+                    "row_count": 1000,
+                    "columns": [{"name": "id"}, {"name": "email"}],
+                },
+                {
+                    "name": "active_orders",
+                    "type": "view",
+                    "row_count": None,
+                    "columns": [{"name": "id"}, {"name": "status"}],
+                },
+            ],
+        },
+        console=console,
+    )
+    text = console.export_text()
+    assert "Catalog Summary" in text
+    assert "2 tables" in text
+    assert "1 views" in text
+    assert "7 columns" in text
+    assert "largest: orders (5,000 rows)" in text
+    assert "Object Detail" in text
+
+
+def test_print_catalog_rich_enriched_notes() -> None:
+    """Enriched catalog output should surface descriptions and owners in notes."""
+    from rich.console import Console
+
+    from querido.output.console import print_catalog
+
+    console = Console(record=True, width=120)
+    print_catalog(
+        {
+            "table_count": 1,
+            "tables": [
+                {
+                    "name": "users",
+                    "type": "table",
+                    "row_count": 2,
+                    "columns": [{"name": "id"}, {"name": "name"}],
+                    "table_description": "Application user accounts",
+                    "data_owner": "Identity team",
+                }
+            ],
+        },
+        console=console,
+    )
+    text = console.export_text()
+    assert "1 enriched" in text
+    assert "Application user accounts" in text
+    assert "owner: Identity team" in text

@@ -59,6 +59,11 @@ def quality(
         "--force",
         help="With --write-metadata: overwrite human-authored fields (confidence 1.0).",
     ),
+    plan: bool = typer.Option(
+        False,
+        "--plan",
+        help="With --write-metadata: preview metadata changes without writing the YAML.",
+    ),
 ) -> None:
     """Show data quality summary — nulls, uniqueness, issues per column.
 
@@ -73,6 +78,8 @@ def quality(
     from querido.cli._pipeline import dispatch_output, table_command
 
     col_list = parse_column_list(columns)
+    if plan and not write_metadata:
+        raise typer.BadParameter("--plan requires --write-metadata.")
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         with ctx.spin(f"Checking quality of [bold]{ctx.table}[/bold]"):
@@ -91,11 +98,16 @@ def quality(
 
         metadata_write_summary = None
         if write_metadata:
-            from querido.core.metadata_write import write_from_quality
+            from querido.core.metadata_write import preview_from_quality, write_from_quality
 
-            metadata_write_summary = write_from_quality(
-                ctx.connector, connection, ctx.table, result, force=force
-            )
+            if plan:
+                metadata_write_summary = preview_from_quality(
+                    ctx.connector, connection, ctx.table, result, force=force
+                )
+            else:
+                metadata_write_summary = write_from_quality(
+                    ctx.connector, connection, ctx.table, result, force=force
+                )
 
         from querido.output.envelope import emit_envelope, is_structured_format
 

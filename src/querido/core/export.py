@@ -37,8 +37,8 @@ def export_data(
             "content": str | None,  # set when output_path is None (clipboard)
         }
     """
-    query_sql = _build_query(
-        connector, table=table, sql=sql, limit=limit, filter_expr=filter_expr, columns=columns
+    query_sql = build_export_query(
+        table=table, sql=sql, limit=limit, filter_expr=filter_expr, columns=columns
     )
 
     data = connector.execute(query_sql)
@@ -60,8 +60,7 @@ def export_data(
     }
 
 
-def _build_query(
-    connector: Connector,
+def build_export_query(
     *,
     table: str | None,
     sql: str | None,

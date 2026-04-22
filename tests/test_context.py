@@ -71,6 +71,11 @@ def test_context_sqlite_rich(sqlite_path: str) -> None:
     result = runner.invoke(app, ["context", "-c", sqlite_path, "-t", "orders"])
     assert result.exit_code == 0, result.output
     assert "orders" in result.output
+    assert "Context Summary" in result.output
+    assert "Column Detail" in result.output
+    assert "4 columns" in result.output
+    assert "with sample values" in result.output
+    assert "status" in result.output
 
 
 def test_context_sqlite_json(sqlite_path: str) -> None:
@@ -129,6 +134,11 @@ def test_context_duckdb_rich(duckdb_path: str) -> None:
     result = runner.invoke(app, ["context", "-c", duckdb_path, "-t", "orders"])
     assert result.exit_code == 0, result.output
     assert "orders" in result.output
+    assert "Context Summary" in result.output
+    assert "Column Detail" in result.output
+    assert "4 columns" in result.output
+    assert "with sample values" in result.output
+    assert "status" in result.output
 
 
 def test_context_duckdb_json(duckdb_path: str) -> None:
@@ -222,6 +232,25 @@ def test_extract_top_k_values_handles_three_shapes() -> None:
     # None/empty
     assert _extract_top_k_values([]) == []
     assert _extract_top_k_values([None, "x", None]) == ["x"]
+
+
+def test_unpack_single_row_clamps_approx_distinct_to_row_count() -> None:
+    """Approximate distinct counts should never exceed the table row count."""
+    from querido.core._utils import unpack_single_row
+
+    row = {
+        "total_rows": 4,
+        "id__null_count": 0,
+        "id__null_pct": 0.0,
+        "id__distinct_count": 6,
+        "id__min_val": 1,
+        "id__max_val": 4,
+        "id__mean_val": 2.5,
+        "id__median_val": 2,
+        "id__stddev_val": 1.0,
+    }
+    stats = unpack_single_row(row, [{"name": "id", "type": "INTEGER", "numeric": True}])
+    assert stats[0]["distinct_count"] == 4
 
 
 def test_context_duckdb_json_no_sample_values(duckdb_path: str) -> None:

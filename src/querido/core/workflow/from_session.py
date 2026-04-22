@@ -31,7 +31,6 @@ _META_SUBCOMMANDS = frozenset(
         "overview",
         "completion",
         "tutorial",
-        "serve",
         "explore",
         "cache",
     }

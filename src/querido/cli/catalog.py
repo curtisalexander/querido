@@ -12,8 +12,9 @@ app = typer.Typer(help="Show full database catalog (tables, columns, row counts)
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def catalog(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
+    ctx: typer.Context,
+    connection: str | None = typer.Option(
+        None, "--connection", "-c", help="Named connection or file path."
     ),
     db_type: str | None = typer.Option(
         None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
@@ -46,6 +47,11 @@ def catalog(
     former ``search`` command). Use --enrich to merge business context from
     stored metadata files (.qdo/metadata/) into the catalog output.
     """
+    if ctx.invoked_subcommand is not None:
+        return
+    if connection is None:
+        raise typer.BadParameter("Missing option '--connection' / '-c'.")
+
     from querido.cli._pipeline import database_command, dispatch_output
 
     # Try cache first (unless --live)
@@ -56,11 +62,15 @@ def catalog(
         result = get_catalog_cached(connection, tables_only=tables_only)
 
     if result is None:
-        with database_command(connection=connection, db_type=db_type) as ctx:
+        with database_command(connection=connection, db_type=db_type) as cmd_ctx:
             from querido.core.catalog import get_catalog
 
-            with ctx.spin("Loading catalog"):
-                result = get_catalog(ctx.connector, tables_only=tables_only, schema=schema)
+            with cmd_ctx.spin("Loading catalog"):
+                result = get_catalog(
+                    cmd_ctx.connector,
+                    tables_only=tables_only,
+                    schema=schema,
+                )
 
     if enrich and result:
         from querido.core.catalog import enrich_catalog
@@ -86,3 +96,53 @@ def catalog(
         return
 
     dispatch_output("catalog", result)
+
+
+@app.command("functions")
+@friendly_errors
+def catalog_functions(
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
+    db_type: str | None = typer.Option(
+        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
+    ),
+    pattern: str | None = typer.Option(
+        None,
+        "--pattern",
+        "-p",
+        help="Filter by function name or schema (substring match).",
+    ),
+    schema: str | None = typer.Option(None, "--schema", help="Schema filter (Snowflake only)."),
+) -> None:
+    """List SQL functions exposed by the current backend."""
+    from querido.cli._context import maybe_show_sql
+    from querido.cli._errors import set_last_sql
+    from querido.cli._pipeline import database_command, dispatch_output
+    from querido.core.catalog import get_function_catalog
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    with (
+        database_command(connection=connection, db_type=db_type) as cmd_ctx,
+        cmd_ctx.spin("Loading function catalog"),
+    ):
+        result = get_function_catalog(cmd_ctx.connector, pattern=pattern, schema=schema)
+
+    rendered_sql = result.get("sql") or ""
+    if rendered_sql:
+        maybe_show_sql(rendered_sql)
+        set_last_sql(rendered_sql)
+
+    if is_structured_format():
+        from querido.core.next_steps import for_catalog_functions
+
+        emit_envelope(
+            command="catalog functions",
+            data=result,
+            next_steps=for_catalog_functions(result, connection=connection, pattern=pattern),
+            connection=connection,
+            extra_meta={"schema": result.get("schema")},
+        )
+        return
+
+    dispatch_output("catalog_functions", result)

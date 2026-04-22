@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>orders — qdo report</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --fg: #1e293b;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --soft: #f1f5f9;
+  --accent: #6366f1;
+  --accent-text: #4338ca;
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --fail: #f43f5e;
+  --track: #e2e8f0;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --fg: #e2e8f0;
+    --muted: #94a3b8;
+    --line: #334155;
+    --soft: #273449;
+    --accent: #818cf8;
+    --accent-text: #c7d2fe;
+    --track: #334155;
+  }
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page { max-width: 980px; margin: 0 auto; padding: 28px 24px 48px; }
+
+.mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.head {
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 3px solid var(--accent);
+}
+.head-top { display: flex; justify-content: space-between; gap: 24px; align-items: flex-end; }
+.head .eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.head h1 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  line-height: 1.1;
+}
+.head .lede { font-size: 0.95rem; color: var(--muted); margin-top: 6px; max-width: 60ch; }
+.head-meta {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 10px;
+  font-size: 0.78rem;
+  text-align: right;
+}
+.head-meta .k { color: var(--muted); margin-right: 6px; }
+.head-meta .v { color: var(--fg); font-weight: 500; }
+.head-meta .code { font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; }
+
+/* ── Panels ─────────────────────────────────────────────────────────── */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+.panel h2 {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 4px 10px;
+  border-radius: 5px;
+  display: inline-block;
+  margin-bottom: 12px;
+}
+.panel-body { font-size: 0.88rem; }
+.panel p + p, .panel p + table, .panel p + .callout, .panel .callout + .callout { margin-top: 10px; }
+
+.theme-indigo  { border-top: 3px solid #6366f1; }
+.theme-indigo h2  { background: #eef2ff; color: #4338ca; }
+.theme-violet  { border-top: 3px solid #8b5cf6; }
+.theme-violet h2  { background: #f5f3ff; color: #6d28d9; }
+.theme-amber   { border-top: 3px solid #f59e0b; }
+.theme-amber h2   { background: #fffbeb; color: #b45309; }
+.theme-emerald { border-top: 3px solid #10b981; }
+.theme-emerald h2 { background: #ecfdf5; color: #047857; }
+.theme-sky     { border-top: 3px solid #0ea5e9; }
+.theme-sky h2     { background: #f0f9ff; color: #0369a1; }
+
+@media (prefers-color-scheme: dark) {
+  .theme-indigo h2  { background: #312e81; color: #c7d2fe; }
+  .theme-violet h2  { background: #4c1d95; color: #ddd6fe; }
+  .theme-amber h2   { background: #451a03; color: #fcd34d; }
+  .theme-emerald h2 { background: #064e3b; color: #6ee7b7; }
+  .theme-sky h2     { background: #0c4a6e; color: #7dd3fc; }
+}
+
+.empty { color: var(--muted); font-style: italic; }
+.empty code.cmd { font-style: normal; background: var(--soft); padding: 1px 6px; border-radius: 4px; }
+
+/* ── Tables ─────────────────────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 7px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+th { font-weight: 600; color: var(--muted); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.06em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: none; }
+
+.schema td.col-name { white-space: nowrap; }
+.schema .mono { font-size: 0.82rem; }
+.schema td.type { color: var(--muted); font-size: 0.78rem; }
+.schema .pk { font-size: 0.62rem; background: #eef2ff; color: #4338ca; padding: 1px 5px; border-radius: 3px; font-weight: 700; margin-left: 4px; }
+.schema .nn { font-size: 0.62rem; background: var(--soft); color: var(--muted); padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
+.schema .samples { color: var(--muted); }
+.schema code.sample { background: var(--soft); padding: 1px 5px; border-radius: 3px; font-size: 0.76rem; font-family: 'JetBrains Mono', monospace; margin-right: 3px; display: inline-block; margin-bottom: 2px; }
+.schema tr.desc td { border-bottom: 1px solid var(--line); padding-top: 0; padding-bottom: 10px; font-size: 0.8rem; color: var(--muted); }
+.schema tr.desc .desc-label { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--accent-text); margin-right: 8px; }
+
+.null-value { font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+.null-bar { display: block; width: 100%; height: 6px; margin-top: 3px; }
+.null-bar-track { fill: var(--track); }
+.null-bar-fill.ok   { fill: var(--ok); }
+.null-bar-fill.warn { fill: var(--warn); }
+.null-bar-fill.fail { fill: var(--fail); }
+
+.dim { color: var(--muted); }
+
+/* ── Quality callouts ───────────────────────────────────────────────── */
+.summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.pill { padding: 2px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.pill.ok   { background: #ecfdf5; color: #047857; }
+.pill.warn { background: #fffbeb; color: #b45309; }
+.pill.fail { background: #fff1f2; color: #be123c; }
+.callout { border-left: 3px solid var(--line); padding: 8px 12px; background: var(--soft); border-radius: 0 6px 6px 0; margin-top: 10px; }
+.callout.fail { border-left-color: var(--fail); }
+.callout.warn { border-left-color: var(--warn); }
+.callout h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 5px; }
+.callout ul { list-style: none; }
+.callout li { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; font-size: 0.82rem; }
+.callout .colname { font-size: 0.82rem; color: var(--fg); }
+.callout .issues { color: var(--muted); font-size: 0.78rem; }
+.ok { color: var(--ok); font-weight: 500; }
+.sampling { font-size: 0.76rem; color: var(--muted); font-style: italic; margin-top: 6px; }
+
+/* ── Metadata kv ────────────────────────────────────────────────────── */
+table.kv td { border: none; padding: 3px 12px 3px 0; font-size: 0.85rem; }
+table.kv td.k { color: var(--muted); width: 110px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.tag { display: inline-block; background: #f5f3ff; color: #6d28d9; font-size: 0.72rem; padding: 2px 7px; border-radius: 3px; margin-right: 4px; }
+@media (prefers-color-scheme: dark) { .tag { background: #4c1d95; color: #ddd6fe; } }
+
+/* ── Joins ──────────────────────────────────────────────────────────── */
+.joins code { background: var(--soft); padding: 1px 5px; border-radius: 3px; font-size: 0.76rem; font-family: 'JetBrains Mono', monospace; }
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 0.78rem; color: var(--muted); }
+footer summary { cursor: pointer; }
+footer .footer-cmd pre { margin-top: 8px; background: var(--soft); padding: 8px 10px; border-radius: 5px; font-size: 0.76rem; overflow-x: auto; }
+
+/* ── Session step cards ─────────────────────────────────────────────── */
+.step .step-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.step .step-head h2 {
+  background: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95rem;
+  color: var(--fg);
+}
+.step .step-index {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.step .step-head code.mono {
+  font-size: 0.9rem;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.step .step-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+}
+.step .step-ts { color: var(--muted); font-size: 0.72rem; }
+.pill.neutral { background: var(--soft); color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  .pill.ok   { background: #064e3b; color: #6ee7b7; }
+  .pill.warn { background: #451a03; color: #fcd34d; }
+  .pill.fail { background: #4c0519; color: #fda4af; }
+}
+
+.step-invocation { margin-bottom: 10px; }
+.step-invocation summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.step-invocation pre {
+  margin-top: 6px;
+  background: var(--soft);
+  padding: 8px 10px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  overflow-x: auto;
+}
+
+.step-note {
+  border-left: 3px solid var(--accent);
+  padding: 6px 12px;
+  background: var(--soft);
+  border-radius: 0 5px 5px 0;
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+  color: var(--fg);
+}
+
+pre.stdout {
+  background: var(--soft);
+  padding: 10px 12px;
+  border-radius: 5px;
+  font-size: 0.76rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+/* ── Print ──────────────────────────────────────────────────────────── */
+@media print {
+  body { background: #fff; color: #000; }
+  .panel { break-inside: avoid; border: 1px solid #ccc; box-shadow: none; }
+  .head { border-bottom-color: #000; }
+  a { color: inherit; text-decoration: none; }
+  .schema tr { break-inside: avoid; }
+  details { break-inside: avoid; }
+  details > summary { display: none; }
+  details > *:not(summary) { display: block !important; }
+  pre.stdout { max-height: none; overflow: visible; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+    <section class="head">
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">qdo report · table</div>
+          <h1>orders</h1>
+          <p class="lede">Example sales orders fact table used throughout the qdo docs and tests. One row per order line, linking a customer to a product with fulfillment status, order amount, region, and order date.
+</p>
+        </div>
+        <div class="head-meta">
+          <div><span class="k">connection</span><span class="v code">test</span></div>
+          <div><span class="k">dialect</span><span class="v code">duckdb</span></div>
+          <div><span class="k">rows</span><span class="v">5,000</span></div>
+          <div><span class="k">generated</span><span class="v mono">2026-04-21T17:11:17+00:00</span></div>
+        </div>
+      </div>
+    </section>
+    
+
+    <section class="panel theme-violet">
+      <h2>metadata</h2>
+      <div class="panel-body"><table class="kv"><tr><td class="k">description</td><td>Example sales orders fact table used throughout the qdo docs and tests. One row per order line, linking a customer to a product with fulfillment status, order amount, region, and order date.
+</td></tr><tr><td class="k">owner</td><td>Revenue Operations Analytics</td></tr><tr><td class="k">coverage</td><td>7/7 columns documented</td></tr></table></div>
+    </section>
+    
+
+    <section class="panel theme-indigo">
+      <h2>schema</h2>
+      <div class="panel-body"><table class="schema"><thead><tr><th>column</th><th>type</th><th class="num">null&nbsp;%</th><th class="num">distinct</th><th>samples</th></tr></thead><tbody><tr><td class="col-name"><span class="mono">id</span> <span class="nn">NOT NULL</span></td><td class="mono type">BIGINT</td><td class="num"><span class="null-value">0.0%</span><svg class="null-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="null-bar-track" x="0" y="0" width="100" height="6" rx="1"/><rect class="null-bar-fill ok" x="0" y="0" width="0.00" height="6" rx="1"/></svg></td><td class="num">5,000</td><td class="samples"></td></tr><tr class="desc"><td colspan="5"><span class="desc-label">id</span>Synthetic order-row identifier used in the sample fixture. Useful for row-level debugging, but not a business key to share externally.</td></tr><tr><td class="col-name"><span class="mono">customer_id</span> <span class="nn">NOT NULL</span></td><td class="mono type">INTEGER</td><td class="num"><span class="null-value">0.0%</span><svg class="null-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="null-bar-track" x="0" y="0" width="100" height="6" rx="1"/><rect class="null-bar-fill ok" x="0" y="0" width="0.00" height="6" rx="1"/></svg></td><td class="num">1,232</td><td class="samples"></td></tr><tr class="desc"><td colspan="5"><span class="desc-label">customer_id</span>Foreign-key-style reference to the customer that placed the order. Joins to the customers fixture table on customer_id.</td></tr><tr><td class="col-name"><span class="mono">product_id</span> <span class="nn">NOT NULL</span></td><td class="mono type">INTEGER</td><td class="num"><span class="null-value">0.0%</span><svg class="null-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="null-bar-track" x="0" y="0" width="100" height="6" rx="1"/><rect class="null-bar-fill ok" x="0" y="0" width="0.00" height="6" rx="1"/></svg></td><td class="num">1,217</td><td class="samples"></td></tr><tr class="desc"><td colspan="5"><span class="desc-label">product_id</span>Foreign-key-style reference to the ordered product. Joins to the products fixture table on product_id.</td></tr><tr><td class="col-name"><span class="mono">status</span> <span class="nn">NOT NULL</span></td><td class="mono type">VARCHAR</td><td class="num"><span class="null-value">0.3%</span><svg class="null-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="null-bar-track" x="0" y="0" width="100" height="6" rx="1"/><rect class="null-bar-fill ok" x="0" y="0" width="0.28" height="6" rx="1"/></svg></td><td class="num">10</td><td class="samples"><code class="sample">shipped</code> <code class="sample">delivered</code> <code class="sample">processing</code> <code class="sample">cancelled</code> <code class="sample">returned</code></td></tr><tr class="desc"><td colspan="5"><span class="desc-label">status</span>Fulfillment lifecycle status for the order row. Use this for workflow and delivery-state analysis, but normalize malformed values before treating it as a strict enum.</td></tr><tr><td class="col-name"><span class="mono">amount</span> <span class="nn">NOT NULL</span></td><td class="mono type">DOUBLE</td><td class="num"><span class="null-value">2.7%</span><svg class="null-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="null-bar-track" x="0" y="0" width="100" height="6" rx="1"/><rect class="null-bar-fill ok" x="0" y="0" width="2.70" height="6" rx="1"/></svg></td><td class="num">5,000</td><td class="samples"></td></tr><tr class="desc"><td colspan="5"><span class="desc-label">amount</span>Order amount in the fixture currency. Most analyses should exclude NULL amounts and review negative values before summing revenue.</td></tr><tr><td class="col-name"><span class="mono">region</span> <span class="nn">NOT NULL</span></td><td class="mono type">VARCHAR</td><td class="num"><span class="null-value">0.0%</span><svg class="null-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="null-bar-track" x="0" y="0" width="100" height="6" rx="1"/><rect class="null-bar-fill ok" x="0" y="0" width="0.00" height="6" rx="1"/></svg></td><td class="num">4</td><td class="samples"><code class="sample">LATAM</code> <code class="sample">NA</code> <code class="sample">EMEA</code> <code class="sample">APAC</code></td></tr><tr class="desc"><td colspan="5"><span class="desc-label">region</span>Sales region used for rollups and reporting. Good first dimension for grouped query examples.</td></tr><tr><td class="col-name"><span class="mono">order_date</span> <span class="nn">NOT NULL</span></td><td class="mono type">DATE</td><td class="num"><span class="null-value">0.0%</span><svg class="null-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="null-bar-track" x="0" y="0" width="100" height="6" rx="1"/><rect class="null-bar-fill ok" x="0" y="0" width="0.00" height="6" rx="1"/></svg></td><td class="num">1,213</td><td class="samples"><code class="sample">2023-08-07</code> <code class="sample">2025-06-07</code> <code class="sample">2023-02-07</code> <code class="sample">2024-08-25</code> <code class="sample">2023-04-22</code></td></tr><tr class="desc"><td colspan="5"><span class="desc-label">order_date</span>Order creation date. Use for trend analysis, period bucketing, and time-window filters.</td></tr></tbody></table></div>
+    </section>
+    
+
+    <section class="panel theme-amber">
+      <h2>quality</h2>
+      <div class="panel-body"><p class="summary"><span class="pill fail">0 fail</span><span class="pill warn">2 warn</span><span class="pill ok">5 ok</span></p><div class="callout warn"><h3>warn</h3><ul><li><span class="mono colname">status</span><span class="issues">0.2% unique</span></li><li><span class="mono colname">region</span><span class="issues">0.1% unique</span></li></ul></div></div>
+    </section>
+    
+
+    <section class="panel theme-sky">
+      <h2>related tables</h2>
+      <div class="panel-body"><table class="joins"><thead><tr><th>target</th><th>candidate keys</th><th class="num">top conf.</th></tr></thead><tbody><tr><td class="mono">customers</td><td><code>id ↔ id</code>, <code>customer_id ↔ id</code>, <code>customer_id ↔ customer_id</code></td><td class="num">0.90</td></tr><tr><td class="mono">datatypes</td><td><code>id ↔ id</code></td><td class="num">0.90</td></tr><tr><td class="mono">products</td><td><code>id ↔ id</code>, <code>product_id ↔ id</code></td><td class="num">0.90</td></tr></tbody></table></div>
+    </section>
+    
+<footer><details class="footer-cmd"><summary>Generated with qdo</summary><pre class="mono">qdo report table -c test -t orders -o &#x27;docs/examples/reports/orders-report.html&#x27;</pre></details></footer>
+</div>
+</body>
+</html>

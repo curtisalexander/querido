@@ -27,7 +27,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from querido.core.metadata import _read_yaml, _write_yaml, metadata_path
+from querido.core.metadata import (
+    _read_yaml,
+    _record_metadata_history,
+    _write_yaml,
+    metadata_path,
+)
 from querido.core.quality import QualityResult
 from querido.core.values import ValuesResult
 
@@ -260,8 +265,74 @@ def apply_updates(
             }
         )
 
+    before_text = path.read_text(encoding="utf-8")
     _write_yaml(path, meta)
-    return {"written": written, "skipped": skipped, "path": str(path)}
+    _record_metadata_history(
+        connection=connection,
+        table=table,
+        command=f"metadata write ({source})",
+        before_text=before_text,
+        after_path=path,
+    )
+    return {"written": written, "skipped": skipped, "path": str(path), "applied": True}
+
+
+def preview_updates(
+    connector: Connector,
+    connection: str,
+    table: str,
+    updates: list[FieldUpdate],
+    *,
+    source: str,
+    force: bool = False,
+) -> dict:
+    """Preview *updates* against the metadata YAML without writing anything."""
+    path = metadata_path(connection, table)
+    meta: dict[str, Any] = (_read_yaml(path) if path.exists() else {}) or {}
+
+    cols_by_name: dict[str, dict] = {}
+    for c in meta.get("columns") or []:
+        n = c.get("name")
+        if isinstance(n, str):
+            cols_by_name[n] = c
+
+    for col in connector.get_columns(table):
+        name = col.get("name")
+        if isinstance(name, str):
+            cols_by_name.setdefault(name, {"name": name})
+
+    written: list[dict] = []
+    skipped: list[dict] = []
+
+    for upd in updates:
+        target: dict[str, Any]
+        if upd.column is None:
+            target = meta
+        else:
+            maybe_target = cols_by_name.get(upd.column)
+            if maybe_target is None:
+                skipped.append(
+                    {"column": upd.column, "field": upd.field, "reason": "column_not_found"}
+                )
+                continue
+            target = maybe_target
+
+        existing = target.get(upd.field)
+        if _is_human_field(existing) and not force:
+            skipped.append({"column": upd.column, "field": upd.field, "reason": "human_authored"})
+            continue
+
+        written.append(
+            {
+                "column": upd.column,
+                "field": upd.field,
+                "value": upd.value,
+                "confidence": upd.confidence,
+                "source": source,
+            }
+        )
+
+    return {"written": written, "skipped": skipped, "path": str(path), "applied": False}
 
 
 def write_from_profile(
@@ -277,6 +348,19 @@ def write_from_profile(
     return apply_updates(connector, connection, table, updates, source="profile", force=force)
 
 
+def preview_from_profile(
+    connector: Connector,
+    connection: str,
+    table: str,
+    stats: list[dict],
+    col_info: list[dict],
+    *,
+    force: bool = False,
+) -> dict:
+    updates = derive_from_profile(stats, col_info)
+    return preview_updates(connector, connection, table, updates, source="profile", force=force)
+
+
 def write_from_values(
     connector: Connector,
     connection: str,
@@ -287,6 +371,18 @@ def write_from_values(
 ) -> dict:
     updates = derive_from_values(result)
     return apply_updates(connector, connection, table, updates, source="values", force=force)
+
+
+def preview_from_values(
+    connector: Connector,
+    connection: str,
+    table: str,
+    result: ValuesResult,
+    *,
+    force: bool = False,
+) -> dict:
+    updates = derive_from_values(result)
+    return preview_updates(connector, connection, table, updates, source="values", force=force)
 
 
 def write_from_quality(
@@ -301,6 +397,18 @@ def write_from_quality(
     return apply_updates(connector, connection, table, updates, source="quality", force=force)
 
 
+def preview_from_quality(
+    connector: Connector,
+    connection: str,
+    table: str,
+    result: QualityResult,
+    *,
+    force: bool = False,
+) -> dict:
+    updates = derive_from_quality(result)
+    return preview_updates(connector, connection, table, updates, source="quality", force=force)
+
+
 # Re-export for convenience
 __all__ = [
     "FieldUpdate",
@@ -308,6 +416,10 @@ __all__ = [
     "derive_from_profile",
     "derive_from_quality",
     "derive_from_values",
+    "preview_from_profile",
+    "preview_from_quality",
+    "preview_from_values",
+    "preview_updates",
     "write_from_profile",
     "write_from_quality",
     "write_from_values",
@@ -320,7 +432,9 @@ def format_write_note(summary: dict) -> str:
     skipped = summary.get("skipped") or []
     path = summary.get("path", "")
     skipped_human = sum(1 for s in skipped if s.get("reason") == "human_authored")
-    parts = [f"metadata: {len(written)} field(s) written to {path}"]
+    prefix = "metadata" if summary.get("applied", True) else "metadata plan"
+    verb = "written to" if summary.get("applied", True) else "would be written to"
+    parts = [f"{prefix}: {len(written)} field(s) {verb} {path}"]
     if skipped_human:
         parts.append(f"{skipped_human} skipped (human-authored; use --force to overwrite)")
     return "; ".join(parts)

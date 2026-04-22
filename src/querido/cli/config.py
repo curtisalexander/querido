@@ -90,13 +90,32 @@ def add(
 @friendly_errors
 def list_connections() -> None:
     """List all configured connections."""
+    from querido.config import get_config_dir, load_connections
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    connections = load_connections()
+    rows = [
+        {
+            "name": conn_name,
+            "type": conn_config.get("type", "?"),
+            "path": conn_config.get("path"),
+            "account": conn_config.get("account"),
+            "database": conn_config.get("database"),
+            "schema": conn_config.get("schema"),
+            "role": conn_config.get("role"),
+            "warehouse": conn_config.get("warehouse"),
+        }
+        for conn_name, conn_config in sorted(connections.items())
+    ]
+
+    if is_structured_format():
+        emit_envelope(command="config list", data={"connections": rows})
+        return
+
     from rich.console import Console
     from rich.table import Table
 
-    from querido.config import get_config_dir, load_connections
-
     console = Console()
-    connections = load_connections()
 
     if not connections:
         config_dir = get_config_dir()

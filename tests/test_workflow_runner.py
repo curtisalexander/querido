@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import sys
 import textwrap
 from pathlib import Path
@@ -504,7 +505,7 @@ def test_workflow_list_json() -> None:
     assert result.exit_code == 0, result.stdout
     envelope = json.loads(result.stdout)
     names = {e["name"] for e in envelope["data"]}
-    assert {"table-summary", "schema-compare"} <= names
+    assert {"table-summary", "schema-compare", "table-investigate"} <= names
 
 
 # -----------------------------------------------------------------------------
@@ -679,6 +680,51 @@ def test_run_workflow_aborts_on_step_failure(tmp_path: Path) -> None:
     with pytest.raises(StepFailed) as excinfo:
         run_workflow(doc, {}, cwd=tmp_path)
     assert excinfo.value.step_id == "broken"
+
+
+def test_bundled_table_investigate_runs_optional_branches(
+    tmp_path: Path, sqlite_path: str
+) -> None:
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(tmp_path)
+        seed = runner.invoke(
+            app,
+            ["-f", "json", "inspect", "-c", sqlite_path, "-t", "users"],
+            env={**os.environ, "QDO_SESSION": "baseline"},
+        )
+        assert seed.exit_code == 0, seed.stdout
+    finally:
+        os.chdir(old_cwd)
+
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN city TEXT")
+        conn.execute("UPDATE users SET city = 'Chicago' WHERE id = 1")
+        conn.execute("UPDATE users SET city = 'Austin' WHERE id = 2")
+        conn.commit()
+    finally:
+        conn.close()
+
+    entry = resolve_workflow("table-investigate", cwd=tmp_path)
+    doc = load_workflow_doc(entry.path)
+    result = run_workflow(
+        doc,
+        {
+            "connection": sqlite_path,
+            "table": "users",
+            "baseline_session": "baseline",
+            "focus_column": "city",
+        },
+        cwd=tmp_path,
+    )
+
+    assert result.outputs["row_count"] == 2
+    assert [c["name"] for c in result.outputs["columns"]][-1] == "city"
+    assert result.outputs["baseline_diff"]["row_count_delta"] == 0
+    assert [c["name"] for c in result.outputs["baseline_diff"]["added"]] == ["city"]
+    assert {v["value"] for v in result.outputs["focus_values"]} == {"Austin", "Chicago"}
+    assert result.outputs["focus_distribution_mode"] == "categorical"
 
 
 # -----------------------------------------------------------------------------
@@ -1220,6 +1266,7 @@ def test_from_session_skips_failed_and_meta_steps(tmp_path: Path) -> None:
         [
             {"args": ["inspect", "-c", "/tmp/x.db", "-t", "users"]},
             {"args": ["config", "list"]},  # meta — skipped
+            {"args": ["explore", "-c", "/tmp/x.db", "-t", "users"]},  # interactive — skipped
             {"args": ["preview", "-c", "/tmp/x.db", "-t", "users"], "exit_code": 1},  # failure
             {"args": ["profile", "-c", "/tmp/x.db", "-t", "users", "--quick"]},
         ],

@@ -191,6 +191,31 @@ def build_sample_source(
     return source, sampled, sample_size
 
 
+def normalize_distinct_count(value: object, row_count: int) -> int:
+    """Return a sane distinct count bounded to ``[0, row_count]``.
+
+    Approximate distinct algorithms can slightly overestimate cardinality.
+    That is fine internally, but user-facing output should never claim a
+    column has more distinct values than rows.
+    """
+    if value is None:
+        distinct = 0
+    elif isinstance(value, int):
+        distinct = value
+    elif isinstance(value, float):
+        distinct = int(value)
+    elif isinstance(value, (str, bytes, bytearray)):
+        try:
+            distinct = int(value)
+        except ValueError:
+            return 0
+    else:
+        return 0
+    if row_count <= 0:
+        return max(distinct, 0)
+    return min(max(distinct, 0), row_count)
+
+
 def unpack_single_row(row: dict, col_info: list[dict]) -> list[dict]:
     """Reshape a single wide row into per-column stat dicts.
 
@@ -204,13 +229,14 @@ def unpack_single_row(row: dict, col_info: list[dict]) -> list[dict]:
     for col in col_info:
         name = col.get("name", "")
         prefix = f"{name}__".lower()
+        distinct_count = normalize_distinct_count(row.get(f"{prefix}distinct_count"), total_rows)
         entry: dict = {
             "column_name": name,
             "column_type": col.get("type", ""),
             "total_rows": total_rows,
             "null_count": row.get(f"{prefix}null_count"),
             "null_pct": row.get(f"{prefix}null_pct"),
-            "distinct_count": row.get(f"{prefix}distinct_count"),
+            "distinct_count": distinct_count,
         }
         if col.get("numeric"):
             entry["min_val"] = row.get(f"{prefix}min_val")

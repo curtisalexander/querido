@@ -115,6 +115,7 @@ _AGENT_FALLBACK_CASES: list[tuple[str, list[str]]] = [
     ("context", ["context", "-t", "users"]),
     ("preview", ["preview", "-t", "users"]),
     ("profile", ["profile", "-t", "users"]),
+    ("freshness", ["freshness", "-t", "users"]),
     ("quality", ["quality", "-t", "users"]),
     ("values", ["values", "-t", "users", "--columns", "name"]),
     ("dist", ["dist", "-t", "users", "--columns", "age"]),

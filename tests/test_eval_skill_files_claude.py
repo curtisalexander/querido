@@ -1,4 +1,4 @@
-"""Tests for the eval_skill_files harness (EV.Build).
+"""Tests for the eval_skill_files_claude harness (EV.Build).
 
 These exercise the pure helpers — parser, checker, preflight guards — so
 regressions can be caught without actually calling ``claude -p``. The eval
@@ -17,16 +17,18 @@ import pytest
 # The eval script lives under scripts/, not the querido package, so we
 # load it by path. Same pattern scripts/eval_workflow_authoring.py would
 # use if it had a test file.
-_SCRIPT_PATH = Path(__file__).resolve().parent.parent / "scripts" / "eval_skill_files.py"
+_SCRIPT_PATH = (
+    Path(__file__).resolve().parent.parent / "scripts" / "eval_skill_files_claude.py"
+)
 
 
 @pytest.fixture(scope="module")
 def eval_mod():
-    """Import scripts/eval_skill_files.py as a module so we can hit its helpers."""
-    spec = importlib.util.spec_from_file_location("eval_skill_files", _SCRIPT_PATH)
+    """Import scripts/eval_skill_files_claude.py as a module so we can hit helpers."""
+    spec = importlib.util.spec_from_file_location("eval_skill_files_claude", _SCRIPT_PATH)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["eval_skill_files"] = mod
+    sys.modules["eval_skill_files_claude"] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -381,6 +383,21 @@ def test_check_pass_mixed_usage_and_crash_is_qdo_bug(eval_mod) -> None:
     assert r["failure_category"] == "qdo-bug"
 
 
+def test_check_pass_database_lock_has_own_category(eval_mod) -> None:
+    task = _task(eval_mod)
+    r = eval_mod.check_pass(
+        task=task,
+        qdo_commands=["qdo catalog -c /db"],
+        tool_errors=[
+            '{"error": true, "code": "DATABASE_ERROR", "message": "Could not set lock on file"}'
+        ],
+        final_text="retry later",
+    )
+    assert r["status"] == "fail"
+    assert r["failure_category"] == "database-lock"
+    assert "database lock" in r["reason"]
+
+
 def test_is_click_usage_error_matches_common_phrases(eval_mod) -> None:
     for phrase in (
         "Error: No such option: --foo",
@@ -424,6 +441,23 @@ def test_check_pass_missing_required_command(eval_mod) -> None:
     assert r["status"] == "fail"
     assert r["failure_category"] == "model-mistake"
     assert "expected" in r["reason"]
+
+
+def test_check_pass_missing_required_workflow_step(eval_mod) -> None:
+    task = _task(
+        eval_mod,
+        required_commands=["qdo catalog", "qdo context"],
+        required_all_commands=["qdo catalog", "qdo context"],
+    )
+    r = eval_mod.check_pass(
+        task=task,
+        qdo_commands=["qdo catalog -c /db -f json"],
+        tool_errors=[],
+        final_text="orders looks important",
+    )
+    assert r["status"] == "fail"
+    assert r["failure_category"] == "model-mistake"
+    assert "missing required workflow step" in r["reason"]
 
 
 def test_check_pass_content_regex_misses(eval_mod) -> None:

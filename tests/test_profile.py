@@ -172,6 +172,28 @@ def test_profile_short_C_flag(sqlite_path: str):
     assert col_names == ["name"]
 
 
+def test_profile_columns_and_column_set_conflict_json(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "profile",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "--columns",
+            "name",
+            "--column-set",
+            "default",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "MUTUALLY_EXCLUSIVE_OPTIONS"
+
+
 @pytest.fixture
 def string_only_sqlite(tmp_path: Path) -> str:
     db_path = str(tmp_path / "strings.db")
@@ -235,6 +257,89 @@ def test_profile_empty_table(tmp_path: Path):
     conn.close()
     result = runner.invoke(app, ["profile", "-c", db_path, "-t", "empty_t"])
     assert result.exit_code == 0
+
+
+def test_print_profile_rich_summary() -> None:
+    """Rich profile output should summarize column categories before detail tables."""
+    from rich.console import Console
+
+    from querido.output.console import print_profile
+
+    console = Console(record=True, width=120)
+    print_profile(
+        "orders",
+        [
+            {
+                "column_name": "amount",
+                "column_type": "REAL",
+                "min_val": 1.0,
+                "max_val": 99.0,
+                "mean_val": 50.0,
+                "median_val": 50.0,
+                "stddev_val": 10.0,
+                "null_count": 0,
+                "null_pct": 0.0,
+                "distinct_count": 10,
+            },
+            {
+                "column_name": "status",
+                "column_type": "TEXT",
+                "min_length": 4,
+                "max_length": 9,
+                "null_count": 2,
+                "null_pct": 1.0,
+                "distinct_count": 4,
+            },
+            {
+                "column_name": "payload",
+                "column_type": "BLOB",
+                "null_count": 0,
+                "null_pct": 0.0,
+                "distinct_count": 3,
+            },
+        ],
+        row_count=200,
+        console=console,
+    )
+    text = console.export_text()
+    assert "Profile Summary" in text
+    assert "1 numeric" in text
+    assert "1 string" in text
+    assert "1 other" in text
+    assert "3 columns" in text
+    assert "Numeric Columns" in text
+    assert "String Columns" in text
+    assert "Other Columns" in text
+
+
+def test_print_profile_rich_sample_note() -> None:
+    """Rich profile output should surface sampling context in the summary and footer."""
+    from rich.console import Console
+
+    from querido.output.console import print_profile
+
+    console = Console(record=True, width=120)
+    print_profile(
+        "users",
+        [
+            {
+                "column_name": "name",
+                "column_type": "TEXT",
+                "min_length": 3,
+                "max_length": 12,
+                "null_count": 0,
+                "null_pct": 0.0,
+                "distinct_count": 100,
+            }
+        ],
+        row_count=1000,
+        sampled=True,
+        sample_size=100,
+        console=console,
+    )
+    text = console.export_text()
+    assert "sampled 100" in text.lower()
+    assert "use --no-sample for exact results" in text.lower()
 
 
 # ---------------------------------------------------------------------------

@@ -35,6 +35,39 @@ _CATEGORY_LABELS = {
 _SKIP_BY_DEFAULT = {"sparse", "constant"}
 
 
+def _selection_summary(classification: dict) -> str:
+    """Return the triage summary text shown above the selection list."""
+    categories = classification.get("categories", {})
+    total = sum(len(names) for names in categories.values())
+    recommended = sum(
+        len(names) for key, names in categories.items() if key not in _SKIP_BY_DEFAULT
+    )
+    skipped = total - recommended
+    category_parts = [
+        f"{_CATEGORY_LABELS.get(key, key)}: {len(names)}"
+        for key, names in categories.items()
+        if names
+    ]
+    summary = (
+        "Quick profile ran first for this wide table. "
+        f"{recommended} recommended columns are pre-selected."
+    )
+    if skipped:
+        summary += f" {skipped} sparse/constant columns are skipped by default."
+    if category_parts:
+        summary += "\n" + "  |  ".join(category_parts)
+    return summary
+
+
+def _selection_label(name: str, stats: dict, *, recommended: bool) -> str:
+    """Return a concise row label for the column selector."""
+    col_type = stats.get("column_type", "")
+    null_pct = stats.get("null_pct", "")
+    distinct = stats.get("distinct_count", "")
+    prefix = "[rec]" if recommended else "[skip]"
+    return f"{prefix} {name} ({col_type})  null: {null_pct}%  distinct: {distinct}"
+
+
 class ColumnSelectorScreen(ModalScreen[list[str] | None]):
     """Multi-select modal for choosing columns after Tier 1 classification."""
 
@@ -55,6 +88,11 @@ class ColumnSelectorScreen(ModalScreen[list[str] | None]):
         text-align: center;
         text-style: bold;
         padding-bottom: 1;
+    }
+
+    #selector-summary {
+        padding-bottom: 1;
+        color: $text-muted;
     }
 
     #selector-list {
@@ -109,6 +147,7 @@ class ColumnSelectorScreen(ModalScreen[list[str] | None]):
             stats_by_name[s.get("column_name", "")] = s
 
         categories = self._classification.get("categories", {})
+        summary = _selection_summary(self._classification)
 
         selections: list[Selection[str]] = []
 
@@ -126,25 +165,23 @@ class ColumnSelectorScreen(ModalScreen[list[str] | None]):
             pre_select = cat_key not in _SKIP_BY_DEFAULT
             for name in col_names:
                 s = stats_by_name.get(name, {})
-                col_type = s.get("column_type", "")
-                null_pct = s.get("null_pct", "")
-                distinct = s.get("distinct_count", "")
-                display = f"  {name} ({col_type})  null: {null_pct}%  distinct: {distinct}"
+                display = _selection_label(name, s, recommended=pre_select)
                 selections.append(Selection(display, name, pre_select))
                 self._ordered_names.append(name)
 
         with Vertical(id="selector-container"):
             yield Static(
-                f"Select columns to profile — {self._table}",
+                f"Wide-table triage — {self._table}",
                 id="selector-title",
             )
+            yield Static(summary, id="selector-summary")
             yield SelectionList[str](*selections, id="selector-list")
             yield Input(
                 placeholder="Column set name (then Enter to save)",
                 id="save-input",
             )
             yield Static(
-                "[a] All  [n] None  [s] Save set  [Enter] Profile selected  [Esc] Cancel",
+                "[a] All  [n] None  [s] Save set  [Enter] Profile selected  [Esc] Keep quick view",
                 id="selector-footer",
             )
 

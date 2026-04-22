@@ -29,7 +29,7 @@ querido/
 │   ├── check_deps.py              # Dependency checker with supply-chain quarantine
 │   ├── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
 │   ├── eval_workflow_authoring.py # Self-hosting eval: claude -p writes workflows (Phase 4.6)
-│   ├── eval_skill_files.py        # Self-hosting eval: claude -p answers data questions via SKILL.md (EV.Build)
+│   ├── eval_skill_files_claude.py # Self-hosting eval: claude -p answers data questions via SKILL.md (EV.Build)
 │   └── retag.sh                   # Move release tag to current commit
 ├── src/
 │   └── querido/
@@ -383,7 +383,7 @@ CLI resolves `--connection` by:
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
-Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage` (view-def), `print_frequencies`, `print_template`. HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The report renderer (`output/report_html.py`) produces a single-file shareable report for `qdo report table`.
+Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist`, `print_lineage` (view-def), `print_frequencies`, `print_template`. Recent Phase 7 work moved the main human-facing scan commands toward a common presentation pattern: compact header, summary panel, then detailed Rich table(s). HTML output (`output/html.py`) generates standalone HTML pages with embedded CSS/JS for sorting, filtering, copy, and CSV export. The report renderer (`output/report_html.py`) produces a single-file shareable report for `qdo report table`.
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 

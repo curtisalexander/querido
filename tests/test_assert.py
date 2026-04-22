@@ -1,5 +1,7 @@
 """Tests for qdo assert command."""
 
+import json
+
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -183,6 +185,16 @@ def test_assert_no_operator(sqlite_path: str):
     )
     assert result.exit_code != 0
     assert "Must provide one of" in result.output
+
+
+def test_assert_no_operator_json(sqlite_path: str):
+    result = runner.invoke(
+        app,
+        ["-f", "json", "assert", "-c", sqlite_path, "--sql", "select 1"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "ASSERT_COMPARISON_REQUIRED"
 
 
 def test_assert_format_json(sqlite_path: str):

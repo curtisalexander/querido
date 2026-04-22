@@ -20,6 +20,21 @@ Every workflow carries inline `# why:` comments explaining *why* each step is sh
 qdo workflow run table-summary connection=mydb table=orders
 ```
 
+## table-investigate
+
+**Shape:** summary + optional branches.
+**Inputs:** `connection`, `table`, optional `baseline_session`, optional `focus_column`, optional `top_n`.
+**Pattern:** always run `context` and `quality`; optionally run `diff --since <session>` when the caller provides a prior session name; optionally run `values` + `dist` when the caller provides a focus column.
+**Teaches:** null-safe optional branches driven by inputs rather than schema introspection; reusing the existing session-backed diff primitive inside a workflow instead of inventing extra snapshot state; outputs that degrade to `null` when optional branches are not requested.
+
+**Use when:** you want one command for the common “understand this table, tell me what changed since last time, and deep-dive this one field” loop.
+
+```bash
+qdo workflow run table-investigate connection=mydb table=orders
+qdo workflow run table-investigate connection=mydb table=orders baseline_session=weekly-audit
+qdo workflow run table-investigate connection=mydb table=orders baseline_session=weekly-audit focus_column=status
+```
+
 ## schema-compare
 
 **Shape:** conditional follow-up (`when:`).
@@ -67,8 +82,8 @@ qdo workflow run column-deep-dive connection=mydb table=customers column=country
 
 **Shape:** same-primitive-twice composition.
 **Inputs:** `connection`, `table`.
-**Pattern:** two `profile` steps with different flags — first `--quick` (fast row/null counts for every column), then `--classify` (categorizes columns as numeric / categorical / temporal / high-cardinality / identifier).
-**Teaches:** step ids must be unique even when the subcommand repeats; using `--classify` to drive a follow-up decision about which subset to profile in full.
+**Pattern:** two `profile` steps with different flags — first `--quick` (fast null/distinct scan for every column), then `--classify` (groups columns into triage buckets such as constant, sparse, high-cardinality, time, measure, and low-cardinality).
+**Teaches:** step ids must be unique even when the subcommand repeats; using `--classify` to decide which subset is worth a full profile or a saved column set.
 
 **Use when:** a table has 50+ columns and you need to triage before investing time in a full profile. Follow-up: persist a `column-set` with `qdo config column-set save` so subsequent runs target only the interesting columns.
 

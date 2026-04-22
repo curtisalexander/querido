@@ -64,6 +64,39 @@ def schema_diff(
     }
 
 
+def session_schema_diff(
+    *,
+    table: str,
+    current_columns: list[dict],
+    current_row_count: int,
+    snapshot: dict,
+) -> dict:
+    """Compare the live table against a saved session snapshot."""
+    snapshot_table = str(snapshot.get("table") or table)
+    snapshot_label = snapshot_table
+    if snapshot.get("session") and snapshot.get("step_index"):
+        snapshot_label = f"{snapshot_table} @ {snapshot['session']}#{snapshot['step_index']}"
+
+    result = schema_diff(
+        snapshot_label,
+        snapshot.get("columns", []),
+        table,
+        current_columns,
+    )
+    previous_row_count = snapshot.get("row_count")
+    result["since"] = {
+        "session": snapshot.get("session"),
+        "step_index": snapshot.get("step_index"),
+        "timestamp": snapshot.get("timestamp"),
+        "command": snapshot.get("command"),
+    }
+    result["previous_row_count"] = previous_row_count
+    result["current_row_count"] = current_row_count
+    if isinstance(previous_row_count, int):
+        result["row_count_delta"] = current_row_count - previous_row_count
+    return result
+
+
 def _col_summary(col: dict) -> dict:
     return {
         "name": col.get("name", ""),

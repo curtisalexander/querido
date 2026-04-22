@@ -154,6 +154,15 @@ class TestSemanticCLI:
         assert result.exit_code != 0
         assert "Snowflake" in result.output
 
+    def test_semantic_rejects_sqlite_json(self, snowflake_cmd_sqlite: str):
+        result = runner.invoke(
+            app,
+            ["-f", "json", "snowflake", "semantic", "-t", "orders", "-c", snowflake_cmd_sqlite],
+        )
+        assert result.exit_code != 0
+        payload = json.loads(result.output)
+        assert payload["code"] == "SNOWFLAKE_REQUIRED"
+
 
 # ---------------------------------------------------------------------------
 # F9: Lineage CLI — non-Snowflake rejection
@@ -185,6 +194,26 @@ class TestLineageCLI:
         )
         assert result.exit_code != 0
 
+    def test_lineage_invalid_direction_json(self, snowflake_cmd_sqlite: str):
+        result = runner.invoke(
+            app,
+            [
+                "-f",
+                "json",
+                "snowflake",
+                "lineage",
+                "--object",
+                "db.schema.orders",
+                "-c",
+                snowflake_cmd_sqlite,
+                "-d",
+                "sideways",
+            ],
+        )
+        assert result.exit_code != 0
+        payload = json.loads(result.output)
+        assert payload["code"] == "LINEAGE_DIRECTION_INVALID"
+
     def test_lineage_invalid_domain(self, snowflake_cmd_sqlite: str):
         result = runner.invoke(
             app,
@@ -200,6 +229,26 @@ class TestLineageCLI:
             ],
         )
         assert result.exit_code != 0
+
+    def test_lineage_invalid_domain_json(self, snowflake_cmd_sqlite: str):
+        result = runner.invoke(
+            app,
+            [
+                "-f",
+                "json",
+                "snowflake",
+                "lineage",
+                "--object",
+                "db.schema.orders",
+                "-c",
+                snowflake_cmd_sqlite,
+                "--domain",
+                "database",
+            ],
+        )
+        assert result.exit_code != 0
+        payload = json.loads(result.output)
+        assert payload["code"] == "LINEAGE_DOMAIN_INVALID"
 
 
 # ---------------------------------------------------------------------------

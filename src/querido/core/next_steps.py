@@ -131,7 +131,7 @@ def for_catalog(
     if not tables:
         steps.append(
             _step(
-                ["qdo", "config", "test", "-c", connection],
+                ["qdo", "config", "test", connection],
                 "No tables visible — verify the connection works.",
             )
         )
@@ -146,11 +146,12 @@ def for_catalog(
             )
         )
 
-    if len(tables) >= 2:
+    join_source = largest or next((t.get("name") for t in tables if t.get("name")), None)
+    if len(tables) >= 2 and join_source:
         steps.append(
             _step(
-                ["qdo", "joins", "-c", connection],
-                "Discover likely join keys across tables.",
+                ["qdo", "joins", "-c", connection, "-t", join_source],
+                "Discover likely join keys from a representative table.",
             )
         )
 
@@ -163,6 +164,41 @@ def for_catalog(
         )
 
     return steps
+
+
+def for_catalog_functions(
+    result: dict,
+    *,
+    connection: str,
+    pattern: str | None,
+) -> list[dict]:
+    """Rules for ``qdo catalog functions``."""
+    if not result.get("supported", True):
+        return [
+            _step(
+                ["qdo", "catalog", "-c", connection],
+                "SQLite catalogs tables and views, but not backend SQL functions.",
+            )
+        ]
+
+    if not result.get("functions") and pattern:
+        return [
+            _step(
+                ["qdo", "catalog", "functions", "-c", connection],
+                "No functions matched that filter; rerun without --pattern to browse everything.",
+            ),
+            _step(
+                ["qdo", "catalog", "-c", connection],
+                "Step back to tables/views if you meant data objects rather than SQL functions.",
+            ),
+        ]
+
+    return [
+        _step(
+            ["qdo", "catalog", "-c", connection],
+            "Step back to tables/views if you meant data objects rather than SQL functions.",
+        )
+    ]
 
 
 def for_context(
@@ -233,6 +269,60 @@ def for_context(
         steps.append(pointer)
 
     return steps
+
+
+def for_freshness(
+    result: dict,
+    *,
+    connection: str,
+    table: str,
+) -> list[dict]:
+    """Rules for ``qdo freshness``."""
+    selected = result.get("selected_column")
+    status = result.get("status")
+
+    if not selected:
+        return [
+            _step(
+                ["qdo", "inspect", "-c", connection, "-t", table],
+                "Check the schema to confirm whether the table has any usable timestamp columns.",
+            ),
+            _step(
+                ["qdo", "context", "-c", connection, "-t", table],
+                "Review column types and sample values to find a better freshness signal.",
+            ),
+        ]
+
+    if status == "stale":
+        sql = f'select * from {table} order by "{selected}" desc limit 20'
+        return [
+            _step(
+                ["qdo", "query", "-c", connection, "--sql", sql],
+                f"Inspect the newest rows by '{selected}' to see why freshness looks stale.",
+            ),
+            _step(
+                ["qdo", "quality", "-c", connection, "-t", table, "--columns", selected],
+                f"Check nulls and anomalies in the freshness column '{selected}'.",
+            ),
+        ]
+
+    return [
+        _step(
+            [
+                "qdo",
+                "query",
+                "-c",
+                connection,
+                "--sql",
+                f'select max("{selected}") as latest_ts from {table}',
+            ],
+            f"Verify the latest value in '{selected}' directly.",
+        ),
+        _step(
+            ["qdo", "context", "-c", connection, "-t", table],
+            "Step out to the broader table context if you need more than recency.",
+        ),
+    ]
 
 
 def for_preview(
@@ -514,7 +604,7 @@ def for_diff(
     *,
     connection: str,
     left_table: str,
-    right_table: str,
+    right_table: str | None,
     target_connection: str | None = None,
 ) -> list[dict]:
     """Rules for ``qdo diff``.
@@ -527,6 +617,7 @@ def for_diff(
     removed = result.get("removed") or []
     changed = result.get("changed") or []
     right_conn = target_connection or connection
+    right_target = right_table or result.get("right") or left_table
 
     if not added and not removed and not changed:
         steps.append(
@@ -545,8 +636,8 @@ def for_diff(
     )
     steps.append(
         _step(
-            ["qdo", "inspect", "-c", right_conn, "-t", right_table],
-            f"Full schema for right side ('{right_table}').",
+            ["qdo", "inspect", "-c", right_conn, "-t", right_target],
+            f"Full schema for right side ('{right_target}').",
         )
     )
     return steps
@@ -812,6 +903,70 @@ def for_metadata_show(
     return steps
 
 
+def for_metadata_search(
+    result: dict,
+    *,
+    connection: str,
+) -> list[dict]:
+    """Rules for ``qdo metadata search``."""
+    if not result.get("metadata_file_count"):
+        return [
+            _step(
+                ["qdo", "metadata", "list", "-c", connection],
+                "Check whether this connection has any stored metadata files yet.",
+            ),
+            _step(
+                ["qdo", "catalog", "-c", connection],
+                "Browse live tables, then scaffold metadata for the ones you care about.",
+            ),
+        ]
+
+    matches = result.get("results") or []
+    if not matches:
+        return [
+            _step(
+                ["qdo", "metadata", "list", "-c", connection],
+                "Browse the stored metadata corpus to refine the next search.",
+            ),
+            _step(
+                ["qdo", "catalog", "-c", connection, "--enrich"],
+                "Compare live schema names with the stored descriptions and owners.",
+            ),
+        ]
+
+    top = matches[0]
+    table = str(top.get("table") or "")
+    column = top.get("column")
+    if not table:
+        return []
+
+    steps = [
+        _step(
+            ["qdo", "metadata", "show", "-c", connection, "-t", table],
+            f"Open the stored metadata for '{table}'.",
+        ),
+        _step(
+            ["qdo", "context", "-c", connection, "-t", table],
+            f"Pull live stats and sample values for '{table}'.",
+        ),
+    ]
+    if isinstance(column, str) and column:
+        steps.append(
+            _step(
+                [
+                    "qdo",
+                    "query",
+                    "-c",
+                    connection,
+                    "--sql",
+                    _preview_column_sql(table, column),
+                ],
+                f"Inspect recent non-null values from '{table}.{column}'.",
+            )
+        )
+    return steps
+
+
 def for_template(
     result: dict,
     *,
@@ -848,6 +1003,16 @@ def for_template(
         steps.append(pointer)
 
     return steps
+
+
+def _preview_column_sql(table: str, column: str) -> str:
+    quoted_table = table.replace('"', '""')
+    quoted_column = column.replace('"', '""')
+    return (
+        f'SELECT "{quoted_column}" '
+        f'FROM "{quoted_table}" '
+        f'WHERE "{quoted_column}" IS NOT NULL LIMIT 20'
+    )
 
 
 # -- errors -------------------------------------------------------------------
@@ -898,7 +1063,7 @@ def for_error(
     elif code == "DATABASE_OPEN_FAILED" and connection:
         steps.append(
             _step(
-                ["qdo", "config", "test", "-c", connection],
+                ["qdo", "config", "test", connection],
                 "Verify the connection's path or credentials.",
             )
         )
@@ -906,7 +1071,7 @@ def for_error(
     elif code == "AUTH_FAILED" and connection:
         steps.append(
             _step(
-                ["qdo", "config", "test", "-c", connection],
+                ["qdo", "config", "test", connection],
                 "Re-authenticate and verify the connection.",
             )
         )
@@ -928,6 +1093,89 @@ def for_error(
     elif code == "FILE_NOT_FOUND":
         steps.append(
             _step(["qdo", "config", "list"], "List configured connections to find the right path.")
+        )
+
+    elif code == "SESSION_NOT_FOUND":
+        steps.append(
+            _step(
+                ["qdo", "session", "list"],
+                "List recorded sessions to find the right name.",
+            )
+        )
+
+    elif code in {
+        "SESSION_STEP_NOT_FOUND",
+        "SESSION_STEP_UNSTRUCTURED",
+        "SESSION_STEP_UNSUPPORTED",
+        "SESSION_STEP_NO_SQL",
+        "SESSION_STEP_REF_INVALID",
+    }:
+        steps.append(
+            _step(
+                ["qdo", "session", "show", "<session>"],
+                "Inspect the session and pick a recorded query step reference.",
+            )
+        )
+
+    elif code == "SESSION_SNAPSHOT_NOT_FOUND":
+        if connection and table:
+            steps.append(
+                _step(
+                    ["qdo", "-f", "json", "inspect", "-c", connection, "-t", table],
+                    "Record a structured snapshot before diffing against a session.",
+                )
+            )
+        steps.append(
+            _step(
+                ["qdo", "session", "show", "<session>"],
+                "Inspect the session to confirm it captured this table in structured form.",
+            )
+        )
+
+    elif code == "METADATA_NOT_FOUND" and connection and table:
+        steps.append(
+            _step(
+                ["qdo", "metadata", "init", "-c", connection, "-t", table],
+                "Create the metadata YAML before trying to read it.",
+            )
+        )
+
+    elif code == "COLUMN_SET_NOT_FOUND" and connection and table:
+        steps.append(
+            _step(
+                ["qdo", "config", "column-set", "list", "-c", connection, "-t", table],
+                "List saved column sets for this table.",
+            )
+        )
+
+    elif code == "SNOWFLAKE_REQUIRED":
+        steps.append(
+            _step(
+                ["qdo", "config", "list"],
+                "List configured connections and pick a Snowflake one.",
+            )
+        )
+
+    elif code == "WRITE_REQUIRES_ALLOW_WRITE":
+        steps.append(
+            {
+                "cmd": "qdo query --allow-write -c <connection> --sql '<write statement>'",
+                "why": "Re-run only if you intend to mutate data.",
+            }
+        )
+        steps.append(
+            {
+                "cmd": "qdo query -c <connection> --sql 'select ...'",
+                "why": "Keep using the default read-only path for inspection queries.",
+            }
+        )
+
+    elif code == "CONNECTION_NOT_FOUND":
+        steps.append(
+            _step(
+                ["qdo", "config", "list"],
+                "List configured connections to find the right source name.",
+            )
         )
 
     return steps

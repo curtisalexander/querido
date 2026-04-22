@@ -1,0 +1,139 @@
+table: orders
+connection: test
+row_count: 5000
+table_comment: ''
+table_description: 'Example sales orders fact table used throughout the qdo docs and
+  tests. One row per order line, linking a customer to a product with fulfillment
+  status, order amount, region, and order date.
+
+  '
+data_owner: Revenue Operations Analytics
+update_frequency: Daily batch load
+notes: 'This example table intentionally includes a small number of data-quality issues
+  so qdo quality, values, and report output have something real to surface. The canonical
+  fulfillment statuses are pending, processing, shipped, delivered, returned, and
+  cancelled. The fixture also includes a few malformed variants (for example PENDING,
+  Shipped, and canceled), 14 NULL statuses, 135 NULL amounts, and a small number of
+  negative amounts that should be treated as refunds or bad data depending on the
+  analysis.
+
+  '
+columns:
+- name: id
+  type: BIGINT
+  nullable: false
+  primary_key: false
+  description: 'Synthetic order-row identifier used in the sample fixture. Useful
+    for row-level debugging, but not a business key to share externally.
+
+    '
+  distinct_count: 5000
+  null_count: 0
+  null_pct: 0.0
+  min_val: 1
+  max_val: 5000
+  sample_values: 1, 2, 3
+  pii: false
+- name: customer_id
+  type: INTEGER
+  nullable: false
+  primary_key: false
+  description: 'Foreign-key-style reference to the customer that placed the order.
+    Joins to the customers fixture table on customer_id.
+
+    '
+  distinct_count: 1232
+  null_count: 0
+  null_pct: 0.0
+  min_val: 1
+  max_val: 1000
+  sample_values: 559, 93, 268
+  pii: false
+- name: product_id
+  type: INTEGER
+  nullable: false
+  primary_key: false
+  description: 'Foreign-key-style reference to the ordered product. Joins to the products
+    fixture table on product_id.
+
+    '
+  distinct_count: 1217
+  null_count: 0
+  null_pct: 0.0
+  min_val: 1
+  max_val: 1000
+  sample_values: 797, 414, 554
+  pii: false
+- name: status
+  type: VARCHAR
+  nullable: false
+  primary_key: false
+  description: 'Fulfillment lifecycle status for the order row. Use this for workflow
+    and delivery-state analysis, but normalize malformed values before treating it
+    as a strict enum.
+
+    '
+  distinct_count: 10
+  null_count: 14
+  null_pct: 0.28
+  min_val: null
+  max_val: null
+  sample_values: pending, shipped, cancelled
+  pii: false
+  valid_values:
+  - pending
+  - processing
+  - shipped
+  - delivered
+  - returned
+  - cancelled
+- name: amount
+  type: DOUBLE
+  nullable: false
+  primary_key: false
+  description: 'Order amount in the fixture currency. Most analyses should exclude
+    NULL amounts and review negative values before summing revenue.
+
+    '
+  distinct_count: 5000
+  null_count: 135
+  null_pct: 2.7
+  min_val: -498.88
+  max_val: 4999.85
+  sample_values: 916.07, 1434.92, 4282.26
+  pii: false
+- name: region
+  type: VARCHAR
+  nullable: false
+  primary_key: false
+  description: 'Sales region used for rollups and reporting. Good first dimension
+    for grouped query examples.
+
+    '
+  distinct_count: 4
+  null_count: 0
+  null_pct: 0.0
+  min_val: null
+  max_val: null
+  sample_values: APAC, APAC, LATAM
+  pii: false
+  valid_values:
+  - APAC
+  - EMEA
+  - LATAM
+  - NA
+- name: order_date
+  type: DATE
+  nullable: false
+  primary_key: false
+  description: 'Order creation date. Use for trend analysis, period bucketing, and
+    time-window filters.
+
+    '
+  distinct_count: 1213
+  null_count: 0
+  null_pct: 0.0
+  min_val: null
+  max_val: null
+  sample_values: 2023-11-01, 2025-01-06, 2023-03-06
+  pii: false

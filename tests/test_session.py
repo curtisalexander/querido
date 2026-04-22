@@ -206,6 +206,25 @@ def test_session_list_shows_sessions(tmp_path: Path, sqlite_path: str) -> None:
     assert "1 step" in result.output
 
 
+def test_session_list_json_uses_structured_envelope(tmp_path: Path, sqlite_path: str) -> None:
+    _run(
+        ["inspect", "--connection", sqlite_path, "--table", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "alpha"},
+    )
+    result = _run(["-f", "json", "session", "list"], cwd=tmp_path)
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["command"] == "session list"
+    assert payload["data"]["sessions"] == [
+        {
+            "name": "alpha",
+            "step_count": 1,
+            "last_timestamp": payload["data"]["sessions"][0]["last_timestamp"],
+        }
+    ]
+
+
 def test_session_show_prints_steps(tmp_path: Path, sqlite_path: str) -> None:
     for _ in range(2):
         _run(
@@ -220,6 +239,141 @@ def test_session_show_prints_steps(tmp_path: Path, sqlite_path: str) -> None:
     assert "[  2]" in result.output
 
 
+def test_session_show_json_uses_structured_envelope(tmp_path: Path, sqlite_path: str) -> None:
+    _run(
+        ["preview", "--connection", sqlite_path, "--table", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "s1"},
+    )
+    result = _run(["-f", "json", "session", "show", "s1"], cwd=tmp_path)
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["command"] == "session show"
+    assert payload["meta"]["session"] == "s1"
+    assert payload["data"]["name"] == "s1"
+    assert len(payload["data"]["steps"]) == 1
+
+
 def test_session_show_missing(tmp_path: Path) -> None:
     result = _run(["session", "show", "nope"], cwd=tmp_path)
     assert result.exit_code != 0
+
+
+def test_session_replay_reexecutes_successful_steps(tmp_path: Path, sqlite_path: str) -> None:
+    _run(
+        ["-f", "json", "preview", "--connection", sqlite_path, "--table", "users", "--rows", "1"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "source"},
+    )
+    _run(
+        ["-f", "json", "query", "--connection", sqlite_path, "--sql", "select name from users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "source"},
+    )
+
+    result = _run(["session", "replay", "source"], cwd=tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "into session 'replay-source-" in result.output
+
+    sessions = [
+        name
+        for name in session.list_sessions(cwd=tmp_path)
+        if name.startswith("replay-source-")
+    ]
+    assert len(sessions) == 1
+    replay_name = sessions[0]
+    replay_steps = list(session.iter_steps(replay_name, cwd=tmp_path))
+    assert len(replay_steps) == 2
+    assert replay_steps[0]["args"] == [
+        "preview",
+        "--connection",
+        sqlite_path,
+        "--table",
+        "users",
+        "--rows",
+        "1",
+    ]
+    assert replay_steps[1]["args"] == [
+        "query",
+        "--connection",
+        sqlite_path,
+        "--sql",
+        "select name from users",
+    ]
+
+
+def test_session_replay_into_named_session(tmp_path: Path, sqlite_path: str) -> None:
+    _run(
+        ["inspect", "--connection", sqlite_path, "--table", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "source"},
+    )
+
+    result = _run(["session", "replay", "source", "--into", "rerun"], cwd=tmp_path)
+    assert result.exit_code == 0, result.output
+
+    replay_steps = list(session.iter_steps("rerun", cwd=tmp_path))
+    assert len(replay_steps) == 1
+    assert replay_steps[0]["cmd"] == "inspect"
+
+
+def test_session_replay_json_uses_structured_envelope(tmp_path: Path, sqlite_path: str) -> None:
+    _run(
+        ["preview", "--connection", sqlite_path, "--table", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "source"},
+    )
+
+    result = _run(["-f", "json", "session", "replay", "source", "--into", "rerun"], cwd=tmp_path)
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "session replay"
+    assert payload["meta"]["session"] == "source"
+    assert payload["meta"]["replay_session"] == "rerun"
+    assert payload["data"]["source_session"] == "source"
+    assert payload["data"]["replay_session"] == "rerun"
+    assert payload["data"]["step_count"] == 1
+    assert any("qdo session show rerun" in step["cmd"] for step in payload["next_steps"])
+
+
+def test_session_replay_stops_on_first_failure(tmp_path: Path, sqlite_path: str) -> None:
+    _run(
+        ["preview", "--connection", sqlite_path, "--table", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "source"},
+    )
+    _run(
+        ["query", "--connection", sqlite_path, "--sql", "select * from no_such_table"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "source"},
+    )
+    _run(
+        ["inspect", "--connection", sqlite_path, "--table", "users"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "source"},
+    )
+
+    result = _run(["session", "replay", "source", "--into", "rerun"], cwd=tmp_path)
+    assert result.exit_code == 0, result.output
+
+    replay_steps = list(session.iter_steps("rerun", cwd=tmp_path))
+    # Only successful source steps are replayable, so the failed query is skipped.
+    assert len(replay_steps) == 2
+    assert replay_steps[0]["cmd"] == "preview"
+    assert replay_steps[1]["cmd"] == "inspect"
+
+
+def test_session_replay_last_limits_replayed_steps(tmp_path: Path, sqlite_path: str) -> None:
+    for rows in ("1", "2"):
+        _run(
+            ["preview", "--connection", sqlite_path, "--table", "users", "--rows", rows],
+            cwd=tmp_path,
+            env={"QDO_SESSION": "source"},
+        )
+
+    result = _run(["session", "replay", "source", "--into", "rerun", "--last", "1"], cwd=tmp_path)
+    assert result.exit_code == 0, result.output
+
+    replay_steps = list(session.iter_steps("rerun", cwd=tmp_path))
+    assert len(replay_steps) == 1
+    assert replay_steps[0]["args"][-1] == "2"

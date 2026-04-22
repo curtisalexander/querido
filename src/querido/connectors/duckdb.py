@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Self
 
 from querido.connectors.base import validate_table_name, wrap_driver_error
@@ -17,11 +18,14 @@ class DuckDBConnector:
     dialect = "duckdb"
     supports_concurrent_queries = False
 
-    def __init__(self, path: str = ":memory:") -> None:
+    def __init__(self, path: str = ":memory:", *, read_only: bool | None = None) -> None:
         import duckdb
 
+        if read_only is None:
+            read_only = path != ":memory:" and Path(path).exists()
+
         try:
-            self.conn = duckdb.connect(path)
+            self.conn = duckdb.connect(path, read_only=read_only)
         except duckdb.Error as exc:
             wrapped = wrap_driver_error(exc)
             if wrapped is not None:

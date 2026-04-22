@@ -16,7 +16,12 @@ def diff(
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
-    target: str = typer.Option(..., "--target", help="Right table name."),
+    target: str | None = typer.Option(None, "--target", help="Right table name."),
+    since: str | None = typer.Option(
+        None,
+        "--since",
+        help="Compare the live table to the latest structured snapshot in a session.",
+    ),
     target_connection: str | None = typer.Option(
         None,
         "--target-connection",
@@ -35,32 +40,71 @@ def diff(
 
     Cross-connection:
         qdo diff -c staging.db -t users --target-connection prod.db --target users
+
+    Against a prior session snapshot:
+        qdo diff -c ./my.db -t users --since migration-audit
     """
     from querido.cli._pipeline import dispatch_output
+    from querido.cli._validation import resolve_table
     from querido.config import resolve_connection
     from querido.connectors.base import validate_table_name
     from querido.connectors.factory import create_connector
-    from querido.core.diff import schema_diff
+    from querido.core.diff import schema_diff, session_schema_diff
+    from querido.core.session import find_latest_table_snapshot, session_dir
+
+    if since and target:
+        raise typer.BadParameter("Cannot use both --target and --since.")
+    if since and target_connection:
+        raise typer.BadParameter("Cannot use --target-connection with --since.")
+    if not since and not target:
+        raise typer.BadParameter("Must provide either --target or --since.")
 
     validate_table_name(table)
-    validate_table_name(target)
+    if target:
+        validate_table_name(target)
 
     config = resolve_connection(connection, db_type)
+    target_table = target
 
-    if target_connection:
+    if since:
+        session_path = session_dir(since)
+        if not session_path.is_dir():
+            raise typer.BadParameter(f"Session not found: {since}")
+
+        with create_connector(config) as conn:
+            resolved_table = resolve_table(conn, table)
+            current_cols = conn.get_columns(resolved_table)
+            current_row_count = conn.get_row_count(resolved_table)
+
+        snapshot = find_latest_table_snapshot(since, connection=connection, table=resolved_table)
+        if snapshot is None:
+            raise typer.BadParameter(
+                f"No structured inspect/context snapshot found for table '{resolved_table}' "
+                f"in session '{since}'."
+            )
+
+        result = session_schema_diff(
+            table=resolved_table,
+            current_columns=current_cols,
+            current_row_count=current_row_count,
+            snapshot=snapshot,
+        )
+    elif target_connection:
+        assert target_table is not None
         # Cross-connection diff
         target_config = resolve_connection(target_connection, db_type)
         with create_connector(config) as left_conn:
             left_cols = left_conn.get_columns(table)
         with create_connector(target_config) as right_conn:
-            right_cols = right_conn.get_columns(target)
+            right_cols = right_conn.get_columns(target_table)
+        result = schema_diff(table, left_cols, target_table, right_cols)
     else:
+        assert target_table is not None
         # Same connection
         with create_connector(config) as conn:
             left_cols = conn.get_columns(table)
-            right_cols = conn.get_columns(target)
-
-    result = schema_diff(table, left_cols, target, right_cols)
+            right_cols = conn.get_columns(target_table)
+        result = schema_diff(table, left_cols, target_table, right_cols)
 
     from querido.output.envelope import emit_envelope, is_structured_format
 
@@ -74,7 +118,7 @@ def diff(
                 result,
                 connection=connection,
                 left_table=table,
-                right_table=target,
+                right_table=target_table,
                 target_connection=target_connection,
             ),
             connection=connection,
