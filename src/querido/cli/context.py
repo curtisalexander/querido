@@ -22,7 +22,6 @@ def context(
     sample_values: int = typer.Option(
         5,
         "--sample-values",
-        "-s",
         help=(
             "Number of sample values per non-numeric column (0 to skip). "
             "context-only — profile and quality don't emit sample values."
@@ -36,6 +35,7 @@ def context(
     sample: int | None = typer.Option(
         None,
         "--sample",
+        "-s",
         help="Sample size (rows). Default: auto-sample at >1M rows.",
     ),
     exact: bool = typer.Option(
