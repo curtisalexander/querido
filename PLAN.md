@@ -8,74 +8,15 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-22)
 
-**Tests:** 1174 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
+**Tests:** 1176 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
 
-**Phase 7 is now shipped.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
+**Polish pass complete.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done. The Pre-release polish pass (items 0–6) landed 2026-04-22 — see summary under "Phases shipped" below.
 
-**Active work is the Pre-release polish pass (below).** Goal: close the gap between product and description before broader release. No new features — surface, docs, and story only. After the polish pass completes, work returns to the open-ended backlog in [Deferred / future phases](#deferred--future-phases).
+**Current eval baseline: 42/45 passing (93%)** across haiku / sonnet / opus on 15 tasks — up from the previous 33/33 on 11 tasks once the task set was expanded and the harness began isolating metadata state per run. The three remaining failures are all `model-mistake` (strict required-command grading), zero `qdo-bug`.
 
-Positioning and "what sets qdo apart" now live in [DIFFERENTIATION.md](./DIFFERENTIATION.md). That's the cold-start doc for humans and agents re-entering the project.
+**Only pre-release item left is item 7 — dogfood.** Use qdo on a real project for a week and triage whatever surfaces. After that, active work returns to the open-ended backlog in [Deferred / future phases](#deferred--future-phases).
 
----
-
-## Pre-release polish pass (active)
-
-Items are ordered by execution. Each has a concrete exit criterion. Re-running the eval (item 6) gates the pass.
-
-### 0. Unblock CI
-
-CI is currently failing on main. Diagnose and fix before any other polish work — an unreleased-but-broken CI masks regressions from items 1–5.
-
-Exit: the latest `gh run list` on `main` is green.
-
-### 1. Docs accuracy audit
-
-Fix every drift between what the docs claim and what the CLI actually does.
-
-- `README.md` — "Investigate Deeper" block omits `freshness`, `pivot`, `explain`, `assert`, `export`; "Start Here" omits `search`. Restore.
-- `ARCHITECTURE.md` — `cli/` file tree misses `freshness.py`, `search.py`, `argv_hoist.py`. `core/` tree misses `estimate.py`, `freshness.py`, `metadata_score.py`, `metadata_write.py`, `plan.py`, `search.py`, `sql_safety.py`, plus 2 workflow subfiles. Regenerate.
-- `docs/cli-reference.md` and `docs/qdo-cheatsheet.html` — spot-check against current `--help` output; fix any omissions.
-- `integrations/skills/SKILL.md` — harmonize the `-f json` pattern (the doc tells agents to set `QDO_FORMAT=json` once, then its examples re-pass `-f json`; pick one). Also consider promoting `metadata search` in the workflow section.
-
-Exit: `qdo --help` and every doc claim align; no undocumented commands remain.
-
-### 2. Write the "Why qdo" block
-
-One tight paragraph + a diagram of the compounding loop, placed near the top of both `README.md` and `integrations/skills/SKILL.md`. Cite the 33/33 eval in the agent-facing README section as credibility.
-
-Exit: a reader who only reads the first page of README knows what makes qdo different.
-
-### 3. Decide on the marginal commands — decided 2026-04-22
-
-- **`qdo search "<intent>"`** — CUT. Removed; see IDEAS.md "Rejected Or Dropped". Competes with `qdo --help` without a demonstrated win.
-- **`qdo overview`** — KEEP. Infrastructure: generates `docs/cli-reference.md`. Position in docs as the reference generator, not a user-facing discovery command.
-- **`qdo tutorial agent`** — KEEP. Teaches the differentiating metadata-compounding workflow; low cost of keeping. Consider adding one line to `qdo tutorial --help` on when to pick which tutorial.
-
-Exit: `search` is gone from code and docs ✓; `overview` and `tutorial agent` decisions recorded ✓.
-
-### 4. Harmonize sampling flags across `context` / `profile` / `quality`
-
-`context` has `--sample-values`; `profile` and `quality` don't. `--no-sample` help text differs across the three. The three are the scanning trio; their flag set should be uniform where behavior is uniform, divergent where behavior actually differs — with the divergence documented.
-
-Exit: `--help` diffs on the trio show only intentional differences, with help text spelling them out.
-
-### 5. Add envelope to `sql` and `snowflake`
-
-The two real agent-surface gaps. `sql` should wrap its generated code in `{command, data: {sql, dialect, template}, next_steps, meta}` so an agent can chain into `qdo explain` or `qdo query`. `snowflake semantic` and `snowflake lineage` should wrap their YAML / object payloads in the same envelope.
-
-Exit: `emit_envelope` is called by every command that produces machine-readable output (26 → 28+ of the agent-relevant commands).
-
-### 6. Re-run the self-hosting eval
-
-After items 0–5: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33. Regression is signal, not noise.
-
-Exit: eval is 33/33, or regressions are triaged before release.
-
-### 7. Dogfood for a week
-
-Use qdo on a real project — the only step that surfaces remaining frictions before external release.
-
-Exit: either no new issues surface, or the issues that surface are triaged into PLAN.md.
+Positioning and "what sets qdo apart" live in [DIFFERENTIATION.md](./DIFFERENTIATION.md). That's the cold-start doc for humans and agents re-entering the project.
 
 ---
 
@@ -152,6 +93,32 @@ The agent-first core is in good shape. This track is about making the human expe
 - Shipped: the docs consistency sweep removed stale `serve` / `web` references and brought the public TUI descriptions in line with the current product.
 - Outcome: the obvious cross-surface inconsistencies are gone. A later aesthetic pass is optional, not part of the committed Phase 7 tranche.
 - Preserve the existing CLI / workflow surface; this is a presentation pass, not a redesign of command semantics.
+
+---
+
+## Pre-release polish pass — done
+
+Items 0–6 shipped 2026-04-22. The goal was closing the gap between the product and how it's described, not adding features.
+
+- **0. Unblock CI** — PR #59 left CI red on all three OSes. Two root causes: ruff 0.15.5 line-wrap reformatting 10 files, and a Windows-specific `UnicodeEncodeError` where `cp1252` stdout can't encode Rich's bullets. Fixed by running `ruff format` and reconfiguring stdout/stderr to UTF-8 with `errors="replace"` at the CLI entrypoint — benefits any Windows user piping qdo output, not just the eval.
+- **1. Docs accuracy audit** — `ARCHITECTURE.md` file trees refreshed (added `freshness`, `argv_hoist`, `estimate`, `plan`, `sql_safety`, `metadata_score`, `metadata_write`; dropped `search`). `README.md` "Investigate Deeper" restored the 5 missing commands. `docs/cli-reference.md` + `docs/qdo-cheatsheet.html` gained `freshness`. `SKILL.md` harmonized on explicit `-f json` per invocation (env-var `QDO_FORMAT` is a supported shortcut, not the promoted default).
+- **2. "Why qdo" block** — added to top of `README.md` and `SKILL.md`: the compounding-loop pitch, a small ASCII diagram, and the self-hosting eval cited as credibility. See also [DIFFERENTIATION.md](./DIFFERENTIATION.md).
+- **3. Marginal command decisions** — `qdo search` CUT (removed from code and docs); `qdo overview` KEEP (docs generator); `qdo tutorial agent` KEEP (teaches the differentiating metadata workflow). See IDEAS.md "Rejected Or Dropped" for the search rationale.
+- **4. Sampling-flag harmonization** — `--no-sample` and `--sample` help text aligned across `context` / `profile` / `quality`. `--sample-values` stays unique to `context` (only context emits sample values). `-s` is now `--sample` (rows) everywhere — previously ambiguous between `--sample-values` on context and `--sample` on the other two.
+- **5. Envelope on `sql` + `snowflake`** — `sql select/insert/ddl/task/udf/procedure/scratch` now wrap generated SQL in the standard envelope under `-f json` / `-f agent`. `snowflake semantic/lineage` envelope their YAML / object payloads. Rich / csv / markdown still print raw SQL / YAML for piping. Envelope contract tests extended to cover `sql select/insert/ddl/udf/scratch`.
+- **6. Re-run the eval** — **42/45 (93%)** across haiku / sonnet / opus on 15 tasks, up from 39/45 on the first re-run. The bump came from isolating `QDO_METADATA_DIR` into the eval scratch dir (D2 stopped spuriously failing on leftover fixture metadata) and filtering non-qdo tool errors from the qdo-bug category (D4 stopped failing when models ran `unzip` as a sanity check). The three remaining failures (B1 on sonnet, C1 on opus, D4 on haiku) are all `model-mistake` — strict required-command grading against valid alternative paths.
+
+**Item 7 — dogfood — is the only remaining pre-release item.** It's owned by the project maintainer, not the code.
+
+Key commits from this pass (`main`):
+- `f8153b8` — Windows UTF-8 stdout + ARCHITECTURE.md trees
+- `500bd08` — README / cli-reference / cheatsheet missing commands
+- `d6f94e6` — Why qdo block in README and SKILL
+- `505bc97` — SKILL `-f json` harmonization
+- `068c09e` — Cut `qdo search`
+- `88b6ba9`, `abf7dbf` — Sampling flag + `-s` harmonization
+- `e2ce1ed` — Envelope on sql + snowflake
+- `d8e1a2d` — Eval metadata isolation + non-qdo error filter + SKILL values/dist sentence
 
 ---
 
