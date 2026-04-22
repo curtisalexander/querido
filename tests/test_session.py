@@ -281,7 +281,11 @@ def test_session_replay_reexecutes_successful_steps(tmp_path: Path, sqlite_path:
     assert len(sessions) == 1
     replay_name = sessions[0]
     replay_steps = list(session.iter_steps(replay_name, cwd=tmp_path))
-    assert len(replay_steps) == 2
+    assert len(replay_steps) == 2, (
+        f"expected 2 replay steps, got {len(replay_steps)}. "
+        f"replay CLI output (captures child stdout+stderr):\n{result.output}\n"
+        f"recorded steps:\n{replay_steps}"
+    )
     assert replay_steps[0]["args"] == [
         "preview",
         "--connection",
@@ -356,7 +360,11 @@ def test_session_replay_stops_on_first_failure(tmp_path: Path, sqlite_path: str)
 
     replay_steps = list(session.iter_steps("rerun", cwd=tmp_path))
     # Only successful source steps are replayable, so the failed query is skipped.
-    assert len(replay_steps) == 2
+    assert len(replay_steps) == 2, (
+        f"expected 2 replay steps, got {len(replay_steps)}. "
+        f"replay CLI output (captures child stdout+stderr):\n{result.output}\n"
+        f"recorded steps:\n{replay_steps}"
+    )
     assert replay_steps[0]["cmd"] == "preview"
     assert replay_steps[1]["cmd"] == "inspect"
 
