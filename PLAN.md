@@ -8,17 +8,76 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-22)
 
-**Tests:** 1144 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
+**Tests:** 1174 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags.
 
 **Phase 7 is now shipped.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
 
-Active work is now the open-ended backlog in [Deferred / future phases](#deferred--future-phases) plus routine maintenance (eval reruns, structured-error tightening when justified, docs upkeep). `qdo catalog functions`, `qdo freshness`, `--plan` dry-runs, cost/time `--estimate` for `query` / `export`, `qdo search "<intent>"`, the lexical `qdo metadata search` MVP, `--from` session-step reuse for `query` / `export`, `qdo session replay <name>`, and `qdo metadata undo` all shipped on 2026-04-21 / 2026-04-22 and are no longer deferred items.
+**Active work is the Pre-release polish pass (below).** Goal: close the gap between product and description before broader release. No new features — surface, docs, and story only. After the polish pass completes, work returns to the open-ended backlog in [Deferred / future phases](#deferred--future-phases).
 
-**Pick up next session with one of these:**
+Positioning and "what sets qdo apart" now live in [DIFFERENTIATION.md](./DIFFERENTIATION.md). That's the cold-start doc for humans and agents re-entering the project.
 
-1. **Promote the next deferred slice deliberately.** Best next candidate: Snowflake `RESULT_SCAN` reuse for chained queries.
-2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
-3. **Treat structured errors and query guardrails as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`, and `qdo query` is read-only by default unless `--allow-write` is explicit; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
+---
+
+## Pre-release polish pass (active)
+
+Items are ordered by execution. Each has a concrete exit criterion. Re-running the eval (item 6) gates the pass.
+
+### 0. Unblock CI
+
+CI is currently failing on main. Diagnose and fix before any other polish work — an unreleased-but-broken CI masks regressions from items 1–5.
+
+Exit: the latest `gh run list` on `main` is green.
+
+### 1. Docs accuracy audit
+
+Fix every drift between what the docs claim and what the CLI actually does.
+
+- `README.md` — "Investigate Deeper" block omits `freshness`, `pivot`, `explain`, `assert`, `export`; "Start Here" omits `search`. Restore.
+- `ARCHITECTURE.md` — `cli/` file tree misses `freshness.py`, `search.py`, `argv_hoist.py`. `core/` tree misses `estimate.py`, `freshness.py`, `metadata_score.py`, `metadata_write.py`, `plan.py`, `search.py`, `sql_safety.py`, plus 2 workflow subfiles. Regenerate.
+- `docs/cli-reference.md` and `docs/qdo-cheatsheet.html` — spot-check against current `--help` output; fix any omissions.
+- `integrations/skills/SKILL.md` — harmonize the `-f json` pattern (the doc tells agents to set `QDO_FORMAT=json` once, then its examples re-pass `-f json`; pick one). Also consider promoting `metadata search` in the workflow section.
+
+Exit: `qdo --help` and every doc claim align; no undocumented commands remain.
+
+### 2. Write the "Why qdo" block
+
+One tight paragraph + a diagram of the compounding loop, placed near the top of both `README.md` and `integrations/skills/SKILL.md`. Cite the 33/33 eval in the agent-facing README section as credibility.
+
+Exit: a reader who only reads the first page of README knows what makes qdo different.
+
+### 3. Decide on the marginal commands
+
+Three commands don't clearly earn their keep. Each gets a yes/no decision:
+
+- `qdo search "<intent>"` — BM25 over command docs. Not in SKILL.md's promoted path. Does it appear in eval traces? If not, hide or remove.
+- `qdo overview` — markdown CLI reference. Arguably redundant with `qdo --help -f json`. Keep only if eval shows actual use.
+- `qdo tutorial agent` — second tutorial runner. Consolidate or keep as-is.
+
+Exit: a written decision for each, with SKILL.md / README / AGENTS.md updated accordingly.
+
+### 4. Harmonize sampling flags across `context` / `profile` / `quality`
+
+`context` has `--sample-values`; `profile` and `quality` don't. `--no-sample` help text differs across the three. The three are the scanning trio; their flag set should be uniform where behavior is uniform, divergent where behavior actually differs — with the divergence documented.
+
+Exit: `--help` diffs on the trio show only intentional differences, with help text spelling them out.
+
+### 5. Add envelope to `sql` and `snowflake`
+
+The two real agent-surface gaps. `sql` should wrap its generated code in `{command, data: {sql, dialect, template}, next_steps, meta}` so an agent can chain into `qdo explain` or `qdo query`. `snowflake semantic` and `snowflake lineage` should wrap their YAML / object payloads in the same envelope.
+
+Exit: `emit_envelope` is called by every command that produces machine-readable output (26 → 28+ of the agent-relevant commands).
+
+### 6. Re-run the self-hosting eval
+
+After items 0–5: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33. Regression is signal, not noise.
+
+Exit: eval is 33/33, or regressions are triaged before release.
+
+### 7. Dogfood for a week
+
+Use qdo on a real project — the only step that surfaces remaining frictions before external release.
+
+Exit: either no new issues surface, or the issues that surface are triaged into PLAN.md.
 
 ---
 
@@ -158,6 +217,7 @@ Files to resist future pressure to shrink:
 
 Capture but don't start. Each is standalone and non-blocking.
 
+- Windows `session replay` subprocess failure — `tests/test_session.py::test_session_replay_reexecutes_successful_steps` and `::test_session_replay_stops_on_first_failure` are skipped on Windows because the child `qdo preview` process exits 1 when invoked via `subprocess.run` with a Windows-style SQLite path. The feature works on macOS / Linux; low priority until there's evidence of actual Windows user impact.
 - Optional embedding/reranker layer for `qdo metadata search` if the lexical baseline proves insufficient.
 - Progressive disclosure `--level 1..3` on expensive commands.
 - Snowflake `RESULT_SCAN` reuse for chained queries.

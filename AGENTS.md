@@ -6,6 +6,8 @@ This file helps coding agents get up to speed quickly on the qdo project.
 
 A CLI data analysis toolkit. Users run commands like `qdo inspect`, `qdo preview`, `qdo profile` against database tables (SQLite, DuckDB, Snowflake) and Parquet files, and get formatted output in the terminal.
 
+> **Before you touch code, read [DIFFERENTIATION.md](./DIFFERENTIATION.md).** It's the orientation doc on what qdo is for, what it deliberately isn't, and the invariants that keep it that way. About 5 minutes; it prevents whole classes of well-intentioned-but-off-target changes.
+
 ## Quick Start
 
 ```bash
