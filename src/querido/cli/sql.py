@@ -40,11 +40,50 @@ def _table_short_name(table: str) -> str:
     return table.rsplit(".", 1)[-1]
 
 
-def _render(template_name: str, dialect: str, **kwargs: object) -> None:
-    """Render a generate/* template and print to stdout."""
+def _emit_sql(
+    *,
+    subcommand: str,
+    template_name: str,
+    dialect: str,
+    resolved_table: str,
+    connection: str,
+    columns: list[dict] | None = None,
+    extra_data: dict[str, object] | None = None,
+    **render_kwargs: object,
+) -> None:
+    """Render a generate/* template and emit it.
+
+    In structured formats (``-f json`` / ``-f agent``) the rendered SQL is
+    wrapped in the envelope so agents can parse ``data.sql`` directly and
+    chain into ``qdo query`` or ``qdo explain`` without having to parse
+    arbitrary stdout. Other formats (rich/markdown/csv) keep the legacy
+    behavior of printing the raw SQL to stdout.
+    """
     from querido.sql.renderer import render_template
 
-    sql = render_template(f"generate/{template_name}", dialect, **kwargs)
+    sql = render_template(f"generate/{template_name}", dialect, columns=columns, **render_kwargs)
+
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    if is_structured_format():
+        data: dict[str, object] = {
+            "sql": sql,
+            "dialect": dialect,
+            "table": resolved_table,
+            "template": template_name,
+        }
+        if columns is not None:
+            data["columns"] = [{"name": c.get("name"), "type": c.get("type")} for c in columns]
+        if extra_data:
+            data.update(extra_data)
+        emit_envelope(
+            command=f"sql {subcommand}",
+            data=data,
+            connection=connection,
+            table=resolved_table,
+        )
+        return
+
     print(sql)
 
 
@@ -75,7 +114,15 @@ def select(
 ) -> None:
     """Generate a SELECT statement with all columns."""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-    _render("select", dialect, table=resolved, columns=columns)
+    _emit_sql(
+        subcommand="select",
+        template_name="select",
+        dialect=dialect,
+        resolved_table=resolved,
+        connection=connection,
+        columns=columns,
+        table=resolved,
+    )
 
 
 @app.command()
@@ -87,7 +134,15 @@ def insert(
 ) -> None:
     """Generate an INSERT statement with named placeholders."""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-    _render("insert", dialect, table=resolved, columns=columns)
+    _emit_sql(
+        subcommand="insert",
+        template_name="insert",
+        dialect=dialect,
+        resolved_table=resolved,
+        connection=connection,
+        columns=columns,
+        table=resolved,
+    )
 
 
 @app.command()
@@ -99,7 +154,15 @@ def ddl(
 ) -> None:
     """Generate a CREATE TABLE DDL statement."""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-    _render("ddl", dialect, table=resolved, columns=columns)
+    _emit_sql(
+        subcommand="ddl",
+        template_name="ddl",
+        dialect=dialect,
+        resolved_table=resolved,
+        connection=connection,
+        columns=columns,
+        table=resolved,
+    )
 
 
 @app.command()
@@ -114,12 +177,15 @@ def task(
     from querido.cli._validation import require_snowflake
 
     require_snowflake(dialect, "task")
-    _render(
-        "task",
-        dialect,
+    _emit_sql(
+        subcommand="task",
+        template_name="task",
+        dialect=dialect,
+        resolved_table=resolved,
+        connection=connection,
+        columns=columns,
         table=resolved,
         table_name=_table_short_name(resolved),
-        columns=columns,
     )
 
 
@@ -132,7 +198,15 @@ def udf(
 ) -> None:
     """Generate a UDF template using table columns as parameters."""
     columns, dialect, resolved = _get_columns_and_dialect(table, connection, db_type)
-    _render("udf", dialect, table=resolved, columns=columns)
+    _emit_sql(
+        subcommand="udf",
+        template_name="udf",
+        dialect=dialect,
+        resolved_table=resolved,
+        connection=connection,
+        columns=columns,
+        table=resolved,
+    )
 
 
 @app.command()
@@ -147,12 +221,15 @@ def procedure(
     from querido.cli._validation import require_snowflake
 
     require_snowflake(dialect, "procedure")
-    _render(
-        "procedure",
-        dialect,
+    _emit_sql(
+        subcommand="procedure",
+        template_name="procedure",
+        dialect=dialect,
+        resolved_table=resolved,
+        connection=connection,
+        columns=columns,
         table=resolved,
         table_name=_table_short_name(resolved),
-        columns=columns,
     )
 
 
@@ -189,11 +266,15 @@ def scratch(
         ", ".join(_format_sql_literal(row.get(n)) for n in col_names) for row in sample_rows
     ]
 
-    _render(
-        "scratch",
-        dialect,
+    _emit_sql(
+        subcommand="scratch",
+        template_name="scratch",
+        dialect=dialect,
+        resolved_table=resolved,
+        connection=connection,
+        columns=columns,
         table=resolved,
         table_name=_table_short_name(resolved),
-        columns=columns,
         rows=formatted_rows,
+        extra_data={"row_count": len(formatted_rows)},
     )

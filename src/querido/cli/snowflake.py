@@ -67,8 +67,32 @@ def semantic(
         import sys
 
         print(f"Wrote semantic model to {output_file}", file=sys.stderr)
-    else:
-        print(yaml_str)
+        return
+
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    if is_structured_format():
+        emit_envelope(
+            command="snowflake semantic",
+            data={
+                "yaml": yaml_str,
+                "table": ctx.table,
+                "column_count": len(columns),
+                "sample_values_per_column": sample_values if sample_values > 0 else 0,
+            },
+            next_steps=[
+                {
+                    "cmd": f"qdo snowflake semantic -c {connection} -t {ctx.table} "
+                    f"-o {ctx.table}.yaml",
+                    "why": "Write the YAML to a file for Cortex Analyst upload.",
+                },
+            ],
+            connection=connection,
+            table=ctx.table,
+        )
+        return
+
+    print(yaml_str)
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +152,25 @@ def lineage(
         "depth": depth,
         "entries": rows,
     }
+
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    if is_structured_format():
+        other_direction = "upstream" if direction == "downstream" else "downstream"
+        emit_envelope(
+            command="snowflake lineage",
+            data=result,
+            next_steps=[
+                {
+                    "cmd": f"qdo snowflake lineage -c {connection} --object {object_name} "
+                    f"--direction {other_direction}",
+                    "why": f"Trace the {other_direction} side of lineage for this object.",
+                },
+            ],
+            connection=connection,
+            extra_meta={"object": object_name, "direction": direction, "domain": domain},
+        )
+        return
 
     dispatch_output("snowflake_lineage", result)
 

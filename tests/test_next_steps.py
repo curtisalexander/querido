@@ -259,6 +259,13 @@ _ENVELOPE_CASES: list[tuple[str, list[str], str]] = [
         "pivot",
     ),
     ("template", ["template", "-t", "users"], "template"),
+    # sql-generation subcommands wrap their rendered SQL in the envelope
+    # under -f json / -f agent so agents can parse data.sql directly.
+    ("sql select", ["sql", "select", "-t", "users"], "sql select"),
+    ("sql insert", ["sql", "insert", "-t", "users"], "sql insert"),
+    ("sql ddl", ["sql", "ddl", "-t", "users"], "sql ddl"),
+    ("sql udf", ["sql", "udf", "-t", "users"], "sql udf"),
+    ("sql scratch", ["sql", "scratch", "-t", "users"], "sql scratch"),
 ]
 
 
