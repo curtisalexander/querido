@@ -488,6 +488,7 @@
       <div class="row"><span class="k">qdo pivot -c CONN -t T -g COL -a "sum(c)"</span><span class="d">GROUP BY aggregation</span></div>
       <div class="row"><span class="k">qdo quality -c CONN -t TABLE</span><span class="d">Null/uniqueness per column</span></div>
       <div class="row"><span class="k">qdo quality ... --check-duplicates</span><span class="d">+ duplicate row check</span></div>
+      <div class="row"><span class="k">qdo freshness -c CONN -t TABLE</span><span class="d">Temporal column + recency</span></div>
       <div class="row"><span class="k">qdo assert -c CONN --sql "SQL" --expect 0</span><span class="d">Assert result (exit 0/1)</span></div>
       <div class="row"><span class="k">qdo joins -c CONN -t TABLE</span><span class="d">Discover join keys</span></div>
       <div class="row"><span class="k">qdo diff -c CONN -t A --target B</span><span class="d">Compare schemas</span></div>

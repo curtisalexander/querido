@@ -56,6 +56,8 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 
 ### Investigate Deeper
 
+| Command | Purpose |
+|---------|---------|
 | `qdo inspect -c CONN -t TABLE` | Column metadata and row count |
 | `qdo preview -c CONN -t TABLE [-r ROWS]` | Preview rows (default 20) |
 | `qdo profile -c CONN -t TABLE [--top N]` | Statistical profile (min/max/mean/nulls/distinct) |
@@ -64,6 +66,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo profile -c CONN -t TABLE --column-set NAME` | Profile using a saved column set |
 | `qdo dist -c CONN -t TABLE -C COLUMN` | Column value distribution / histogram |
 | `qdo values -c CONN -t TABLE -C COL` | Distinct values for a column |
+| `qdo freshness -c CONN -t TABLE [--stale-after DAYS]` | Temporal column detection + recency summary |
 | `qdo quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness, issues) |
 | `qdo diff -c CONN -t A --target B` | Compare schemas between two tables |
 | `qdo joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
@@ -72,6 +75,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 
 | Command | Purpose |
 |---------|---------|
+| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
 | `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
 | `qdo export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |

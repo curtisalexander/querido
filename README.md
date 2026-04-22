@@ -164,8 +164,13 @@ qdo profile   -c my-db -t orders --classify   # classify columns by category (im
 qdo dist      -c my-db -t orders -C amount    # histogram or value frequencies
 qdo values    -c my-db -t orders -C status    # all distinct values for a column
 qdo quality   -c my-db -t orders              # null rates, uniqueness, anomalies
+qdo freshness -c my-db -t orders              # detect temporal columns and recency
 qdo diff      -c my-db -t orders --target v2  # compare two table schemas
 qdo joins     -c my-db -t orders              # suggest likely join keys
+qdo assert    -c my-db --sql "..." --expect 0 # validate invariants (CI-friendly)
+qdo explain   -c my-db --sql "select ..."     # query execution plan
+qdo pivot     -c my-db -t orders -g region -a "sum(amount)"  # GROUP BY helper
+qdo export    -c my-db -t orders -e csv -o o.csv             # export to csv/tsv/json/jsonl
 ```
 
 ### Query — run and validate SQL
