@@ -10,42 +10,30 @@ qdo is an agent-first data exploration CLI. The product surface looks ordinary (
 
 Self-hosting eval: **33/33 perfect** across haiku, sonnet, and opus (re-run on every SKILL change; regressions are signal).
 
-Use `--format json` (or `export QDO_FORMAT=json`) to get machine-readable output — the envelope is `{command, data, next_steps, meta}` with deterministic `next_steps` hints that chain investigations.
-
-## Quick Setup
-
-Run this once per session (or add to your shell profile):
-
-```bash
-export QDO_FORMAT=json   # all commands output JSON — no --format flag on every call
-```
+Pass `-f json` on every invocation for machine-readable output — the envelope is `{command, data, next_steps, meta}` with deterministic `next_steps` hints that chain investigations. Canonical placement is right after `qdo` (`qdo -f json <cmd> ...`).
 
 ## Default agent workflow
 
 Unless the user clearly asks for something else, use this path:
 
 ```bash
-qdo catalog -c <connection>                 # discover candidate tables
-qdo context -c <connection> -t <table>      # understand one table deeply
-qdo metadata show -c <connection> -t <table> -f json
-                                             # load existing shared knowledge
-qdo query -c <connection> --sql "select ..."
-                                             # answer a concrete question
-qdo assert -c <connection> --sql "select ..." --expect ...
-                                             # verify an invariant when useful
-qdo report table -c <connection> -t <table> -o report.html
-                                             # hand off a shareable artifact
+qdo -f json catalog -c <connection>                                  # discover candidate tables
+qdo -f json context -c <connection> -t <table>                        # understand one table deeply
+qdo -f json metadata show -c <connection> -t <table>                  # load existing shared knowledge
+qdo -f json query -c <connection> --sql "select ..."                  # answer a concrete question
+qdo -f json assert -c <connection> --sql "select ..." --expect ...    # verify an invariant when useful
+qdo report table -c <connection> -t <table> -o report.html            # hand off a shareable artifact (file output)
 ```
 
 Treat `catalog -> context -> metadata -> query/assert -> report/bundle` as the default path.
 
 ## Agent rules
 
+- Pass `-f json` on every call unless you specifically want rich terminal output — the envelope gives you `next_steps` hints that shape the next call.
 - Do not start with `qdo --help` or `qdo overview` for normal exploration tasks. The command surface is stable; pick from the workflow above.
 - Prefer `qdo context` over stitching together `inspect` + `preview` + `profile` for first-pass understanding.
 - Use `qdo query` only after `context` unless the user asks for a narrowly scoped SQL answer immediately.
 - Use drill-down commands only when the default workflow leaves a specific gap.
-- Prefer `-f json` when you need to inspect output programmatically.
 - When the connection is a DuckDB file, run `qdo` commands sequentially against that file. Do not overlap multiple `qdo` processes on the same `.duckdb` database unless you explicitly need concurrent writes and have planned for locking.
 
 **First time?** Pair a `qdo tutorial` run with this reference:
@@ -88,7 +76,7 @@ qdo catalog -c <connection>
 qdo context -c <connection> -t <table>
 
 # 3. Load or capture shared understanding
-qdo metadata show -c <connection> -t <table> -f json
+qdo -f json metadata show -c <connection> -t <table>
 qdo metadata init -c <connection> -t <table>
 qdo metadata suggest -c <connection> -t <table> --apply
 
@@ -177,26 +165,25 @@ Use `context` as the primary tool call when you need to understand a table befor
 
 ## JSON output for programmatic use
 
-```bash
-# Set once, affects all commands
-export QDO_FORMAT=json
+Pass `-f json` explicitly on every call you want to parse:
 
-# Or per-command
+```bash
 qdo -f json catalog -c mydb
 qdo -f json context -c mydb -t orders
 qdo -f json metadata show -c mydb -t orders
 ```
 
 `-f/--format` is a **top-level** option. Canonical placement is right after
-`qdo` (before the subcommand), as in the examples above. qdo also accepts
-`-f json` *after* the subcommand (`qdo inspect -c mydb -f json`) — the
-entrypoint hoists it automatically. Either works; prefer the canonical form
-for readability.
+`qdo` (before the subcommand), as above. qdo also accepts `-f json` *after*
+the subcommand (`qdo inspect -c mydb -f json`) — the entrypoint hoists it
+automatically. Either works; prefer the canonical form for readability.
 
 Errors go to stderr as structured JSON when `-f json` is set:
 ```json
 {"error": true, "code": "TABLE_NOT_FOUND", "message": "...", "hint": "..."}
 ```
+
+> **Env-var shortcut.** `export QDO_FORMAT=json` defaults every command to JSON so you can drop the flag. Supported, but explicit `-f json` per invocation is the canonical pattern in this doc — it keeps each example self-contained and copyable.
 
 ## Metadata workflow
 
@@ -288,10 +275,10 @@ qdo sql scratch -c <connection> -t <table>
 
 ```bash
 # CSV to stdout — pipe to file or another tool
-qdo --format csv preview -c <connection> -t <table> -r 100
+qdo -f csv preview -c <connection> -t <table> -r 100
 
 # JSON lines — one object per row
-qdo --format jsonl query -c <connection> --sql "select ..."
+qdo -f jsonl query -c <connection> --sql "select ..."
 
 # Export command uses its own -e/--export-format for file format
 qdo export -c <connection> -t <table> -e csv
@@ -379,5 +366,5 @@ Full guides:
 ```bash
 qdo --help
 qdo <command> --help
-qdo --format json overview   # machine-readable command reference
+qdo -f json overview         # machine-readable command reference
 ```
