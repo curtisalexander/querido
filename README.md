@@ -6,6 +6,24 @@
 
 qdo is an agent-first data exploration CLI that turns one-off investigation into reusable team knowledge.
 
+## Why qdo
+
+Most tools let you *query* data. qdo lets you **accumulate understanding** of data — so every subsequent investigation, by you, a teammate, or a coding agent, is faster and more correct than the last.
+
+The product surface looks ordinary: `catalog`, `context`, `profile`, `query`. The asset is the compounding loop those commands form:
+
+```
+discover ─► understand ─► capture ─► answer ─► hand off
+catalog     context       metadata    query     report / bundle
+                          values        ▲
+                            │           │
+                            └── auto-merged into next context / quality ──┘
+```
+
+A `qdo values --write-metadata -c mydb -t orders -C status` run today sharpens tomorrow's `qdo context`, which sharpens next week's `qdo quality` (enum violations auto-flagged), which a teammate can pull down as a `qdo bundle` and have the full picture without redoing the work. No LLMs inside qdo — the agent brings the brain; qdo brings the memory and the map.
+
+For the full orientation (what qdo is, what it deliberately isn't, invariants that keep it that way), see [DIFFERENTIATION.md](./DIFFERENTIATION.md).
+
 ## Install
 
 Pre-built wheels are available from [GitHub Releases](https://github.com/curtisalexander/querido/releases). Requires Python >= 3.12 and [uv](https://docs.astral.sh/uv/).
