@@ -108,6 +108,8 @@ Use these only when the promoted workflow leaves a specific unanswered question:
 **`context` vs `profile` vs `quality`.**
 `context` is the default first call. `profile` is for deeper statistical detail on selected columns. `quality` is for anomaly-oriented checks and invariant violations.
 
+**`values` vs `dist`.** When asked for *the distinct values* of a column (especially for writing `valid_values` in metadata or listing an enum), reach for `qdo values` — it enumerates distinct values directly. Reach for `qdo dist` only when the user wants a *distribution*, *histogram*, or *frequency breakdown* — the shape of the data, not the list of values.
+
 **`values --write-metadata` closes the compounding loop.** It enumerates a
 column's distinct values *and* writes them into the metadata YAML as
 `valid_values`. Next time `qdo context`/`qdo quality` runs, those values

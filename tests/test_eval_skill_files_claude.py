@@ -37,10 +37,17 @@ def eval_mod():
 
 
 def _make_assistant_event(blocks: list[dict]) -> str:
+    # Inject a stable id on each tool_use block so tool_result events can
+    # correlate via tool_use_id (matches real Claude stream output shape).
+    for idx, block in enumerate(blocks):
+        if block.get("type") == "tool_use" and "id" not in block:
+            block["id"] = f"tu_{idx}"
     return json.dumps({"type": "assistant", "message": {"content": blocks}})
 
 
-def _make_user_tool_result(content: str, *, is_error: bool = False) -> str:
+def _make_user_tool_result(
+    content: str, *, is_error: bool = False, tool_use_id: str = "tu_0"
+) -> str:
     return json.dumps(
         {
             "type": "user",
@@ -48,6 +55,7 @@ def _make_user_tool_result(content: str, *, is_error: bool = False) -> str:
                 "content": [
                     {
                         "type": "tool_result",
+                        "tool_use_id": tool_use_id,
                         "content": content,
                         "is_error": is_error,
                     }
@@ -181,6 +189,41 @@ def test_parse_stream_json_flags_nonzero_exit_from_text(eval_mod) -> None:
     )
     _cmds, errors, _final, _usage = eval_mod.parse_stream_json(stream)
     assert len(errors) == 1
+
+
+def test_parse_stream_json_ignores_non_qdo_tool_errors(eval_mod) -> None:
+    """Tool errors from non-qdo commands (unzip, python -c, etc.) must not
+    count toward qdo's score. Originally surfaced when D4_bundle_export
+    failed on haiku/sonnet because they ran `unzip` as a sanity-check on
+    the bundle file and that errored — the qdo commands themselves all
+    succeeded.
+    """
+    stream = "\n".join(
+        [
+            _make_assistant_event(
+                [
+                    {
+                        "type": "tool_use",
+                        "name": "Bash",
+                        "input": {"command": "qdo bundle export -c /db -t orders -o bundle.zip"},
+                    }
+                ]
+            ),
+            _make_user_tool_result("Bundle written.", tool_use_id="tu_0"),
+            _make_assistant_event(
+                [
+                    {
+                        "type": "tool_use",
+                        "name": "Bash",
+                        "input": {"command": "unzip bundle.zip"},
+                    }
+                ]
+            ),
+            _make_user_tool_result("unzip: cannot open", is_error=True, tool_use_id="tu_0"),
+        ]
+    )
+    _cmds, errors, _final, _usage = eval_mod.parse_stream_json(stream)
+    assert errors == []
 
 
 def test_parse_stream_json_tolerates_garbage_lines(eval_mod) -> None:

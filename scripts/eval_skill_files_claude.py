@@ -616,10 +616,21 @@ def run_task(
         str(args.budget),
     ]
 
+    # Pin metadata root into the scratch dir so tasks can't observe or
+    # mutate state from prior eval runs — even when the model `cd`s into
+    # the repo before invoking qdo (haiku does this). Without this,
+    # D2_init_metadata spuriously fails because .qdo/metadata/test/ from
+    # an earlier dev session already lives in the repo.
+    child_env = {
+        **os.environ,
+        "QDO_METADATA_DIR": str(scratch / ".qdo" / "metadata"),
+    }
+
     try:
         proc = subprocess.run(
             claude_argv,
             cwd=scratch,
+            env=child_env,
             capture_output=True,
             text=True,
             timeout=TASK_TIMEOUT_SEC,
@@ -713,6 +724,12 @@ def parse_stream_json(text: str) -> tuple[list[str], list[str], str, dict[str, A
     final_text = ""
     usage: dict[str, Any] = {}
 
+    # Track tool_use_id -> command so we can distinguish tool errors from qdo
+    # invocations (which are qdo-bugs if non-trivial) vs tool errors from other
+    # shell commands the model ran (like `unzip` or `python -c`) that failing
+    # should not count against qdo's score.
+    tool_use_commands: dict[str, str] = {}
+
     for line in text.splitlines():
         line = line.strip()
         if not line:
@@ -727,14 +744,23 @@ def parse_stream_json(text: str) -> tuple[list[str], list[str], str, dict[str, A
             msg = event.get("message") or {}
             for block in msg.get("content") or []:
                 if block.get("type") == "tool_use" and block.get("name") == "Bash":
+                    use_id = block.get("id") or ""
                     cmd = (block.get("input") or {}).get("command") or ""
                     cmd = cmd.strip()
+                    if use_id:
+                        tool_use_commands[use_id] = cmd
                     if _looks_like_qdo(cmd):
                         qdo_commands.append(cmd)
         elif etype == "user":
             msg = event.get("message") or {}
             for block in msg.get("content") or []:
                 if block.get("type") != "tool_result":
+                    continue
+                # Only count errors from qdo invocations as qdo tool_errors.
+                # Failures in other shell commands the model ran (unzip,
+                # python -c, etc.) are not qdo's responsibility.
+                source_cmd = tool_use_commands.get(block.get("tool_use_id") or "", "")
+                if not _looks_like_qdo(source_cmd):
                     continue
                 if block.get("is_error"):
                     snippet = _extract_text(block.get("content"))
