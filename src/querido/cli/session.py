@@ -208,3 +208,94 @@ def show(
         rows_part = f"  rows={rows}" if rows is not None else ""
         typer.echo(f"[{idx:>3}] {ts}  qdo {' '.join(args)}")
         typer.echo(f"      {status}  {duration:.2f}s{rows_part}   cmd={cmd}")
+
+
+@app.command()
+@friendly_errors
+def replay(
+    name: str = typer.Argument(..., help="Session name to replay."),
+    last: int = typer.Option(
+        0,
+        "--last",
+        help="Replay only the last N successful recorded steps (0 = all).",
+    ),
+    into: str = typer.Option(
+        "",
+        "--into",
+        help="Replay into this session name. Defaults to replay-<name>-<timestamp>.",
+    ),
+    continue_on_error: bool = typer.Option(
+        False,
+        "--continue-on-error",
+        help="Keep replaying later steps even if one step fails.",
+    ),
+) -> None:
+    """Re-execute a prior investigation from the session log."""
+    from querido.core.session import replay_session
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    structured = is_structured_format()
+
+    def _announce(step: dict, position: int, total: int) -> None:
+        args = step.get("args") or []
+        if not structured:
+            typer.echo(f"[{position}/{total}] qdo {' '.join(args)}", err=True)
+
+    result = replay_session(
+        name,
+        last=last if last > 0 else None,
+        into=into or None,
+        continue_on_error=continue_on_error,
+        stream_output=not structured,
+        stderr=typer.get_text_stream("stderr"),
+        on_step_start=_announce,
+    )
+
+    failed = result.failed_step
+    data = {
+        "source_session": result.source_session,
+        "replay_session": result.replay_session,
+        "step_count": result.step_count,
+        "failed": failed is not None,
+        "steps": [
+            {
+                "source_index": step.source_index,
+                "cmd": step.cmd,
+                "args": step.args,
+                "exit_code": step.exit_code,
+                "duration": step.duration,
+            }
+            for step in result.steps
+        ],
+    }
+
+    next_steps = [
+        {"cmd": f"qdo session show {result.replay_session}", "why": "Inspect the replayed steps."},
+        {
+            "cmd": f"qdo report session {result.replay_session}",
+            "why": "Render the replay as a shareable session report.",
+        },
+    ]
+    if failed is None:
+        next_steps.append(
+            {
+                "cmd": f"qdo workflow from-session {result.replay_session}",
+                "why": "Draft a reusable workflow from the replayed investigation.",
+            }
+        )
+
+    if structured:
+        emit_envelope(
+            command="session replay",
+            data=data,
+            next_steps=next_steps,
+            extra_meta={"session": result.source_session, "replay_session": result.replay_session},
+        )
+        return
+
+    status = "completed" if failed is None else f"stopped at step {failed.source_index or '?'}"
+    typer.echo("")
+    typer.echo(
+        f"Replay {status}: {result.step_count} step{'s' if result.step_count != 1 else ''} "
+        f"into session {result.replay_session!r}."
+    )

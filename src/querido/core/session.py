@@ -13,6 +13,8 @@ from __future__ import annotations
 import io
 import json
 import os
+import shutil
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -403,6 +405,36 @@ class SessionRecorder:
         return record
 
 
+@dataclass
+class ReplayStepResult:
+    """One replayed step from a recorded session."""
+
+    source_index: int | None
+    cmd: str
+    args: list[str]
+    exit_code: int
+    duration: float
+    stdout: str = ""
+    stderr: str = ""
+
+
+@dataclass
+class ReplayResult:
+    """Summary of replaying a recorded session."""
+
+    source_session: str
+    replay_session: str
+    steps: list[ReplayStepResult]
+
+    @property
+    def step_count(self) -> int:
+        return len(self.steps)
+
+    @property
+    def failed_step(self) -> ReplayStepResult | None:
+        return next((step for step in self.steps if step.exit_code != 0), None)
+
+
 def _derive_cmd(argv: list[str]) -> str:
     """Return the ``qdo <subcommand> [<subsub>]`` portion of *argv* (best effort)."""
     tokens: list[str] = []
@@ -414,6 +446,101 @@ def _derive_cmd(argv: list[str]) -> str:
         if len(tokens) >= 2:
             break
     return " ".join(tokens) if tokens else ""
+
+
+def generate_replay_session_name(source: str) -> str:
+    """Return a deterministic-ish session name for replay output."""
+    return f"replay-{source}-{int(time.time())}"
+
+
+def replay_session(
+    name: str,
+    *,
+    last: int | None = None,
+    into: str | None = None,
+    continue_on_error: bool = False,
+    cwd: Path | None = None,
+    stream_output: bool = False,
+    stderr: Any = None,
+    on_step_start: Any = None,
+) -> ReplayResult:
+    """Re-execute successful recorded steps from *name* in order.
+
+    The replay itself is recorded into *into* (or an auto-generated
+    ``replay-<name>-<ts>`` session) by setting ``QDO_SESSION`` on the child
+    processes. Steps stop on first failure unless ``continue_on_error`` is
+    true.
+    """
+    dir_ = session_dir(name, cwd)
+    if not dir_.is_dir():
+        raise ValueError(f"Session not found: {name}")
+
+    source_steps = [
+        step
+        for step in iter_steps(name, cwd)
+        if step.get("exit_code") == 0 and isinstance(step.get("args"), list) and step.get("args")
+    ]
+    if last is not None and last > 0:
+        source_steps = source_steps[-last:]
+    if not source_steps:
+        raise ValueError(
+            f"Session {name!r} has no successful recorded steps to replay. "
+            "Run 'qdo session show' to inspect."
+        )
+
+    replay_name = into or generate_replay_session_name(name)
+    env = os.environ.copy()
+    env["QDO_SESSION"] = replay_name
+    run_cwd = cwd or Path.cwd()
+    err = stderr if stderr is not None else sys.stderr
+    results: list[ReplayStepResult] = []
+    total = len(source_steps)
+
+    for position, step in enumerate(source_steps, start=1):
+        args = [str(part) for part in step.get("args", []) if isinstance(part, str)]
+        if not args:
+            continue
+        if callable(on_step_start):
+            on_step_start(step, position, total)
+
+        started = time.monotonic()
+        proc = subprocess.run(
+            [*_qdo_argv(), *args],
+            cwd=run_cwd,
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        duration = round(time.monotonic() - started, 4)
+
+        if stream_output:
+            if proc.stdout:
+                sys.stdout.write(proc.stdout)
+            if proc.stderr:
+                err.write(proc.stderr)
+
+        result = ReplayStepResult(
+            source_index=step.get("index") if isinstance(step.get("index"), int) else None,
+            cmd=_derive_cmd(args),
+            args=args,
+            exit_code=proc.returncode,
+            duration=duration,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
+        results.append(result)
+        if proc.returncode != 0 and not continue_on_error:
+            break
+
+    return ReplayResult(source_session=name, replay_session=replay_name, steps=results)
+
+
+def _qdo_argv() -> list[str]:
+    """Return the argv prefix that invokes qdo as a subprocess."""
+    binary = shutil.which("qdo")
+    if binary:
+        return [binary]
+    return [sys.executable, "-m", "querido"]
 
 
 def _extract_row_count(stdout: str) -> int | None:

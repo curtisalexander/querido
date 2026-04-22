@@ -450,6 +450,14 @@
           <div class="row"><span class="k">qdo sql scratch -t users -c mydb</span><span class="d">Reproducible test fixture</span></div>
           <div class="tip" style="margin-top:4px"><strong>Template</strong> auto-populates column stats &amp; sample values, leaving <span class="cmd">&lt;business_definition&gt;</span> placeholders to fill in.</div>
         </div>
+        <div class="scenario">
+          <div class="scenario-title">Replay an investigation</div>
+          <div class="row"><span class="k">qdo session show scratch</span><span class="d">Review recorded steps</span></div>
+          <div class="row"><span class="k">qdo session replay scratch</span><span class="d">Rerun into a fresh replay session</span></div>
+          <div class="row"><span class="k">qdo session replay scratch --into rerun</span><span class="d">Choose the replay session name</span></div>
+          <div class="row"><span class="k">qdo workflow from-session rerun</span><span class="d">Promote the replay into a workflow draft</span></div>
+          <div class="tip" style="margin-top:4px"><strong>Replay</strong> reruns successful recorded steps in order. Add <span class="cmd">--last N</span> to replay only the tail of a session.</div>
+        </div>
       </div>
     </section>
 

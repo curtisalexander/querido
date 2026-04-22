@@ -128,6 +128,14 @@ qdo query -c my-db --from scratch:1
 qdo export -c my-db --from scratch:1 -o pending-orders.csv
 ```
 
+Sessions can also be replayed into a fresh session when you want to rerun an investigation end-to-end:
+
+```bash
+qdo session show scratch
+qdo session replay scratch
+qdo session replay scratch --into rerun-scratch
+```
+
 ## Commands
 
 ### Start Here — promoted workflow

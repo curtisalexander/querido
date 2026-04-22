@@ -12,11 +12,11 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 **Phase 7 is now shipped.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done — the first live self-hosting eval baseline is **33/33 perfect** across haiku / sonnet / opus.
 
-Active work is now the open-ended backlog in [Deferred / future phases](#deferred--future-phases) plus routine maintenance (eval reruns, structured-error tightening when justified, docs upkeep). `qdo catalog functions`, `qdo freshness`, `--plan` dry-runs, cost/time `--estimate` for `query` / `export`, `qdo search "<intent>"`, the lexical `qdo metadata search` MVP, and `--from` session-step reuse for `query` / `export` all shipped on 2026-04-21 / 2026-04-22 and are no longer deferred items.
+Active work is now the open-ended backlog in [Deferred / future phases](#deferred--future-phases) plus routine maintenance (eval reruns, structured-error tightening when justified, docs upkeep). `qdo catalog functions`, `qdo freshness`, `--plan` dry-runs, cost/time `--estimate` for `query` / `export`, `qdo search "<intent>"`, the lexical `qdo metadata search` MVP, `--from` session-step reuse for `query` / `export`, and `qdo session replay <name>` all shipped on 2026-04-21 / 2026-04-22 and are no longer deferred items.
 
 **Pick up next session with one of these:**
 
-1. **Promote the next deferred slice deliberately.** Best next candidate: session replay (`qdo session replay <name>`).
+1. **Promote the next deferred slice deliberately.** Best next candidate: metadata undo.
 2. **Re-run the eval** after any SKILL.md or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 5 --confirm-spend`. Expect 33/33; regressions are signal.
 3. **Treat structured errors and query guardrails as maintenance, not a phase.** The high-value validation paths are now on stable codes under `-f json` / `-f agent`, and `qdo query` is read-only by default unless `--allow-write` is explicit; only promote additional cases opportunistically when the failure shape is durable and agent-actionable.
 
@@ -158,7 +158,6 @@ Files to resist future pressure to shrink:
 
 Capture but don't start. Each is standalone and non-blocking.
 
-- Session replay (`qdo session replay <name>`).
 - Optional embedding/reranker layer for `qdo metadata search` if the lexical baseline proves insufficient.
 - Metadata undo.
 - Progressive disclosure `--level 1..3` on expensive commands.

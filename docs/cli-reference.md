@@ -99,6 +99,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo session start NAME` | Create a new session directory |
 | `qdo session list` | List recorded sessions |
 | `qdo session show NAME` | Review recorded steps in a session |
+| `qdo session replay NAME [--into NEW]` | Re-execute successful recorded steps into a replay session |
 | `qdo report session NAME -o report.html` | Generate a shareable HTML session narrative |
 
 ### Setup
@@ -177,6 +178,18 @@ qdo export -c mydb --from scratch:last -o pending-orders.csv
 ```
 
 Use `<session>:<step>` or `<session>:last`. `--from` is mutually exclusive with direct SQL input (`--sql` / `--file`) and with table-based export input (`--table`).
+
+## Session Replay
+
+Replay reruns the successful recorded commands from a prior session in order and records the rerun into a new session:
+
+```bash
+qdo session replay scratch
+qdo session replay scratch --into rerun-scratch
+qdo session replay scratch --last 3
+```
+
+By default replay stops on the first failed rerun. Use `--continue-on-error` to keep going, and `qdo session show <replay-session>` to inspect the replayed run afterward.
 
 ## Global Options
 
