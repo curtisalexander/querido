@@ -369,6 +369,21 @@ def main(
 def run() -> None:
     """Console-script entrypoint. Hoists `-f/--format` to the front of argv so
     it reaches the root callback regardless of where an agent placed it, then
-    hands off to the Typer app."""
+    hands off to the Typer app.
+
+    Also reconfigures stdout/stderr to UTF-8 with ``errors="replace"``. On
+    Windows the default codec is ``cp1252`` — which can't encode the bullet
+    characters and em dashes Rich emits — and any non-TTY invocation (pipe,
+    redirect, subprocess) crashes with ``UnicodeEncodeError``. This bit us on
+    Windows CI via ``session replay`` child processes; the fix is global so
+    it also covers users piping qdo output into other tools.
+    """
+    import contextlib
+
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            with contextlib.suppress(OSError, ValueError):
+                reconfigure(encoding="utf-8", errors="replace")
     sys.argv[1:] = hoist_format_flag(sys.argv[1:])
     app()

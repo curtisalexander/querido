@@ -45,6 +45,7 @@ querido/
 │       │   ├── _progress.py        # Elapsed-time query spinner with cancellation
 │       │   ├── _options.py         # Shared Typer option definitions (--connection, --db-type, etc.)
 │       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, destructive SQL guard
+│       │   ├── argv_hoist.py       # Hoist -f/--format anywhere in argv to the root callback
 │       │   ├── main.py             # Entry point, Typer app, lazy subcommand loading
 │       │   ├── assert_cmd.py       # `qdo assert` — assert conditions on query results (CI-friendly)
 │       │   ├── bundle.py           # `qdo bundle export/import/inspect/diff` — portable knowledge bundles
@@ -58,21 +59,22 @@ querido/
 │       │   ├── explain.py          # `qdo explain` — query execution plan (EXPLAIN)
 │       │   ├── explore.py          # `qdo explore` — interactive TUI launcher
 │       │   ├── export.py           # `qdo export` — export data to file (csv, tsv, json, jsonl)
+│       │   ├── freshness.py        # `qdo freshness` — detect temporal columns and summarize recency
 │       │   ├── inspect.py          # `qdo inspect` — table metadata
 │       │   ├── joins.py            # `qdo joins` — discover likely join keys
-│       │   ├── metadata.py         # `qdo metadata init/edit/show/list/refresh` — enriched metadata
+│       │   ├── metadata.py         # `qdo metadata init/show/list/search/edit/refresh/undo/score/suggest`
 │       │   ├── overview.py         # `qdo overview` — CLI reference markdown generation
 │       │   ├── pivot.py            # `qdo pivot` — pivot / aggregate table data
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   ├── profile.py          # `qdo profile` — data profiling (quick, classify, column sets)
 │       │   ├── quality.py          # `qdo quality` — data quality summary (nulls, uniqueness, anomalies)
-│       │   ├── query.py            # `qdo query` — execute ad-hoc SQL
-│       │   ├── report.py           # `qdo report table` — single-file HTML report
-│       │   ├── session.py          # `qdo session start/list/show` — agent-workflow session logs
+│       │   ├── query.py            # `qdo query` — execute ad-hoc SQL (read-only by default)
+│       │   ├── report.py           # `qdo report table/session` — single-file HTML reports
+│       │   ├── session.py          # `qdo session start/list/note/show/replay` — agent-workflow session logs
 │       │   ├── snowflake.py        # `qdo snowflake` — Snowflake-specific commands (semantic, lineage)
 │       │   ├── sql.py              # `qdo sql` — SQL generation (select, insert, ddl, scratch, task, udf, procedure)
 │       │   ├── template.py         # `qdo template` — documentation template generation
-│       │   ├── tutorial.py         # `qdo tutorial` — interactive tutorial launcher
+│       │   ├── tutorial.py         # `qdo tutorial explore/agent` — interactive tutorial launcher
 │       │   ├── values.py           # `qdo values` — distinct values for a column
 │       │   ├── view_def.py         # `qdo view-def` — view SQL definition retrieval
 │       │   └── workflow.py         # `qdo workflow spec/run/lint/list/show/from-session` — declarative workflows
@@ -94,22 +96,28 @@ querido/
 │       │   ├── context.py          # Context logic (schema + stats + sample values, single scan)
 │       │   ├── diff.py             # Schema diff logic
 │       │   ├── dist.py             # Distribution computation logic
+│       │   ├── estimate.py         # Cost / time estimation for query & export (--estimate)
 │       │   ├── explain.py          # Query plan logic
 │       │   ├── export.py           # Data export logic
+│       │   ├── freshness.py        # Temporal column detection + recency summary logic
 │       │   ├── inspect.py          # Inspect metadata logic
 │       │   ├── joins.py            # Join key discovery logic
 │       │   ├── lineage.py          # View definition retrieval logic (used by view-def command)
-│       │   ├── metadata.py         # Enriched metadata (init, show, list, refresh)
+│       │   ├── metadata.py         # Enriched metadata (init, show, list, refresh, search, undo)
+│       │   ├── metadata_score.py   # Per-table metadata completeness scoring
+│       │   ├── metadata_write.py   # Provenance-tracking metadata writes + auto-fill rules
+│       │   ├── next_steps.py       # Deterministic next_steps/try_next suggestions
 │       │   ├── pivot.py            # Pivot query builder and executor
+│       │   ├── plan.py             # --plan dry-run shape for query/export/metadata
 │       │   ├── preview.py          # Row preview logic
 │       │   ├── profile.py          # Data profiling (stats, frequencies, quick mode, batching)
 │       │   ├── quality.py          # Data quality analysis logic
 │       │   ├── query.py            # Ad-hoc SQL execution with limit wrapping
-│       │   ├── report.py           # Table report data builder (fans out to context/quality/joins/metadata)
+│       │   ├── report.py           # Table & session report data builders
 │       │   ├── runner.py           # Threaded query execution with cancellation support
 │       │   ├── semantic.py         # Snowflake Cortex Analyst semantic model YAML builder
-│       │   ├── session.py          # Session recorder (QDO_SESSION) — JSONL step log
-│       │   ├── next_steps.py       # Deterministic next_steps/try_next suggestions
+│       │   ├── session.py          # Session recorder + replay (QDO_SESSION) — JSONL step log
+│       │   ├── sql_safety.py       # Read-only SQL guard for `qdo query` (opt-in --allow-write)
 │       │   ├── template.py         # Documentation template generation logic
 │       │   ├── values.py           # Distinct values logic
 │       │   └── workflow/
