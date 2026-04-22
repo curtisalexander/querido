@@ -23,17 +23,20 @@ def context(
         5,
         "--sample-values",
         "-s",
-        help="Number of sample values per non-numeric column (0 to skip).",
+        help=(
+            "Number of sample values per non-numeric column (0 to skip). "
+            "context-only — profile and quality don't emit sample values."
+        ),
     ),
     no_sample: bool = typer.Option(
         False,
         "--no-sample",
-        help="Profile the full table without sampling (slower on large tables).",
+        help="Scan the full table — exact stats, slower on large tables.",
     ),
     sample: int | None = typer.Option(
         None,
         "--sample",
-        help="Override sample size (rows). Defaults to auto-sampling at >1M rows.",
+        help="Sample size (rows). Default: auto-sample at >1M rows.",
     ),
     exact: bool = typer.Option(
         False,

@@ -42,7 +42,7 @@ def quality(
     no_sample: bool = typer.Option(
         False,
         "--no-sample",
-        help="Force full table scan — exact results, slower on large tables.",
+        help="Scan the full table — exact stats, slower on large tables.",
     ),
     exact: bool = typer.Option(
         False,

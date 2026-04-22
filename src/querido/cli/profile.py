@@ -23,10 +23,12 @@ def profile(
         "--sample",
         "-s",
         min=1,
-        help="Sample size (number of rows). Default: auto-sample at >1M rows.",
+        help="Sample size (rows). Default: auto-sample at >1M rows.",
     ),
     no_sample: bool = typer.Option(
-        False, "--no-sample", help="Force full table scan, no sampling."
+        False,
+        "--no-sample",
+        help="Scan the full table — exact stats, slower on large tables.",
     ),
     top: int = typer.Option(0, "--top", min=0, help="Show top N most frequent values per column."),
     exact: bool = typer.Option(
