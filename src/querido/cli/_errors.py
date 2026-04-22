@@ -214,6 +214,14 @@ def _bad_parameter_code(msg: str) -> str:
         return "COLUMN_NOT_FOUND"
     if lower.startswith("session not found:"):
         return "SESSION_NOT_FOUND"
+    if lower.startswith("session step not found:"):
+        return "SESSION_STEP_NOT_FOUND"
+    if lower.startswith("session step is not structured:"):
+        return "SESSION_STEP_UNSTRUCTURED"
+    if lower.startswith("session step is unsupported for --from:"):
+        return "SESSION_STEP_UNSUPPORTED"
+    if lower.startswith("session step has no reusable sql:"):
+        return "SESSION_STEP_NO_SQL"
     if lower.startswith("no structured inspect/context snapshot found for table '"):
         return "SESSION_SNAPSHOT_NOT_FOUND"
     if lower.startswith("no session specified."):
@@ -242,6 +250,8 @@ def _bad_parameter_code(msg: str) -> str:
         return "PATH_REQUIRED"
     if lower.startswith("must provide --table or --sql."):
         return "TABLE_OR_SQL_REQUIRED"
+    if lower.startswith("must provide --table, --sql, or --from."):
+        return "TABLE_OR_SQL_REQUIRED"
     if lower.startswith("--export-format must be one of:"):
         return "EXPORT_FORMAT_INVALID"
     if lower.startswith("--direction must be one of:"):
@@ -256,6 +266,12 @@ def _bad_parameter_code(msg: str) -> str:
         return "ASSERT_COMPARISON_CONFLICT"
     if lower.startswith("cannot use both --columns and --column-set."):
         return "MUTUALLY_EXCLUSIVE_OPTIONS"
+    if lower.startswith("cannot use --from with --sql or --file."):
+        return "MUTUALLY_EXCLUSIVE_OPTIONS"
+    if lower.startswith("cannot use --from with --table or --sql."):
+        return "MUTUALLY_EXCLUSIVE_OPTIONS"
+    if lower.startswith("invalid session step reference:"):
+        return "SESSION_STEP_REF_INVALID"
     if lower.startswith("--group-by must specify at least one column."):
         return "GROUP_BY_REQUIRED"
     if lower.startswith("--agg must specify at least one aggregation."):

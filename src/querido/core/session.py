@@ -252,6 +252,51 @@ def find_latest_table_snapshot(
     return None
 
 
+def resolve_query_step_reference(ref: str, *, cwd: Path | None = None) -> dict[str, Any]:
+    """Resolve ``<session>:<step>`` to reusable SQL from a prior ``query`` step."""
+    session_name, step_token = _parse_step_reference(ref)
+
+    dir_ = session_dir(session_name, cwd)
+    if not dir_.is_dir():
+        raise ValueError(f"Session not found: {session_name}")
+
+    steps = list(iter_steps(session_name, cwd))
+    step = _select_step(steps, step_token)
+    if step is None:
+        raise ValueError(f"Session step not found: {ref}")
+
+    payload = _parse_structured_stdout(read_step_stdout(step, cwd))
+    if payload is None:
+        raise ValueError(f"Session step is not structured: {ref}")
+
+    command = payload.get("command")
+    if command != "query":
+        raise ValueError(f"Session step is unsupported for --from: {ref} (expected query)")
+
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise ValueError(f"Session step has no reusable SQL: {ref}")
+
+    sql = data.get("sql")
+    if not isinstance(sql, str) or not sql.strip():
+        raise ValueError(f"Session step has no reusable SQL: {ref}")
+
+    meta = payload.get("meta")
+    source_connection = meta.get("connection") if isinstance(meta, dict) else None
+    if not isinstance(source_connection, str):
+        source_connection = None
+
+    step_index = step.get("index")
+    return {
+        "ref": ref,
+        "session": session_name,
+        "step_index": step_index if isinstance(step_index, int) else None,
+        "source_command": command,
+        "source_connection": source_connection,
+        "sql": sql,
+    }
+
+
 def next_step_index(dir_: Path) -> int:
     """Return the 1-based index for the next step in the given session dir."""
     path = dir_ / STEPS_FILE
@@ -405,6 +450,40 @@ def _parse_structured_stdout(stdout: str) -> dict | None:
     if not isinstance(payload, dict):
         return None
     return payload
+
+
+def _parse_step_reference(ref: str) -> tuple[str, str]:
+    """Parse ``<session>:<step>`` where step is an integer or ``last``."""
+    text = ref.strip()
+    if not text or ":" not in text:
+        raise ValueError(f"Invalid session step reference: {ref!r}. Use <session>:<step>.")
+    session_name, step_token = text.split(":", 1)
+    session_name = session_name.strip()
+    step_token = step_token.strip().lower()
+    if not session_name or not step_token:
+        raise ValueError(f"Invalid session step reference: {ref!r}. Use <session>:<step>.")
+    if step_token != "last":
+        try:
+            index = int(step_token)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid session step reference: {ref!r}. Use <session>:<step>."
+            ) from exc
+        if index <= 0:
+            raise ValueError(f"Invalid session step reference: {ref!r}. Use <session>:<step>.")
+    return session_name, step_token
+
+
+def _select_step(steps: list[dict], step_token: str) -> dict | None:
+    """Return the referenced step from *steps*."""
+    if step_token == "last":
+        return steps[-1] if steps else None
+
+    wanted = int(step_token)
+    for step in steps:
+        if step.get("index") == wanted:
+            return step
+    return None
 
 
 def active_session_name() -> str | None:

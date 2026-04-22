@@ -17,6 +17,9 @@ def export(
     ),
     table: str | None = typer.Option(None, "--table", "-t", help="Table to export."),
     sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query to export."),
+    from_step: str | None = typer.Option(
+        None, "--from", help="Reuse SQL from a prior session step (<session>:<step>)."
+    ),
     output: str | None = typer.Option(None, "--output", "-o", help="Output file path."),
     export_format: str = typer.Option(
         "csv",
@@ -69,8 +72,6 @@ def export(
 
     if plan and estimate:
         raise typer.BadParameter("Cannot use both --plan and --estimate.")
-    if not table and not sql:
-        raise typer.BadParameter("Must provide --table or --sql.")
 
     valid_formats = {"csv", "tsv", "json", "jsonl"}
     if export_format not in valid_formats:
@@ -83,9 +84,33 @@ def export(
         export_format = "tsv"
         output = None
 
-    from querido.cli._options import parse_column_list
+    from querido.cli._options import parse_column_list, resolve_export_sql
 
     col_list = parse_column_list(columns)
+    table, sql, source = resolve_export_sql(
+        table_option=table,
+        sql_option=sql,
+        from_option=from_step,
+    )
+    if not table and not sql:
+        raise typer.BadParameter("Must provide --table, --sql, or --from.")
+
+    source_meta: dict[str, object] = {}
+    if source is not None:
+        source_meta = {
+            "source_session": source["session"],
+            "source_step": source["step_index"],
+            "source_command": source["source_command"],
+        }
+        source_connection = source.get("source_connection")
+        if isinstance(source_connection, str):
+            source_meta["source_connection"] = source_connection
+            if source_connection != connection:
+                typer.echo(
+                    f"Warning: --from step was recorded against {source_connection!r}, "
+                    f"running against {connection!r}.",
+                    err=True,
+                )
 
     if plan:
         from querido.core.export import build_export_query
@@ -115,7 +140,9 @@ def export(
         run_cmd = ["qdo", "export", "-c", connection]
         if table:
             run_cmd += ["-t", table]
-        if sql:
+        if from_step:
+            run_cmd += ["--from", from_step]
+        elif sql:
             run_cmd += ["--sql", sql]
         if output:
             run_cmd += ["-o", output]
@@ -132,7 +159,13 @@ def export(
 
         steps = [{"cmd": cmd(run_cmd), "why": "Run the planned export for real."}]
         if is_structured_format():
-            emit_envelope(command="export", data=payload, next_steps=steps, connection=connection)
+            emit_envelope(
+                command="export",
+                data=payload,
+                next_steps=steps,
+                connection=connection,
+                extra_meta=source_meta or None,
+            )
             return
 
         dispatch_output("plan", payload)
@@ -168,7 +201,9 @@ def export(
         run_cmd = ["qdo", "export", "-c", connection]
         if table:
             run_cmd += ["-t", table]
-        if sql:
+        if from_step:
+            run_cmd += ["--from", from_step]
+        elif sql:
             run_cmd += ["--sql", sql]
         if output:
             run_cmd += ["-o", output]
@@ -185,7 +220,13 @@ def export(
 
         steps = [{"cmd": cmd(run_cmd), "why": "Run the estimated export for real."}]
         if is_structured_format():
-            emit_envelope(command="export", data=payload, next_steps=steps, connection=connection)
+            emit_envelope(
+                command="export",
+                data=payload,
+                next_steps=steps,
+                connection=connection,
+                extra_meta=source_meta or None,
+            )
             return
 
         dispatch_output("estimate", payload)

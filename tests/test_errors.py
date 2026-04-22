@@ -12,6 +12,38 @@ from querido.cli.main import app
 runner = CliRunner()
 
 
+def _seed_session_step(
+    cwd: Path,
+    *,
+    name: str,
+    index: int,
+    payload: dict | str,
+    command: str = "query",
+) -> None:
+    session_dir = cwd / ".qdo" / "sessions" / name
+    step_dir = session_dir / f"step_{index}"
+    step_dir.mkdir(parents=True, exist_ok=True)
+
+    stdout_path = step_dir / "stdout"
+    if isinstance(payload, str):
+        stdout_path.write_text(payload, encoding="utf-8")
+    else:
+        stdout_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    steps_path = session_dir / "steps.jsonl"
+    record = {
+        "index": index,
+        "timestamp": "2026-04-22T00:00:00+00:00",
+        "cmd": f"qdo {command}",
+        "args": [command],
+        "duration": 0.1,
+        "exit_code": 0,
+        "stdout_path": str(stdout_path.relative_to(cwd / ".qdo")),
+    }
+    with steps_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -159,6 +191,90 @@ def test_validation_error_json_session_not_found_uses_structured_error(tmp_path:
     assert payload["error"] is True
     assert payload["code"] == "SESSION_NOT_FOUND"
     assert any("qdo session list" in step["cmd"] for step in payload["try_next"])
+
+
+def test_validation_error_json_query_from_session_step_not_found(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["-f", "json", "query", "-c", sqlite_path, "--from", "scratch:7"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SESSION_NOT_FOUND"
+
+
+def test_validation_error_json_query_from_session_step_missing_index(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_session_step(
+        tmp_path,
+        name="scratch",
+        index=1,
+        payload={"command": "query", "data": {"sql": "select 1"}, "next_steps": [], "meta": {}},
+    )
+
+    result = runner.invoke(app, ["-f", "json", "query", "-c", sqlite_path, "--from", "scratch:7"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SESSION_STEP_NOT_FOUND"
+    assert any("qdo session show" in step["cmd"] for step in payload["try_next"])
+
+
+def test_validation_error_json_query_from_session_step_unstructured(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_session_step(tmp_path, name="scratch", index=1, payload="plain text output")
+
+    result = runner.invoke(app, ["-f", "json", "query", "-c", sqlite_path, "--from", "scratch:1"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SESSION_STEP_UNSTRUCTURED"
+
+
+def test_validation_error_json_query_from_session_step_unsupported_command(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_session_step(
+        tmp_path,
+        name="scratch",
+        index=1,
+        payload={"command": "catalog", "data": {}, "next_steps": [], "meta": {}},
+        command="catalog",
+    )
+
+    result = runner.invoke(app, ["-f", "json", "query", "-c", sqlite_path, "--from", "scratch:1"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SESSION_STEP_UNSUPPORTED"
+
+
+def test_validation_error_json_query_from_session_step_missing_sql(
+    sqlite_path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_session_step(
+        tmp_path,
+        name="scratch",
+        index=1,
+        payload={"command": "query", "data": {}, "next_steps": [], "meta": {}},
+    )
+
+    result = runner.invoke(app, ["-f", "json", "query", "-c", sqlite_path, "--from", "scratch:1"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SESSION_STEP_NO_SQL"
+
+
+def test_validation_error_json_query_from_session_step_invalid_ref(
+    sqlite_path: str,
+) -> None:
+    result = runner.invoke(app, ["-f", "json", "query", "-c", sqlite_path, "--from", "scratch"])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["code"] == "SESSION_STEP_REF_INVALID"
 
 
 def test_validation_error_json_metadata_not_found_uses_structured_error(

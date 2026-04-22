@@ -17,6 +17,9 @@ def query(
     ),
     sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query string."),
     file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file to execute."),
+    from_step: str | None = typer.Option(
+        None, "--from", help="Reuse SQL from a prior session step (<session>:<step>)."
+    ),
     allow_write: bool = typer.Option(
         False,
         "--allow-write",
@@ -51,12 +54,34 @@ def query(
 
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
-    from querido.cli._options import resolve_sql
+    from querido.cli._options import resolve_query_sql
     from querido.cli._pipeline import database_command, dispatch_output
 
-    query_sql = resolve_sql(sql, file, sys.stdin)
+    query_sql, source = resolve_query_sql(
+        sql_option=sql,
+        file_option=file,
+        from_option=from_step,
+        stdin=sys.stdin,
+    )
     if plan and estimate:
         raise typer.BadParameter("Cannot use both --plan and --estimate.")
+
+    source_meta: dict[str, object] = {}
+    if source is not None:
+        source_meta = {
+            "source_session": source["session"],
+            "source_step": source["step_index"],
+            "source_command": source["source_command"],
+        }
+        source_connection = source.get("source_connection")
+        if isinstance(source_connection, str):
+            source_meta["source_connection"] = source_connection
+            if source_connection != connection:
+                typer.echo(
+                    f"Warning: --from step was recorded against {source_connection!r}, "
+                    f"running against {connection!r}.",
+                    err=True,
+                )
 
     from querido.core.query import _apply_limit
     from querido.core.sql_safety import any_statement_is_destructive
@@ -82,9 +107,11 @@ def query(
             "query",
             "-c",
             connection,
-            "--sql",
-            query_sql,
         ]
+        if from_step:
+            run_cmd += ["--from", from_step]
+        else:
+            run_cmd += ["--sql", query_sql]
         if allow_write:
             run_cmd.append("--allow-write")
         if limit != 1000:
@@ -101,7 +128,13 @@ def query(
                 }
             )
         if is_structured_format():
-            emit_envelope(command="query", data=payload, next_steps=steps, connection=connection)
+            emit_envelope(
+                command="query",
+                data=payload,
+                next_steps=steps,
+                connection=connection,
+                extra_meta=source_meta or None,
+            )
             return
         from querido.cli._pipeline import dispatch_output
 
@@ -124,7 +157,11 @@ def query(
                 destructive=destructive,
             )
 
-        run_cmd = ["qdo", "query", "-c", connection, "--sql", query_sql]
+        run_cmd = ["qdo", "query", "-c", connection]
+        if from_step:
+            run_cmd += ["--from", from_step]
+        else:
+            run_cmd += ["--sql", query_sql]
         if allow_write:
             run_cmd.append("--allow-write")
         if limit != 1000:
@@ -140,7 +177,13 @@ def query(
                 },
             )
         if is_structured_format():
-            emit_envelope(command="query", data=payload, next_steps=steps, connection=connection)
+            emit_envelope(
+                command="query",
+                data=payload,
+                next_steps=steps,
+                connection=connection,
+                extra_meta=source_meta or None,
+            )
             return
 
         dispatch_output("estimate", payload)
@@ -175,6 +218,7 @@ def query(
                 },
                 next_steps=for_query(result, connection=connection),
                 connection=connection,
+                extra_meta=source_meta or None,
             )
             return
 

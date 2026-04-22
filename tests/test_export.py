@@ -11,6 +11,41 @@ from querido.cli.main import app
 runner = CliRunner()
 
 
+def _seed_session_query_step(
+    cwd: Path,
+    *,
+    name: str,
+    index: int,
+    sql: str,
+    connection: str | None = None,
+) -> None:
+    session_dir = cwd / ".qdo" / "sessions" / name
+    step_dir = session_dir / f"step_{index}"
+    step_dir.mkdir(parents=True, exist_ok=True)
+
+    stdout_path = step_dir / "stdout"
+    payload = {
+        "command": "query",
+        "data": {"sql": sql, "rows": [], "columns": [], "row_count": 0, "limited": False},
+        "next_steps": [],
+        "meta": {"connection": connection} if connection else {},
+    }
+    stdout_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    steps_path = session_dir / "steps.jsonl"
+    record = {
+        "index": index,
+        "timestamp": "2026-04-22T00:00:00+00:00",
+        "cmd": "qdo query",
+        "args": ["query"],
+        "duration": 0.1,
+        "exit_code": 0,
+        "stdout_path": str(stdout_path.relative_to(cwd / ".qdo")),
+    }
+    with steps_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
 def test_export_csv_to_file(sqlite_path: str, tmp_path: Path):
     out = str(tmp_path / "out.csv")
     result = runner.invoke(
@@ -96,6 +131,27 @@ def test_export_with_sql(sqlite_path: str, tmp_path: Path):
     )
     assert result.exit_code == 0
     content = Path(out).read_text()
+    assert "Alice" in content
+    assert "Bob" not in content
+
+
+def test_export_with_from_session_step(sqlite_path: str, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_session_query_step(
+        tmp_path,
+        name="scratch",
+        index=7,
+        sql="select name from users where age > 26",
+        connection=sqlite_path,
+    )
+
+    out = tmp_path / "out.csv"
+    result = runner.invoke(
+        app,
+        ["export", "-c", sqlite_path, "--from", "scratch:7", "-o", str(out)],
+    )
+    assert result.exit_code == 0, result.output
+    content = out.read_text()
     assert "Alice" in content
     assert "Bob" not in content
 
@@ -271,6 +327,42 @@ def test_export_plan_json_file_not_written(sqlite_path: str, tmp_path: Path):
     assert payload["data"]["mode"] == "plan"
     assert payload["data"]["destination"] == "file"
     assert not Path(out).exists()
+
+
+def test_export_plan_from_session_step_json_includes_provenance(
+    sqlite_path: str, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_session_query_step(
+        tmp_path,
+        name="scratch",
+        index=7,
+        sql="select name from users where age > 26",
+        connection=sqlite_path,
+    )
+
+    out = tmp_path / "planned.csv"
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "export",
+            "-c",
+            sqlite_path,
+            "--from",
+            "scratch:7",
+            "-o",
+            str(out),
+            "--plan",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["meta"]["source_session"] == "scratch"
+    assert payload["meta"]["source_step"] == 7
+    assert payload["meta"]["source_command"] == "query"
+    assert payload["meta"]["source_connection"] == sqlite_path
 
 
 def test_export_plan_clipboard_does_not_copy(sqlite_path: str):

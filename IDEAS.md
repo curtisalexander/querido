@@ -98,6 +98,24 @@ These ideas are not committed. Some also appear in `PLAN.md`'s deferred section 
 - **Metadata undo** — revert the last metadata write using session / provenance information.
 - **Session replay** — rerun a prior investigation from the session log.
 - **Stable output/result identifiers** — reference prior outputs more directly than session-step granularity.
+- **Branching from a base query** — build on `--from <session>:<step>` so an investigation can fork cleanly from the same saved query without restating SQL.
+
+  Deferred design sketch:
+
+  - Keep the current invariant that the reusable unit is a prior structured `query` step whose envelope contains canonical SQL.
+  - Add a small set of deterministic branch operators on top of that base SQL instead of inventing a general expression language.
+  - Likely first candidates: `query --from s:7 --where ...`, `--order-by ...`, `--limit ...`, `--columns ...`, and maybe `export --from s:7 --where ...`.
+  - Semantics should be "wrap the base SQL as a subquery, then apply the branch operator" so the base node remains immutable and multiple branches can reuse it safely.
+  - Structured output should record both the source step and the derived operation, so sessions read like a tree even though the storage model stays append-only.
+  - If this grows, prefer explicit branch naming such as `--label null-audit` or session-report grouping over hidden graph state.
+
+  Constraints / non-goals:
+
+  - Do not turn sessions into a mutable notebook or DAG runtime.
+  - Do not allow arbitrary field-path extraction from old envelopes as the main mechanism.
+  - Do not silently inherit connection or table context in ways that make re-execution ambiguous.
+  - Avoid a full mini-SQL builder; the point is ergonomic branching from a known-good base query, not replacing SQL authoring.
+  - Keep `query` as the branch root unless there is a strong case for promoting stable result identifiers or materialized intermediate artifacts later.
 
 ### Investigation workflows
 

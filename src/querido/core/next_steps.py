@@ -1103,6 +1103,20 @@ def for_error(
             )
         )
 
+    elif code in {
+        "SESSION_STEP_NOT_FOUND",
+        "SESSION_STEP_UNSTRUCTURED",
+        "SESSION_STEP_UNSUPPORTED",
+        "SESSION_STEP_NO_SQL",
+        "SESSION_STEP_REF_INVALID",
+    }:
+        steps.append(
+            _step(
+                ["qdo", "session", "show", "<session>"],
+                "Inspect the session and pick a recorded query step reference.",
+            )
+        )
+
     elif code == "SESSION_SNAPSHOT_NOT_FOUND":
         if connection and table:
             steps.append(

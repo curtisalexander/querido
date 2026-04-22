@@ -51,3 +51,48 @@ def resolve_sql(
             return text
 
     raise typer.BadParameter("No SQL provided. Use --sql, --file, or pipe SQL via stdin.")
+
+
+def resolve_query_sql(
+    *,
+    sql_option: str | None,
+    file_option: str | None,
+    from_option: str | None,
+    stdin: Any,
+) -> tuple[str, dict[str, Any] | None]:
+    """Resolve SQL for ``query`` from direct input or a prior session step."""
+    if from_option:
+        if sql_option is not None or file_option is not None:
+            raise typer.BadParameter("Cannot use --from with --sql or --file.")
+
+        from querido.core.session import resolve_query_step_reference
+
+        try:
+            source = resolve_query_step_reference(from_option)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from None
+        return str(source["sql"]), source
+
+    return resolve_sql(sql_option, file_option, stdin), None
+
+
+def resolve_export_sql(
+    *,
+    table_option: str | None,
+    sql_option: str | None,
+    from_option: str | None,
+) -> tuple[str | None, str | None, dict[str, Any] | None]:
+    """Resolve export source from ``--table`` / ``--sql`` or ``--from``."""
+    if from_option:
+        if table_option or sql_option:
+            raise typer.BadParameter("Cannot use --from with --table or --sql.")
+
+        from querido.core.session import resolve_query_step_reference
+
+        try:
+            source = resolve_query_step_reference(from_option)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from None
+        return None, str(source["sql"]), source
+
+    return table_option, sql_option, None
