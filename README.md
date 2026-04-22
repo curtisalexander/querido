@@ -120,6 +120,14 @@ qdo catalog -c my-db -f json > schema.json
 qdo profile -c my-db -t orders -f csv > stats.csv
 ```
 
+If you are recording a session, `query` and `export` can reuse SQL from a prior query step:
+
+```bash
+QDO_SESSION=scratch qdo query -c my-db --sql "select * from orders where status = 'pending'"
+qdo query -c my-db --from scratch:1
+qdo export -c my-db --from scratch:1 -o pending-orders.csv
+```
+
 ## Commands
 
 ### Start Here — promoted workflow
@@ -133,6 +141,7 @@ qdo query     -c my-db --sql "select ..."     # answer a question
 qdo assert    -c my-db --sql "..." --expect 0 # verify an invariant
 qdo report    table -c my-db -t orders        # single-file hand-off report
 qdo bundle    export -c my-db -t orders -o bundle.zip  # portable knowledge bundle
+qdo query     -c my-db --from scratch:3       # reuse SQL from a recorded query step
 ```
 
 ### Investigate Deeper — specialist tools
@@ -155,9 +164,10 @@ qdo joins     -c my-db -t orders              # suggest likely join keys
 ```bash
 qdo catalog   -c my-db                                       # all tables and columns
 qdo catalog   -c my-db --pattern order                       # filter tables/columns by name
+qdo query     -c my-db --from scratch:last                   # rerun the last recorded query step
 qdo pivot     -c my-db -t orders -g region -a "sum(amount)"  # GROUP BY
 qdo explain   -c my-db --sql "select ..."                    # query execution plan
-qdo export    -c my-db -t orders -o out.csv                  # export to file
+qdo export    -c my-db --from scratch:7 -o out.csv           # export results from saved query SQL
 ```
 
 ### Generate — scaffold SQL and docs

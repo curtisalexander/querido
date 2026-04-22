@@ -50,6 +50,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo metadata init -c CONN -t TABLE` | Create metadata YAML for shared table knowledge |
 | `qdo metadata show -c CONN -t TABLE` | Read stored metadata back into the workflow |
 | `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
+| `qdo query -c CONN --from SESSION:STEP` | Reuse SQL from a recorded query step |
 | `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
 | `qdo report table -c CONN -t TABLE -o report.html` | Generate a shareable HTML hand-off report |
 | `qdo bundle export -c CONN -t TABLE -o bundle.zip` | Export portable team knowledge |
@@ -75,6 +76,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
 | `qdo export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |
+| `qdo export -c CONN --from SESSION:STEP -o file.csv` | Export using SQL from a recorded query step |
 
 ### Generate
 
@@ -163,6 +165,18 @@ qdo preview -c mydb -t users -f csv | head -5
 qdo inspect -c mydb -t users -f json | jq '.columns[].name'
 qdo profile -c mydb -t orders -f csv > profile.csv
 ```
+
+## Session Step Reuse
+
+When `QDO_SESSION` is set, `query` steps are recorded and can be referenced later by `query` and `export`:
+
+```bash
+QDO_SESSION=scratch qdo query -c mydb --sql "select * from orders where status = 'pending'"
+qdo query -c mydb --from scratch:1
+qdo export -c mydb --from scratch:last -o pending-orders.csv
+```
+
+Use `<session>:<step>` or `<session>:last`. `--from` is mutually exclusive with direct SQL input (`--sql` / `--file`) and with table-based export input (`--table`).
 
 ## Global Options
 

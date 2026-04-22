@@ -459,13 +459,15 @@
       <div class="row"><span class="k">qdo query -c CONN --sql "SQL"</span><span class="d">Run ad-hoc SQL</span></div>
       <div class="row"><span class="k">qdo query ... --file q.sql</span><span class="d">SQL from file</span></div>
       <div class="row"><span class="k">echo "SQL" | qdo query -c CONN</span><span class="d">SQL from stdin</span></div>
+      <div class="row"><span class="k">qdo query ... --from scratch:3</span><span class="d">Reuse SQL from a recorded query step</span></div>
       <div class="row"><span class="k">qdo query ... --limit 100</span><span class="d">Limit rows (default 1000)</span></div>
       <div class="row"><span class="k">qdo export -c CONN -t TABLE -o f.csv</span><span class="d">Export to CSV</span></div>
+      <div class="row"><span class="k">qdo export ... --from scratch:last -o f.csv</span><span class="d">Export with saved query SQL</span></div>
       <div class="row"><span class="k">qdo export ... -e tsv</span><span class="d">Export to TSV</span></div>
       <div class="row"><span class="k">qdo export ... --clipboard</span><span class="d">Copy TSV to clipboard (Excel)</span></div>
       <div class="row"><span class="k">qdo explain -c CONN --sql "SQL"</span><span class="d">Query plan (EXPLAIN)</span></div>
       <div class="row"><span class="k">qdo explain ... --analyze</span><span class="d">EXPLAIN ANALYZE (DuckDB)</span></div>
-      <div class="tip"><strong>Export formats:</strong> csv, tsv, json, jsonl. Use <span class="cmd">--clipboard</span> for direct paste into Excel/Sheets.</div>
+      <div class="tip"><strong>Export formats:</strong> csv, tsv, json, jsonl. Use <span class="cmd">--clipboard</span> for direct paste into Excel/Sheets. With <span class="cmd">QDO_SESSION</span> enabled, <span class="cmd">--from SESSION:STEP</span> reuses SQL from an earlier <span class="cmd">qdo query</span>.</div>
     </section>
 
     <!-- ── Data Quality & Analysis ── -->
@@ -507,6 +509,7 @@
           <div class="row"><span class="k">qdo metadata show -c mydb -t T</span><span class="d">Business context</span></div>
           <div class="sub-heading" style="margin-top:8px">3. Query &amp; validate</div>
           <div class="row"><span class="k">qdo query -c mydb --sql "..."</span><span class="d">Run queries</span></div>
+          <div class="row"><span class="k">qdo query -c mydb --from scratch:last</span><span class="d">Reuse recorded SQL</span></div>
           <div class="row"><span class="k">qdo assert -c mydb --sql "..." --expect N</span><span class="d">Verify results</span></div>
         </div>
         <div>
