@@ -221,8 +221,8 @@ class LazyGroup(TyperGroup):
 app = typer.Typer(
     name="qdo",
     help=(
-        "Agent-first data exploration CLI for discovering data, capturing understanding, "
-        "and sharing it."
+        "Agent-first data exploration CLI — accumulate understanding of your data so "
+        "every subsequent investigation is sharper than the last."
     ),
     no_args_is_help=True,
     cls=LazyGroup,

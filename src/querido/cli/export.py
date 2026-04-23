@@ -18,7 +18,13 @@ def export(
     table: str | None = typer.Option(None, "--table", "-t", help="Table to export."),
     sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query to export."),
     from_step: str | None = typer.Option(
-        None, "--from", help="Reuse SQL from a prior session step (<session>:<step>)."
+        None,
+        "--from",
+        help=(
+            "Reuse SQL from a prior session step "
+            "(<session>:<step>, e.g. 'scratch:3' or 'scratch:last'). "
+            "The source step must have been recorded with -f json."
+        ),
     ),
     output: str | None = typer.Option(None, "--output", "-o", help="Output file path."),
     export_format: str = typer.Option(

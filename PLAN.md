@@ -14,7 +14,7 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 **Current eval baseline: 42/45 passing (93%)** across haiku / sonnet / opus on 15 tasks — up from the previous 33/33 on 11 tasks once the task set was expanded and the harness began isolating metadata state per run. The three remaining failures are all `model-mistake` (strict required-command grading), zero `qdo-bug`.
 
-**Pre-beta audit pass in flight (2026-04-23).** A multi-agent audit simulated first-contact across docs, CLI help + error messages, tutorials + SKILL files, and release artifacts. Findings are tracked as a tiered punch list under "Pre-beta audit pass — active" below. Item 7 of the pre-release pass (real dogfood) is still to follow; the audit is a pre-dogfood sanity sweep, not a replacement.
+**Pre-beta audit pass complete (2026-04-23).** A multi-agent audit simulated first-contact across docs, CLI help + error messages, tutorials + SKILL files, and release artifacts; the tiered findings list under "Pre-beta audit pass — active" below is now 26/26 shipped (2 deferred with rationale). Item 7 of the pre-release pass — real dogfood — is still the last remaining pre-release step; the audit was a pre-dogfood sanity sweep, not a replacement.
 
 Positioning and "what sets qdo apart" live in [DIFFERENTIATION.md](./DIFFERENTIATION.md). That's the cold-start doc for humans and agents re-entering the project.
 
@@ -73,10 +73,10 @@ Actual product-surface changes. Each warrants a brief think before diving in; co
 
 Small nice-to-haves. Can run in parallel with the tiers above.
 
-- [ ] **`.github/ISSUE_TEMPLATE/` + `.github/PULL_REQUEST_TEMPLATE.md` missing.** First reports will be unstructured. Fix: add `bug-report.md`, `feature-request.md`, and a short PR template.
-- [ ] **`qdo --help` tagline is weaker than the README's.** Currently "Agent-first data exploration CLI". Bring the value prop forward — e.g. "Accumulate understanding of your data. Agent-first." Fix: update the root Typer app `help=`.
-- [ ] **`--from <session>:<step>` help doesn't explain valid step indices.** Fix: extend help to `"<session_name>:<step_index>, e.g. 'my-session:3' or 'my-session:last'"`.
-- [ ] **`AGENTS.md` is ~506 lines and overlaps ARCHITECTURE.md.** Fix: tighten to <250 lines focused on contributor workflow + invariants, delegating implementation detail to ARCHITECTURE.md.
+- [x] **`.github/ISSUE_TEMPLATE/` + `.github/PULL_REQUEST_TEMPLATE.md` missing.** Added `bug_report.md` (structured: what happened / expected / reproduce / environment / structured-error paste), `feature_request.md` (scoped to DIFFERENTIATION.md's "What qdo deliberately isn't" filter so feature requests don't invite the rejected directions), and a PR template with a CI-gate checklist that includes the eval-rerun prompt when SKILL changes.
+- [x] **`qdo --help` tagline is weaker than the README's.** Updated root Typer app `help=` to "Agent-first data exploration CLI — accumulate understanding of your data so every subsequent investigation is sharper than the last." Leads with the differentiator, not just "data exploration CLI".
+- [x] **`--from <session>:<step>` help doesn't explain valid step indices.** Updated both `query.py` and `export.py` `--from` help to "Reuse SQL from a prior session step (`<session>:<step>`, e.g. 'scratch:3' or 'scratch:last'). The source step must have been recorded with -f json." The `-f json` note also prevents the Tier 1 session-replay footgun from recurring.
+- [x] **`AGENTS.md` is ~506 lines and overlaps ARCHITECTURE.md.** Trimmed to 156 lines focused on contributor workflow: where to look first, quick start, 8 critical invariants (pay-for-use, envelope, files-as-primitives, deterministic tools, input validation, connector protocol, SQL templates, CLI-surface preservation), the 7-rule test philosophy, self-hosting evals with current 42/45 baseline, test data, dependency management, release/retag, style. Command-surface enumeration, agent-tool workflow, and tutorial walkthrough removed — those now live in README.md / SKILL.md / ARCHITECTURE.md with explicit pointers.
 - [ ] `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` — **deferred** until there's concrete pull to add them (outside contributor appears, or a wider announcement).
 
 ### Progress tracker
@@ -85,9 +85,9 @@ Small nice-to-haves. Can run in parallel with the tiers above.
 - Tier 2: 5 / 5 ✅ (+1 deferred)
 - Tier 3: 7 / 7 ✅
 - Tier 4: 7 / 7 ✅
-- Tier 5: 0 / 4 (+1 deferred)
+- Tier 5: 4 / 4 ✅ (+1 deferred)
 
-**Total: 22 / 26 shipped, 2 deferred.** Update these counts as items tick.
+**Total: 26 / 26 shipped, 2 deferred. All tiers complete.** The pre-beta audit pass is done — the remaining pre-release item is item 7 of the earlier polish pass: real dogfood.
 
 ---
 

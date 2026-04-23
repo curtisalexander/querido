@@ -18,7 +18,13 @@ def query(
     sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query string."),
     file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file to execute."),
     from_step: str | None = typer.Option(
-        None, "--from", help="Reuse SQL from a prior session step (<session>:<step>)."
+        None,
+        "--from",
+        help=(
+            "Reuse SQL from a prior session step "
+            "(<session>:<step>, e.g. 'scratch:3' or 'scratch:last'). "
+            "The source step must have been recorded with -f json."
+        ),
     ),
     allow_write: bool = typer.Option(
         False,
