@@ -26,7 +26,10 @@ def init(
     sample_values: int = typer.Option(
         3,
         "--sample-values",
-        help="Number of sample values per column (0 to skip).",
+        help=(
+            "Number of sample values per non-numeric column (0 to skip). "
+            "Numeric columns always use min/max instead."
+        ),
     ),
     force: bool = typer.Option(False, "--force", help="Overwrite existing metadata file."),
 ) -> None:
@@ -66,7 +69,9 @@ def init(
 @friendly_errors
 def show(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
 ) -> None:
     """Show stored metadata for a table."""
     from querido.cli._pipeline import dispatch_output
@@ -98,7 +103,9 @@ def show(
 @app.command("list")
 @friendly_errors
 def list_cmd(
-    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
 ) -> None:
     """List all tables with stored metadata for a connection."""
     from querido.cli._pipeline import dispatch_output
@@ -112,7 +119,9 @@ def list_cmd(
 @friendly_errors
 def search_cmd(
     query: str = typer.Argument(..., help="Meaning-based metadata search query."),
-    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
     limit: int = typer.Option(5, "--limit", min=1, max=20, help="Maximum results to return."),
 ) -> None:
     """Search stored metadata by meaning across table and column descriptions."""
@@ -140,7 +149,9 @@ def search_cmd(
 @friendly_errors
 def edit(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
 ) -> None:
     """Open the metadata YAML file in your default editor."""
     import os
@@ -171,7 +182,10 @@ def refresh(
     sample_values: int = typer.Option(
         3,
         "--sample-values",
-        help="Number of sample values per column (0 to skip).",
+        help=(
+            "Number of sample values per non-numeric column (0 to skip). "
+            "Numeric columns always use min/max instead."
+        ),
     ),
 ) -> None:
     """Re-run inspect/profile to update machine fields.
@@ -212,7 +226,9 @@ def refresh(
 @friendly_errors
 def undo(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
     steps: int = typer.Option(1, "--steps", min=1, help="Undo the last N qdo-managed writes."),
     dry_run: bool = typer.Option(
         False,
@@ -266,7 +282,9 @@ def undo(
 @app.command()
 @friendly_errors
 def score(
-    connection: str = typer.Option(..., "--connection", "-c", help="Named connection."),
+    connection: str = typer.Option(
+        ..., "--connection", "-c", help="Named connection or file path."
+    ),
 ) -> None:
     """Per-table metadata completeness ranking (worst first)."""
     from querido.core.metadata_score import score_connection
@@ -301,7 +319,10 @@ def suggest(
     apply_flag: bool = typer.Option(
         False,
         "--apply",
-        help="Write the suggested additions to the metadata YAML.",
+        help=(
+            "Write the suggested additions to .qdo/metadata/<conn>/<table>.yaml. "
+            "Human-authored fields (confidence 1.0) are preserved unless --force."
+        ),
     ),
     force: bool = typer.Option(
         False,

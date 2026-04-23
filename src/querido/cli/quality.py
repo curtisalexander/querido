@@ -52,7 +52,11 @@ def quality(
     write_metadata: bool = typer.Option(
         False,
         "--write-metadata",
-        help="Write likely_sparse (null rate >95%) to the table's metadata YAML.",
+        help=(
+            "Write likely_sparse (null rate >95%) to "
+            ".qdo/metadata/<conn>/<table>.yaml. Human-authored fields "
+            "(confidence 1.0) are preserved unless --force."
+        ),
     ),
     force: bool = typer.Option(
         False,

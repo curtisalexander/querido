@@ -219,11 +219,11 @@ def _bad_parameter_code(msg: str) -> str:
         return "SESSION_NOT_FOUND"
     if lower.startswith("session step not found:"):
         return "SESSION_STEP_NOT_FOUND"
-    if lower.startswith("session step is not structured:"):
+    if "was recorded as rich output" in lower:
         return "SESSION_STEP_UNSTRUCTURED"
-    if lower.startswith("session step is unsupported for --from:"):
+    if "--from only replays recorded" in lower:
         return "SESSION_STEP_UNSUPPORTED"
-    if lower.startswith("session step has no reusable sql:"):
+    if "has no reusable sql in its envelope" in lower:
         return "SESSION_STEP_NO_SQL"
     if lower.startswith("no structured inspect/context snapshot found for table '"):
         return "SESSION_SNAPSHOT_NOT_FOUND"

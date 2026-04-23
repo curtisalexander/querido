@@ -29,7 +29,11 @@ def values(
     write_metadata: bool = typer.Option(
         False,
         "--write-metadata",
-        help="Write low-cardinality string results as candidate valid_values in metadata YAML.",
+        help=(
+            "Write low-cardinality string results as candidate valid_values to "
+            ".qdo/metadata/<conn>/<table>.yaml. Human-authored fields "
+            "(confidence 1.0) are preserved unless --force."
+        ),
     ),
     force: bool = typer.Option(
         False,

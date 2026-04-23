@@ -1103,9 +1103,32 @@ def for_error(
             )
         )
 
+    elif code == "SESSION_STEP_UNSTRUCTURED":
+        steps.append(
+            _step(
+                [
+                    "QDO_SESSION=<name>",
+                    "qdo",
+                    "-f",
+                    "json",
+                    "query",
+                    "-c",
+                    "<connection>",
+                    "--sql",
+                    "<sql>",
+                ],
+                "Re-record the source step with -f json so --from can replay its SQL envelope.",
+            )
+        )
+        steps.append(
+            _step(
+                ["qdo", "session", "show", "<session>"],
+                "Inspect the session to find a step already recorded as JSON.",
+            )
+        )
+
     elif code in {
         "SESSION_STEP_NOT_FOUND",
-        "SESSION_STEP_UNSTRUCTURED",
         "SESSION_STEP_UNSUPPORTED",
         "SESSION_STEP_NO_SQL",
         "SESSION_STEP_REF_INVALID",

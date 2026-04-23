@@ -49,13 +49,13 @@ Low-effort trust fixes. Every mismatch between docs costs a reader's confidence.
 
 Small mismatches where two surfaces disagree with each other.
 
-- [ ] **`qdo metadata search` is a real command but undocumented.** Missing from `README.md`, `docs/cli-reference.md`, `integrations/skills/SKILL.md`, `AGENTS.md`, `integrations/continue/qdo.md`. Separate from the already-cut top-level `qdo search`. Fix: document in all five, or hide / remove if it's effectively unfinished.
-- [ ] **`integrations/continue/qdo.md` drifts from `SKILL.md` on `-f json` promotion.** SKILL harmonized to explicit `-f json` per call; continue.md still leads with `export QDO_FORMAT=json`. Fix: align continue.md, or add a short note flagging the divergence and why.
-- [ ] **`--connection` help text inconsistent across commands.** Some commands say "Named connection or file path"; others say just "Named connection" (e.g. `src/querido/cli/metadata.py:69` for `metadata show`). Fix: standardize on "Named connection or file path" everywhere the command accepts both.
-- [ ] **`--sample-values` help text drift.** `src/querido/cli/context.py:25-28` explains non-numeric-column scope; the metadata init variant just says "Number of sample values per column". Align to the context wording.
-- [ ] **Sampling / write flags weak on side effects.** `--quick` doesn't say it disables detailed stats; `--plan` doesn't say it requires `--write-metadata`; `--write-metadata` doesn't mention the YAML file write or the `confidence: 1.0` preservation rule. Fix: one-sentence additions to the Typer `help=` strings on `profile`, `quality`, `values`, `metadata suggest`.
-- [ ] **Error "Session step is not structured" is jargon with no `try_next`.** `src/querido/core/session.py:271` raises a plain `ValueError`. Fix: rewrite to say the step was recorded as rich output — rerun the source step with `-f json` (or `QDO_FORMAT=json`) so `--from` can replay it. Promote to a structured error with a stable `code` so the envelope includes `try_next`.
-- [ ] **SKILL.md "Gotchas" section mixes agent concerns and operator concerns.** Currently lumps table-name case, Parquet syntax, `QDO_METADATA_DIR`, and metadata merge behavior. Fix: split into agent-gotchas (case, Parquet, Snowflake, merge) and operator-gotchas (metadata dir, refresh-vs-init, wide-table thresholds).
+- [x] **`qdo metadata search` is a real command but undocumented.** Documented in `README.md` (metadata section), `docs/cli-reference.md` (metadata table), `integrations/skills/SKILL.md` (metadata workflow), `AGENTS.md` (agent reads context block), and `integrations/continue/qdo.md` (metadata workflow).
+- [x] **`integrations/continue/qdo.md` drifts from `SKILL.md` on `-f json` promotion.** Aligned continue.md on the canonical `qdo -f json <cmd>` pattern: updated the intro, Default agent workflow (5 examples now use `-f json`), the "JSON output for programmatic use" section, and scrubbed stray `--format json` / `--format jsonl` / `--format csv` placements to the shorter `-f` form.
+- [x] **`--connection` help text inconsistent across commands.** Standardized all 6 outlier metadata subcommands (`show`, `list`, `search`, `score`, `undo`, one more) on `"Named connection or file path."`. Zero remaining `"Named connection."` strings in src/querido/cli/.
+- [x] **`--sample-values` help text drift.** `metadata init` and `metadata refresh` now mirror context's wording: "Number of sample values per non-numeric column (0 to skip). Numeric columns always use min/max instead." Kept `template` / `snowflake` (different default + dialect note) as-is — audit called out metadata specifically.
+- [x] **Sampling / write flags weak on side effects.** `--quick` now spells out what it skips (min/max/mean/stddev + top-frequency queries). `--write-metadata` on `profile` / `values` / `quality` and `--apply` on `metadata suggest` now surface the YAML write path *and* the `confidence: 1.0` preservation rule in a single sentence.
+- [x] **Error "Session step is not structured" is jargon with no `try_next`.** Rewrote all four session-step errors in `src/querido/core/session.py` to tell users what to do (re-record with `-f json`). Updated `_bad_parameter_code` matchers to keep structured codes stable. `SESSION_STEP_UNSTRUCTURED` now gets a dedicated `try_next` branch in `next_steps.py` that suggests the exact re-record command instead of "show the session".
+- [x] **SKILL.md "Gotchas" section mixes agent concerns and operator concerns.** Split into "behavior an agent needs to know" (case, Parquet, Snowflake, pivot SQL, wide-table auto-quick, human-field preservation rule) and "operator gotchas — setup / environment" (metadata location + `QDO_METADATA_DIR`, portability / bundles, `refresh` vs `init`, `QDO_QUICK_THRESHOLD`).
 
 ### Tier 4 — Real gaps before beta
 
@@ -83,11 +83,11 @@ Small nice-to-haves. Can run in parallel with the tiers above.
 
 - Tier 1: 3 / 3 ✅
 - Tier 2: 5 / 5 ✅ (+1 deferred)
-- Tier 3: 0 / 7
+- Tier 3: 7 / 7 ✅
 - Tier 4: 0 / 7
 - Tier 5: 0 / 4 (+1 deferred)
 
-**Total: 8 / 26 shipped, 2 deferred.** Update these counts as items tick.
+**Total: 15 / 26 shipped, 2 deferred.** Update these counts as items tick.
 
 ---
 

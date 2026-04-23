@@ -283,6 +283,9 @@ qdo metadata show -c mydb -t orders -f json
 
 # List all tables with metadata and completeness scores
 qdo metadata list -c mydb -f json
+
+# Find tables / columns by description keyword (lexical BM25, no embeddings)
+qdo metadata search -c mydb "fulfillment" --limit 5 -f json
 ```
 
 **Keep metadata fresh as schema evolves:**

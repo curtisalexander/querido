@@ -229,6 +229,7 @@ qdo metadata init    -c my-db -t orders       # create metadata YAML
 qdo metadata edit    -c my-db -t orders       # open in $EDITOR
 qdo metadata show    -c my-db -t orders       # read back metadata
 qdo metadata list    -c my-db                 # completeness overview
+qdo metadata search  -c my-db "fulfillment"   # lexical search across stored metadata
 qdo metadata refresh -c my-db -t orders       # re-profile, keep human fields
 qdo metadata undo    -c my-db -t orders       # restore the last qdo-managed metadata snapshot
 ```

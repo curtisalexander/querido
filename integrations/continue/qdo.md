@@ -7,31 +7,21 @@ alwaysApply: false
 
 # Using querido (qdo)
 
-qdo is an agent-first data exploration CLI that turns one-off investigation into reusable team knowledge. Use `--format json` (or `export QDO_FORMAT=json`) to get machine-readable output for every command.
+qdo is an agent-first data exploration CLI that turns one-off investigation into reusable team knowledge.
 
-## Quick Setup
-
-Run this once per session (or add to your shell profile):
-
-```bash
-export QDO_FORMAT=json   # all commands output JSON — no --format flag on every call
-```
+Pass `-f json` on every invocation for machine-readable output — the envelope is `{command, data, next_steps, meta}` with deterministic `next_steps` hints that chain investigations. Canonical placement is right after `qdo` (`qdo -f json <cmd> ...`). Shortcut: `export QDO_FORMAT=json` sets the default for a shell session.
 
 ## Default agent workflow
 
 Unless the user clearly asks for something else, use this path:
 
 ```bash
-qdo catalog -c <connection>                 # discover candidate tables
-qdo context -c <connection> -t <table>      # understand one table deeply
-qdo metadata show -c <connection> -t <table> -f json
-                                             # load existing shared knowledge
-qdo query -c <connection> --sql "select ..."
-                                             # answer a concrete question
-qdo assert -c <connection> --sql "select ..." --expect ...
-                                             # verify an invariant when useful
-qdo report table -c <connection> -t <table> -o report.html
-                                             # hand off a shareable artifact
+qdo -f json catalog -c <connection>                                   # discover candidate tables
+qdo -f json context -c <connection> -t <table>                         # understand one table deeply
+qdo -f json metadata show -c <connection> -t <table>                   # load existing shared knowledge
+qdo -f json query -c <connection> --sql "select ..."                   # answer a concrete question
+qdo -f json assert -c <connection> --sql "select ..." --expect ...     # verify an invariant when useful
+qdo report table -c <connection> -t <table> -o report.html             # hand off a shareable artifact (file output)
 ```
 
 Treat `catalog -> context -> metadata -> query/assert -> report/bundle` as the default path.
@@ -166,22 +156,26 @@ Use `context` as the primary tool call when you need to understand a table befor
 
 ## JSON output for programmatic use
 
-```bash
-# Set once, affects all commands
-export QDO_FORMAT=json
+Canonical placement is right after `qdo`:
 
-# Or per-command
-qdo --format json catalog -c mydb
-qdo --format json context -c mydb -t orders
-qdo --format json metadata show -c mydb -t orders
+```bash
+qdo -f json catalog -c mydb
+qdo -f json context -c mydb -t orders
+qdo -f json metadata show -c mydb -t orders
 ```
 
-Errors go to stderr as structured JSON when `--format json` is set:
+Shortcut if you are setting up a Continue session and want every call to be JSON without the flag:
+
+```bash
+export QDO_FORMAT=json   # prefer explicit -f json per call; this is a convenience
+```
+
+Errors go to stderr as structured JSON when `-f json` is set:
 ```json
 {"error": true, "code": "TABLE_NOT_FOUND", "message": "...", "hint": "..."}
 ```
 
-Most scan/query commands and many management/reference commands support `--format json`; artifact-oriented commands such as `report table` still keep their file-writing behavior.
+Most scan/query commands and many management/reference commands support `-f json`; artifact-oriented commands such as `report table` still keep their file-writing behavior.
 
 ## Metadata workflow
 
@@ -207,6 +201,9 @@ qdo metadata suggest -c <connection> -t <table>
 
 # Check completeness across all documented tables
 qdo metadata list -c <connection>
+
+# Find stored tables / columns by description keyword (lexical, local)
+qdo metadata search -c <connection> "fulfillment" --limit 5
 
 # Re-profile after data changes (preserves human fields)
 qdo metadata refresh -c <connection> -t <table>
@@ -273,13 +270,13 @@ qdo sql scratch -c <connection> -t <table>
 
 ```bash
 # CSV to stdout — pipe to file or another tool
-qdo --format csv preview -c <connection> -t <table> -r 100
+qdo -f csv preview -c <connection> -t <table> -r 100
 
 # JSON lines — one object per row
-qdo --format jsonl query -c <connection> --sql "select ..."
+qdo -f jsonl query -c <connection> --sql "select ..."
 
-# Export command with explicit format flag
-qdo export -c <connection> -t <table> --format csv
+# Export command uses its own -e/--export-format for file format
+qdo export -c <connection> -t <table> -e csv
 ```
 
 ## Sampling and accuracy
@@ -342,5 +339,5 @@ Full guides (in the qdo repo):
 ```bash
 qdo --help
 qdo <command> --help
-qdo --format json overview   # machine-readable command reference
+qdo -f json overview         # machine-readable command reference
 ```

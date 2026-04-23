@@ -122,6 +122,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo metadata init -c CONN -t TABLE` | Generate metadata YAML template |
 | `qdo metadata show -c CONN -t TABLE` | Show stored metadata |
 | `qdo metadata list -c CONN` | List metadata files |
+| `qdo metadata search -c CONN QUERY [--limit N]` | Lexical search across stored table + column descriptions |
 | `qdo metadata score -c CONN` | Rank metadata completeness |
 | `qdo metadata suggest -c CONN -t TABLE [--apply]` | Propose deterministic metadata additions |
 | `qdo metadata refresh -c CONN -t TABLE` | Refresh machine fields, keep human fields |

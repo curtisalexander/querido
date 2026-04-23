@@ -268,19 +268,32 @@ def resolve_query_step_reference(ref: str, *, cwd: Path | None = None) -> dict[s
 
     payload = _parse_structured_stdout(read_step_stdout(step, cwd))
     if payload is None:
-        raise ValueError(f"Session step is not structured: {ref}")
+        raise ValueError(
+            f"Session step {ref} was recorded as rich output, not JSON; --from needs the "
+            "step's structured envelope. Re-record the source step with -f json (or "
+            "QDO_FORMAT=json) so its SQL can be replayed."
+        )
 
     command = payload.get("command")
     if command != "query":
-        raise ValueError(f"Session step is unsupported for --from: {ref} (expected query)")
+        raise ValueError(
+            f"Session step {ref} is a '{command}' step; --from only replays recorded "
+            "'query' steps. Pick a step where qdo ran `query --sql` with -f json."
+        )
 
     data = payload.get("data")
     if not isinstance(data, dict):
-        raise ValueError(f"Session step has no reusable SQL: {ref}")
+        raise ValueError(
+            f"Session step {ref} has no reusable SQL in its envelope. The recorded JSON "
+            "is missing a `data` object — the source step may have failed before emitting."
+        )
 
     sql = data.get("sql")
     if not isinstance(sql, str) or not sql.strip():
-        raise ValueError(f"Session step has no reusable SQL: {ref}")
+        raise ValueError(
+            f"Session step {ref} has no reusable SQL in its envelope. The recorded JSON "
+            "has no `data.sql` — the source step may have failed before emitting."
+        )
 
     meta = payload.get("meta")
     source_connection = meta.get("connection") if isinstance(meta, dict) else None

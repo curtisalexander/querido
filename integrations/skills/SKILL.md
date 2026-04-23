@@ -212,6 +212,9 @@ qdo metadata suggest -c <connection> -t <table>
 # Check completeness across all documented tables
 qdo metadata list -c <connection>
 
+# Find stored tables / columns by description keyword (lexical, local)
+qdo -f json metadata search -c <connection> "fulfillment" --limit 5
+
 # Re-profile after data changes (preserves human fields)
 qdo metadata refresh -c <connection> -t <table>
 ```
@@ -323,14 +326,21 @@ Not in the common workflow, but worth knowing about:
 
 ## Gotchas
 
+Behavior an agent needs to know so it doesn't write broken SQL or pick the wrong path:
+
 - **Table names are case-insensitive** — qdo normalizes them internally; use whatever case feels natural.
 - **Parquet files** — pass the file path directly as the connection: `-c ./data.parquet`. No separate config step needed.
 - **Snowflake** — requires a named connection set up via `qdo config add`. Use `qdo snowflake` for Cortex Analyst semantic model generation.
-- **Metadata location** — files go to `.qdo/metadata/<connection-dir>/<table>.yaml` relative to your working directory. When `--connection` is a named connection (e.g. `-c mydb`), `<connection-dir>` is the connection name (`.qdo/metadata/mydb/`). When `--connection` is a file path (e.g. `-c ./data/test.duckdb`), `<connection-dir>` is the file *stem* — the filename without extension (`.qdo/metadata/test/`). Override the root with the `QDO_METADATA_DIR` environment variable.
-- **Portability of metadata** — a local metadata YAML's `connection:` field stores whatever was passed to `-c` (possibly an absolute path). Don't rely on that field for cross-machine work. The portability boundary is `qdo bundle export` — bundles match tables by a `schema_fingerprint` (hash of columns+types), so an export from one machine imports cleanly onto another regardless of local paths.
-- **metadata refresh vs init** — `init` creates a new file and will error if one already exists. `refresh` updates machine fields in an existing file. Use `init --force` to overwrite.
 - **pivot aggregations** — the `-a` argument is a SQL aggregate expression: `"count(*)"`, `"avg(price)"`, `"sum(revenue)"`. Quote it to prevent shell interpretation.
-- **Wide tables** — `--quick` auto-engages at 50+ columns (only null counts + distinct counts). Use `--classify` for a category breakdown and `--column-set` to reuse a saved selection. If you're exploring interactively, `qdo explore` now opens quick triage first when you press `p` on a wide table, with recommended columns pre-selected before full profiling. Configurable threshold: `export QDO_QUICK_THRESHOLD=100`.
+- **Wide tables auto-engage quick mode at 50+ columns** — only null counts + distinct counts are computed. Use `--classify` for a category breakdown, `--column-set` to reuse a saved selection, `--no-quick` to force full stats. If exploring interactively, `qdo explore` opens quick triage first when you press `p` on a wide table.
+- **Metadata merge preserves human fields** — scans that `--write-metadata` never overwrite fields stored with `confidence: 1.0`. Pass `--force` only when the human value is actually stale.
+
+Operator gotchas — setup / environment behavior, not needed for day-to-day query work:
+
+- **Metadata location** — files go to `.qdo/metadata/<connection-dir>/<table>.yaml` relative to the working directory. For `-c mydb` (named) the dir is the connection name; for `-c ./data.duckdb` (file path) the dir is the file *stem*. Override the root with `QDO_METADATA_DIR`.
+- **Metadata portability** — a local YAML's `connection:` field stores whatever was passed to `-c` (possibly an absolute path). Don't rely on it across machines. The portability boundary is `qdo bundle export`: bundles match tables by a `schema_fingerprint` (hash of columns+types) and import cleanly regardless of local paths.
+- **`metadata refresh` vs `init`** — `init` creates a new file and errors if one exists; `refresh` updates machine fields on an existing file. Use `init --force` to overwrite.
+- **Wide-table threshold is configurable** — `export QDO_QUICK_THRESHOLD=100` raises the bar for auto-engaging quick mode. Set to 0 to always engage; very large to always skip.
 
 ## Workflows — author, run, share
 

@@ -39,7 +39,10 @@ def profile(
     quick: bool | None = typer.Option(
         None,
         "--quick/--no-quick",
-        help="Quick mode: only null counts and distinct counts (auto-engages at 50+ columns).",
+        help=(
+            "Quick mode: null counts + distinct counts only; skips min/max/mean/stddev "
+            "and top-frequency queries. Auto-engages at 50+ columns."
+        ),
     ),
     classify: bool = typer.Option(
         False,
@@ -54,7 +57,11 @@ def profile(
     write_metadata: bool = typer.Option(
         False,
         "--write-metadata",
-        help="Write deterministic inferences (temporal, etc.) to the table's metadata YAML.",
+        help=(
+            "Write deterministic inferences (temporal, etc.) to "
+            ".qdo/metadata/<conn>/<table>.yaml. Human-authored fields "
+            "(confidence 1.0) are preserved unless --force."
+        ),
     ),
     force: bool = typer.Option(
         False,
