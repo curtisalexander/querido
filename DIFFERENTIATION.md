@@ -1,7 +1,7 @@
 # What sets qdo apart
 
 Durable orientation for humans returning to the project and for coding agents starting
-fresh. Point-in-time snapshot; last reviewed 2026-04-22.
+fresh. Point-in-time snapshot; last reviewed 2026-04-23.
 
 > **Audience:** someone — you, a teammate, or an agent — who needs to understand
 > what qdo is for and why it's shaped the way it is before touching code or docs.
@@ -75,10 +75,12 @@ remembers". The tool remembers.
    dialect-aware. No other tool in the space goes this deep into Snowflake
    specifically.
 
-4. **Self-hosting eval at 33/33 perfect.** `scripts/eval_skill_files_claude.py`
+4. **Self-hosting eval at 42/45 (93%).** `scripts/eval_skill_files_claude.py`
    runs `claude -p` against the SKILL file and grades the results across haiku,
-   sonnet, and opus. Both a credibility artifact and a regression detector — any
-   SKILL change that drops the score is signal.
+   sonnet, and opus on 15 tasks. Both a credibility artifact and a regression
+   detector — any SKILL change that drops the score is signal. The three
+   remaining failures are all `model-mistake` (strict required-command grading
+   against valid alternative paths); zero `qdo-bug`.
 
 5. **Files as primitives.** Sessions are JSONL + stdout. Metadata is YAML.
    Bundles are zip archives. Workflows are YAML. All portable, diffable,
@@ -158,19 +160,21 @@ When evaluating any proposed feature, in order:
 
 ---
 
-## Current state (snapshot, 2026-04-22)
+## Current state (snapshot, 2026-04-23)
 
-- **Tests:** 1174 passing / 25 skipped. `ruff check`, `ty check` both green.
+- **Tests:** 1177 passing / 25 skipped. `ruff check`, `ty check` both green.
   Zero `TODO` / `FIXME` markers anywhere in src or tests.
 - **Shipped phases:** 1–4, 6, 7. Phase 5 dropped by design. R-series complete.
-  Sharpening Waves 1–4 complete.
-- **Eval:** 33/33 perfect across haiku, sonnet, and opus.
+  Sharpening Waves 1–4 complete. Pre-release polish pass (items 0–6) landed
+  2026-04-22.
+- **Eval:** 42/45 (93%) across haiku, sonnet, and opus on 15 tasks. The three
+  failures are all `model-mistake`, not `qdo-bug`.
 - **Surface:** 38 top-level commands across 10 categories. The structured
-  envelope is emitted by 26 of 38 commands — coverage on all data-emitting
-  scans. Commands that correctly don't emit: `explore` (TUI), `report` (HTML
-  artifact), `tutorial` (interactive), `completion` (install artifact). Gaps
-  worth closing: `sql`, `snowflake`.
-- **Active polish pass:** see [PLAN.md](./PLAN.md) → "Pre-release polish pass".
+  envelope is emitted by all data-emitting scans — `sql` and `snowflake`
+  gained envelope coverage in the pre-release polish pass. Commands that
+  correctly don't emit: `explore` (TUI), `report` (HTML artifact), `tutorial`
+  (interactive), `completion` (install artifact).
+- **Active polish pass:** see [PLAN.md](./PLAN.md) → "Pre-beta audit pass — active".
 
 ---
 

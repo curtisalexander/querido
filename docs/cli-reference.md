@@ -173,11 +173,11 @@ qdo profile -c mydb -t orders -f csv > profile.csv
 
 ## Session Step Reuse
 
-When `QDO_SESSION` is set, `query` steps are recorded and can be referenced later by `query` and `export`:
+When `QDO_SESSION` is set, `query` steps are recorded and can be referenced later by `query` and `export`. Record the source step with `-f json` so `--from` has the canonical SQL to replay (rich-format steps are rejected):
 
 ```bash
-QDO_SESSION=scratch qdo query -c mydb --sql "select * from orders where status = 'pending'"
-qdo query -c mydb --from scratch:1
+QDO_SESSION=scratch qdo -f json query -c mydb --sql "select * from orders where status = 'pending'"
+qdo query  -c mydb --from scratch:1
 qdo export -c mydb --from scratch:last -o pending-orders.csv
 ```
 

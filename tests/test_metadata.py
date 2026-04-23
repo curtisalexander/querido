@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -158,25 +159,31 @@ def test_metadata_refresh_not_found(sqlite_path: str, tmp_path: Path, monkeypatc
 
 
 def test_metadata_completeness(sqlite_path: str, tmp_path: Path, monkeypatch):
-    """Completeness reflects filled human fields."""
+    """``metadata list`` reports the same composite score as ``metadata score``.
+
+    Regression: this used to be a separate human-fields-only calculation, so
+    ``suggest --apply`` could write ``valid_values`` without moving the number.
+    """
+    import json
+
     monkeypatch.chdir(tmp_path)
     runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
 
-    # Initially 0% — all placeholders
+    # Just written → no column descriptions / valid_values, full freshness
+    # credit. Composite = 0 * 0.5 + 0 * 0.3 + 1.0 * 0.2 = 20%.
     result = runner.invoke(
         app,
         ["-f", "json", "metadata", "list", "-c", sqlite_path],
     )
-    import json
+    fresh = json.loads(result.output).get("tables", [{}])[0].get("completeness", 0)
+    assert fresh == pytest.approx(20.0, abs=0.5)
 
-    payload = json.loads(result.output)
-    assert payload.get("tables", [{}])[0].get("completeness") == 0.0
-
-    # Fill in some fields
+    # Adding column descriptions should move the score well above the
+    # freshness-only baseline — the completeness field is no longer frozen.
     meta_file = tmp_path / ".qdo" / "metadata" / "test" / "users.yaml"
     meta = yaml.safe_load(meta_file.read_text())
-    meta["table_description"] = "Filled in"
-    meta["data_owner"] = "Filled in"
+    for col in meta.get("columns", []):
+        col["description"] = f"Description for {col.get('name')}"
     with open(meta_file, "w") as f:
         yaml.dump(meta, f)
 
@@ -184,9 +191,8 @@ def test_metadata_completeness(sqlite_path: str, tmp_path: Path, monkeypatch):
         app,
         ["-f", "json", "metadata", "list", "-c", sqlite_path],
     )
-    payload = json.loads(result.output)
-    completeness = payload.get("tables", [{}])[0].get("completeness", 0)
-    assert completeness > 0
+    filled = json.loads(result.output).get("tables", [{}])[0].get("completeness", 0)
+    assert filled > fresh + 30  # 50-pt jump from descriptions alone
 
 
 def test_metadata_show_format_csv(sqlite_path: str, tmp_path: Path, monkeypatch):

@@ -139,11 +139,11 @@ qdo catalog -c my-db -f json > schema.json
 qdo profile -c my-db -t orders -f csv > stats.csv
 ```
 
-If you are recording a session, `query` and `export` can reuse SQL from a prior query step:
+If you are recording a session, `query` and `export` can reuse SQL from a prior query step. Record the source step with `-f json` so `--from` has the canonical SQL to replay:
 
 ```bash
-QDO_SESSION=scratch qdo query -c my-db --sql "select * from orders where status = 'pending'"
-qdo query -c my-db --from scratch:1
+QDO_SESSION=scratch qdo -f json query -c my-db --sql "select * from orders where status = 'pending'"
+qdo query  -c my-db --from scratch:1
 qdo export -c my-db --from scratch:1 -o pending-orders.csv
 ```
 

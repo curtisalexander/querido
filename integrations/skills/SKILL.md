@@ -8,7 +8,7 @@ compatibility: Requires qdo CLI (pip install querido). DuckDB support requires q
 
 qdo is an agent-first data exploration CLI. The product surface looks ordinary (`catalog`, `context`, `profile`, `query`). The asset is the **compounding loop** those commands form: metadata captured by one investigation (`values --write-metadata`, `metadata suggest --apply`) is auto-merged into the next `context` and checked by the next `quality` run. Every call makes the next one sharper. No LLMs inside qdo — you bring the brain; qdo brings the memory and the map.
 
-Self-hosting eval: **33/33 perfect** across haiku, sonnet, and opus (re-run on every SKILL change; regressions are signal).
+Self-hosting eval: **42/45 (93%)** across haiku, sonnet, and opus on 15 tasks (re-run on every SKILL change; regressions are signal — the three current failures are all `model-mistake`, not `qdo-bug`).
 
 Pass `-f json` on every invocation for machine-readable output — the envelope is `{command, data, next_steps, meta}` with deterministic `next_steps` hints that chain investigations. Canonical placement is right after `qdo` (`qdo -f json <cmd> ...`).
 

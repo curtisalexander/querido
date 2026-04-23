@@ -305,9 +305,13 @@ def load_column_metadata(connection: str, table: str) -> dict[str, dict]:
 def list_metadata(connection: str) -> list[dict]:
     """List all stored metadata files for a connection.
 
-    Returns a list of dicts with ``table``, ``path``, ``last_modified``,
-    and ``completeness`` (percentage of human fields filled).
+    ``completeness`` is the same composite score used by ``metadata score``
+    (column descriptions + valid_values + freshness), expressed as 0-100.
+    Reporting the same number here avoids the trap where ``suggest --apply``
+    writes real fields and ``metadata list`` still reads 0%.
     """
+    from querido.core.metadata_score import score_table
+
     meta_dir = get_metadata_dir(connection)
     if not meta_dir.exists():
         return []
@@ -317,12 +321,14 @@ def list_metadata(connection: str) -> list[dict]:
         meta = _read_yaml(yaml_file)
         if meta is None:
             continue
+        mtime = yaml_file.stat().st_mtime
+        scored = score_table(meta, mtime=mtime)
         results.append(
             {
                 "table": yaml_file.stem,
                 "path": str(yaml_file),
-                "last_modified": yaml_file.stat().st_mtime,
-                "completeness": _calc_completeness(meta),
+                "last_modified": mtime,
+                "completeness": round(100.0 * scored.get("score", 0.0), 1),
             }
         )
     return results
@@ -738,28 +744,6 @@ def _merge_metadata(existing: dict, fresh: dict) -> dict:
 
     merged["columns"] = merged_cols
     return merged
-
-
-def _calc_completeness(meta: dict) -> float:
-    """Calculate what percentage of human fields are filled (not placeholders)."""
-    total = 0
-    filled = 0
-
-    for key in _HUMAN_TABLE_FIELDS:
-        total += 1
-        val = meta.get(key, "")
-        if val and not str(val).startswith("<") and str(val).strip():
-            filled += 1
-
-    for col in meta.get("columns", []):
-        for key in _HUMAN_COLUMN_FIELDS:
-            if key == "description":
-                total += 1
-                val = col.get(key, "")
-                if val and not str(val).startswith("<") and str(val).strip():
-                    filled += 1
-
-    return round(100.0 * filled / total, 1) if total else 100.0
 
 
 def _write_yaml(path: Path, data: dict) -> None:

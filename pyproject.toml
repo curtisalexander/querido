@@ -1,10 +1,44 @@
 [project]
 name = "querido"
 version = "0.1.0"
-description = "CLI data analysis toolkit for SQLite, DuckDB, and Snowflake"
+description = "Agent-first data exploration CLI for SQLite, DuckDB, Snowflake, and Parquet"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
+authors = [
+    { name = "Curtis Alexander", email = "6118829+curtisalexander@users.noreply.github.com" },
+]
+keywords = [
+    "cli",
+    "data",
+    "exploration",
+    "profiling",
+    "metadata",
+    "sqlite",
+    "duckdb",
+    "snowflake",
+    "parquet",
+    "agent",
+    "llm",
+    "sql",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
 dependencies = [
     "typer>=0.15",
     "rich>=13.7",
@@ -13,6 +47,13 @@ dependencies = [
     "tomli-w>=1.2",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/curtisalexander/querido"
+Repository = "https://github.com/curtisalexander/querido"
+Issues = "https://github.com/curtisalexander/querido/issues"
+Changelog = "https://github.com/curtisalexander/querido/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/curtisalexander/querido#readme"
 
 [project.optional-dependencies]
 duckdb = [

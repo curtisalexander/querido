@@ -6,17 +6,88 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ---
 
-## Status (as of 2026-04-22)
+## Status (as of 2026-04-23)
 
-**Tests:** 1176 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
+**Tests:** 1177 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
 
 **Polish pass complete.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done. The Pre-release polish pass (items 0–6) landed 2026-04-22 — see summary under "Phases shipped" below.
 
 **Current eval baseline: 42/45 passing (93%)** across haiku / sonnet / opus on 15 tasks — up from the previous 33/33 on 11 tasks once the task set was expanded and the harness began isolating metadata state per run. The three remaining failures are all `model-mistake` (strict required-command grading), zero `qdo-bug`.
 
-**Only pre-release item left is item 7 — dogfood.** Use qdo on a real project for a week and triage whatever surfaces.
+**Pre-beta audit pass in flight (2026-04-23).** A multi-agent audit simulated first-contact across docs, CLI help + error messages, tutorials + SKILL files, and release artifacts. Findings are tracked as a tiered punch list under "Pre-beta audit pass — active" below. Item 7 of the pre-release pass (real dogfood) is still to follow; the audit is a pre-dogfood sanity sweep, not a replacement.
 
 Positioning and "what sets qdo apart" live in [DIFFERENTIATION.md](./DIFFERENTIATION.md). That's the cold-start doc for humans and agents re-entering the project.
+
+---
+
+## Pre-beta audit pass — active
+
+A multi-agent audit on 2026-04-23 simulated first-contact with the project across five angles: fresh-user Quick Start walkthrough, public-docs consistency, CLI help + error-message quality, tutorials + agent-integration polish, and release-artifact completeness. Tier ordering is by damage to the first-contact story, not implementation cost.
+
+Convention: each item has what's wrong, where (file:line when known), and a one-line fix sketch. Tick `[x]` when shipped. **Deferred** items stay on the list with a rationale so we don't forget the decision.
+
+### Tier 1 — Bugs in the documented happy path
+
+Users will hit these in the first ten minutes of following the README if we don't fix them.
+
+- [x] **README Quick Start `--from scratch:1` example fails out of the box.** `README.md:144-148` records a rich-format query then replays it — `--from` rejects the step because only structured (`-f json`) steps carry canonical SQL. Fixed by adding `-f json` to the recording step in both `README.md` and `docs/cli-reference.md` (same broken pattern at 179-181), with a one-line lead-in explaining why. Verified end-to-end: recording + replay + export from session step all work.
+- [x] **`metadata suggest --apply` missing-extra hint renders as `uv pip install 'querido' or 'querido'`.** Rich was eating `[duckdb]` / `[snowflake]` as markup tags. Fixed by wrapping the hint / try_next cmd / try_next why strings in `rich.markup.escape` at the display site (`src/querido/cli/_errors.py::_emit_rich_error`). Added regression test `test_emit_rich_error_preserves_bracketed_text_in_hints` so the bug can't return silently.
+- [x] **`qdo metadata list` reports 0% completeness right after `metadata suggest --apply` writes fields.** Verified: two scoring paths disagreed — `metadata list` used a private `_calc_completeness` counting only human fields (descriptions, owner), while `metadata score` used the newer `score_table` rubric crediting valid_values + freshness too. Fixed by converging `list_metadata` on `score_table` and removing the dead helper. Post-`init` now reads 20% (freshness-only); post-`suggest --apply` jumps to 50% as valid_values are credited. Test updated to pin the new behavior and document the regression.
+
+### Tier 2 — Credibility drift
+
+Low-effort trust fixes. Every mismatch between docs costs a reader's confidence.
+
+- [x] **Eval score stale in DIFFERENTIATION.md and SKILL.md.** Updated `DIFFERENTIATION.md:167` and `SKILL.md:11` to "42/45 (93%) on 15 tasks" with the note that the three failures are `model-mistake`, not `qdo-bug`. `DIFFERENTIATION.md:163` updated to 1177 passing tests.
+- [x] **DIFFERENTIATION.md snapshot block stale.** Refreshed the entire "Current state" section: snapshot date → 2026-04-23, tests → 1177, eval → 42/45, and dropped the stale "gaps worth closing: sql, snowflake" line since those now emit envelope (pre-release polish item 5).
+- [x] **`ARCHITECTURE.md:65,106` still lists `search` in `metadata.py` comments.** Resolved as not-a-bug: the `search` reference is to `qdo metadata search` (a real subcommand that still exists), not the cut top-level `qdo search` (removed in 068c09e). Audit agent conflated the two. The actual issue — `metadata search` being undocumented in public docs — is tracked separately as Tier 3 item 1.
+- [x] **`pyproject.toml` missing metadata for a public listing.** Added `authors`, `[project.urls]` (Homepage / Repository / Issues / Changelog / Documentation), 12-item `keywords`, 15-item `classifiers` (Beta dev status, MIT license, Python 3.12/3.13, Typed, etc.), and sharpened the `description` to match DIFFERENTIATION's agent-first framing. `uv sync` still green.
+- [x] **No `CHANGELOG.md`.** Added Keep-a-Changelog-style `CHANGELOG.md` with a curated v0.1.0 entry framing the compounding-loop story, enumerating the major capabilities (context, metadata, bundles, workflows, agent output, sessions, reports, TUI), and listing the polish passes that shaped it. `[Unreleased]` section captures the Tier 1 audit fixes. Added `Changelog` entry to `pyproject.toml` `[project.urls]` pointing at it.
+- [ ] README badges (CI / PyPI / license / Python version) — **deferred**. Revisit if/when the project publishes to PyPI. The decision is to launch without badges rather than add placeholder ones.
+
+### Tier 3 — Surface inconsistencies
+
+Small mismatches where two surfaces disagree with each other.
+
+- [ ] **`qdo metadata search` is a real command but undocumented.** Missing from `README.md`, `docs/cli-reference.md`, `integrations/skills/SKILL.md`, `AGENTS.md`, `integrations/continue/qdo.md`. Separate from the already-cut top-level `qdo search`. Fix: document in all five, or hide / remove if it's effectively unfinished.
+- [ ] **`integrations/continue/qdo.md` drifts from `SKILL.md` on `-f json` promotion.** SKILL harmonized to explicit `-f json` per call; continue.md still leads with `export QDO_FORMAT=json`. Fix: align continue.md, or add a short note flagging the divergence and why.
+- [ ] **`--connection` help text inconsistent across commands.** Some commands say "Named connection or file path"; others say just "Named connection" (e.g. `src/querido/cli/metadata.py:69` for `metadata show`). Fix: standardize on "Named connection or file path" everywhere the command accepts both.
+- [ ] **`--sample-values` help text drift.** `src/querido/cli/context.py:25-28` explains non-numeric-column scope; the metadata init variant just says "Number of sample values per column". Align to the context wording.
+- [ ] **Sampling / write flags weak on side effects.** `--quick` doesn't say it disables detailed stats; `--plan` doesn't say it requires `--write-metadata`; `--write-metadata` doesn't mention the YAML file write or the `confidence: 1.0` preservation rule. Fix: one-sentence additions to the Typer `help=` strings on `profile`, `quality`, `values`, `metadata suggest`.
+- [ ] **Error "Session step is not structured" is jargon with no `try_next`.** `src/querido/core/session.py:271` raises a plain `ValueError`. Fix: rewrite to say the step was recorded as rich output — rerun the source step with `-f json` (or `QDO_FORMAT=json`) so `--from` can replay it. Promote to a structured error with a stable `code` so the envelope includes `try_next`.
+- [ ] **SKILL.md "Gotchas" section mixes agent concerns and operator concerns.** Currently lumps table-name case, Parquet syntax, `QDO_METADATA_DIR`, and metadata merge behavior. Fix: split into agent-gotchas (case, Parquet, Snowflake, merge) and operator-gotchas (metadata dir, refresh-vs-init, wide-table thresholds).
+
+### Tier 4 — Real gaps before beta
+
+Actual product-surface changes. Each warrants a brief think before diving in; consider promoting any of these to its own tracked item if scope grows.
+
+- [ ] **No `qdo config remove`.** `add` + `clone` exist; removing a connection means hand-editing `connections.toml`. Fix: add `qdo config remove --name <n>` with a confirmation prompt + `-y/--yes` bypass.
+- [ ] **`qdo config add --type duckdb` succeeds silently without the `[duckdb]` extra installed.** Every subsequent use of that connection then fails. Fix: at `config add` time, probe importability of the backend and print a warning (not an error — user may install the extra next) pointing at `uv pip install 'querido[duckdb]'`. Same for `[snowflake]`.
+- [ ] **SKILL.md has no dedicated `quality` section.** `context` gets a full treatment with JSON shape; `quality` is only mentioned in the drill-down list. Agents don't learn when to reach for it. Fix: add a `## quality — detect data issues` section with syntax, JSON output shape, and when to pick it over `context` + `values`.
+- [ ] **`qdo tutorial explore` still teaches the old single-command tour.** 15 lessons run `catalog → inspect → preview → profile → dist → values → query → pivot → export`. Skips `context` (which does inspect + preview + profile in one), never lands the `values --write-metadata → context → quality` compounding story, and doesn't point to `qdo tutorial agent` as the upgrade path. Fix: re-sequence around `context` early; add a lesson showing metadata capture with `suggest --apply`; finish with a pointer to `qdo tutorial agent`.
+- [ ] **`qdo tutorial agent` Lesson 13 names SKILL files vaguely.** Current copy says "integrations/ directory". Fix: name Claude Code vs Continue.dev files explicitly — `integrations/skills/SKILL.md` and `integrations/continue/qdo.md` — so the learner knows which to load next.
+- [ ] **`docs/examples/` metadata fixture may use outdated field names.** `orders.yaml` field names to cross-check against current `qdo metadata init` output. Fix: regenerate the example from current qdo and diff.
+- [ ] **`qdo report table` without `-o` silently opens a tempfile.** Output currently just says `Opened /var/folders/.../qdo-report-orders-*.html`. Fix: add a one-line note: "Tempfile — pass `-o <name>.html` to keep a permanent copy."
+
+### Tier 5 — Polish
+
+Small nice-to-haves. Can run in parallel with the tiers above.
+
+- [ ] **`.github/ISSUE_TEMPLATE/` + `.github/PULL_REQUEST_TEMPLATE.md` missing.** First reports will be unstructured. Fix: add `bug-report.md`, `feature-request.md`, and a short PR template.
+- [ ] **`qdo --help` tagline is weaker than the README's.** Currently "Agent-first data exploration CLI". Bring the value prop forward — e.g. "Accumulate understanding of your data. Agent-first." Fix: update the root Typer app `help=`.
+- [ ] **`--from <session>:<step>` help doesn't explain valid step indices.** Fix: extend help to `"<session_name>:<step_index>, e.g. 'my-session:3' or 'my-session:last'"`.
+- [ ] **`AGENTS.md` is ~506 lines and overlaps ARCHITECTURE.md.** Fix: tighten to <250 lines focused on contributor workflow + invariants, delegating implementation detail to ARCHITECTURE.md.
+- [ ] `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` — **deferred** until there's concrete pull to add them (outside contributor appears, or a wider announcement).
+
+### Progress tracker
+
+- Tier 1: 3 / 3 ✅
+- Tier 2: 5 / 5 ✅ (+1 deferred)
+- Tier 3: 0 / 7
+- Tier 4: 0 / 7
+- Tier 5: 0 / 4 (+1 deferred)
+
+**Total: 8 / 26 shipped, 2 deferred.** Update these counts as items tick.
 
 ---
 

@@ -118,16 +118,19 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
 def _emit_rich_error(msg: str, exc: Exception, last_sql: str | None, try_next: list[dict]) -> None:
     """Print a human-readable error to stderr with Rich markup."""
     from rich.console import Console
+    from rich.markup import escape
 
     console = Console(stderr=True)
-    console.print(f"\n[bold red]Error:[/bold red] {msg}")
+    console.print(f"\n[bold red]Error:[/bold red] {escape(msg)}")
 
     hint = _recovery_hint(exc)
     if hint:
-        console.print(f"[dim]Hint: {hint}[/dim]")
+        console.print(f"[dim]Hint: {escape(hint)}[/dim]")
 
     for step in try_next:
-        console.print(f"[dim]Try:[/dim] {step['cmd']}  [dim]— {step['why']}[/dim]")
+        cmd = escape(str(step.get("cmd", "")))
+        why = escape(str(step.get("why", "")))
+        console.print(f"[dim]Try:[/dim] {cmd}  [dim]— {why}[/dim]")
 
     if last_sql is not None and _is_db_error(exc):
         from querido.cli._context import print_sql

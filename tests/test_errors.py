@@ -623,6 +623,26 @@ def _conn_err(name: str, *args):
     return cls(*args)
 
 
+def test_emit_rich_error_preserves_bracketed_text_in_hints(capsys: pytest.CaptureFixture[str]):
+    """Regression: missing-extra hint must render `[duckdb]` / `[snowflake]` literally.
+
+    Rich was interpreting the brackets as markup tags and dropping them, producing
+    `uv pip install 'querido' or 'querido'` — a useless install instruction.
+    """
+    from querido.cli._errors import _emit_rich_error
+
+    try_next = [
+        {"cmd": "uv pip install 'querido[duckdb]'", "why": "Install the DuckDB extra."},
+        {"cmd": "uv pip install 'querido[snowflake]'", "why": "Install the Snowflake extra."},
+    ]
+    _emit_rich_error("No module named duckdb", ImportError("duckdb"), None, try_next)
+
+    err = capsys.readouterr().err
+    assert "'querido[duckdb]'" in err
+    assert "'querido[snowflake]'" in err
+    assert "Install the missing extra" in err
+
+
 # ---------------------------------------------------------------------------
 # Unit tests for _format_not_found / _fuzzy_suggestions
 # ---------------------------------------------------------------------------
