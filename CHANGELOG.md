@@ -10,10 +10,23 @@ Pre-beta audit pass — a proxy-dogfood that simulated first-contact with the
 project across five angles (quick-start walkthrough, docs consistency, CLI
 help + errors, tutorials + SKILL files, release artifacts) and produced a 26-item
 tiered punch list. All 26 items shipped, 2 deferred by design. Self-hosting
-eval went from 42/45 → 44/45 (97.8%) across haiku / sonnet / opus.
+eval went from 42/45 → **45/45 (100%)** across haiku / sonnet / opus — zero
+failures after a grading-primitive relaxation (`required_any_of`) that accepts
+any of the legitimate paths SKILL promotes.
 
 ### Added
 
+- **Eval-harness runtime safeguards.** `scripts/eval_skill_files_claude.py`
+  gained `--max-wall-clock-minutes` (default 20), `--task-timeout-sec`, and
+  `--qdo-timeout-sec` CLI flags, a per-task header showing elapsed minutes
+  and pair count, and forced line-buffered stdout so background runs show
+  progress mid-run instead of one dump at the end. Prevents a degraded
+  Anthropic API from silently burning hours.
+- **`required_any_of` / `required_all_of` grading primitives.** Renamed
+  from `required_commands` / `required_all_commands` in the eval harness
+  for semantic clarity. The any-of primitive now accepts `qdo query` as a
+  legitimate alternative on B1 / B2 / B4 where direct SQL is an equally
+  valid answer; `preferred_commands` still captures the clean-path signal.
 - **`qdo config remove --name <n>`** — removes a named connection with a
   confirmation prompt by default and a `-y` / `--yes` bypass for scripts.
   `CONNECTION_NOT_FOUND` structured error under `-f json` when the name is

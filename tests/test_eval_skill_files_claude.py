@@ -350,7 +350,7 @@ def _task(eval_mod, **overrides):
         "id": "test",
         "category": "X",
         "prompt": "",
-        "required_commands": ["qdo catalog"],
+        "required_any_of": ["qdo catalog"],
         "content_regex": [r"(?i)tables"],
         "preferred_commands": ["qdo catalog"],
     }
@@ -472,7 +472,7 @@ def test_is_click_usage_error_empty_string(eval_mod) -> None:
 
 
 def test_check_pass_missing_required_command(eval_mod) -> None:
-    task = _task(eval_mod, required_commands=["qdo joins"])
+    task = _task(eval_mod, required_any_of=["qdo joins"])
     r = eval_mod.check_pass(
         task=task,
         qdo_commands=["qdo catalog -c /db"],
@@ -487,8 +487,8 @@ def test_check_pass_missing_required_command(eval_mod) -> None:
 def test_check_pass_missing_required_workflow_step(eval_mod) -> None:
     task = _task(
         eval_mod,
-        required_commands=["qdo catalog", "qdo context"],
-        required_all_commands=["qdo catalog", "qdo context"],
+        required_any_of=["qdo catalog", "qdo context"],
+        required_all_of=["qdo catalog", "qdo context"],
     )
     r = eval_mod.check_pass(
         task=task,
@@ -532,7 +532,7 @@ def test_check_pass_path_ok_false_when_preferred_not_used(eval_mod) -> None:
     """Missing preferred command doesn't fail — but is logged as path_ok=False."""
     task = _task(
         eval_mod,
-        required_commands=["qdo query", "qdo catalog"],
+        required_any_of=["qdo query", "qdo catalog"],
         preferred_commands=["qdo catalog"],
     )
     r = eval_mod.check_pass(
@@ -618,7 +618,7 @@ def test_task_categories_cover_all_four(eval_mod) -> None:
 
 def test_every_task_has_required_and_content(eval_mod) -> None:
     for t in eval_mod.TASKS:
-        assert t.required_commands, f"{t.id} missing required_commands"
+        assert t.required_any_of, f"{t.id} missing required_any_of"
         assert t.content_regex, f"{t.id} missing content_regex"
 
 
@@ -701,3 +701,39 @@ def test_is_auth_error_false(eval_mod, msg: str) -> None:
 
 def test_is_auth_error_looks_at_stderr_too(eval_mod) -> None:
     assert eval_mod._is_auth_error("", "fatal: not logged in") is True
+
+
+# ---------------------------------------------------------------------------
+# Timeout / wall-clock budget flags
+# ---------------------------------------------------------------------------
+
+
+def test_parse_args_exposes_timeout_flags(eval_mod, monkeypatch) -> None:
+    """Regression: the harness must accept --task-timeout-sec,
+    --qdo-timeout-sec, and --max-wall-clock-minutes so a runaway eval
+    can't silently burn a long wall-clock. Defaults match the module
+    constants."""
+    monkeypatch.setattr("sys.argv", ["eval_skill_files_claude.py"])
+    args = eval_mod._parse_args()
+    assert args.task_timeout_sec == eval_mod.DEFAULT_TASK_TIMEOUT_SEC
+    assert args.qdo_timeout_sec == eval_mod.DEFAULT_QDO_TIMEOUT_SEC
+    assert args.max_wall_clock_minutes == eval_mod.DEFAULT_WALL_CLOCK_SEC / 60
+
+
+def test_parse_args_accepts_timeout_overrides(eval_mod, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "eval_skill_files_claude.py",
+            "--task-timeout-sec",
+            "60",
+            "--qdo-timeout-sec",
+            "10",
+            "--max-wall-clock-minutes",
+            "3.5",
+        ],
+    )
+    args = eval_mod._parse_args()
+    assert args.task_timeout_sec == 60
+    assert args.qdo_timeout_sec == 10
+    assert args.max_wall_clock_minutes == 3.5

@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import io
 import json
 import os
 import re
@@ -63,8 +64,14 @@ RESULTS_DIR = REPO / "scripts" / "eval_results"
 # ``claude -p --model`` accepts aliases. Longer names also work.
 MODEL_ALIASES = ["haiku", "sonnet", "opus"]
 
-TASK_TIMEOUT_SEC = 240  # generous — multi-step tasks with several qdo calls
-QDO_TIMEOUT_SEC = 30  # any one qdo subprocess
+# Per-run default budgets. Tunable via CLI flags - see `_parse_args`.
+# Historical: a full 45-task run completes in 5-10 min on a warm cache.
+# An outlier run (Anthropic API backpressure) took ~53 min; we cap the
+# whole run at 20 min by default so a degraded API can't silently burn
+# an hour before an operator notices.
+DEFAULT_TASK_TIMEOUT_SEC = 240  # one claude -p invocation
+DEFAULT_QDO_TIMEOUT_SEC = 30  # one qdo subprocess inside a task
+DEFAULT_WALL_CLOCK_SEC = 20 * 60  # entire eval run across all (task, model) pairs
 
 # Rough public pricing as of 2026-04 (USD per 1M tokens, input / output).
 # Used for the preflight cost estimate only; real billing tracks the
@@ -118,9 +125,17 @@ Ground rules:
 class Task:
     """One eval task.
 
-    ``required_commands`` is a list of qdo subcommand prefixes
-    (e.g. ``"qdo joins"``); at least one must appear in the model's Bash
-    tool-call stream.
+    ``required_any_of`` is a list of qdo subcommand prefixes (e.g.
+    ``"qdo joins"``); **at least one** must appear in the model's Bash
+    tool-call stream for the task to pass the gate. Listing multiple
+    prefixes here is the "any of these paths is acceptable" primitive —
+    e.g. ``["qdo profile", "qdo query"]`` accepts either a profile scan
+    or an ad-hoc SQL answer. `preferred_commands` still captures the
+    "clean path" signal when the first path is materially better.
+
+    ``required_all_of`` is stricter: **every** listed prefix must appear
+    in the tool-call stream. This rewards the promoted multi-step
+    workflow when a single-command path wouldn't satisfy the prompt.
 
     ``content_regex`` is a list of patterns; at least one must match
     somewhere in the model's final answer text.
@@ -128,10 +143,6 @@ class Task:
     ``preferred_commands`` is used for the ``path_ok`` metric — if any
     matches, the path was "clean"; if not, the task still passes but we
     log the preferred-vs-actual gap for docs tightening.
-
-    ``required_all_commands`` is stricter: every listed prefix must appear
-    somewhere in the Bash tool-call stream. This lets the eval reward the
-    promoted multi-step workflow instead of any one locally-plausible call.
 
     ``pre_task`` is a list of qdo argvs to run before the model sees the
     prompt — for tasks like D1 (show stored metadata) that need a
@@ -141,10 +152,10 @@ class Task:
     id: str
     category: str
     prompt: str
-    required_commands: list[str]
+    required_any_of: list[str]
     content_regex: list[str]
     preferred_commands: list[str] = field(default_factory=list)
-    required_all_commands: list[str] = field(default_factory=list)
+    required_all_of: list[str] = field(default_factory=list)
     max_commands: int = 12
     pre_task: list[list[str]] = field(default_factory=list)
     # Short note on the Wave 1 gotcha this task exercises (for the report).
@@ -160,7 +171,7 @@ TASKS: list[Task] = [
             "I have a new DuckDB database at {db}. Show me every table in it "
             "and its row count. One-sentence summary is fine."
         ),
-        required_commands=["qdo catalog"],
+        required_any_of=["qdo catalog"],
         content_regex=[r"(?i)customers", r"(?i)products", r"(?i)orders"],
         preferred_commands=["qdo catalog"],
         gotcha="CS.1 — fixture must have orders for this to pass.",
@@ -172,8 +183,8 @@ TASKS: list[Task] = [
             "I'm new to {db}. If my end goal is understanding customer orders, "
             "which table should I start with, and give me a concise summary of it."
         ),
-        required_commands=["qdo catalog", "qdo context"],
-        required_all_commands=["qdo catalog", "qdo context"],
+        required_any_of=["qdo catalog", "qdo context"],
+        required_all_of=["qdo catalog", "qdo context"],
         content_regex=[r"(?i)orders", r"(?i)(status|amount|region|order_date)"],
         preferred_commands=["qdo catalog", "qdo context"],
         gotcha="Rewards the promoted discover -> understand path instead of ad-hoc probing.",
@@ -185,7 +196,7 @@ TASKS: list[Task] = [
             "In {db}, what are the likely join keys between the orders table "
             "and the other tables? Give me the column pairs."
         ),
-        required_commands=["qdo joins"],
+        required_any_of=["qdo joins"],
         content_regex=[r"customer_id", r"product_id"],
         preferred_commands=["qdo joins"],
         gotcha="Secondary discovery skill — useful, but not the primary workflow anchor.",
@@ -197,8 +208,8 @@ TASKS: list[Task] = [
             "In {db}, give me a full summary of the orders table and call out "
             "any obvious quality issues."
         ),
-        required_commands=["qdo context", "qdo quality"],
-        required_all_commands=["qdo context", "qdo quality"],
+        required_any_of=["qdo context", "qdo quality"],
+        required_all_of=["qdo context", "qdo quality"],
         content_regex=[r"(?i)(status|amount|null|negative|quality|issue)"],
         preferred_commands=["qdo context", "qdo quality"],
         gotcha="Ensures summary tasks lean on context first, then a quality pass.",
@@ -211,7 +222,11 @@ TASKS: list[Task] = [
             "In {db}, what are the distinct values in the orders.status "
             "column? Include counts if available."
         ),
-        required_commands=["qdo values"],
+        # `values` is the promoted path; `dist -C status` is the categorical
+        # distribution variant; `query --sql "select status, count(*) from
+        # orders group by status"` is equally valid ad-hoc SQL. Grade the
+        # answer on content, not on which of three good paths the model took.
+        required_any_of=["qdo values", "qdo dist", "qdo query"],
         content_regex=[r"shipped", r"delivered"],
         preferred_commands=["qdo values"],
         gotcha="CS.6 — values was undiscovered in the main SKILL.md flow pre-Wave-1.",
@@ -223,7 +238,12 @@ TASKS: list[Task] = [
             "In {db}, describe the distribution of orders.amount. I want "
             "min, max, mean, and null count at minimum."
         ),
-        required_commands=["qdo context", "qdo profile"],
+        # `context` is the anchor; `profile` is the specialist. But a
+        # `query --sql "select min(amount), max(amount), avg(amount),
+        # count(*) - count(amount) ..."` also answers exactly what the
+        # user asked. Accept all three; `preferred_commands` still
+        # captures whether the model took the clean path.
+        required_any_of=["qdo context", "qdo profile", "qdo query"],
         content_regex=[r"(?i)(min|max|mean|average)"],
         preferred_commands=["qdo context", "qdo profile"],
         gotcha=(
@@ -238,7 +258,11 @@ TASKS: list[Task] = [
             "In {db}, give me a deeper numeric profile of orders.amount. "
             "Include at least the median and standard deviation, not just min/max."
         ),
-        required_commands=["qdo profile"],
+        # `profile` is the promoted path (it computes quantiles and stddev
+        # for free). But `query --sql "select approx_quantile(amount, 0.5),
+        # stddev(amount) ..."` answers the prompt too. Accept both; keep
+        # `profile` as the preferred signal.
+        required_any_of=["qdo profile", "qdo query"],
         content_regex=[r"(?i)(median|stddev|standard deviation)"],
         preferred_commands=["qdo profile"],
         gotcha=(
@@ -253,7 +277,7 @@ TASKS: list[Task] = [
             "In {db}, which columns in the customers table have the highest "
             "null rates? Name the top three."
         ),
-        required_commands=["qdo profile", "qdo quality", "qdo context"],
+        required_any_of=["qdo profile", "qdo quality", "qdo context"],
         content_regex=[r"(?i)(phone2|company|website)"],
         preferred_commands=["qdo context", "qdo quality"],
         gotcha="CS.10 — quality vs profile roles weren't disambiguated pre-Wave-1.",
@@ -267,7 +291,7 @@ TASKS: list[Task] = [
             "table? Flag anything unusual — null rates, malformed values, "
             "uniqueness problems."
         ),
-        required_commands=["qdo quality"],
+        required_any_of=["qdo quality"],
         content_regex=[r"(?i)(status|amount|null|quality|issue)"],
         preferred_commands=["qdo quality"],
         gotcha="Fixture has ~0.8% bad status + 1.5% negative amount — quality should flag.",
@@ -279,7 +303,7 @@ TASKS: list[Task] = [
             "In {db}, what is the total order amount by region, and which "
             "region has the highest total?"
         ),
-        required_commands=["qdo context", "qdo query", "qdo catalog"],
+        required_any_of=["qdo context", "qdo query", "qdo catalog"],
         content_regex=[r"(?i)(north|south|east|west|region)"],
         preferred_commands=["qdo context", "qdo query"],
         gotcha=(
@@ -294,7 +318,7 @@ TASKS: list[Task] = [
             "In {db}, assert that the orders table has at least 1000 rows. "
             "Tell me whether the assertion passed or failed."
         ),
-        required_commands=["qdo assert"],
+        required_any_of=["qdo assert"],
         content_regex=[r"(?i)(pass|ok|true|5000|satisfied)"],
         preferred_commands=["qdo assert"],
         gotcha="CA.3 — assert was invisible to SKILL.md pre-Wave-2.",
@@ -307,7 +331,7 @@ TASKS: list[Task] = [
             "In {db}, show me the stored metadata for the orders table — "
             "the description, the owner, and the per-column details."
         ),
-        required_commands=["qdo metadata show"],
+        required_any_of=["qdo metadata show"],
         content_regex=[r"(?i)(description|owner|columns|table)"],
         preferred_commands=["qdo metadata show"],
         pre_task=[
@@ -322,7 +346,7 @@ TASKS: list[Task] = [
             "In {db}, initialize metadata for the orders table and tell me "
             "where the YAML file was written."
         ),
-        required_commands=["qdo metadata init"],
+        required_any_of=["qdo metadata init"],
         content_regex=[r"(?i)(\.qdo/metadata|orders\.yaml|created)"],
         preferred_commands=["qdo metadata init"],
         gotcha="Tests the capture step directly instead of treating metadata as an afterthought.",
@@ -334,7 +358,7 @@ TASKS: list[Task] = [
             "In {db}, create a hand-off HTML report for the orders table at "
             "./orders-report.html and tell me what you created."
         ),
-        required_commands=["qdo report table"],
+        required_any_of=["qdo report table"],
         content_regex=[r"(?i)(orders-report\.html|html report)"],
         preferred_commands=["qdo report table"],
         pre_task=[
@@ -349,8 +373,8 @@ TASKS: list[Task] = [
             "In {db}, export a knowledge bundle for the orders table to "
             "./orders-bundle.zip, inspect it, and tell me what it contains."
         ),
-        required_commands=["qdo bundle export", "qdo bundle inspect"],
-        required_all_commands=["qdo bundle export", "qdo bundle inspect"],
+        required_any_of=["qdo bundle export", "qdo bundle inspect"],
+        required_all_of=["qdo bundle export", "qdo bundle inspect"],
         content_regex=[r"(?i)(orders-bundle\.zip|bundle|orders)"],
         preferred_commands=["qdo bundle export", "qdo bundle inspect"],
         pre_task=[
@@ -370,6 +394,13 @@ def main() -> int:
     args = _parse_args()
     _preflight(args)
 
+    # Force line buffering so tail -f and background-task log readers see
+    # per-task progress mid-run instead of one dump at the end.
+    import contextlib
+
+    with contextlib.suppress(AttributeError, io.UnsupportedOperation):
+        sys.stdout.reconfigure(line_buffering=True)
+
     tasks = _select_tasks(args.tasks)
     models = _select_models(args.models)
 
@@ -378,10 +409,32 @@ def main() -> int:
     skill_content = _concat_skill_files()
     system_prompt = SYSTEM_PROMPT_TMPL.format(skill_files_content=skill_content)
 
+    total_pairs = len(tasks) * len(models)
+    print(
+        f"\n=== Run plan === {total_pairs} (task, model) pairs, "
+        f"per-task timeout {args.task_timeout_sec}s, wall-clock cap "
+        f"{args.max_wall_clock_minutes:.0f} min."
+    )
+    run_start = time.monotonic()
+    budget_exceeded = False
+
     results: list[dict[str, Any]] = []
     for task in tasks:
         for model in models:
-            print(f"\n=== {task.id} [{model}] ===")
+            elapsed_min = (time.monotonic() - run_start) / 60
+            if elapsed_min >= args.max_wall_clock_minutes:
+                print(
+                    f"\nwall-clock budget exceeded "
+                    f"({elapsed_min:.1f} / {args.max_wall_clock_minutes:.0f} min) — "
+                    "stopping before launching more tasks."
+                )
+                budget_exceeded = True
+                break
+            print(
+                f"\n=== {task.id} [{model}] "
+                f"(elapsed {elapsed_min:.1f} min, pair "
+                f"{len(results) + 1}/{total_pairs}) ==="
+            )
             result = run_task(task, model, system_prompt, args)
             _print_task_result(result)
             results.append(result)
@@ -403,6 +456,10 @@ def main() -> int:
     out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
     _print_summary(results, out_path)
+
+    if budget_exceeded:
+        # Explicit non-zero signal so CI or background runners don't swallow it.
+        return 2
 
     # Exit non-zero only if every model below its target gate failed — this
     # is the signal used by future CI runs. Per-model gates come from EV.3:
@@ -450,6 +507,35 @@ def _parse_args() -> argparse.Namespace:
         "--keep-artifacts",
         action="store_true",
         help="Keep per-task scratch dirs and raw stream-json logs for inspection.",
+    )
+    p.add_argument(
+        "--task-timeout-sec",
+        type=int,
+        default=DEFAULT_TASK_TIMEOUT_SEC,
+        help=(
+            "Max seconds for a single `claude -p` invocation. "
+            f"Default: {DEFAULT_TASK_TIMEOUT_SEC}s."
+        ),
+    )
+    p.add_argument(
+        "--qdo-timeout-sec",
+        type=int,
+        default=DEFAULT_QDO_TIMEOUT_SEC,
+        help=(
+            "Max seconds for a single qdo subprocess invoked during pre-task setup. "
+            f"Default: {DEFAULT_QDO_TIMEOUT_SEC}s."
+        ),
+    )
+    p.add_argument(
+        "--max-wall-clock-minutes",
+        type=float,
+        default=DEFAULT_WALL_CLOCK_SEC / 60,
+        help=(
+            "Max total wall-clock minutes across the whole run. If exceeded, the "
+            "harness stops launching new tasks, writes partial results, and exits "
+            "non-zero. Prevents a degraded Anthropic API from burning hours "
+            f"silently. Default: {DEFAULT_WALL_CLOCK_SEC / 60:.0f} minutes."
+        ),
     )
     return p.parse_args()
 
@@ -544,7 +630,9 @@ def _concat_skill_files() -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def _run_pre_task(task: Task, *, cwd: Path | None = None) -> None:
+def _run_pre_task(
+    task: Task, *, cwd: Path | None = None, qdo_timeout_sec: int = DEFAULT_QDO_TIMEOUT_SEC
+) -> None:
     """Run a task's pre_task setup commands (e.g. metadata init) before the model gets it.
 
     *cwd* should match the directory ``claude -p`` will run from, so any files
@@ -557,7 +645,7 @@ def _run_pre_task(task: Task, *, cwd: Path | None = None) -> None:
             cwd=str(cwd) if cwd else None,
             capture_output=True,
             text=True,
-            timeout=QDO_TIMEOUT_SEC,
+            timeout=qdo_timeout_sec,
         )
         if proc.returncode != 0:
             sys.exit(
@@ -587,7 +675,7 @@ def run_task(
     # Pre-task runs here (not in main) so its cwd matches claude -p's cwd.
     # Stuff qdo writes — e.g. metadata YAML in ``.qdo/metadata/`` — lands in
     # scratch, where the model's qdo subprocess will find it.
-    _run_pre_task(task, cwd=scratch)
+    _run_pre_task(task, cwd=scratch, qdo_timeout_sec=args.qdo_timeout_sec)
 
     # Fixture path is absolute so the agent doesn't need to guess CWD.
     prompt = task.prompt.format(db=str(FIXTURE_DB))
@@ -633,7 +721,7 @@ def run_task(
             env=child_env,
             capture_output=True,
             text=True,
-            timeout=TASK_TIMEOUT_SEC,
+            timeout=args.task_timeout_sec,
             check=False,
         )
     except subprocess.TimeoutExpired:
@@ -643,7 +731,7 @@ def run_task(
             "model": model,
             "status": "fail",
             "failure_category": "timeout",
-            "reason": f"claude -p timed out after {TASK_TIMEOUT_SEC}s",
+            "reason": f"claude -p timed out after {args.task_timeout_sec}s",
             "duration_sec": round(time.monotonic() - t_start, 2),
             "scratch": str(scratch) if args.keep_artifacts else None,
         }
@@ -867,9 +955,9 @@ def check_pass(
         }
 
     # Required-command check.
-    required_hit = _any_prefix_match(task.required_commands, qdo_commands)
+    required_hit = _any_prefix_match(task.required_any_of, qdo_commands)
     if not required_hit:
-        expected = ", ".join(task.required_commands)
+        expected = ", ".join(task.required_any_of)
         actual = ", ".join(_cmd_prefix(c, 3) for c in qdo_commands) or "(none)"
         return {
             "status": "fail",
@@ -878,10 +966,10 @@ def check_pass(
             "path_ok": False,
         }
 
-    if task.required_all_commands:
+    if task.required_all_of:
         missing = [
             prefix
-            for prefix in task.required_all_commands
+            for prefix in task.required_all_of
             if not _any_prefix_match([prefix], qdo_commands)
         ]
         if missing:

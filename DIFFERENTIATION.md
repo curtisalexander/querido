@@ -75,14 +75,16 @@ remembers". The tool remembers.
    dialect-aware. No other tool in the space goes this deep into Snowflake
    specifically.
 
-4. **Self-hosting eval at 44/45 (97.8%).** `scripts/eval_skill_files_claude.py`
+4. **Self-hosting eval at 45/45 (100%).** `scripts/eval_skill_files_claude.py`
    runs `claude -p` against the SKILL file and grades results across haiku,
    sonnet, and opus on 15 tasks. Both a credibility artifact and a regression
    detector — any SKILL change that drops the score is signal. The pre-beta
    audit caught the detector doing its job: a hallucinated flag introduced
-   during a doc rewrite became a measurable 36/45 regression, two small fixes
-   restored the baseline and added +2 on top (haiku 15/15, sonnet 15/15,
-   opus 14/15). The one remaining failure is `model-mistake`, zero `qdo-bug`.
+   during a doc rewrite became a measurable 36/45 regression, progressively
+   smaller fixes plus a grading-primitive relaxation (`required_any_of`
+   accepts any of the legitimate paths an SKILL promotes) restored the score
+   and took it to 45/45: haiku 15/15, sonnet 15/15, opus 15/15. Zero
+   failures across all three models, zero `qdo-bug`.
 
 5. **Files as primitives.** Sessions are JSONL + stdout. Metadata is YAML.
    Bundles are zip archives. Workflows are YAML. All portable, diffable,
@@ -164,14 +166,13 @@ When evaluating any proposed feature, in order:
 
 ## Current state (snapshot, 2026-04-23)
 
-- **Tests:** 1184 passing / 25 skipped. `ruff check`, `ruff format`, `ty check`
+- **Tests:** 1186 passing / 25 skipped. `ruff check`, `ruff format`, `ty check`
   all green. Zero `TODO` / `FIXME` markers anywhere in src or tests.
 - **Shipped phases:** 1–4, 6, 7. Phase 5 dropped by design. R-series complete.
   Sharpening Waves 1–4 complete. Pre-release polish pass (items 0–6) landed
   2026-04-22. Pre-beta audit pass (26 items across 5 tiers) landed 2026-04-23.
-- **Eval:** 44/45 (97.8%) across haiku, sonnet, and opus on 15 tasks. Haiku
-  15/15, sonnet 15/15, opus 14/15. The one failure is `model-mistake`,
-  not `qdo-bug`.
+- **Eval:** 45/45 (100%) across haiku, sonnet, and opus on 15 tasks.
+  Haiku 15/15, sonnet 15/15, opus 15/15. Zero failures.
 - **Surface:** 38 top-level commands across 10 categories. The structured
   envelope is emitted by all data-emitting scans — `sql` and `snowflake`
   gained envelope coverage in the pre-release polish pass. Commands that

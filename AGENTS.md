@@ -104,7 +104,7 @@ PLAN.md has a "Durable references" section with extensible contract tests (`_ENV
 
 Three optional eval scripts under `scripts/`. All are opt-in — run them locally after docs or command-surface changes; failures that cluster in a category point at specific docs to tighten.
 
-- **`eval_skill_files_claude.py`** — feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 15 realistic data-exploration tasks across Haiku / Sonnet / Opus. Per-model pass gates (70 / 85 / 95 %). Current baseline: **42/45 (93%)**; three failures are `model-mistake`, not `qdo-bug`. Results land in `scripts/eval_results/` (gitignored).
+- **`eval_skill_files_claude.py`** — feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 15 realistic data-exploration tasks across Haiku / Sonnet / Opus. Per-model pass gates (70 / 85 / 95 %). Current baseline: **45/45 (100%)** — zero failures across all three models. Safeguards: per-task timeout (`--task-timeout-sec`), overall wall-clock cap (`--max-wall-clock-minutes`, default 20). Results land in `scripts/eval_results/` (gitignored).
 - **`eval_skill_files_codex.py`** — same task catalog against Codex via `codex exec`, for agent-cross-check.
 - **`eval_workflow_authoring.py`** — feeds `WORKFLOW_AUTHORING.md` + `qdo workflow spec` + bundled examples to `claude -p` and asks for three novel workflows, then lint + runs them. Signals whether the authoring doc is pedagogically complete.
 
