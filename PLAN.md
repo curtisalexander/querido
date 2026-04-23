@@ -8,11 +8,11 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-23)
 
-**Tests:** 1183 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
+**Tests:** 1184 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
 
 **Polish pass complete.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done. The Pre-release polish pass (items 0–6) landed 2026-04-22 — see summary under "Phases shipped" below.
 
-**Current eval baseline: 42/45 passing (93%)** across haiku / sonnet / opus on 15 tasks — up from the previous 33/33 on 11 tasks once the task set was expanded and the harness began isolating metadata state per run. The three remaining failures are all `model-mistake` (strict required-command grading), zero `qdo-bug`.
+**Current eval baseline: 44/45 passing (97.8%)** across haiku / sonnet / opus on 15 tasks — up from 42/45 after the pre-beta audit pass surfaced and fixed two docs-vs-product gaps (a hallucinated `values --counts` flag in a new SKILL.md section, and agents commonly typing `--column` (singular) on `values` / `dist` / `profile`). Haiku 15/15, Sonnet 15/15, Opus 14/15. The one remaining failure is `model-mistake` — Opus picked `query --sql` over `profile` for a numeric-profile task. Zero `qdo-bug`.
 
 **Pre-beta audit pass complete (2026-04-23).** A multi-agent audit simulated first-contact across docs, CLI help + error messages, tutorials + SKILL files, and release artifacts; the tiered findings list under "Pre-beta audit pass — active" below is now 26/26 shipped (2 deferred with rationale). Item 7 of the pre-release pass — real dogfood — is still the last remaining pre-release step; the audit was a pre-dogfood sanity sweep, not a replacement.
 
@@ -88,6 +88,18 @@ Small nice-to-haves. Can run in parallel with the tiers above.
 - Tier 5: 4 / 4 ✅ (+1 deferred)
 
 **Total: 26 / 26 shipped, 2 deferred. All tiers complete.** The pre-beta audit pass is done — the remaining pre-release item is item 7 of the earlier polish pass: real dogfood.
+
+### Post-audit eval follow-up (2026-04-23)
+
+Running the self-hosting eval after the audit first surfaced a regression (36/45) that traced to two docs-vs-product gaps the audit had opened but not closed. Fixing them in two progressively-smaller passes produced the best score the project has ever posted: **44/45 (97.8%)**, up +2 from the 42/45 baseline. Haiku 15/15, Sonnet 15/15, Opus 14/15.
+
+1. **First fix — restore baseline-era behavior.** Two bugs the eval surfaced:
+   - `SKILL.md` promoted a `values --counts` flag that doesn't exist (hallucinated when authoring the new `quality` section). Agents that trusted the docs got a click usage error; recovery burned a retry which the harness counts as a path-error failure. Fixed with accurate `qdo -f json values -c <conn> -t <table> -C <col>` wording plus an explicit "There is no `--counts` flag." **Lesson for future SKILL edits:** verify every flag via `--help` before promoting it — the eval catches this, but cheaper to not need the eval.
+   - `values` / `dist` / `profile` took `--columns` / `-C`, but agents naturally typed `--column` (singular). Added `--column` as a Click alias on all three commands — zero-risk (Click supports multiple option names) and an ergonomic win for any human user too. Regression test in `tests/test_values.py::test_column_singular_alias_accepted`.
+2. **Second fix — close the known bundle-inspect follow-up.** PLAN's "Known non-blocker follow-ups" already noted that Haiku tended to skip `qdo bundle inspect` after `qdo bundle export`; eval showed Sonnet doing it too. Added an explicit *invariant* to SKILL.md's bundle section: `bundle export` is never the last step; always `inspect` before claiming hand-off. That one sentence resolved both D4 failures.
+3. **One remaining failure.** Opus on B2 (numeric profile) picked `query --sql "select min, max, mean..."` over `qdo profile`. Pure model preference, not a docs gap. Already tracked under "Known non-blocker follow-ups" — the harness fix is a `required_any_of` grading primitive, not a product or docs change.
+
+The cluster took three eval runs — one baseline-regressed, one after the `--counts` / `--column` fixes (41/45), one after the bundle-inspect invariant landed (44/45).
 
 ---
 

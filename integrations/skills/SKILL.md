@@ -8,7 +8,7 @@ compatibility: Requires qdo CLI (pip install querido). DuckDB support requires q
 
 qdo is an agent-first data exploration CLI. The product surface looks ordinary (`catalog`, `context`, `profile`, `query`). The asset is the **compounding loop** those commands form: metadata captured by one investigation (`values --write-metadata`, `metadata suggest --apply`) is auto-merged into the next `context` and checked by the next `quality` run. Every call makes the next one sharper. No LLMs inside qdo — you bring the brain; qdo brings the memory and the map.
 
-Self-hosting eval: **42/45 (93%)** across haiku, sonnet, and opus on 15 tasks (re-run on every SKILL change; regressions are signal — the three current failures are all `model-mistake`, not `qdo-bug`).
+Self-hosting eval: **44/45 (97.8%)** across haiku, sonnet, and opus on 15 tasks (haiku 15/15, sonnet 15/15, opus 14/15). Re-run on every SKILL change; regressions are signal — the one current failure is `model-mistake`, not `qdo-bug`.
 
 Pass `-f json` on every invocation for machine-readable output — the envelope is `{command, data, next_steps, meta}` with deterministic `next_steps` hints that chain investigations. Canonical placement is right after `qdo` (`qdo -f json <cmd> ...`).
 
@@ -87,9 +87,12 @@ qdo query -c <connection> --sql "select ..."
 qdo assert -c <connection> --sql "select ..." --expect ...
 qdo report table -c <connection> -t <table> -o report.html
 qdo bundle export -c <connection> -t <table> -o bundle.zip
+qdo bundle inspect bundle.zip    # always inspect after export — confirms contents before hand-off
 ```
 
 This is the main story qdo is optimized for: discover data, understand it, capture what you learned, answer the question, then share the result.
+
+**Bundle hand-off invariant:** `qdo bundle export` is never the last step. Follow it with `qdo bundle inspect <path>` (or `qdo bundle diff`) so you can *tell the user what the bundle contains* — table count, metadata files, workflow files, schema fingerprint. A bundle the receiver can't describe isn't a hand-off, just a file.
 
 ## Drill-down commands
 
@@ -216,7 +219,7 @@ JSON output shape (trimmed):
 **When to pick `quality` over `context + values`:**
 
 - The user asked about *health*, *issues*, *bad data*, *nulls*, *duplicates*, or *enum violations* — reach for `quality` first. It has a deterministic rubric agents can gate on (the `status` field + stable `issues[]` codes).
-- The user asked *what values does this column take?* — use `values` (or `values --counts`).
+- The user asked *what values does this column take?* — use `qdo -f json values -c <conn> -t <table> -C <col>`. Counts are in the output by default; add `--sort frequency` to order by count descending. There is no `--counts` flag.
 - The user asked *what's in this table?* — use `context`.
 - You want `quality` to auto-catch enum violations on later runs: run `values --write-metadata` (or `metadata suggest --apply`) first. `quality` then checks every row against the stored `valid_values` and populates `invalid_count`. This is the core of the compounding loop for data-quality work.
 

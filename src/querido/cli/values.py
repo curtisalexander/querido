@@ -13,7 +13,13 @@ app = typer.Typer(help="Show distinct values for a column.")
 @friendly_errors
 def values(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    columns: str = typer.Option(..., "--columns", "-C", help="Column to enumerate (exactly one)."),
+    columns: str = typer.Option(
+        ...,
+        "--columns",
+        "--column",
+        "-C",
+        help="Column to enumerate (exactly one). `--column` is an alias.",
+    ),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),

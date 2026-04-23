@@ -197,3 +197,23 @@ def test_print_values_rich_summary() -> None:
     assert "2 nulls" in text
     assert "truncated" in text.lower()
     assert "Value Detail" in text
+
+
+def test_column_singular_alias_accepted(sqlite_path: str):
+    """Regression: agents hallucinate `--column` (singular) across values/dist/
+    profile. The real flag was `--columns/-C` — we now accept `--column` as
+    an alias so a first-call typo doesn't burn a retry.
+
+    Failure mode: in the 2026-04-23 eval run, haiku/sonnet/opus each tried
+    ``--column`` on one of these commands, saw a click usage error, retried
+    with ``--columns``, and got flagged for a bad-argv path error even though
+    the retry succeeded.
+    """
+    for subcommand in ("values", "dist", "profile"):
+        result = runner.invoke(
+            app, [subcommand, "-c", sqlite_path, "-t", "users", "--column", "name"]
+        )
+        assert result.exit_code == 0, (
+            f"qdo {subcommand} --column (singular alias) should succeed; got "
+            f"exit {result.exit_code}: {result.output[:200]}"
+        )

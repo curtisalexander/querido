@@ -9,7 +9,13 @@ app = typer.Typer(help="Column distribution visualization.")
 @friendly_errors
 def dist(
     table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    columns: str = typer.Option(..., "--columns", "-C", help="Column to visualize (exactly one)."),
+    columns: str = typer.Option(
+        ...,
+        "--columns",
+        "--column",
+        "-C",
+        help="Column to visualize (exactly one). `--column` is an alias.",
+    ),
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),

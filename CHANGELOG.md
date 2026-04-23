@@ -6,23 +6,103 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Pre-beta audit pass — a proxy-dogfood that simulated first-contact with the
+project across five angles (quick-start walkthrough, docs consistency, CLI
+help + errors, tutorials + SKILL files, release artifacts) and produced a 26-item
+tiered punch list. All 26 items shipped, 2 deferred by design. Self-hosting
+eval went from 42/45 → 44/45 (97.8%) across haiku / sonnet / opus.
+
+### Added
+
+- **`qdo config remove --name <n>`** — removes a named connection with a
+  confirmation prompt by default and a `-y` / `--yes` bypass for scripts.
+  `CONNECTION_NOT_FOUND` structured error under `-f json` when the name is
+  unknown. Saved column sets referencing the connection are intentionally left
+  in place (delete them separately with `qdo config column-set delete` if no
+  longer needed).
+- **`qdo config add` / `qdo config clone` backend-install warning** — when
+  the user adds a connection whose backend extra isn't installed (DuckDB,
+  Snowflake), the command succeeds and prints a yellow warning pointing at
+  the exact `uv pip install 'querido[<extra>]'` command. Previously this
+  silently succeeded, then every subsequent use of the connection would fail.
+- **`--column` alias on `values` / `dist` / `profile`** — a Click alias for
+  `--columns` / `-C`, so a singular-form typo no longer burns an eval retry
+  or a real user's first attempt.
+- **`.github/ISSUE_TEMPLATE/` + `PULL_REQUEST_TEMPLATE.md`** — structured
+  bug / feature templates and a PR checklist aligned with the CI gate.
+- **`CHANGELOG.md`** — this file. Curated v0.1.0 entry + ongoing
+  `[Unreleased]` section.
+- **`pyproject.toml` project metadata** — `authors`, `[project.urls]`,
+  `keywords`, 15 classifiers (Beta, Python 3.12 / 3.13, MIT, Typed, …). A
+  `uv tool info` or later PyPI page no longer looks unfinished.
+
+### Changed
+
+- **`qdo tutorial explore` re-sequenced** from a 15-lesson command-by-command
+  tour to a 10-lesson walk through the compounding loop:
+  `catalog → context → values → metadata capture → quality → dist → query +
+  pivot → report + agent pointer`. `context` appears early and explicitly
+  replaces separate inspect/preview/profile calls. A new "capture" lesson
+  runs `metadata init` + `suggest --apply` so the user sees the YAML write
+  happen; the next `quality` lesson then demonstrates stored `valid_values`
+  driving `invalid_count`. Final lesson points at `qdo tutorial agent`.
+  Tutorial's metadata writes + generated report now go to a scratch temp
+  dir via `QDO_METADATA_DIR`, so re-runs leave no artifacts in the user's cwd.
+- **`qdo metadata list` completeness now matches `qdo metadata score`.**
+  The two commands used to compute different numbers for the same question.
+  Converged on the `score_table` rubric (column descriptions + valid_values
+  + freshness) so `suggest --apply` visibly moves the `list` number too.
+- **`qdo --help` tagline** — "Agent-first data exploration CLI — accumulate
+  understanding of your data so every subsequent investigation is sharper
+  than the last." Leads with the compounding-loop differentiator.
+- **SKILL.md restructured** — added a dedicated `## quality — detect data
+  issues` section with JSON shape + decision rubric, split the Gotchas
+  section into agent-facing vs operator-facing, documented `qdo metadata
+  search` (lexical BM25 over stored metadata), and updated examples to use
+  the canonical `qdo -f json <cmd>` placement. Landed a `bundle inspect`
+  invariant: `bundle export` is never the last step of a hand-off.
+- **`integrations/continue/qdo.md` aligned** with SKILL.md's canonical
+  `qdo -f json <cmd>` pattern so a Continue.dev user sees the same primary
+  invocation style as a Claude Code user.
+- **`AGENTS.md` trimmed** from ~508 lines to ~156 — focused on contributor
+  workflow + 8 critical invariants + the 7-rule test philosophy.
+  Command-surface enumeration and agent-workflow walkthroughs now live
+  in README / SKILL / ARCHITECTURE with explicit pointers.
+- **Help-text polish across the scanning trio** — `--write-metadata`,
+  `--quick`, `--apply`, `--sample-values`, and `--from` now each surface
+  side effects and preservation rules in one sentence, not just a label.
+  `--connection` text standardized to "Named connection or file path." on
+  every command that accepts both.
+
 ### Fixed
 
-- **Pre-beta audit, Tier 1** — three bugs a user following the README would hit
-  in the first ten minutes:
-  - The `--from <session>:<step>` example in `README.md` and
-    `docs/cli-reference.md` now records the source step with `-f json`, so
-    `--from` has canonical SQL to replay. Previously the second command failed
-    with `Session step is not structured`.
-  - Missing-extra install hint no longer renders as
-    `uv pip install 'querido' or 'querido'`. Rich was eating the
-    `[duckdb]` / `[snowflake]` tokens as markup tags;
-    `rich.markup.escape` now wraps the displayed cmd / why / hint text.
-  - `qdo metadata list` now reports the same composite completeness score as
-    `qdo metadata score`. Previously two scoring rubrics disagreed, so
-    `metadata suggest --apply` could write real `valid_values` without moving
-    the `metadata list` number. Post-`init` now reads 20% (freshness credit);
-    post-`suggest --apply` jumps to 50% as applied fields are credited.
+- **README Quick Start session-replay example** (`--from scratch:1`) failed
+  because `--from` needs the source step recorded as `-f json`. Added
+  `-f json` to the recording step plus a one-line lead-in. Verified
+  end-to-end. Same fix applied to the mirrored example in
+  `docs/cli-reference.md`.
+- **Missing-extra install hint** rendered as `uv pip install 'querido' or
+  'querido'`. Rich was eating `[duckdb]` / `[snowflake]` as markup tags.
+  `rich.markup.escape` now wraps the try_next `cmd` / `why` / hint text.
+  Regression test in `tests/test_errors.py`.
+- **"Session step is not structured" error** was jargon with no `try_next`
+  hint. Rewrote all four session-step `--from` errors to tell users what
+  to do (re-record with `-f json`) while preserving structured error codes.
+  `SESSION_STEP_UNSTRUCTURED` now gets a dedicated `try_next` branch that
+  proposes the exact re-record command instead of the generic
+  "show the session" fallback.
+- **Hallucinated `values --counts` flag** surfaced by the eval — removed
+  from SKILL.md and replaced with accurate `qdo values -c <conn> -t <table>
+  -C <col>` wording plus an explicit "There is no `--counts` flag." note.
+- **`qdo report table` / `report session`** without `-o` now print a
+  "Tempfile — pass `-o <name>.html` to keep a permanent copy." note so
+  first-time users aren't surprised when the file vanishes.
+- **DIFFERENTIATION.md / SKILL.md eval-stat drift** — refreshed from stale
+  "33/33 perfect / 1174 tests" to the current numbers. Snapshot date,
+  command-count, and envelope-coverage statements in DIFFERENTIATION.md
+  also refreshed.
+- **`ARCHITECTURE.md` tutorial description** updated to reflect the 10-lesson
+  re-sequence.
 
 ## [0.1.0] — 2026-04-22
 

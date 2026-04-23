@@ -13,7 +13,14 @@ def profile(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
     columns: str | None = typer.Option(
-        None, "--columns", "-C", help="Comma-separated column names to profile."
+        None,
+        "--columns",
+        "--column",
+        "-C",
+        help=(
+            "Comma-separated column names to profile. `--column` is an "
+            "alias for the single-column case."
+        ),
     ),
     column_set: str | None = typer.Option(
         None, "--column-set", help="Use a saved column set (see: qdo config column-set list)."
