@@ -183,7 +183,7 @@ querido/
 │       │   ├── _helpers.py         # Shared tutorial step helpers
 │       │   ├── data.py             # National Parks sample data
 │       │   ├── metadata_fixtures.py # Metadata examples for agent tutorial
-│       │   ├── runner.py           # Core exploration tutorial (15 lessons)
+│       │   ├── runner.py           # Compounding-loop tutorial (10 lessons)
 │       │   └── runner_agent.py     # Metadata + agent workflow tutorial (13 lessons)
 │       ├── output/
 │       │   ├── __init__.py         # Package marker, shared helpers (fmt_value)

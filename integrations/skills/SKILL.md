@@ -38,7 +38,7 @@ Treat `catalog -> context -> metadata -> query/assert -> report/bundle` as the d
 
 **First time?** Pair a `qdo tutorial` run with this reference:
 
-- `qdo tutorial explore` — 15-lesson guided tour on a National Parks sample DB. Covers the full core workflow (catalog → context → profile → joins → query) in ~20 minutes.
+- `qdo tutorial explore` — 10-lesson guided tour on a National Parks sample DB. Walks the compounding loop (catalog → context → metadata capture → quality → query → report) in ~20 minutes.
 - `qdo tutorial agent` — 13 lessons focused on metadata + agent-assisted SQL. Run this before a real investigation to see the compounding loop end-to-end.
 
 **For a new database, start here:**

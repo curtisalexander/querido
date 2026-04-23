@@ -380,9 +380,9 @@ See `integrations/skills/WORKFLOW_AUTHORING.md` for the complete authoring guide
 ## Interactive Tutorials
 
 ```bash
-# Core exploration workflow (catalog → inspect → profile → query, 15 lessons)
+# Compounding loop walkthrough (catalog → context → metadata → quality → query → report, 10 lessons)
 qdo tutorial explore              # run all lessons
-qdo tutorial explore --list       # list all 15 lessons
+qdo tutorial explore --list       # list all 10 lessons
 qdo tutorial explore --lesson 5   # start from a specific lesson
 qdo tutorial explore --db FILE    # use your own database
 

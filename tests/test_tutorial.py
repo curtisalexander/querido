@@ -162,7 +162,7 @@ class TestLessons:
         from querido.tutorial.runner import get_lessons
 
         lessons = get_lessons("/tmp/fake.duckdb")
-        assert len(lessons) == 15
+        assert len(lessons) == 10
 
     def test_lessons_reference_db_path(self) -> None:
         from querido.tutorial.runner import get_lessons
@@ -180,6 +180,46 @@ class TestLessons:
         lessons = get_lessons("/tmp/fake.duckdb")
         assert lessons[0].info_only
         assert lessons[-1].info_only
+
+    def test_tutorial_teaches_compounding_loop(self) -> None:
+        """The tutorial's value prop is the compounding loop — make sure the
+        re-sequenced lessons actually walk through it.
+
+        Regression: the original 15-lesson tour taught a command-by-command
+        sequence (catalog → inspect → preview → profile → ...) that never
+        landed the metadata-capture story. The rewrite (2026-04-23) put
+        `context` early and added a metadata-capture lesson that primes
+        `quality` to flag enum violations.
+        """
+        from querido.tutorial.runner import get_lessons
+
+        lessons = get_lessons("/tmp/fake.duckdb")
+        non_info = [lesson for lesson in lessons if not lesson.info_only]
+        ordered_cmds = [cmd for lesson in non_info for cmd in lesson.commands]
+        joined = "\n".join(ordered_cmds)
+
+        # Compounding-loop commands must appear, in order.
+        ordered_keywords = [
+            "catalog",
+            "context",
+            "values",
+            "metadata init",
+            "metadata suggest",
+            "quality",
+            "query",
+            "report table",
+        ]
+        last_idx = -1
+        for keyword in ordered_keywords:
+            idx = joined.find(keyword)
+            assert idx != -1, f"tutorial no longer teaches `{keyword}`"
+            assert idx > last_idx, f"`{keyword}` appears before a later compounding-loop step"
+            last_idx = idx
+
+        # The final info-only lesson must point at the agent tutorial so the
+        # narrative continues into the metadata-for-agents story.
+        final = lessons[-1]
+        assert "qdo tutorial agent" in final.explanation
 
 
 # ---------------------------------------------------------------------------

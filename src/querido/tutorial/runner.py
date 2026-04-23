@@ -1,4 +1,10 @@
-"""Interactive tutorial runner — walks through qdo lessons sequentially."""
+"""Interactive tutorial runner — walks through qdo lessons sequentially.
+
+The tutorial is framed around qdo's compounding loop —
+``discover → understand → capture → answer → hand off`` — not a
+command-by-command tour. Each lesson's value is narrative: the next
+command's output is sharper *because* of the previous one.
+"""
 
 from __future__ import annotations
 
@@ -20,217 +26,204 @@ class Lesson:
     info_only: bool = False
 
 
-def get_lessons(db_path: str) -> list[Lesson]:
-    """Return the ordered list of tutorial lessons, parameterized with *db_path*."""
+def get_lessons(db_path: str, *, report_path: str | None = None) -> list[Lesson]:
+    """Return the ordered list of tutorial lessons, parameterized with *db_path*.
+
+    ``report_path`` is the HTML output path used in the hand-off lesson;
+    when omitted, a sibling file next to the DB is used.
+    """
     db = db_path
+    report_out = report_path or str(Path(db_path).with_suffix(".report.html"))
     return [
         Lesson(
             number=1,
-            title="Welcome to qdo!",
+            title="Welcome to qdo",
             explanation=(
-                "qdo is a CLI toolkit for exploring and analyzing data in\n"
-                "  SQLite, DuckDB, Snowflake, and Parquet files.\n"
+                "qdo is an agent-first CLI for exploring SQLite, DuckDB,\n"
+                "  Snowflake, and Parquet data.\n"
                 "\n"
-                "  This tutorial uses a National Parks database with 4 tables:\n"
+                "  The pitch: each step accumulates understanding that\n"
+                "  sharpens the next step. Not a browser — a memory.\n"
+                "\n"
+                "    discover → understand → capture → answer → hand off\n"
+                "    catalog    context      metadata   query     report\n"
+                "\n"
+                "  This tutorial walks that loop using a National Parks DB:\n"
                 "    parks            ~60 US national parks\n"
                 "    trails           ~250 hiking trails\n"
                 "    wildlife_sightings  1,000 animal sightings\n"
                 "    visitor_stats    ~2,800 monthly visitor records\n"
                 "\n"
-                "  We'll walk through qdo's commands step by step.\n"
                 "  Press Enter at each prompt to run the command."
             ),
             info_only=True,
         ),
         Lesson(
             number=2,
-            title="catalog — see all tables at a glance",
+            title="catalog — your map",
             explanation=(
-                "Start by seeing what tables exist, how many rows they have,\n"
-                "  and what columns are in each one."
+                "Step 1: discover. See every table, its row count, and\n"
+                "  its columns. This is where every investigation starts."
             ),
             commands=[f"catalog -c {db}"],
             notice=(
-                "Notice the 4 tables with their row counts and column types.\n"
-                "  This is your map of the database."
+                "Four tables with their types and row counts — now you\n"
+                "  know what's on the table before you pick one to dive into."
             ),
         ),
         Lesson(
             number=3,
-            title="inspect — drill into a table's structure",
+            title="context — everything about one table in one call",
             explanation=(
-                "Pick a table and see its columns in detail: types,\n  nullability, and row count."
+                "Step 2: understand. `context` returns schema + stats +\n"
+                "  sample values in a single scan. It replaces separate\n"
+                "  inspect, preview, and profile calls for most workflows.\n"
+                "\n"
+                "  This is the anchor command for both humans and agents."
             ),
-            commands=[f"inspect -c {db} -t parks"],
+            commands=[f"context -c {db} -t parks"],
             notice=(
-                "Notice the mix of types: varchar, double, integer, boolean, date.\n"
-                "  The description column is nullable — some parks have no description."
+                "Notice: column types, null rates, and actual sample values\n"
+                "  all at once. For `region` — a low-cardinality string —\n"
+                "  you can see the full vocabulary. That's a hint we'll\n"
+                "  use in the next two lessons."
             ),
         ),
         Lesson(
             number=4,
-            title="preview — see actual data",
-            explanation="Look at real rows to understand what the data contains.",
-            commands=[f"preview -c {db} -t trails -r 10"],
+            title="values — a column's full vocabulary",
+            explanation=(
+                "Before capturing knowledge about a column, look at every\n"
+                "  distinct value. `values` is cheap on low-cardinality\n"
+                "  columns and perfect for categorical fields."
+            ),
+            commands=[f"values -c {db} -t parks -C region"],
             notice=(
-                "Notice the trail names, distances, and difficulties.\n"
-                "  Some estimated_hours values are NULL."
+                "7 NPS regions. This is the kind of information we want\n"
+                "  qdo to *remember* so future scans can validate against it."
             ),
         ),
         Lesson(
             number=5,
-            title="profile — statistical summary",
+            title="capture — teach qdo what you just learned",
             explanation=(
-                "Get min/max, mean, null counts, and distinct values\n"
-                "  for every column in a table."
+                "Step 3: capture. Create a metadata file for `parks`, then\n"
+                "  let qdo propose deterministic additions from fresh scans\n"
+                "  (temporal columns, valid values for enum-like fields,\n"
+                "  high-null flags). `--apply` writes them.\n"
+                "\n"
+                "  From now on, this table has persistent memory."
             ),
-            commands=[f"profile -c {db} -t wildlife_sightings"],
+            commands=[
+                f"metadata init -c {db} -t parks",
+                f"metadata suggest -c {db} -t parks --apply",
+                f"metadata show -c {db} -t parks",
+            ],
             notice=(
-                "Look at null counts — notes is ~60% null, trail_id is ~30% null.\n"
-                "  The count column has a skewed distribution (min 1, but max much higher)."
+                "The YAML now carries valid_values for `region` (and any\n"
+                "  other low-cardinality string columns). The next command\n"
+                "  will use that memory — this is the compounding loop."
             ),
         ),
         Lesson(
             number=6,
-            title="profile --top — frequent values",
+            title="quality — the loop pays off",
             explanation=(
-                "Use --top to see the most common values for specific columns.\n"
-                "  Great for understanding categorical data."
+                "`quality` checks nulls, uniqueness, and — crucially — any\n"
+                "  row whose value isn't in the stored `valid_values`.\n"
+                "\n"
+                "  Because we captured the region vocabulary in lesson 5,\n"
+                "  `quality` now flags enum violations automatically."
             ),
-            commands=[
-                f"profile -c {db} -t wildlife_sightings --columns species,category --top 5",
-            ],
+            commands=[f"quality -c {db} -t parks --exact"],
             notice=(
-                "Elk and Mule Deer are the most commonly sighted species.\n"
-                "  Mammals dominate, followed by birds."
+                "Each column gets a status (ok / warn / fail) and a list\n"
+                "  of issues. Because valid_values are stored for region,\n"
+                "  quality also reports invalid_count — zero bad rows here.\n"
+                "  That's the compounding loop in action.\n"
+                "\n"
+                "  (We passed --exact so distinct counts are computed with\n"
+                "  COUNT(DISTINCT) rather than an approximate sketch —\n"
+                "  cheap on 59 rows, worth remembering for small tables.)"
             ),
         ),
         Lesson(
             number=7,
-            title="dist — numeric distribution (histogram)",
+            title="dist — visualize a distribution",
             explanation=(
-                "Visualize how a numeric column is distributed.\n"
-                "  qdo creates a histogram with configurable buckets."
+                "For a numeric column, `dist` renders a histogram. For a\n"
+                "  text column, it's a top-N frequency view. Use it when\n"
+                "  shape matters more than summary stats."
             ),
             commands=[f"dist -c {db} -t trails -C distance_miles"],
             notice=(
-                "Most trails are shorter (under 10 miles).\n"
-                "  The distribution is right-skewed — a few trails are very long."
+                "Most trails are short; a few very long ones skew the tail.\n"
+                "  Right-skewed distributions are common in travel data."
             ),
         ),
         Lesson(
             number=8,
-            title="dist — categorical distribution",
+            title="answer — ad-hoc SQL and quick pivots",
             explanation=(
-                "For text columns, dist shows the top values by frequency.\n"
-                "  See how wildlife sightings break down by category."
-            ),
-            commands=[f"dist -c {db} -t wildlife_sightings -C category --top 10"],
-            notice=(
-                "Mammals make up over half of all sightings.\n"
-                "  Birds are second. Fish, reptiles, and amphibians are rarer."
-            ),
-        ),
-        Lesson(
-            number=9,
-            title="values — distinct values for a column",
-            explanation=(
-                "See every unique value in a column with its count.\n"
-                "  Useful for understanding enums and categories."
-            ),
-            commands=[f"values -c {db} -t parks -C region"],
-            notice=(
-                "There are 7 NPS regions. Intermountain has the most parks,\n"
-                "  followed by Pacific West and Alaska."
-            ),
-        ),
-        Lesson(
-            number=10,
-            title="quality — find data issues",
-            explanation=(
-                "Get a quality report: null rates, uniqueness, and\n  potential data problems."
-            ),
-            commands=[f"quality -c {db} -t wildlife_sightings"],
-            notice=(
-                "notes and trail_id have significant null rates.\n"
-                "  sighting_id has 100% unique values (as expected for a primary key)."
-            ),
-        ),
-        Lesson(
-            number=11,
-            title="query — run ad-hoc SQL",
-            explanation=(
-                "Write your own SQL to answer specific questions.\n"
-                "  Which parks have the most wildlife sightings?"
+                "Step 4: answer. Use `query` for real SQL and `pivot` for\n"
+                "  GROUP BY aggregations without authoring SQL by hand."
             ),
             commands=[
                 f'query -c {db} --sql "select p.name, count(*) as sightings '
                 f"from parks p join wildlife_sightings ws "
                 f"on p.park_id = ws.park_id "
                 f'group by p.name order by sightings desc limit 10"',
-            ],
-            notice=(
-                "The most visited parks tend to have more sightings —\n"
-                "  more visitors means more eyes on the wildlife."
-            ),
-        ),
-        Lesson(
-            number=12,
-            title="pivot — aggregate with GROUP BY",
-            explanation=(
-                "Quick aggregation without writing SQL.\n"
-                "  What's the average visitor count by trail condition?"
-            ),
-            commands=[
                 f'pivot -c {db} -t visitor_stats -g trail_conditions -a "avg(visitors)"',
             ],
             notice=(
-                "Parks with excellent trail conditions get more visitors.\n"
-                "  Closed trails correlate with the lowest visitor counts."
+                "Parks with more visitors tend to have more sightings —\n"
+                "  and better trail conditions correlate with higher visits.\n"
+                "  Both commands respect the metadata you captured earlier."
             ),
         ),
         Lesson(
-            number=13,
-            title="sql — generate SQL from schema",
+            number=9,
+            title="hand off — report, bundle, or agent",
             explanation=(
-                "Generate SQL statements from table metadata.\n"
-                "  Useful as a starting point for custom queries."
+                "Step 5: hand off. `report table` builds a single-file HTML\n"
+                "  summary you can share with someone who doesn't have qdo.\n"
+                "  `bundle export` packages metadata + workflows for another\n"
+                "  teammate. And the whole loop is agent-ready via the skill\n"
+                "  file shipped in `integrations/skills/SKILL.md`."
             ),
-            commands=[
-                f"sql select -c {db} -t parks",
-                f"sql ddl -c {db} -t trails",
-            ],
+            commands=[f"report table -c {db} -t parks -o {report_out}"],
             notice=(
-                "The SELECT includes all column names — ready to customize.\n"
-                "  The DDL gives you a CREATE TABLE you can use in another database."
+                f"Report saved to {report_out}. Open it in a browser —\n"
+                "  schema, metadata, quality flags, sample values, all in\n"
+                "  one offline-safe HTML file.\n"
+                "\n"
+                "  Next step for coding-agent workflows: run\n"
+                "  `qdo tutorial agent` — it walks through enriching\n"
+                "  metadata and feeding it to an LLM for better SQL."
             ),
         ),
         Lesson(
-            number=14,
-            title="export — get data out",
+            number=10,
+            title="Tutorial complete",
             explanation=(
-                "Export query results to CSV, TSV, JSON, or JSONL.\n"
-                "  Pipe to other tools or save to files."
-            ),
-            commands=[f"--format csv preview -c {db} -t parks -r 5"],
-            notice="CSV output goes to stdout — pipe it to a file or another tool.",
-        ),
-        Lesson(
-            number=15,
-            title="Tutorial Complete!",
-            explanation=(
-                "You've learned the core qdo workflow:\n"
+                "You've run the full compounding loop:\n"
                 "\n"
-                "  Explore:   catalog → inspect → preview → profile → dist → values\n"
-                "  Query:     query → pivot → export\n"
-                "  Generate:  sql select/ddl\n"
+                "    catalog → context → metadata capture → quality →\n"
+                "    query → report → hand off\n"
                 "\n"
-                "  Tips:\n"
-                "    qdo --help                  See all commands\n"
-                "    qdo <command> --help         See options for a command\n"
-                "    qdo --format json <cmd>      Machine-readable output\n"
-                "    export QDO_FORMAT=json        Set format for all commands\n"
-                "    qdo --show-sql <cmd>          See the SQL being executed\n"
+                "  Each step made the next sharper. That's the pitch.\n"
+                "\n"
+                "  Where to go next:\n"
+                "    qdo tutorial agent            Metadata + AI-assisted SQL\n"
+                "    qdo --help                    All commands\n"
+                "    qdo <command> --help          Options for one command\n"
+                "    qdo -f json <cmd>             Machine-readable output\n"
+                "    qdo workflow list             Pre-built investigation recipes\n"
+                "    qdo bundle export ...         Share metadata with a teammate\n"
+                "\n"
+                "  Skill file for coding agents:\n"
+                "    Claude Code:  integrations/skills/SKILL.md\n"
+                "    Continue.dev: integrations/continue/qdo.md\n"
                 "\n"
                 "  Happy exploring!"
             ),
@@ -253,9 +246,12 @@ def run_tutorial(
     """Run the interactive tutorial.
 
     Generates a tutorial DB in a temp dir (unless *db_path* is provided),
-    runs lessons sequentially, and cleans up on exit.
+    runs lessons sequentially, and cleans up on exit. Metadata writes
+    during the tutorial are redirected into the same temp dir via
+    ``QDO_METADATA_DIR`` so the user's cwd stays clean.
     """
     import atexit
+    import os
     import tempfile
 
     from querido.tutorial.data import create_tutorial_db
@@ -269,7 +265,13 @@ def run_tutorial(
     else:
         db_file = Path(db_path)
 
-    lessons = get_lessons(str(db_file))
+    # Keep metadata writes + the generated report inside the tutorial scratch
+    # dir so re-runs are idempotent and nothing pollutes the user's project.
+    scratch = Path(cleanup_dir) if cleanup_dir else db_file.parent
+    metadata_dir = scratch / "metadata"
+    report_file = scratch / "parks-report.html"
+
+    lessons = get_lessons(str(db_file), report_path=str(report_file))
 
     if list_only:
         print(f"\n  {'#':>3}  {'Title'}")
@@ -295,6 +297,9 @@ def run_tutorial(
         create_tutorial_db(db_file)
         print(_dim("done.\n"))
 
+    # Scope metadata writes to the scratch dir for the lifetime of the tutorial.
+    prior_metadata_dir = os.environ.get("QDO_METADATA_DIR")
+    os.environ["QDO_METADATA_DIR"] = str(metadata_dir)
     try:
         for lesson in lessons:
             if lesson.number < start_lesson:
@@ -319,6 +324,10 @@ def run_tutorial(
     except SystemExit:
         pass
     finally:
+        if prior_metadata_dir is None:
+            os.environ.pop("QDO_METADATA_DIR", None)
+        else:
+            os.environ["QDO_METADATA_DIR"] = prior_metadata_dir
         if cleanup_dir:
             import shutil as _shutil
 

@@ -148,7 +148,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 
 | Command | Purpose |
 |---------|---------|
-| `qdo tutorial explore` | 15-lesson core workflow tutorial |
+| `qdo tutorial explore` | 10-lesson compounding-loop walkthrough |
 | `qdo tutorial agent` | 13-lesson metadata + AI-assisted SQL tutorial |
 
 ## Output Formats

@@ -8,7 +8,7 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-23)
 
-**Tests:** 1182 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
+**Tests:** 1183 passing, 25 skipped. Full-suite `pytest`, `ruff check`, and `ty check` are green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
 
 **Polish pass complete.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done. The Pre-release polish pass (items 0–6) landed 2026-04-22 — see summary under "Phases shipped" below.
 
@@ -64,7 +64,7 @@ Actual product-surface changes. Each warrants a brief think before diving in; co
 - [x] **No `qdo config remove`.** Added `qdo config remove --name <n>` with a default confirmation prompt (answer `n` to abort, `y` to proceed), a `-y / --yes` bypass for scripts, and a `CONNECTION_NOT_FOUND` structured error when the name is unknown. The `_bad_parameter_code` matcher accepts both "source connection '...' not found" (from `clone`) and "connection '...' not found" (from `remove`) so the envelope code stays stable. Three new tests cover success, abort, and unknown-name paths.
 - [x] **`qdo config add --type duckdb` succeeds silently without the `[duckdb]` extra installed.** Added `_missing_backend_extra()` that probes `duckdb` / `snowflake.connector` via `importlib.util.find_spec` (guarded against `ImportError`/`ValueError` when the parent namespace doesn't exist). `config add` and `config clone` now print a yellow warning after the green success message pointing at the exact `uv pip install 'querido[<extra>]'` command. Test covers the warn path via a monkeypatched probe.
 - [x] **SKILL.md has no dedicated `quality` section.** Added `## quality — detect data issues` between the `context` section and the JSON-output section: syntax, trimmed JSON shape (showing `status` / `issues` / `invalid_count`), and a "when to pick `quality` over `context + values`" decision rubric — plus the `values --write-metadata` → `quality` compounding-loop handoff.
-- [ ] **`qdo tutorial explore` still teaches the old single-command tour.** 15 lessons run `catalog → inspect → preview → profile → dist → values → query → pivot → export`. Skips `context` (which does inspect + preview + profile in one), never lands the `values --write-metadata → context → quality` compounding story, and doesn't point to `qdo tutorial agent` as the upgrade path. Fix: re-sequence around `context` early; add a lesson showing metadata capture with `suggest --apply`; finish with a pointer to `qdo tutorial agent`.
+- [x] **`qdo tutorial explore` still teaches the old single-command tour.** Rewrote the tutorial from 15 command-tour lessons to 10 compounding-loop lessons: `catalog → context → values → metadata capture → quality → dist → query + pivot → report + agent pointer`. `context` appears early (lesson 3) and explicitly replaces separate inspect/preview/profile calls. New lesson 5 runs `metadata init` + `suggest --apply` + `show` so the user sees the YAML that was captured. Lesson 6 runs `quality --exact` — the stored `valid_values` now feeds `invalid_count`, demonstrating the compounding loop firing for real. Lesson 9 is the hand-off (report HTML + pointer to `qdo tutorial agent` + mention of bundles + SKILL files). Tutorial writes metadata into a scratch dir via `QDO_METADATA_DIR` so re-runs don't pollute the user's cwd. Added `test_tutorial_teaches_compounding_loop` that asserts the ordered-keyword sequence. All references to "15 lessons" refreshed to "10 lessons" across README, cli-reference, SKILL, AGENTS, ARCHITECTURE, and the cheatsheet HTML.
 - [x] **`qdo tutorial agent` Lesson 13 names SKILL files vaguely.** Tightened the lesson block so the concrete filenames lead (`integrations/skills/SKILL.md` for Claude Code, `integrations/continue/qdo.md` for Continue.dev), with the context-setting description following.
 - [x] **`docs/examples/` metadata fixture may use outdated field names.** Resolved as not-a-bug: verified the hand-curated `orders.yaml` reads cleanly via `metadata show`, `metadata list`, and `metadata score` against current qdo (100% score, no schema drift). The fixture is intentionally human-authored (richer than the default scaffold) and all field names match the current schema.
 - [x] **`qdo report table` without `-o` silently opens a tempfile.** Both `qdo report table` and `qdo report session` now follow the `Opened ...` line with `Tempfile — pass \`-o <name>.html\` to keep a permanent copy.`
@@ -84,10 +84,10 @@ Small nice-to-haves. Can run in parallel with the tiers above.
 - Tier 1: 3 / 3 ✅
 - Tier 2: 5 / 5 ✅ (+1 deferred)
 - Tier 3: 7 / 7 ✅
-- Tier 4: 6 / 7 — only the `qdo tutorial explore` re-sequence remains
+- Tier 4: 7 / 7 ✅
 - Tier 5: 0 / 4 (+1 deferred)
 
-**Total: 21 / 26 shipped, 2 deferred.** Update these counts as items tick.
+**Total: 22 / 26 shipped, 2 deferred.** Update these counts as items tick.
 
 ---
 

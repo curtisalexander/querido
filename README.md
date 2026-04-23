@@ -260,7 +260,7 @@ Example captures live under [`docs/examples/`](docs/examples/README.md):
 ### Learn — built-in tutorials
 
 ```bash
-qdo tutorial explore                 # 15-lesson core workflow
+qdo tutorial explore                 # 10-lesson compounding-loop walkthrough
 qdo tutorial agent                   # 13-lesson metadata + AI-assisted SQL
 qdo tutorial explore --list          # list lessons
 qdo tutorial explore --lesson 5      # jump to a lesson
