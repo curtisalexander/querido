@@ -27,6 +27,35 @@ def test_config_add_sqlite(tmp_path):
     assert 'path = "/tmp/test.db"' in content
 
 
+def test_missing_backend_extra_helper():
+    """The extras probe returns None when importable, extras-name otherwise."""
+    from querido.cli.config import _missing_backend_extra
+
+    # sqlite is stdlib and never reports missing
+    assert _missing_backend_extra("sqlite") is None
+    # Unknown type also returns None (we only probe known backends)
+    assert _missing_backend_extra("mysql") is None
+
+
+def test_config_add_warns_when_backend_extra_missing(tmp_path, monkeypatch):
+    """Adding a duckdb/snowflake connection without the extra should warn, not fail."""
+    from querido.cli import config as config_cli
+
+    monkeypatch.setattr(config_cli, "_missing_backend_extra", lambda db_type: "duckdb")
+
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(
+        app,
+        ["config", "add", "--name", "mydb", "--type", "duckdb", "--path", "/tmp/test.duckdb"],
+        env=env,
+    )
+    assert result.exit_code == 0
+    assert "Added connection" in result.output
+    # The warning is actionable and points at the exact install command
+    assert "the duckdb backend isn't installed" in result.output
+    assert "querido[duckdb]" in result.output
+
+
 def test_config_add_duplicate_rejected(tmp_path):
     env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
     runner.invoke(
@@ -148,6 +177,58 @@ def test_config_list_snowflake_columns(tmp_path):
 
 
 # ── config clone ──────────────────────────────────────────────────────
+
+
+def test_config_remove_basic(tmp_path):
+    """Remove with --yes drops the connection and leaves others intact."""
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "keepme", "--type", "sqlite", "--path", "/tmp/a.db"],
+        env=env,
+    )
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "gone", "--type", "sqlite", "--path", "/tmp/b.db"],
+        env=env,
+    )
+    result = runner.invoke(app, ["config", "remove", "--name", "gone", "--yes"], env=env)
+    assert result.exit_code == 0
+    assert "Removed connection" in result.output
+
+    config_file = tmp_path / "connections.toml"
+    content = config_file.read_text()
+    assert "[connections.keepme]" in content
+    assert "[connections.gone]" not in content
+
+
+def test_config_remove_confirmation_abort(tmp_path):
+    """Without --yes, answering 'n' at the prompt aborts without writing."""
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "mydb", "--type", "sqlite", "--path", "/tmp/a.db"],
+        env=env,
+    )
+    # Feed 'n' to the confirmation prompt
+    result = runner.invoke(app, ["config", "remove", "--name", "mydb"], env=env, input="n\n")
+    assert result.exit_code == 0
+    assert "Aborted" in result.output
+
+    config_file = tmp_path / "connections.toml"
+    assert "[connections.mydb]" in config_file.read_text()
+
+
+def test_config_remove_unknown_name_uses_structured_error(tmp_path):
+    """Removing a nonexistent connection raises CONNECTION_NOT_FOUND under -f json."""
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(
+        app, ["-f", "json", "config", "remove", "--name", "ghost", "--yes"], env=env
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "CONNECTION_NOT_FOUND"
 
 
 def test_config_clone_basic(tmp_path):

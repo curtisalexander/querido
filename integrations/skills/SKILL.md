@@ -165,6 +165,61 @@ JSON output shape (trimmed):
 
 Use `context` as the primary tool call when you need to understand a table before writing SQL. It replaces separate calls to `inspect`, `preview`, and much of `profile` for most workflows.
 
+## quality — detect data issues
+
+`quality` is the command to reach for when the user asks about nulls, duplicates, anomalies, enum violations, or whether a table is *healthy*. It checks stored `valid_values` and flags rows that don't match, surfaces high null rates, and labels each column `ok` / `warn` / `fail`.
+
+```bash
+qdo -f json quality -c <connection> -t <table>
+qdo -f json quality -c <connection> -t <table> --no-sample   # exact counts on large tables
+qdo -f json quality -c <connection> -t <table> --write-metadata  # also tag likely_sparse
+```
+
+JSON output shape (trimmed):
+
+```json
+{
+  "command": "quality",
+  "data": {
+    "table": "orders",
+    "row_count": 50000,
+    "sampled": true,
+    "sample_size": 100000,
+    "duplicate_rows": 0,
+    "columns": [
+      {
+        "name": "status",
+        "type": "VARCHAR",
+        "null_count": 12,
+        "null_pct": 0.02,
+        "distinct_count": 4,
+        "uniqueness_pct": 0.008,
+        "status": "ok",
+        "issues": [],
+        "valid_values": ["pending", "shipped", "delivered", "cancelled"],
+        "invalid_count": 0
+      },
+      {
+        "name": "amount",
+        "type": "DOUBLE",
+        "null_count": 600,
+        "null_pct": 1.2,
+        "uniqueness_pct": 25.0,
+        "status": "warn",
+        "issues": ["null_rate_above_threshold"]
+      }
+    ]
+  }
+}
+```
+
+**When to pick `quality` over `context + values`:**
+
+- The user asked about *health*, *issues*, *bad data*, *nulls*, *duplicates*, or *enum violations* — reach for `quality` first. It has a deterministic rubric agents can gate on (the `status` field + stable `issues[]` codes).
+- The user asked *what values does this column take?* — use `values` (or `values --counts`).
+- The user asked *what's in this table?* — use `context`.
+- You want `quality` to auto-catch enum violations on later runs: run `values --write-metadata` (or `metadata suggest --apply`) first. `quality` then checks every row against the stored `valid_values` and populates `invalid_count`. This is the core of the compounding loop for data-quality work.
+
 ## JSON output for programmatic use
 
 Pass `-f json` explicitly on every call you want to parse:

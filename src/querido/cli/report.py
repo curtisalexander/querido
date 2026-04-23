@@ -67,6 +67,7 @@ def report_table(
     import sys
 
     print(f"Opened {path}", file=sys.stderr)
+    print("Tempfile — pass `-o <name>.html` to keep a permanent copy.", file=sys.stderr)
 
 
 @app.command("session")
@@ -115,6 +116,7 @@ def report_session(
     import sys
 
     print(f"Opened {path}", file=sys.stderr)
+    print("Tempfile — pass `-o <name>.html` to keep a permanent copy.", file=sys.stderr)
 
 
 def _reconstruct_command(*, table: str, connection: str, output: str | None) -> str:

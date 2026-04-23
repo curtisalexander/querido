@@ -9,6 +9,24 @@ from querido.cli._errors import friendly_errors
 app = typer.Typer(help="Manage connections.")
 
 
+def _missing_backend_extra(db_type: str) -> str | None:
+    """Return the extras name (``duckdb`` / ``snowflake``) if the backend
+    driver isn't importable. ``None`` means the backend is ready to use.
+
+    SQLite is stdlib, so it never reports missing.
+    """
+    import importlib.util
+
+    module = {"duckdb": "duckdb", "snowflake": "snowflake.connector"}.get(db_type)
+    if module is None:
+        return None
+    try:
+        spec = importlib.util.find_spec(module)
+    except (ImportError, ValueError):
+        return db_type
+    return None if spec is not None else db_type
+
+
 @app.command()
 @friendly_errors
 def add(
@@ -81,9 +99,16 @@ def add(
 
     from rich.console import Console
 
-    Console(stderr=True).print(
-        f"[green]Added connection '[bold]{name}[/bold]' to {config_file}[/green]"
-    )
+    console = Console(stderr=True)
+    console.print(f"[green]Added connection '[bold]{name}[/bold]' to {config_file}[/green]")
+
+    missing = _missing_backend_extra(db_type)
+    if missing:
+        console.print(
+            f"[yellow]Warning:[/yellow] the {db_type} backend isn't installed. "
+            f"Run [bold]uv pip install 'querido\\[{missing}]'[/bold] "
+            "before using this connection."
+        )
 
 
 @app.command("list")
@@ -223,8 +248,59 @@ def clone(
 
     from rich.console import Console
 
-    Console(stderr=True).print(
+    console = Console(stderr=True)
+    console.print(
         f"[green]Cloned '[bold]{source}[/bold]' → '[bold]{name}[/bold]' in {config_file}[/green]"
+    )
+
+    source_type = str(existing.get(name, {}).get("type", ""))
+    missing = _missing_backend_extra(source_type)
+    if missing:
+        console.print(
+            f"[yellow]Warning:[/yellow] the {source_type} backend isn't installed. "
+            f"Run [bold]uv pip install 'querido\\[{missing}]'[/bold] "
+            "before using this connection."
+        )
+
+
+@app.command()
+@friendly_errors
+def remove(
+    name: str = typer.Option(..., "--name", "-n", help="Connection name to remove."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+) -> None:
+    """Remove a named connection from connections.toml.
+
+    Saved column sets referencing this connection are left in place —
+    remove them with ``qdo config column-set delete`` if you no longer
+    need them.
+    """
+    from querido.config import get_config_dir, load_connections
+
+    config_dir = get_config_dir()
+    config_file = config_dir / "connections.toml"
+
+    existing = load_connections(config_dir)
+    if name not in existing:
+        raise typer.BadParameter(
+            f"Connection '{name}' not found. Use 'qdo config list' to see configured connections."
+        )
+
+    if not yes:
+        confirmed = typer.confirm(f"Remove connection '{name}'?", default=False, err=True)
+        if not confirmed:
+            from rich.console import Console
+
+            Console(stderr=True).print("[dim]Aborted — no connection removed.[/dim]")
+            raise typer.Exit(0)
+
+    del existing[name]
+    _write_connections(config_file, existing)
+
+    from rich.console import Console
+
+    Console(stderr=True).print(
+        f"[green]Removed connection '[bold]{name}[/bold]' from {config_file}[/green]"
     )
 
 

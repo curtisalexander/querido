@@ -281,14 +281,12 @@ def get_lessons(db_path: str) -> list[Lesson]:
                 "    qdo metadata list -c <yourdb>              Check completeness\n"
                 "    qdo --help                                  See all commands\n"
                 "\n"
-                "  Skill file for coding agents:\n"
-                "    Ready-made context files live in the integrations/ directory.\n"
-                "    Add the one matching your agent harness to give it full\n"
-                "    knowledge of the qdo workflow — including this metadata\n"
-                "    enrichment pattern and the recommended prompt structure.\n"
+                "  Skill file for coding agents — load the one matching your harness:\n"
+                "    Claude Code:  integrations/skills/SKILL.md\n"
+                "    Continue.dev: integrations/continue/qdo.md\n"
                 "\n"
-                "    Claude Code: integrations/skills/SKILL.md\n"
-                "    Continue.dev: integrations/continue/qdo.md"
+                "    Either gives your agent the full qdo workflow, this metadata\n"
+                "    enrichment pattern, and the recommended prompt structure."
             ),
             info_only=True,
         ),

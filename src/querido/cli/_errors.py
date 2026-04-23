@@ -257,6 +257,8 @@ def _bad_parameter_code(msg: str) -> str:
         return "CONNECTION_EXISTS"
     if lower.startswith("source connection '") and " not found." in lower:
         return "CONNECTION_NOT_FOUND"
+    if lower.startswith("connection '") and " not found." in lower:
+        return "CONNECTION_NOT_FOUND"
     if lower.startswith("--path is required for "):
         return "PATH_REQUIRED"
     if lower.startswith("must provide --table or --sql."):
