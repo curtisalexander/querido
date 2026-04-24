@@ -36,6 +36,8 @@ def test_duckdb_get_columns(duckdb_path: str):
         assert len(cols) == 3
         names = [c["name"] for c in cols]
         assert names == ["id", "name", "age"]
+        nullable_by_name = {c["name"]: c["nullable"] for c in cols}
+        assert nullable_by_name == {"id": False, "name": False, "age": True}
 
 
 def test_factory_sqlite(sqlite_path: str):

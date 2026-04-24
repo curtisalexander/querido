@@ -1,5 +1,5 @@
 title: querido
-description: A CLI toolkit for common data analysis tasks against SQLite, DuckDB, Snowflake, and Parquet files.
+description: Agent-first data exploration CLI that turns one-off investigation into reusable team knowledge.
 url: https://curtisalexander.github.io
 baseurl: /querido
 

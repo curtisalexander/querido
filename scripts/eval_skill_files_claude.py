@@ -398,8 +398,10 @@ def main() -> int:
     # per-task progress mid-run instead of one dump at the end.
     import contextlib
 
-    with contextlib.suppress(AttributeError, io.UnsupportedOperation):
-        sys.stdout.reconfigure(line_buffering=True)
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        with contextlib.suppress(AttributeError, io.UnsupportedOperation):
+            reconfigure(line_buffering=True)
 
     tasks = _select_tasks(args.tasks)
     models = _select_models(args.models)

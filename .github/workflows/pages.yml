@@ -37,6 +37,71 @@ jobs:
             cat README.md
           } > docs/index.md
 
+      - name: Build agent integration docs
+        run: |
+          {
+            echo '---'
+            echo 'layout: default'
+            echo 'title: Agent Integrations'
+            echo '---'
+            echo ''
+            echo '# Agent Integrations'
+            echo ''
+            echo 'Install these files from the qdo CLI:'
+            echo ''
+            echo '```bash'
+            echo 'qdo agent install skill'
+            echo 'qdo agent install continue'
+            echo '```'
+            echo ''
+            echo '## Claude Code'
+            echo ''
+            echo 'Installs `skills/querido/SKILL.md` plus workflow authoring references.'
+            echo ''
+            echo '## Continue.dev'
+            echo ''
+            echo 'Installs `.continue/rules/qdo.md`.'
+            echo ''
+            echo '## Source Files'
+            echo ''
+            echo '- [Claude Code SKILL.md](agent-claude.html)'
+            echo '- [Continue.dev qdo.md](agent-continue.html)'
+            echo '- [Workflow Authoring](workflow-authoring.html)'
+            echo '- [Workflow Examples](workflow-examples.html)'
+          } > docs/agent-integrations.md
+          {
+            echo '---'
+            echo 'layout: default'
+            echo 'title: Claude Code Integration'
+            echo '---'
+            echo ''
+            cat integrations/skills/SKILL.md
+          } > docs/agent-claude.md
+          {
+            echo '---'
+            echo 'layout: default'
+            echo 'title: Continue.dev Integration'
+            echo '---'
+            echo ''
+            cat integrations/continue/qdo.md
+          } > docs/agent-continue.md
+          {
+            echo '---'
+            echo 'layout: default'
+            echo 'title: Workflow Authoring'
+            echo '---'
+            echo ''
+            cat integrations/skills/WORKFLOW_AUTHORING.md
+          } > docs/workflow-authoring.md
+          {
+            echo '---'
+            echo 'layout: default'
+            echo 'title: Workflow Examples'
+            echo '---'
+            echo ''
+            cat integrations/skills/WORKFLOW_EXAMPLES.md
+          } > docs/workflow-examples.md
+
       - name: Setup Pages
         uses: actions/configure-pages@v6
 

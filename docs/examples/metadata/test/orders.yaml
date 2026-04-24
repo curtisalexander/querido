@@ -21,7 +21,7 @@ notes: 'This example table intentionally includes a small number of data-quality
 columns:
 - name: id
   type: BIGINT
-  nullable: false
+  nullable: true
   primary_key: false
   description: 'Synthetic order-row identifier used in the sample fixture. Useful
     for row-level debugging, but not a business key to share externally.
@@ -36,7 +36,7 @@ columns:
   pii: false
 - name: customer_id
   type: INTEGER
-  nullable: false
+  nullable: true
   primary_key: false
   description: 'Foreign-key-style reference to the customer that placed the order.
     Joins to the customers fixture table on customer_id.
@@ -51,7 +51,7 @@ columns:
   pii: false
 - name: product_id
   type: INTEGER
-  nullable: false
+  nullable: true
   primary_key: false
   description: 'Foreign-key-style reference to the ordered product. Joins to the products
     fixture table on product_id.
@@ -66,7 +66,7 @@ columns:
   pii: false
 - name: status
   type: VARCHAR
-  nullable: false
+  nullable: true
   primary_key: false
   description: 'Fulfillment lifecycle status for the order row. Use this for workflow
     and delivery-state analysis, but normalize malformed values before treating it
@@ -89,7 +89,7 @@ columns:
   - cancelled
 - name: amount
   type: DOUBLE
-  nullable: false
+  nullable: true
   primary_key: false
   description: 'Order amount in the fixture currency. Most analyses should exclude
     NULL amounts and review negative values before summing revenue.
@@ -104,7 +104,7 @@ columns:
   pii: false
 - name: region
   type: VARCHAR
-  nullable: false
+  nullable: true
   primary_key: false
   description: 'Sales region used for rollups and reporting. Good first dimension
     for grouped query examples.
@@ -124,7 +124,7 @@ columns:
   - NA
 - name: order_date
   type: DATE
-  nullable: false
+  nullable: true
   primary_key: false
   description: 'Order creation date. Use for trend analysis, period bucketing, and
     time-window filters.

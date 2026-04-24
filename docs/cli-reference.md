@@ -112,6 +112,8 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo config add` | Add a named connection |
 | `qdo config clone -s SRC -n NAME` | Clone a connection with overrides |
 | `qdo config list` | List configured connections |
+| `qdo config test NAME` | Test a configured connection |
+| `qdo config remove --name NAME` | Remove a named connection |
 | `qdo config column-set save` | Save a named column set |
 | `qdo config column-set list` | List saved column sets |
 | `qdo config column-set show` | Show columns in a set |
@@ -127,6 +129,9 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo metadata suggest -c CONN -t TABLE [--apply]` | Propose deterministic metadata additions |
 | `qdo metadata refresh -c CONN -t TABLE` | Refresh machine fields, keep human fields |
 | `qdo metadata undo -c CONN -t TABLE [--dry-run]` | Restore the last qdo-managed metadata snapshot |
+| `qdo agent list` | List packaged coding-agent integration docs |
+| `qdo agent install skill` | Install Claude Code skill files into `skills/querido/` |
+| `qdo agent install continue` | Install Continue.dev rules into `.continue/rules/` |
 | `qdo completion show SHELL` | Generate shell completion scripts |
 
 ### Snowflake

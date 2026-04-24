@@ -53,7 +53,7 @@ Homepage = "https://github.com/curtisalexander/querido"
 Repository = "https://github.com/curtisalexander/querido"
 Issues = "https://github.com/curtisalexander/querido/issues"
 Changelog = "https://github.com/curtisalexander/querido/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/curtisalexander/querido#readme"
+Documentation = "https://curtisalexander.github.io/querido/"
 
 [project.optional-dependencies]
 duckdb = [
@@ -82,6 +82,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/querido"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"integrations/skills/SKILL.md" = "querido/agent_docs/skills/SKILL.md"
+"integrations/skills/WORKFLOW_AUTHORING.md" = "querido/agent_docs/skills/WORKFLOW_AUTHORING.md"
+"integrations/skills/WORKFLOW_EXAMPLES.md" = "querido/agent_docs/skills/WORKFLOW_EXAMPLES.md"
+"integrations/continue/qdo.md" = "querido/agent_docs/continue/qdo.md"
 
 [tool.ruff]
 src = ["src", "tests"]

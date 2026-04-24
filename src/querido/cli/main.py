@@ -82,6 +82,7 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
         [
             ("config", "querido.cli.config", "Manage connections."),
             ("cache", "querido.cli.cache", "Manage local metadata cache."),
+            ("agent", "querido.cli.agent", "Show or install coding-agent integration docs."),
             ("completion", "querido.cli.completion", "Generate shell completion scripts."),
         ],
     ),

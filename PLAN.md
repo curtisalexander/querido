@@ -8,7 +8,7 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-23)
 
-**Tests:** 1186 passing, 25 skipped. Full-suite `pytest`, `ruff check`, `ruff format`, and `ty check` all green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
+**Tests:** 1192 passing, 25 skipped. Full-suite `pytest`, `ruff check`, `ruff format`, and `ty check` all green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
 
 **Polish pass complete.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done. The Pre-release polish pass (items 0–6) landed 2026-04-22 — see summary under "Phases shipped" below.
 
@@ -266,7 +266,7 @@ Key commits from this pass (`main`):
 
 Surfaced by the final 42/45 run. None are release blockers. Pick up opportunistically, ideally alongside related work.
 
-- **Strengthen `values` vs `dist` guidance further.** The SKILL.md sentence landed in `d8e1a2d` helped haiku pass B1 but didn't shift sonnet off `dist` for an enum-listing task. If the next eval re-run still has sonnet on B1, consider a concrete "for enum-style tasks, `qdo values --counts` is the answer" phrasing — or teach `values` to emit counts natively so the path ambiguity disappears.
+- **Strengthen `values` vs `dist` guidance further.** The SKILL.md sentence landed in `d8e1a2d` helped haiku pass B1 but didn't shift sonnet off `dist` for an enum-listing task. If the next eval re-run still has sonnet on B1, consider a concrete "for enum-style tasks, `qdo values` is the answer" phrasing — or teach `values` to emit richer count-oriented summaries so the path ambiguity disappears.
 - **`quality` vs `context+values+query` on quality-issue prompts.** Opus regressed from 15/15 to 14/15 by taking a manual answer path (context → values → query) instead of `qdo quality` on C1. This is run-to-run model variance more than a SKILL bug, but if it repeats the fix is either a stronger "for anomaly-oriented review use `quality`" nudge in SKILL, or loosening C1's `required_commands` to accept any of `[quality, context, values]`.
 - **Bundle workflow completeness on haiku.** D4 requires `qdo bundle inspect` as a workflow step after `export`. Haiku skipped it. SKILL could spell out "bundles are meaningful to hand off only after `inspect` confirms the contents" — a one-sentence tweak in the bundles section.
 - **Eval task definitions — alternative-command support.** Currently `required_commands` is a hard list. A `required_any_of` / `required_one_of` primitive would let us accept `values` OR `dist` for B1-style questions without losing the gate. Cheap harness change.

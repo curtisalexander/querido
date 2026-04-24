@@ -16,6 +16,15 @@ any of the legitimate paths SKILL promotes.
 
 ### Added
 
+- **`qdo agent list/show/install`** — packaged coding-agent integration docs
+  are now available from the installed wheel. `qdo agent install skill`
+  writes `skills/querido/SKILL.md` plus workflow references; `qdo agent
+  install continue` writes `.continue/rules/qdo.md`. Users no longer need to
+  clone the repository just to give an agent the qdo workflow.
+- **GitHub Pages agent integration pages.** The Pages workflow now builds a
+  browsable Agent Integrations page plus Claude Code, Continue.dev, workflow
+  authoring, and workflow examples pages from the canonical `integrations/`
+  files.
 - **Eval-harness runtime safeguards.** `scripts/eval_skill_files_claude.py`
   gained `--max-wall-clock-minutes` (default 20), `--task-timeout-sec`, and
   `--qdo-timeout-sec` CLI flags, a per-task header showing elapsed minutes
@@ -89,6 +98,11 @@ any of the legitimate paths SKILL promotes.
 
 ### Fixed
 
+- **DuckDB nullable metadata.** `duckdb_columns().is_nullable` returns boolean
+  values, not `"YES"` / `"NO"` strings. qdo now reports DuckDB nullability
+  correctly in `inspect`, `context`, reports, and agent envelopes.
+- **`uv run ty check` release gate.** The eval harness stdout line-buffering
+  code now type-checks under the repo's documented full type-check command.
 - **README Quick Start session-replay example** (`--from scratch:1`) failed
   because `--from` needs the source step recorded as `-f json`. Added
   `-f json` to the recording step plus a one-line lead-in. Verified

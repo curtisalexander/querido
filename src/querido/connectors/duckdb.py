@@ -115,7 +115,7 @@ class DuckDBConnector:
             {
                 "name": r["column_name"],
                 "type": r["data_type"],
-                "nullable": r["is_nullable"] == "YES",
+                "nullable": bool(r["is_nullable"]),
                 "default": r["column_default"],
                 "primary_key": False,
                 "comment": r["comment"] if r["comment"] else None,

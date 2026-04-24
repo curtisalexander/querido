@@ -218,6 +218,8 @@ qdo view-def     -c my-db --view my_view      # SQL definition of a view
 qdo config add  --name mydb --type duckdb --path ./my.duckdb
 qdo config list
 qdo config clone --source sf-base --name sf-finance --database FINANCE_DB
+qdo config test mydb
+qdo config remove --name old-db
 qdo config column-set save -c mydb -t orders -n default --columns "id,status,amount"
 qdo config column-set list
 qdo profile -c mydb -t orders --column-set default  # reuse saved selection
@@ -402,14 +404,24 @@ Errors also output structured JSON in this mode:
 {"error": true, "code": "TABLE_NOT_FOUND", "message": "...", "hint": "..."}
 ```
 
-**Give your agent the SKILL file:**
+**Give your agent the integration docs:**
 
-Ready-made context files live in the `integrations/` directory. Copy the one that matches your agent harness:
+Use `qdo agent install` from the project where your agent works. The command is
+available from the installed wheel, so users do not need to clone qdo just to
+get the agent docs.
 
 | Harness | How to install |
 |---------|----------------|
-| **Claude Code** | Copy `integrations/skills/SKILL.md` to your project's `skills/querido/` directory, or paste the contents into your `CLAUDE.md` |
-| **Continue.dev** | Copy `integrations/continue/qdo.md` to your project's `.continue/rules/` directory |
+| **Claude Code** | `qdo agent install skill` writes `skills/querido/SKILL.md` plus workflow references |
+| **Continue.dev** | `qdo agent install continue` writes `.continue/rules/qdo.md` |
+
+You can also inspect the files without writing anything:
+
+```bash
+qdo agent list
+qdo agent show skill
+qdo agent show continue
+```
 
 **Recommended agent workflow:**
 

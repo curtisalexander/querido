@@ -166,7 +166,7 @@ When evaluating any proposed feature, in order:
 
 ## Current state (snapshot, 2026-04-23)
 
-- **Tests:** 1186 passing / 25 skipped. `ruff check`, `ruff format`, `ty check`
+- **Tests:** 1192 passing / 25 skipped. `ruff check`, `ruff format`, `ty check`
   all green. Zero `TODO` / `FIXME` markers anywhere in src or tests.
 - **Shipped phases:** 1–4, 6, 7. Phase 5 dropped by design. R-series complete.
   Sharpening Waves 1–4 complete. Pre-release polish pass (items 0–6) landed

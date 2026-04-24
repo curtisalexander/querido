@@ -58,7 +58,7 @@ def _print_fallback() -> None:
     lines = [
         f"# qdo CLI Reference (v{__version__})",
         "",
-        "`qdo` is a CLI data-analysis toolkit for SQLite, DuckDB, and Snowflake.",
+        "`qdo` is an agent-first data exploration CLI for SQLite, DuckDB, Snowflake, and Parquet.",
         "",
         "## Quick Start",
         "",
@@ -116,23 +116,6 @@ def _print_fallback() -> None:
 # These are maintained manually because they describe runtime output, not
 # CLI parameters.  Keys map to command names.
 _OUTPUT_SHAPES: dict[str, dict] = {
-    "search": {
-        "query": "string",
-        "searched_command_count": "integer",
-        "result_count": "integer",
-        "results": [
-            {
-                "name": "string",
-                "description": "string",
-                "category": "string",
-                "score": "float",
-                "rationale": "string",
-                "matched_terms": ["string"],
-                "subcommands": ["string"],
-                "help_command": "string",
-            }
-        ],
-    },
     "inspect": {
         "table": "string",
         "row_count": "integer",
@@ -492,7 +475,10 @@ def _build_payload() -> dict:
     return {
         "version": __version__,
         "tool": "qdo",
-        "description": "CLI data analysis toolkit for SQLite, DuckDB, and Snowflake.",
+        "description": (
+            "Agent-first data exploration CLI that turns one-off investigation "
+            "into reusable team knowledge."
+        ),
         "commands": commands,
         "global_options": global_options,
         "connection_resolution": connection_resolution,
