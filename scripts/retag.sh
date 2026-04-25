@@ -20,6 +20,12 @@ TAG="$1"
 COMMIT="${2:-HEAD}"
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 
+if [[ "$COMMIT" == "HEAD" && -n "$(git status --porcelain)" ]]; then
+  echo "error: working tree has uncommitted changes; commit them before retagging HEAD" >&2
+  echo "       or pass an explicit commit SHA: ./scripts/retag.sh $TAG <commit>" >&2
+  exit 1
+fi
+
 echo "==> Deleting release + remote tag '$TAG' from $REPO"
 gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag 2>/dev/null \
   && echo "    Release deleted" \

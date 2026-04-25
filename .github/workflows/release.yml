@@ -34,7 +34,18 @@ jobs:
           .smoke/bin/qdo --version
           .smoke/bin/qdo --help
           .smoke/bin/qdo agent list
-          .smoke/bin/qdo preview -c data/test.db -t orders -r 1 -f json
+          python - <<'PY'
+          import sqlite3
+
+          with sqlite3.connect('/tmp/qdo-smoke.db') as conn:
+              conn.execute(
+                  'create table orders (order_id integer primary key, status text, amount real)'
+              )
+              conn.execute(
+                  "insert into orders (order_id, status, amount) values (1, 'shipped', 42.5)"
+              )
+          PY
+          .smoke/bin/qdo preview -c /tmp/qdo-smoke.db -t orders -r 1 -f json
           .smoke/bin/qdo agent install skill --path /tmp/qdo-skill-smoke
           test -f /tmp/qdo-skill-smoke/SKILL.md
       - name: Upload artifacts
