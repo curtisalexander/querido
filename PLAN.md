@@ -8,7 +8,7 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ## Status (as of 2026-04-23)
 
-**Tests:** 1192 passing, 25 skipped. Full-suite `pytest`, `ruff check`, `ruff format`, and `ty check` all green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
+**Tests:** 1193 passing, 25 skipped. Full-suite `pytest`, `ruff check`, `ruff format`, and `ty check` all green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
 
 **Polish pass complete.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done. The Pre-release polish pass (items 0–6) landed 2026-04-22 — see summary under "Phases shipped" below.
 

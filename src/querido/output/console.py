@@ -1115,59 +1115,6 @@ def print_estimate(
     console.print(details)
 
 
-def print_search(
-    result: dict,
-    console: Console | None = None,
-) -> None:
-    """Print ranked command-search results."""
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.table import Table
-
-    if console is None:
-        console = Console()
-
-    query = str(result.get("query", ""))
-    matches = result.get("results") or []
-
-    console.print(f"  [bold cyan]Search[/bold cyan]  ·  [dim]{query}[/dim]")
-    console.print(
-        Panel(
-            (
-                f"{result.get('result_count', 0)} match(es) across "
-                f"{result.get('searched_command_count', 0)} commands."
-            ),
-            border_style="cyan",
-            title="Command Discovery",
-            padding=(0, 1),
-        )
-    )
-
-    if not matches:
-        console.print("[dim]No strong command matches found.[/dim]")
-        return
-
-    table = Table(title="Matches", show_lines=True)
-    table.add_column("Command", style="cyan bold", no_wrap=True)
-    table.add_column("Score", justify="right", style="dim")
-    table.add_column("Why", style="dim")
-    table.add_column("Help", style="green")
-
-    for match in matches:
-        detail = str(match.get("rationale", ""))
-        subcommands = match.get("subcommands") or []
-        if subcommands:
-            detail += f"\n[dim]subcommands:[/dim] {', '.join(str(x) for x in subcommands)}"
-        table.add_row(
-            str(match.get("name", "")),
-            f"{float(match.get('score', 0.0)):.3f}",
-            detail,
-            str(match.get("help_command", "")),
-        )
-
-    console.print(table)
-
-
 def print_catalog(
     catalog: dict,
     console: Console | None = None,
@@ -1609,7 +1556,6 @@ def print_classify(
 
 
 REGISTRY: dict[str, object] = {
-    "search": print_search,
     "inspect": print_inspect,
     "preview": print_preview,
     "profile": print_profile,

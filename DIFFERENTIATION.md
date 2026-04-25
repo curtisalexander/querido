@@ -166,14 +166,14 @@ When evaluating any proposed feature, in order:
 
 ## Current state (snapshot, 2026-04-23)
 
-- **Tests:** 1192 passing / 25 skipped. `ruff check`, `ruff format`, `ty check`
+- **Tests:** 1193 passing / 25 skipped. `ruff check`, `ruff format`, `ty check`
   all green. Zero `TODO` / `FIXME` markers anywhere in src or tests.
 - **Shipped phases:** 1–4, 6, 7. Phase 5 dropped by design. R-series complete.
   Sharpening Waves 1–4 complete. Pre-release polish pass (items 0–6) landed
   2026-04-22. Pre-beta audit pass (26 items across 5 tiers) landed 2026-04-23.
 - **Eval:** 45/45 (100%) across haiku, sonnet, and opus on 15 tasks.
   Haiku 15/15, sonnet 15/15, opus 15/15. Zero failures.
-- **Surface:** 38 top-level commands across 10 categories. The structured
+- **Surface:** 32 top-level commands across 10 categories. The structured
   envelope is emitted by all data-emitting scans — `sql` and `snowflake`
   gained envelope coverage in the pre-release polish pass. Commands that
   correctly don't emit: `explore` (TUI), `report` (HTML artifact), `tutorial`

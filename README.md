@@ -33,32 +33,27 @@ Pre-built wheels are available from [GitHub Releases](https://github.com/curtisa
 Install globally so the `qdo` command is always available:
 
 ```bash
-uv tool install querido \
-  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+uv tool install 'querido @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
 ```
 
 With optional backends:
 
 ```bash
-uv tool install 'querido[duckdb]' \
-  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+uv tool install 'querido[duckdb] @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
 
-uv tool install 'querido[snowflake]' \
-  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+uv tool install 'querido[snowflake] @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
 ```
 
 With all optional backends:
 
 ```bash
-uv tool install 'querido[all]' \
-  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+uv tool install 'querido[all] @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
 ```
 
 To upgrade later (update the version in the URL):
 
 ```bash
-uv tool install --upgrade querido \
-  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0
+uv tool install --upgrade 'querido @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
 ```
 
 To uninstall:
@@ -73,8 +68,7 @@ Run without installing:
 
 ```bash
 uvx \
-  --from querido \
-  --find-links https://github.com/curtisalexander/querido/releases/expanded_assets/v0.1.0 \
+  --from 'querido @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl' \
   qdo --help
 ```
 

@@ -37,6 +37,9 @@ querido/
 │       ├── py.typed                # PEP 561 marker for typed package
 │       ├── cache.py                # Local metadata cache (SQLite-backed)
 │       ├── config.py               # TOML config loading, connection resolution, column sets
+│       ├── agent_docs/             # Packaged agent integration docs installed by `qdo agent`
+│       │   ├── skills/             # Claude Code SKILL.md + workflow references
+│       │   └── continue/           # Continue.dev rule
 │       ├── cli/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── _context.py         # Output format, SQL display, HTML emission
@@ -47,6 +50,7 @@ querido/
 │       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, destructive SQL guard
 │       │   ├── argv_hoist.py       # Hoist -f/--format anywhere in argv to the root callback
 │       │   ├── main.py             # Entry point, Typer app, lazy subcommand loading
+│       │   ├── agent.py            # `qdo agent list/show/install` — packaged coding-agent docs
 │       │   ├── assert_cmd.py       # `qdo assert` — assert conditions on query results (CI-friendly)
 │       │   ├── bundle.py           # `qdo bundle export/import/inspect/diff` — portable knowledge bundles
 │       │   ├── cache.py            # `qdo cache sync/status/clear` — metadata cache management

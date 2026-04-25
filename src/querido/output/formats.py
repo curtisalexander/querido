@@ -1316,52 +1316,6 @@ def format_estimate(
     return "\n".join(lines)
 
 
-def format_search(
-    result: dict,
-    fmt: str,
-) -> str:
-    if fmt == "json":
-        return json.dumps(result, indent=2, default=str)
-
-    matches = result.get("results") or []
-    if fmt == "csv":
-        rows = [
-            {
-                "query": result.get("query", ""),
-                "name": match.get("name", ""),
-                "category": match.get("category", ""),
-                "score": match.get("score", ""),
-                "description": match.get("description", ""),
-                "rationale": match.get("rationale", ""),
-                "help_command": match.get("help_command", ""),
-                "subcommands": "|".join(str(x) for x in match.get("subcommands") or []),
-            }
-            for match in matches
-        ]
-        return dicts_to_csv(rows) if rows else ""
-
-    lines = [f"## Search: {result.get('query', '')}", ""]
-    if not matches:
-        lines.append("No strong command matches found.")
-        return "\n".join(lines)
-
-    headers = ["Command", "Category", "Score", "Description", "Why", "Help"]
-    rows = []
-    for match in matches:
-        rows.append(
-            [
-                str(match.get("name", "")),
-                str(match.get("category", "")),
-                str(match.get("score", "")),
-                str(match.get("description", "")),
-                str(match.get("rationale", "")),
-                str(match.get("help_command", "")),
-            ]
-        )
-    lines.append(to_markdown_table(headers, rows))
-    return "\n".join(lines)
-
-
 # -- catalog ------------------------------------------------------------------
 
 
@@ -1660,7 +1614,6 @@ def format_classify(
 # Registry — maps command names to text format functions for dispatch_output()
 # ---------------------------------------------------------------------------
 REGISTRY: dict[str, object] = {
-    "search": format_search,
     "inspect": format_inspect,
     "preview": format_preview,
     "profile": format_profile,
