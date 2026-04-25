@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 authors = [
-    { name = "Curtis Alexander", email = "6118829+curtisalexander@users.noreply.github.com" },
+    { name = "Curtis Alexander" },
 ]
 keywords = [
     "cli",
