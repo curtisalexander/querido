@@ -331,6 +331,8 @@ def run_workflow(
                 cwd=str(cwd) if cwd else None,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
                 timeout=effective_timeout,
             )

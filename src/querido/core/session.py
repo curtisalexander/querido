@@ -521,6 +521,8 @@ def replay_session(
             cwd=run_cwd,
             env=env,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
         )
         duration = round(time.monotonic() - started, 4)

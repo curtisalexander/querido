@@ -71,14 +71,14 @@ def _repo_integration_path(relative: str) -> Path:
 def _read_agent_file(relative: str) -> str:
     repo_path = _repo_integration_path(relative)
     if repo_path.exists():
-        return repo_path.read_text()
+        return repo_path.read_text(encoding="utf-8")
 
     from importlib.resources import files
 
     resource = files("querido.agent_docs")
     for part in relative.split("/"):
         resource = resource.joinpath(part)
-    return resource.read_text()
+    return resource.read_text(encoding="utf-8")
 
 
 def _get_target(name: str) -> AgentTarget:
@@ -168,7 +168,7 @@ def install(
             raise typer.BadParameter(
                 f"{destination} already exists. Pass --force to overwrite it."
             )
-        destination.write_text(_read_agent_file(file.source))
+        destination.write_text(_read_agent_file(file.source), encoding="utf-8")
         written.append(destination)
 
     from rich.console import Console

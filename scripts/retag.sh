@@ -7,7 +7,16 @@
 
 set -euo pipefail
 
-TAG="${1:?Usage: retag.sh <tag> [commit]}"
+usage() {
+  sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+TAG="$1"
 COMMIT="${2:-HEAD}"
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 
