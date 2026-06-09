@@ -152,6 +152,7 @@ These ideas are not committed. Some also appear in `PLAN.md`'s deferred section 
 
 ### Convenience / team ergonomics
 
+- **Opt-in polars Arrow→DataFrame convenience** — not committed; capture only. qdo today has *no* DataFrame layer by design: connectors return Arrow (`fetch_arrow_batches` for Snowflake, `to_arrow_table()` for DuckDB) → `to_pylist()` → `list[dict]`, and all profiling / dist / pivot / quality compute is pushed down to SQL and run in the engine. There is **zero pandas** in the tree, so there is nothing to *migrate*; the pandas-vs-Snowflake efficiency concern (implicit conversion) is already avoided at the Arrow fast path. The only gap polars would fill is *handing data back* for local post-processing — e.g. an `export` that goes Arrow → polars → parquet/csv without the dict round-trip, or a command path that returns a `pl.DataFrame`. Treat as an *addition*, not a replacement: a thin Arrow→polars helper behind a `[polars]` extra, lazily imported inside the function (preserving "pay for what you use"), pandas kept only as a fallback for features polars lacks. **Trigger to promote:** dogfooding surfaces a concrete "I exported and immediately wanted a DataFrame" moment. Until then, the Arrow layer already captures the efficiency win and no code is warranted.
 - **Audit log / SQL history / command history** — possibly useful, but likely only if sessions do not already cover the need well enough.
 - **`qdo sniff`** — detect ad hoc file types / encodings more explicitly.
 - **`qdo to`** — format conversion via the engine, e.g. CSV -> Parquet.
