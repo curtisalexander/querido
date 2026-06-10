@@ -671,6 +671,31 @@ class TestNoDefaultDatabaseSchema:
         sql_arg = cursor.execute.call_args[0][0]
         assert "MY_DB.information_schema.tables" in sql_arg
 
+    def test_get_table_row_counts_fails_without_defaults(self):
+        """get_table_row_counts() raises helpful error when defaults are missing.
+
+        Without the guard an empty database built
+        ``from .information_schema.tables`` and surfaced a confusing
+        driver error instead.
+        """
+        import pytest
+
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", _session_db="", _session_schema=""
+        )
+        with pytest.raises(ValueError, match="Cannot count table rows"):
+            connector.get_table_row_counts(["ORDERS"])
+
+    def test_get_table_row_counts_fails_without_schema(self):
+        """get_table_row_counts() raises when only the schema default is missing."""
+        import pytest
+
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", database="MY_DB", _session_db="", _session_schema=""
+        )
+        with pytest.raises(ValueError, match="'schema' not set"):
+            connector.get_table_row_counts(["ORDERS"])
+
 
 # ---------------------------------------------------------------------------
 # resolve_table with qualified Snowflake names

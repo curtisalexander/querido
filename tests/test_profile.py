@@ -746,3 +746,27 @@ def test_columns_and_column_set_mutually_exclusive(sqlite_path: str):
         ],
     )
     assert result.exit_code != 0
+
+
+def test_profile_explicit_sample_keeps_true_row_count(tmp_path: Path):
+    """Regression: with --sample the profile template computes total_rows
+    over the *sampled* source, and the code overwrote the true row count
+    with it — sample=2 on a 4-row table reported ``row_count: 2`` while
+    claiming ``sampled: true``."""
+    db_path = str(tmp_path / "sample_count.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY, amount REAL)")
+    conn.executemany("INSERT INTO orders VALUES (?, ?)", [(i, i * 1.5) for i in range(1, 5)])
+    conn.commit()
+    conn.close()
+
+    result = runner.invoke(
+        app,
+        ["--format", "json", "profile", "-c", db_path, "-t", "orders", "--sample", "2"],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)["data"]
+    assert data["sampled"] is True
+    assert data["sample_size"] == 2
+    # row_count must be the true table count, not the sample size
+    assert data["row_count"] == 4

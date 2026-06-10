@@ -2,8 +2,29 @@ from __future__ import annotations
 
 import sqlite3
 from typing import Self
+from urllib.parse import quote
 
 from querido.connectors.base import validate_table_name, wrap_driver_error
+
+
+def _validate_sqlite_table(name: str) -> str:
+    """Validate a table name for the SQLite connector.
+
+    SQLite addresses tables in a single attached database by unqualified name
+    (qdo never ``ATTACH``es additional schemas), and ``pragma table_info`` does
+    not accept a ``schema.table`` argument — ``pragma table_info(main.users)``
+    is a syntax error. Rejecting dotted names here keeps every table-name
+    interpolation in this connector consistent (the ``pragma`` path and the
+    quoted ``from "name"`` path agreed on bare names but diverged on dotted
+    ones). Use the unqualified table name.
+    """
+    validate_table_name(name)
+    if "." in name:
+        raise ValueError(
+            f"Invalid table name {name!r}: SQLite connections address tables by "
+            "unqualified name (no schema prefix). Use just the table name."
+        )
+    return name
 
 
 class SQLiteConnector:
@@ -17,9 +38,24 @@ class SQLiteConnector:
     dialect = "sqlite"
     supports_concurrent_queries = False
 
-    def __init__(self, path: str, *, check_same_thread: bool = True) -> None:
+    def __init__(
+        self, path: str, *, check_same_thread: bool = True, read_only: bool = True
+    ) -> None:
         try:
-            self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
+            if path == ":memory:" or path.startswith("file:"):
+                # In-memory databases must stay writable (there is nothing to
+                # protect), and explicit URIs are passed through untouched.
+                self.conn = sqlite3.connect(
+                    path, check_same_thread=check_same_thread, uri=path.startswith("file:")
+                )
+            else:
+                # Open via URI so we never create a missing file: ``mode=ro``
+                # by default (read-only exploration must not mutate the user's
+                # database), ``mode=rw`` for the explicit allow-write opt-in.
+                # Neither mode creates the file — a missing path fails cleanly.
+                mode = "ro" if read_only else "rw"
+                uri = f"file:{quote(path, safe='/')}?mode={mode}"
+                self.conn = sqlite3.connect(uri, check_same_thread=check_same_thread, uri=True)
         except sqlite3.Error as exc:
             wrapped = wrap_driver_error(exc)
             if wrapped is not None:
@@ -27,8 +63,8 @@ class SQLiteConnector:
             raise
         self.conn.row_factory = sqlite3.Row
         self._columns_cache: dict[str, list[dict]] = {}
-        # Optimize for read-heavy profiling workloads.
-        self.conn.execute("pragma journal_mode = WAL")
+        # Optimize for read-heavy profiling workloads.  These pragmas are
+        # per-connection only — nothing is persisted into the database file.
         self.conn.execute("pragma cache_size = -65536")  # 64 MB page cache
         self.conn.execute("pragma mmap_size = 268435456")  # 256 MB mmap
 
@@ -53,12 +89,13 @@ class SQLiteConnector:
         return [{"name": r["name"], "type": r["type"]} for r in rows]
 
     def get_columns(self, table: str) -> list[dict]:
-        validate_table_name(table)
+        _validate_sqlite_table(table)
         cache_key = table.lower()
         if cache_key in self._columns_cache:
             return self._columns_cache[cache_key]
         # PRAGMA doesn't support bind parameters, so we use an f-string here.
-        # validate_table_name above ensures the name is a safe identifier.
+        # _validate_sqlite_table above ensures the name is a safe, unqualified
+        # identifier (no dots), so pragma table_info(name) parses correctly.
         rows = self.execute(f"pragma table_info({table})")
         result = [
             {
@@ -80,7 +117,7 @@ class SQLiteConnector:
 
     def get_view_definition(self, view: str) -> str | None:
         """Return the SQL definition of a view from sqlite_master."""
-        validate_table_name(view)
+        _validate_sqlite_table(view)
         rows = self.execute(
             "select sql from sqlite_master where type = 'view' and name = ?",
             (view,),
@@ -94,7 +131,7 @@ class SQLiteConnector:
 
         SQLite has no metadata shortcut, so this always scans the table.
         """
-        validate_table_name(table)
+        _validate_sqlite_table(table)
         rows = self.execute(f'select count(*) as cnt from "{table}"')
         return rows[0].get("cnt", 0) if rows else 0
 
@@ -103,7 +140,7 @@ class SQLiteConnector:
         if not table_names:
             return {}
         for name in table_names:
-            validate_table_name(name)
+            _validate_sqlite_table(name)
 
         result: dict[str, int] = {}
         # Batch in groups of 50 to avoid hitting SQL length limits.
@@ -123,7 +160,7 @@ class SQLiteConnector:
         # it avoids the full sort and can stop early via LIMIT.
         # When row_count is provided, use it directly instead of embedding a
         # nested count(*) subquery that would re-scan the table.
-        validate_table_name(table)
+        _validate_sqlite_table(table)
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
         if row_count > 0:

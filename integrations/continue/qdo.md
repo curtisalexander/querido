@@ -272,8 +272,8 @@ qdo sql scratch -c <connection> -t <table>
 # CSV to stdout — pipe to file or another tool
 qdo -f csv preview -c <connection> -t <table> -r 100
 
-# JSON lines — one object per row
-qdo -f jsonl query -c <connection> --sql "select ..."
+# JSON lines — one object per row (file export)
+qdo export -c <connection> --sql "select ..." -e jsonl -o rows.jsonl
 
 # Export command uses its own -e/--export-format for file format
 qdo export -c <connection> -t <table> -e csv

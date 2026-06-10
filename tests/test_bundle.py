@@ -44,6 +44,7 @@ def _seed_metadata(
     table_description: str = "users of the system",
     col_description: str | dict = "full legal name",
     extra_col_fields: dict | None = None,
+    notes: str = "",
 ) -> Path:
     """Write a metadata YAML for *table* under .qdo/metadata/<conn>/."""
     from querido.core.metadata import metadata_path
@@ -71,7 +72,7 @@ def _seed_metadata(
         "table_description": table_description,
         "data_owner": "platform-team",
         "update_frequency": "daily",
-        "notes": "",
+        "notes": notes,
         "columns": cols,
     }
     path.write_text(yaml.safe_dump(meta, sort_keys=False))
@@ -136,6 +137,27 @@ def test_export_includes_column_sets(sqlite_path: str, tmp_path: Path, monkeypat
     manifest = export_bundle("src", ["users"], out)
     assert (out / "column-sets" / "users.default.yaml").exists()
     assert any(s["name"] == "default" for s in manifest["column_sets"])
+
+
+def test_export_column_sets_not_misattributed_for_dotted_tables(
+    sqlite_path: str, tmp_path: Path, monkeypatch
+):
+    """A set saved for a dotted table name must not leak into a prefix table's export."""
+    monkeypatch.chdir(tmp_path)
+    _setup_named_conn(tmp_path, monkeypatch, "src", sqlite_path)
+    _seed_metadata("src", "users")
+
+    from querido.config import save_column_set
+
+    save_column_set("src", "users", "default", ["id", "name"])
+    # Dotted table that shares the "users" prefix — must be excluded from a
+    # bundle exporting only "users", not misparsed as table "users".
+    save_column_set("src", "users.archive", "wide", ["id", "name", "email"])
+
+    out = tmp_path / "users.qdobundle"
+    manifest = export_bundle("src", ["users"], out)
+    entries = manifest["column_sets"]
+    assert [(e["table"], e["name"]) for e in entries] == [("users", "default")]
 
 
 def test_export_redact_drops_sample_values_for_pii(sqlite_path: str, tmp_path: Path, monkeypatch):
@@ -238,6 +260,64 @@ def test_import_keep_higher_confidence_preserves_human(
     actions = report["tables"][0]["field_actions"]
     desc_actions = [a for a in actions if a["column"] == "name" and a["field"] == "description"]
     assert desc_actions and desc_actions[0]["action"] == "skip"
+
+
+def test_written_at_falls_back_to_mtime_for_legacy_session_name():
+    """Regression (L4): a non-ISO ``written_at`` (legacy session name) must not be
+    compared lexicographically against a real timestamp; it falls back to mtime."""
+    from querido.core.bundle import _written_at_of
+
+    mtime = 1_700_000_000.0
+    legacy = {
+        "value": True,
+        "source": "values",
+        "confidence": 0.8,
+        "written_at": "my-investigation",  # legacy: session name, not ISO
+        "author": "alice",
+    }
+    iso = {
+        "value": True,
+        "source": "values",
+        "confidence": 0.8,
+        "written_at": "2026-01-01T00:00:00+00:00",
+        "author": "alice",
+    }
+    # Legacy session name -> mtime fallback (a real ISO timestamp).
+    fallback = _written_at_of(legacy, mtime)
+    assert fallback != "my-investigation"
+    from datetime import datetime
+
+    datetime.fromisoformat(fallback)
+    # A valid ISO written_at is returned verbatim.
+    assert _written_at_of(iso, mtime) == "2026-01-01T00:00:00+00:00"
+
+
+def test_import_all_skips_reports_not_applied(
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
+):
+    """Regression: a table whose every field action is a skip must report applied=False.
+
+    Re-importing an already-applied bundle (strategy=mine) produces only skips;
+    nothing is written, so ``applied`` must be False even in apply mode.
+    """
+    monkeypatch.chdir(tmp_path)
+    # Seed a non-empty value for every importable field on both sides so the
+    # merge has nothing to gap-fill: strategy=mine then skips every field and
+    # writes nothing, which is the only case where apply must report False.
+    _seed_metadata(sqlite_path, "users", col_description="from-bundle", notes="shared note")
+    out = tmp_path / "src.qdobundle"
+    export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
+
+    other = make_sqlite_db(str(tmp_path / "other.db"))
+    _seed_metadata(other, "users", col_description="local-desc", notes="shared note")
+
+    # strategy=mine: local always wins, so every field action is a skip.
+    report = import_bundle(out, other, strategy="mine", apply=True)
+
+    actions = report["tables"][0]["field_actions"]
+    assert actions, "expected field actions to be present"
+    assert all(a["action"] == "skip" for a in actions)
+    assert report["tables"][0]["applied"] is False
 
 
 def test_import_theirs_overrides(sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db):
@@ -345,7 +425,12 @@ def test_import_column_sets_round_trip(
 
     import_bundle(out, "dst", maps={"users": "users"}, apply=True)
     sets = list_column_sets(connection="dst")
-    assert "dst.users.default" in sets
+    assert any(
+        entry.get("connection") == "dst"
+        and entry.get("table") == "users"
+        and entry.get("set") == "default"
+        for entry in sets
+    )
 
 
 # -- diff ---------------------------------------------------------------------

@@ -38,6 +38,10 @@ def export(
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."
     ),
+    # NOTE: ``-t`` here means ``--tables`` (comma-separated list), NOT the singular
+    # ``--table`` of ~20 other commands. Deliberate divergence preserved for CLI
+    # back-compat (see L21). The help text says "table names to include" so ``--help``
+    # is unambiguous; do not "harmonize" to --table.
     tables: str = typer.Option(
         ..., "--tables", "-t", help="Comma-separated table names to include."
     ),

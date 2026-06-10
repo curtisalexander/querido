@@ -121,6 +121,101 @@ def test_pivot_count(orders_path: str):
     assert by_region["west"] == 3
 
 
+@pytest.fixture
+def orders_null_region_path(tmp_path: Path) -> str:
+    """Orders table where some rows have a NULL group-by value."""
+    db_path = str(tmp_path / "orders_null.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE orders (id INTEGER PRIMARY KEY, region TEXT, status TEXT, amount REAL)"
+    )
+    rows = [
+        (1, "east", "shipped", 100.0),
+        (2, "east", "shipped", 200.0),
+        (3, None, "pending", 50.0),
+        (4, None, "shipped", 300.0),
+    ]
+    conn.executemany("INSERT INTO orders VALUES (?, ?, ?, ?)", rows)
+    conn.commit()
+    conn.close()
+    return db_path
+
+
+def test_pivot_count_star_includes_null_group_rows(orders_null_region_path: str):
+    """count(*) must count rows, not count(<group col>) which drops NULLs."""
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "pivot",
+            "-c",
+            orders_null_region_path,
+            "-t",
+            "orders",
+            "-g",
+            "region",
+            "-a",
+            "count(*)",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    by_region = {r["region"]: r["count_star"] for r in payload["data"]["rows"]}
+    assert by_region["east"] == 2
+    # Regression: count(*) used to be rewritten to count(region), which
+    # reported 0 for the NULL group.
+    assert by_region[None] == 2
+
+
+def test_pivot_star_rejected_for_non_count(orders_path: str):
+    """sum(*) is invalid — * is only allowed through for count."""
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "pivot",
+            "-c",
+            orders_path,
+            "-t",
+            "orders",
+            "-g",
+            "region",
+            "-a",
+            "sum(*)",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "AGG_INVALID"
+
+
+def test_pivot_count_star_rejects_injection(orders_path: str):
+    """Only the literal * is allowed — anything else must fail validation."""
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "pivot",
+            "-c",
+            orders_path,
+            "-t",
+            "orders",
+            "-g",
+            "region",
+            "-a",
+            "count(*) as x; drop table orders;--",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "AGG_INVALID"
+
+
 def test_pivot_with_filter(orders_path: str):
     result = runner.invoke(
         app,

@@ -111,10 +111,17 @@ def get_profile(
         else:
             stats = raw
 
-    # Always prefer the actual row count from the profile result when
-    # available — it's exact, while get_row_count() may be an estimate.
-    if stats and stats[0].get("total_rows") is not None:
-        row_count = stats[0].get("total_rows", 0)
+    # Prefer the actual row count from the profile result when the scan was
+    # not sampled — it's exact, while get_row_count() may be an estimate.
+    # When sampled, the scan's total_rows is just the sample size, so keep
+    # the true table count instead.
+    if not sampled:
+        if stats and stats[0].get("total_rows") is not None:
+            row_count = stats[0].get("total_rows", 0)
+    elif sample is not None:
+        # Explicit --sample: resolve_row_count_for_sampling returned a
+        # sentinel (sample + 1), not the true count — fetch the real one.
+        row_count = connector.get_row_count(table)
 
     if connection:
         from querido.core.metadata import load_column_metadata

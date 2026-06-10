@@ -33,7 +33,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict, TypeGuard
+from typing import TYPE_CHECKING, Any, NotRequired, TypedDict, TypeGuard
 
 from querido.core.metadata import _read_yaml, _write_yaml
 
@@ -45,9 +45,15 @@ class Provenance(TypedDict):
     """Provenance-wrapped metadata field — the shape written by ``metadata_write``.
 
     Every auto-written metadata field carries the source command, a
-    0.0-1.0 confidence, a sortable ``written_at`` (session id or ISO
-    timestamp), and an author. The inner ``value`` may be any of the
-    scalar/list shapes metadata supports.
+    0.0-1.0 confidence, a sortable ISO-8601 ``written_at`` timestamp, and an
+    author. The originating session name, when present, is recorded in the
+    optional ``session`` field (never overloaded into ``written_at``). The
+    inner ``value`` may be any of the scalar/list shapes metadata supports.
+
+    Backward compat: older YAML may store a session name in ``written_at``
+    instead of a timestamp. :func:`_written_at_of` treats any non-ISO
+    ``written_at`` as a session name with unknown time and falls back to the
+    file mtime for the merge tie-break.
     """
 
     value: Any
@@ -55,6 +61,7 @@ class Provenance(TypedDict):
     confidence: float
     written_at: str
     author: str
+    session: NotRequired[str]
 
 
 BUNDLE_FORMAT_VERSION = "1"
@@ -162,12 +169,26 @@ def _confidence_of(value: Any) -> float:
 
 
 def _written_at_of(value: Any, fallback_mtime: float) -> str:
-    """Extract a sortable ``written_at`` string.  Falls back to file mtime."""
+    """Extract a sortable ISO-8601 ``written_at`` string for the merge tie-break.
+
+    ``written_at`` is always written as an ISO-8601 timestamp.  For backward
+    compatibility with older YAML that stored a *session name* in
+    ``written_at`` (rather than a timestamp), any value that does not parse as
+    an ISO timestamp is treated as having an unknown time and falls back to the
+    file mtime — otherwise a lexicographic comparison of a session name against
+    a real timestamp would be meaningless.
+    """
+    fallback = datetime.fromtimestamp(fallback_mtime, UTC).isoformat(timespec="seconds")
     if _is_provenance(value):
         wa = value.get("written_at")
         if isinstance(wa, str) and wa:
+            try:
+                datetime.fromisoformat(wa)
+            except ValueError:
+                # Legacy: session name stored in written_at — unknown time.
+                return fallback
             return wa
-    return datetime.fromtimestamp(fallback_mtime, UTC).isoformat(timespec="seconds")
+    return fallback
 
 
 # ---------------------------------------------------------------------------
@@ -259,15 +280,15 @@ def export_bundle(
             cs_dir = staging / "column-sets"
             cs_dir.mkdir()
             table_set = set(tables)
-            for key, cols in list_column_sets(connection=connection).items():
-                parts = key.split(".", 2)
-                if len(parts) != 3:
-                    continue
-                _src_conn, src_table, set_name = parts
+            for entry in list_column_sets(connection=connection):
+                src_conn = entry.get("connection", "")
+                src_table = entry.get("table", "")
+                set_name = entry.get("set", "")
+                cols = entry.get("columns", [])
                 if src_table not in table_set:
                     continue
                 payload = {
-                    "connection_source": _src_conn,
+                    "connection_source": src_conn,
                     "table_source": src_table,
                     "set_name": set_name,
                     "columns": list(cols),
@@ -483,7 +504,8 @@ def import_bundle(
             merged["table"] = tgt
             merged.pop("schema_fingerprint", None)
 
-            if apply and field_actions:
+            wrote_any = any(a.get("action") == "write" for a in field_actions)
+            if apply and wrote_any:
                 _write_yaml(local_path, merged)
 
             table_diffs.append(
@@ -494,7 +516,7 @@ def import_bundle(
                     "source_fingerprint": src_fp,
                     "target_fingerprint": tgt_fp,
                     "field_actions": field_actions,
-                    "applied": apply and bool(field_actions),
+                    "applied": apply and wrote_any,
                 }
             )
 

@@ -30,7 +30,10 @@ from querido.core.workflow.loader import (
 )
 from querido.core.workflow.runner import (
     DEFAULT_STEP_TIMEOUT,
+    MAX_WORKFLOW_DEPTH,
     InputError,
+    MinVersionError,
+    RecursionLimitError,
     StepFailed,
     WorkflowError,
     _resolve_step_timeout,
@@ -59,6 +62,17 @@ def test_resolve_path_missing_key_raises() -> None:
 def test_interpolate_replaces_refs() -> None:
     out = interpolate("hello ${user.name}", {"user": {"name": "ada"}})
     assert out == "hello ada"
+
+
+def test_interpolate_reject_none_raises() -> None:
+    """L26 — run-template interpolation must not render the literal 'None'."""
+    with pytest.raises(UnresolvedReference, match="null"):
+        interpolate("-C ${cols}", {"cols": None}, reject_none=True)
+
+
+def test_interpolate_lenient_none_by_default() -> None:
+    """Default (output/when path) keeps rendering None — null stays comparable."""
+    assert interpolate("-C ${cols}", {"cols": None}) == "-C None"
 
 
 def test_resolve_output_single_ref_preserves_type() -> None:
@@ -166,6 +180,54 @@ def test_lint_accepts_valid_doc() -> None:
     assert lint(_valid_doc()).ok
 
 
+def test_lint_flags_quoted_ref_in_when() -> None:
+    """L25 — a quoted ref in when: silently compares false; lint must flag it."""
+    doc = _valid_doc()
+    doc["inputs"]["status"] = {"type": "string", "required": True}
+    doc["steps"][1]["when"] = '"${status}" == "active"'
+    codes = [i.code for i in lint(doc).issues]
+    assert "QUOTED_REF_IN_WHEN" in codes
+
+
+def test_lint_flags_quoted_ref_in_when_trailing_quote() -> None:
+    doc = _valid_doc()
+    doc["inputs"]["status"] = {"type": "string", "required": True}
+    doc["steps"][1]["when"] = "'active' == '${status}'"
+    codes = [i.code for i in lint(doc).issues]
+    assert "QUOTED_REF_IN_WHEN" in codes
+
+
+def test_lint_accepts_unquoted_ref_in_when() -> None:
+    doc = _valid_doc()
+    doc["inputs"]["status"] = {"type": "string", "required": True}
+    doc["steps"][1]["when"] = '${status} == "active"'
+    codes = [i.code for i in lint(doc).issues]
+    assert "QUOTED_REF_IN_WHEN" not in codes
+
+
+def test_lint_rejects_boolean_step_timeout() -> None:
+    """L28 — bool is an int subclass; timeout: true/false must be rejected."""
+    for value in (True, False):
+        doc = _valid_doc()
+        doc["steps"][0]["timeout"] = value
+        codes = [i.code for i in lint(doc).issues]
+        assert "INVALID_STEP_TIMEOUT" in codes, value
+
+
+def test_lint_rejects_boolean_workflow_step_timeout() -> None:
+    doc = _valid_doc()
+    doc["step_timeout"] = True
+    codes = [i.code for i in lint(doc).issues]
+    assert "INVALID_STEP_TIMEOUT" in codes
+
+
+def test_lint_accepts_integer_step_timeout() -> None:
+    doc = _valid_doc()
+    doc["steps"][0]["timeout"] = 60
+    codes = [i.code for i in lint(doc).issues]
+    assert "INVALID_STEP_TIMEOUT" not in codes
+
+
 def test_lint_flags_duplicate_step_ids() -> None:
     doc = _valid_doc()
     doc["steps"][1]["id"] = "a"
@@ -191,6 +253,44 @@ def test_lint_flags_capture_before_define() -> None:
         },
         *doc["steps"],
     ]
+    codes = [i.code for i in lint(doc).issues]
+    assert "UNRESOLVED_REFERENCE" in codes
+
+
+def test_lint_flags_ref_to_step_id_without_capture() -> None:
+    """A bare step id never enters the runtime context (only ``capture:``
+    names do — see runner), so ``${id.x}`` must lint as unresolved."""
+    doc = _valid_doc()
+    # Step "b" has no capture; referencing it by id must fail.
+    doc["steps"].append(
+        {
+            "id": "c",
+            "when": "${b.data.row_count} > 0",
+            "run": "qdo -f json preview -c ${conn} -t users",
+        }
+    )
+    codes = [i.code for i in lint(doc).issues]
+    assert "UNRESOLVED_REFERENCE" in codes
+
+
+def test_lint_accepts_ref_to_capture_name() -> None:
+    """``${capture_name.x}`` resolves — captures define refs."""
+    doc = _valid_doc()
+    doc["steps"][1]["capture"] = "rows"
+    doc["steps"].append(
+        {
+            "id": "c",
+            "when": "${rows.data.row_count} > 0",
+            "run": "qdo -f json preview -c ${conn} -t users",
+        }
+    )
+    assert lint(doc).ok
+
+
+def test_lint_flags_output_ref_to_step_id_without_capture() -> None:
+    """Outputs referencing a capture-less step id are unresolved at runtime."""
+    doc = _valid_doc()
+    doc["outputs"]["preview"] = "${b.data.rows}"
     codes = [i.code for i in lint(doc).issues]
     assert "UNRESOLVED_REFERENCE" in codes
 
@@ -680,6 +780,32 @@ def test_run_workflow_aborts_on_step_failure(tmp_path: Path) -> None:
     with pytest.raises(StepFailed) as excinfo:
         run_workflow(doc, {}, cwd=tmp_path)
     assert excinfo.value.step_id == "broken"
+
+
+def test_run_workflow_omitted_optional_input_in_run_errors(tmp_path: Path) -> None:
+    """L26 — an omitted optional input referenced in run: errors clearly
+    instead of rendering the literal string 'None' into the command."""
+    wf = tmp_path / "optional.yaml"
+    wf.write_text(
+        textwrap.dedent(
+            """\
+            name: optional
+            description: Optional input referenced in run without a guard.
+            version: 1
+            inputs:
+              cols:
+                type: string
+            steps:
+              - id: preview
+                run: qdo preview -c /nonexistent.db -t users -C ${cols}
+            """
+        )
+    )
+    doc = load_workflow_doc(wf)
+    with pytest.raises(WorkflowError, match="null") as excinfo:
+        run_workflow(doc, {}, cwd=tmp_path)
+    # The error names the offending ref, and is not a literal "None" run line.
+    assert "cols" in str(excinfo.value)
 
 
 def test_bundled_table_investigate_runs_optional_branches(
@@ -1213,6 +1339,214 @@ def test_step_timeout_emits_envelope_with_timed_out_true(
 
 
 # -----------------------------------------------------------------------------
+# M14/M15/M16 — recursion guard, qdo_min_version enforcement, QDO_FORMAT export
+# -----------------------------------------------------------------------------
+
+
+def _trivial_doc(**extra) -> dict:
+    return {
+        "name": "trivial",
+        "description": "Minimal doc for runner guard tests.",
+        "version": 1,
+        "steps": [{"id": "s", "run": "qdo inspect -c ./x.db -t users"}],
+        **extra,
+    }
+
+
+def _patch_subprocess_capture(monkeypatch: pytest.MonkeyPatch) -> dict:
+    """Replace subprocess.run with a zero-exit dummy; record argv and env."""
+    import subprocess
+
+    seen: dict = {}
+
+    def _fake_run(*args, **kwargs):
+        seen["argv"] = args[0]
+        seen["env"] = kwargs.get("env")
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    return seen
+
+
+def test_run_workflow_refuses_past_depth_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A self-invoking workflow (qdo workflow run <itself>) must be refused
+    once the nesting cap is reached instead of recursing as unbounded
+    subprocesses."""
+    monkeypatch.setenv("QDO_WORKFLOW_DEPTH", str(MAX_WORKFLOW_DEPTH))
+    with pytest.raises(RecursionLimitError) as excinfo:
+        run_workflow(_trivial_doc(), {})
+    assert excinfo.value.depth == MAX_WORKFLOW_DEPTH
+    assert excinfo.value.limit == MAX_WORKFLOW_DEPTH
+
+
+def test_run_workflow_allows_depth_below_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Legitimate nesting below the cap keeps working, and children see the
+    incremented depth so the chain terminates."""
+    seen = _patch_subprocess_capture(monkeypatch)
+    monkeypatch.setenv("QDO_WORKFLOW_DEPTH", str(MAX_WORKFLOW_DEPTH - 1))
+    result = run_workflow(_trivial_doc(), {})
+    assert result.steps[0].exit_code == 0
+    assert seen["env"]["QDO_WORKFLOW_DEPTH"] == str(MAX_WORKFLOW_DEPTH)
+
+
+def test_run_workflow_sets_depth_one_for_top_level_children(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A top-level run (no QDO_WORKFLOW_DEPTH inherited) stamps depth=1 on
+    child steps — the counter the recursion guard depends on."""
+    seen = _patch_subprocess_capture(monkeypatch)
+    monkeypatch.delenv("QDO_WORKFLOW_DEPTH", raising=False)
+    run_workflow(_trivial_doc(), {})
+    assert seen["env"]["QDO_WORKFLOW_DEPTH"] == "1"
+
+
+def test_run_workflow_rejects_newer_qdo_min_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    """qdo_min_version is enforced at run time (not just lint format-checked):
+    a workflow requiring a newer qdo fails with a structured error naming
+    both versions."""
+    from querido import __version__
+
+    _patch_subprocess_capture(monkeypatch)
+    with pytest.raises(MinVersionError) as excinfo:
+        run_workflow(_trivial_doc(qdo_min_version="999.0.0"), {})
+    assert excinfo.value.required == "999.0.0"
+    assert excinfo.value.installed == __version__
+
+
+@pytest.mark.parametrize("declared", ["0.0.1", None])
+def test_run_workflow_accepts_older_or_equal_qdo_min_version(
+    monkeypatch: pytest.MonkeyPatch, declared: str | None
+) -> None:
+    """An older-or-equal qdo_min_version (or none at all) must not block runs."""
+    from querido import __version__
+
+    _patch_subprocess_capture(monkeypatch)
+    min_version = declared if declared is not None else __version__
+    result = run_workflow(_trivial_doc(qdo_min_version=min_version), {})
+    assert [s.id for s in result.steps] == ["s"]
+    assert result.steps[0].exit_code == 0
+
+
+def test_run_workflow_exports_resolved_format_to_steps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The resolved format of the workflow run invocation propagates to child
+    steps via QDO_FORMAT — the claim WORKFLOW_AUTHORING.md makes."""
+    seen = _patch_subprocess_capture(monkeypatch)
+    run_workflow(_trivial_doc(), {}, output_format="json")
+    assert seen["env"]["QDO_FORMAT"] == "json"
+
+
+def test_run_workflow_step_explicit_flag_beats_exported_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A step's own explicit -f stays on the child argv, where qdo's root
+    callback gives it precedence over the exported QDO_FORMAT env var."""
+    seen = _patch_subprocess_capture(monkeypatch)
+    doc = _trivial_doc()
+    doc["steps"][0]["run"] = "qdo inspect -c ./x.db -t users -f csv"
+    run_workflow(doc, {}, output_format="json")
+    assert seen["env"]["QDO_FORMAT"] == "json"
+    argv = list(seen["argv"])
+    assert "-f" in argv
+    assert argv[argv.index("-f") + 1] == "csv"
+
+
+def test_run_workflow_no_output_format_leaves_env_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Library callers that don't pass output_format keep the inherited env —
+    no surprise QDO_FORMAT injection."""
+    seen = _patch_subprocess_capture(monkeypatch)
+    monkeypatch.delenv("QDO_FORMAT", raising=False)
+    run_workflow(_trivial_doc(), {})
+    assert "QDO_FORMAT" not in seen["env"]
+
+
+def test_workflow_run_cli_exports_format_env(tmp_path: Path, monkeypatch) -> None:
+    """End-to-end: -f json on qdo workflow run reaches child steps as
+    QDO_FORMAT=json."""
+    seen = _patch_subprocess_capture(monkeypatch)
+    monkeypatch.delenv("QDO_SESSION", raising=False)
+    wf = tmp_path / ".qdo" / "workflows" / "fmt-demo.yaml"
+    wf.parent.mkdir(parents=True)
+    wf.write_text(
+        textwrap.dedent(
+            """\
+            name: fmt-demo
+            description: Format propagation demo.
+            version: 1
+            steps:
+              - id: s
+                run: qdo inspect -c ./x.db -t users
+            """
+        )
+    )
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["-f", "json", "workflow", "run", "fmt-demo"])
+    assert result.exit_code == 0, result.output
+    assert seen["env"]["QDO_FORMAT"] == "json"
+
+
+def test_workflow_run_cli_depth_limit_structured_error(tmp_path: Path, monkeypatch) -> None:
+    """Under -f json, hitting the recursion cap surfaces a parseable
+    WORKFLOW_RECURSION_LIMIT error, not a stack of subprocesses."""
+    monkeypatch.delenv("QDO_SESSION", raising=False)
+    monkeypatch.setenv("QDO_WORKFLOW_DEPTH", str(MAX_WORKFLOW_DEPTH))
+    wf = tmp_path / ".qdo" / "workflows" / "deep-demo.yaml"
+    wf.parent.mkdir(parents=True)
+    wf.write_text(
+        textwrap.dedent(
+            """\
+            name: deep-demo
+            description: Recursion guard demo.
+            version: 1
+            steps:
+              - id: s
+                run: qdo inspect -c ./x.db -t users
+            """
+        )
+    )
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["-f", "json", "workflow", "run", "deep-demo"])
+    assert result.exit_code != 0
+    start = result.output.find("{")
+    assert start >= 0, result.output
+    payload = json.loads(result.output[start:])
+    assert payload["error"] is True
+    assert payload["code"] == "WORKFLOW_RECURSION_LIMIT"
+
+
+def test_workflow_run_cli_min_version_structured_error(tmp_path: Path, monkeypatch) -> None:
+    """Under -f json, an unsatisfied qdo_min_version surfaces a parseable
+    WORKFLOW_MIN_VERSION error."""
+    monkeypatch.delenv("QDO_SESSION", raising=False)
+    wf = tmp_path / ".qdo" / "workflows" / "minver-demo.yaml"
+    wf.parent.mkdir(parents=True)
+    wf.write_text(
+        textwrap.dedent(
+            """\
+            name: minver-demo
+            description: Min-version guard demo.
+            version: 1
+            qdo_min_version: "999.0.0"
+            steps:
+              - id: s
+                run: qdo inspect -c ./x.db -t users
+            """
+        )
+    )
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["-f", "json", "workflow", "run", "minver-demo"])
+    assert result.exit_code != 0
+    start = result.output.find("{")
+    assert start >= 0, result.output
+    payload = json.loads(result.output[start:])
+    assert payload["error"] is True
+    assert payload["code"] == "WORKFLOW_MIN_VERSION"
+
+
+# -----------------------------------------------------------------------------
 # from-session
 # -----------------------------------------------------------------------------
 
@@ -1382,3 +1716,26 @@ def test_workflow_lint_cli_reports_issues(tmp_path: Path, monkeypatch) -> None:
     envelope = json.loads(result.stdout)
     codes = {i["code"] for i in envelope["data"]["issues"]}
     assert "INVALID_RUN" in codes
+
+
+def test_workflow_run_lint_failure_yields_structured_code(tmp_path: Path, monkeypatch) -> None:
+    """A lint failure on ``workflow run`` emits WORKFLOW_LINT_FAILED, not UNKNOWN_ERROR."""
+    monkeypatch.chdir(tmp_path)
+    wf = tmp_path / "bad.yaml"
+    wf.write_text(
+        textwrap.dedent(
+            """\
+            name: bad-workflow
+            description: missing run prefix.
+            version: 1
+            steps:
+              - id: s
+                run: ls -la
+            """
+        )
+    )
+    result = runner.invoke(app, ["-f", "json", "workflow", "run", str(wf)])
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload["error"] is True
+    assert payload["code"] == "WORKFLOW_LINT_FAILED"

@@ -160,7 +160,7 @@ def test_for_metadata_search_with_match_points_to_show_and_context() -> None:
     cmds = [s["cmd"] for s in steps]
     assert "qdo metadata show -c c -t orders" in cmds
     assert "qdo context -c c -t orders" in cmds
-    assert any('SELECT "customer_email"' in cmd for cmd in cmds)
+    assert any('select "customer_email"' in cmd for cmd in cmds)
 
 
 def test_for_metadata_search_empty_index_points_to_list_and_catalog() -> None:

@@ -2,6 +2,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from querido.cli.main import app
@@ -421,3 +422,69 @@ def test_query_estimate_write_does_not_mutate(sqlite_path: str):
     finally:
         conn.close()
     assert age == 30
+
+
+# Regression: CTE-prefixed writes (`with ... delete/update/insert`) must not
+# bypass the read-only guard, while CTE-prefixed selects stay non-destructive.
+@pytest.mark.parametrize(
+    ("sql", "expected"),
+    [
+        ("with x as (select 1) delete from t", True),
+        ("with x as (select 1) update t set a=1", True),
+        ("with x as (select 1) insert into t select * from x", True),
+        ("with x as (select 1) select * from x", False),
+        ("with recursive x as (select 1 union all select n+1 from x) select * from x", False),
+        ("with a as (select 1), b as (select 2) delete from t", True),
+        ("with a as (select (1 + (2))), b as (select 2) insert into t select * from a", True),
+        ("WITH X AS (SELECT 1) DELETE FROM T", True),
+        ("with x as (select '(' as paren) delete from t", True),
+        ("with x as (select 'delete' as word) select * from x", False),
+        ("with x(n) as (select 1) select * from x", False),
+        ("select 1; with x as (select 1) drop table t", True),
+    ],
+)
+def test_any_statement_is_destructive_cte(sql: str, expected: bool):
+    from querido.core.sql_safety import any_statement_is_destructive
+
+    assert any_statement_is_destructive(sql) is expected
+
+
+def test_run_query_refuses_write_without_allow_write(sqlite_path: str):
+    # Failure mode: run_query is an unguarded footgun — it executes
+    # destructive SQL even when allow_write=False if a caller bypasses the
+    # CLI's require_allow_write gate. It must raise before touching the db.
+    from querido.connectors.sqlite import SQLiteConnector
+    from querido.core.query import run_query
+
+    with (
+        SQLiteConnector(sqlite_path, read_only=False) as connector,
+        pytest.raises(ValueError, match="allow_write"),
+    ):
+        run_query(connector, "update users set age = age + 1 where id = 1")
+
+    # The row must be untouched because the write never executed.
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        age = conn.execute("select age from users where id = 1").fetchone()[0]
+    finally:
+        conn.close()
+    assert age != 1  # original fixture value, not mutated
+
+
+def test_run_query_permits_write_with_allow_write(sqlite_path: str):
+    from querido.connectors.sqlite import SQLiteConnector
+    from querido.core.query import run_query
+
+    with SQLiteConnector(sqlite_path, read_only=False) as connector:
+        run_query(
+            connector,
+            "update users set age = 99 where id = 1",
+            allow_write=True,
+        )
+
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        age = conn.execute("select age from users where id = 1").fetchone()[0]
+    finally:
+        conn.close()
+    assert age == 99

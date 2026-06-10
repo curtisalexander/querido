@@ -357,3 +357,18 @@ def test_get_context_no_sample_flag(sqlite_path: str) -> None:
 
     assert result["sampled"] is False
     assert result["row_count"] == 4
+
+
+def test_get_context_explicit_sample_keeps_true_row_count(sqlite_path: str) -> None:
+    """Regression: with an explicit sample, row_count came from the sampled
+    scan, so context reported the sample size as the table's row count."""
+    from querido.connectors.sqlite import SQLiteConnector
+    from querido.core.context import get_context
+
+    with SQLiteConnector(sqlite_path) as conn:
+        result = get_context(conn, "orders", sqlite_path, sample=2)
+
+    assert result["sampled"] is True
+    assert result["sample_size"] == 2
+    # row_count must be the true table count, not the sample size
+    assert result["row_count"] == 4

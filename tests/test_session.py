@@ -39,6 +39,14 @@ def test_session_dir_rejects_invalid_name(tmp_path: Path) -> None:
         session.session_dir("", cwd=tmp_path)
 
 
+def test_session_dir_rejects_dot_traversal(tmp_path: Path) -> None:
+    # Failure mode: ``QDO_SESSION=..`` escapes the sessions dir, writing
+    # steps.jsonl/step_N into .qdo/ itself. Dot-only names must be rejected.
+    for name in ("..", "."):
+        with pytest.raises(ValueError, match="Invalid session name"):
+            session.session_dir(name, cwd=tmp_path)
+
+
 def test_list_sessions_empty(tmp_path: Path) -> None:
     assert session.list_sessions(cwd=tmp_path) == []
 
@@ -122,6 +130,31 @@ def test_qdo_session_records_multiple_steps(tmp_path: Path, sqlite_path: str) ->
 
     for i in range(1, 4):
         assert (tmp_path / ".qdo" / "sessions" / "multi" / f"step_{i}" / "stdout").is_file()
+
+
+def test_session_note_round_trips_steps_log(tmp_path: Path, sqlite_path: str) -> None:
+    """session note rewrites steps.jsonl without losing or corrupting steps."""
+    env = {"QDO_SESSION": "noted"}
+    for _ in range(2):
+        result = _run(
+            ["inspect", "--connection", sqlite_path, "--table", "users"],
+            cwd=tmp_path,
+            env=env,
+        )
+        assert result.exit_code == 0
+
+    result = _run(["session", "note", "looks fine"], cwd=tmp_path, env=env)
+    assert result.exit_code == 0
+
+    steps_file = tmp_path / ".qdo" / "sessions" / "noted" / "steps.jsonl"
+    lines = [json.loads(line) for line in steps_file.read_text().splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert [rec["index"] for rec in lines] == [1, 2]
+    assert lines[-1].get("note") == "looks fine"
+    assert "note" not in lines[0]
+    # No stray temp files left behind by the atomic rewrite.
+    leftovers = list(steps_file.parent.glob("steps.jsonl.*"))
+    assert leftovers == []
 
 
 def test_qdo_session_skips_session_subcommand(tmp_path: Path) -> None:

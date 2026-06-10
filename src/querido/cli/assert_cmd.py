@@ -10,7 +10,7 @@ app = typer.Typer(help="Assert conditions on query results.")
 
 
 @app.callback(invoke_without_command=True)
-@friendly_errors
+@friendly_errors(db_error_exit_code=2)
 def assert_cmd(
     connection: str = typer.Option(
         ..., "--connection", "-c", help="Named connection or file path."

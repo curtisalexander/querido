@@ -62,8 +62,8 @@ def get_distribution(
             "dist", connector.dialect, column=column, source=source, buckets=buckets
         )
         data = connector.execute(sql)
-        total_rows = data[0]["total_rows"] if data else 0
-        null_count = data[0]["null_count"] if data else 0
+        total_rows = data[0].get("total_rows", 0) if data else 0
+        null_count = data[0].get("null_count", 0) if data else 0
         return {
             "table": table,
             "column": column,
@@ -80,8 +80,8 @@ def get_distribution(
             "frequency", connector.dialect, column=column, source=source, top=top
         )
         data = connector.execute(freq_sql)
-        total_rows = data[0]["total_rows"] if data else 0
-        null_count = data[0]["null_count"] if data else 0
+        total_rows = data[0].get("total_rows", 0) if data else 0
+        null_count = data[0].get("null_count", 0) if data else 0
         _strip = {"total_rows", "null_count"}
         values = [{k: v for k, v in row.items() if k not in _strip} for row in data]
         return {

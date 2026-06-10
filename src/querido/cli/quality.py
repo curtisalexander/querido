@@ -78,12 +78,13 @@ def quality(
     Distinct counts use approximate algorithms on DuckDB and Snowflake.
     Use --no-sample and --exact for precise results on large tables.
     """
-    from querido.cli._options import parse_column_list
+    from querido.cli._options import parse_column_list, resolve_write_metadata
     from querido.cli._pipeline import dispatch_output, table_command
 
     col_list = parse_column_list(columns)
     if plan and not write_metadata:
         raise typer.BadParameter("--plan requires --write-metadata.")
+    effective_write_metadata = resolve_write_metadata(write_metadata)
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         with ctx.spin(f"Checking quality of [bold]{ctx.table}[/bold]"):
@@ -101,7 +102,7 @@ def quality(
             )
 
         metadata_write_summary = None
-        if write_metadata:
+        if effective_write_metadata:
             from querido.core.metadata_write import preview_from_quality, write_from_quality
 
             if plan:
@@ -133,9 +134,15 @@ def quality(
 
         dispatch_output("quality", result)
 
-        if metadata_write_summary is not None:
-            import sys
+        import sys
 
+        if metadata_write_summary is not None:
             from querido.core.metadata_write import format_write_note
 
             print(format_write_note(metadata_write_summary), file=sys.stderr)
+        else:
+            from querido.cli._pipeline import maybe_capture_hint
+
+            maybe_capture_hint(
+                "quality", result, connection=connection, table=ctx.table, file=sys.stderr
+            )

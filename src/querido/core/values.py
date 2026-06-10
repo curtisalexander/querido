@@ -56,10 +56,15 @@ def get_distinct_values(
     surfaced as ``stored_metadata`` so the agent sees what earlier runs
     captured without a second call.
     """
-    from querido.connectors.base import validate_column_name, validate_table_name
+    from querido.connectors.base import (
+        quote_qualified_name,
+        validate_column_name,
+        validate_table_name,
+    )
 
     validate_table_name(table)
     validate_column_name(column)
+    quoted_table = quote_qualified_name(table)
 
     # Single-scan CTE: group once, derive stats from the grouped result.
     # We fetch max_values + 1 rows to detect truncation without a separate
@@ -68,11 +73,11 @@ def get_distinct_values(
     values_sql = (
         f"with grouped as ("
         f'select "{column}" as value, count(*) as count '
-        f'from "{table}" '
+        f"from {quoted_table} "
         f'group by "{column}"'
         f") "
         f"select value, count, "
-        f"sum(count) over() as total_rows, "
+        f"(select sum(count) from grouped) as total_rows, "
         f"coalesce((select count from grouped where value is null), 0) as null_count, "
         f"count(*) over() as distinct_count "
         f"from grouped "
@@ -88,8 +93,10 @@ def get_distinct_values(
         null_count = rows[0].get("null_count", 0)
         distinct_count = rows[0].get("distinct_count", 0)
     else:
+        # No non-null groups: the table is either empty or every value in
+        # the column is NULL, so every row counts toward null_count.
         total_rows = connector.get_row_count(table)
-        null_count = 0
+        null_count = total_rows
         distinct_count = 0
 
     # Detect truncation: if we got more rows than max_values, trim

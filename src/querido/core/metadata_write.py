@@ -13,8 +13,14 @@ An auto-derived field is written as a dict::
       value: [active, inactive, pending]
       source: values          # profile | values | quality | human
       confidence: 0.8
-      written_at: 2026-04-14T12:34:56+00:00
+      written_at: 2026-04-14T12:34:56+00:00   # always an ISO-8601 timestamp
       author: calex
+      session: my-investigation               # optional: $QDO_SESSION, omitted if unset
+
+``written_at`` is *always* an ISO-8601 timestamp so it sorts meaningfully in
+the bundle-merge tie-break. The originating session name (``$QDO_SESSION``),
+when set, is recorded separately in ``session`` rather than overloading
+``written_at``.
 
 A plain scalar / list is treated as human-authored (``confidence == 1.0``)
 and is never overwritten without ``--force``.
@@ -23,9 +29,10 @@ and is never overwritten without ``--force``.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from querido.core.metadata import (
     _read_yaml,
@@ -82,21 +89,37 @@ def _resolve_author() -> str:
 
 
 def _resolve_written_at() -> str:
-    """Resolve ``written_at``: active session name, else ISO timestamp."""
-    session = os.environ.get("QDO_SESSION", "").strip()
-    if session:
-        return session
+    """Resolve ``written_at``: always an ISO-8601 timestamp.
+
+    The session name (when set) is recorded separately by
+    :func:`_resolve_session` so ``written_at`` always sorts as a timestamp.
+    """
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
-def _provenance(value: Any, source: str, confidence: float, author: str, written_at: str) -> dict:
-    return {
+def _resolve_session() -> str | None:
+    """Resolve the originating session name from ``$QDO_SESSION`` (or None)."""
+    return os.environ.get("QDO_SESSION", "").strip() or None
+
+
+def _provenance(
+    value: Any,
+    source: str,
+    confidence: float,
+    author: str,
+    written_at: str,
+    session: str | None = None,
+) -> dict:
+    prov = {
         "value": value,
         "source": source,
         "confidence": confidence,
         "written_at": written_at,
         "author": author,
     }
+    if session:
+        prov["session"] = session
+    return prov
 
 
 def _is_auto_written(field: Any) -> bool:
@@ -194,6 +217,64 @@ def derive_from_quality(result: QualityResult) -> list[FieldUpdate]:
     return updates
 
 
+def derive_from_context(result: Mapping[str, Any]) -> list[FieldUpdate]:
+    """Derive metadata updates from a ``context`` result.
+
+    Context fuses the inputs the other three rule sets consume — schema,
+    null rates, distinct counts and sample values — into one scan, so this
+    reuses the SAME helpers (and therefore the SAME thresholds) rather than
+    inventing new ones:
+
+    * ``valid_values`` — for each low-cardinality string column, build a
+      :class:`ValuesResult`-shaped view from the column's ``sample_values``
+      and ``distinct_count`` and feed it through :func:`derive_from_values`.
+      A context scan only carries the top-K sample values (not the full
+      distinct set), so candidates are only proposed when the sample
+      already covers every distinct value (``len(sample) == distinct_count``);
+      otherwise the set is incomplete and we defer to ``values --write-metadata``.
+    * ``likely_sparse`` — reuse :func:`derive_from_quality` on the per-column
+      null rates (same >95% threshold).
+    * ``temporal`` — reuse :func:`derive_from_profile` on name/type (same
+      suffix + type rules).
+    """
+    columns = result.get("columns") or []
+    updates: list[FieldUpdate] = []
+
+    # valid_values — reuse derive_from_values per column.
+    for col in columns:
+        name = col.get("name") or ""
+        if not name:
+            continue
+        sample = col.get("sample_values")
+        if not sample:
+            continue
+        distinct_count = col.get("distinct_count") or 0
+        # Only propose when the top-K sample provably covers every distinct
+        # value; a partial sample would understate the allowed set.
+        if distinct_count == 0 or len(sample) < distinct_count:
+            continue
+        values_view: dict[str, Any] = {
+            "column": name,
+            "distinct_count": distinct_count,
+            "truncated": False,
+            "values": [{"value": v, "count": 0} for v in sample],
+        }
+        updates.extend(derive_from_values(cast("ValuesResult", values_view)))
+
+    # likely_sparse — reuse derive_from_quality on the null rates.
+    updates.extend(derive_from_quality(cast("QualityResult", {"columns": columns})))
+
+    # temporal — reuse derive_from_profile on names/types. profile reads
+    # ``column_name``/``column_type`` from stats and ``type`` from col_info.
+    stats = [
+        {"column_name": c.get("name", ""), "column_type": c.get("type") or ""} for c in columns
+    ]
+    col_info = [{"name": c.get("name", ""), "type": c.get("type") or ""} for c in columns]
+    updates.extend(derive_from_profile(stats, col_info))
+
+    return updates
+
+
 def apply_updates(
     connector: Connector,
     connection: str,
@@ -222,6 +303,7 @@ def apply_updates(
     meta = _read_yaml(path) or {}
     author = _resolve_author()
     written_at = _resolve_written_at()
+    session = _resolve_session()
 
     cols_by_name: dict[str, dict] = {}
     for c in meta.get("columns") or []:
@@ -255,6 +337,7 @@ def apply_updates(
             confidence=upd.confidence,
             author=author,
             written_at=written_at,
+            session=session,
         )
         written.append(
             {
@@ -409,17 +492,44 @@ def preview_from_quality(
     return preview_updates(connector, connection, table, updates, source="quality", force=force)
 
 
+def write_from_context(
+    connector: Connector,
+    connection: str,
+    table: str,
+    result: Mapping[str, Any],
+    *,
+    force: bool = False,
+) -> dict:
+    updates = derive_from_context(result)
+    return apply_updates(connector, connection, table, updates, source="context", force=force)
+
+
+def preview_from_context(
+    connector: Connector,
+    connection: str,
+    table: str,
+    result: Mapping[str, Any],
+    *,
+    force: bool = False,
+) -> dict:
+    updates = derive_from_context(result)
+    return preview_updates(connector, connection, table, updates, source="context", force=force)
+
+
 # Re-export for convenience
 __all__ = [
     "FieldUpdate",
     "apply_updates",
+    "derive_from_context",
     "derive_from_profile",
     "derive_from_quality",
     "derive_from_values",
+    "preview_from_context",
     "preview_from_profile",
     "preview_from_quality",
     "preview_from_values",
     "preview_updates",
+    "write_from_context",
     "write_from_profile",
     "write_from_quality",
     "write_from_values",

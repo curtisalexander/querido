@@ -335,6 +335,16 @@ def main(
     """qdo — query, do. Data analysis from your terminal."""
     import os
 
+    # ``no_args_is_help`` only fires on a fully-empty argv. Flags-but-no-subcommand
+    # (e.g. ``qdo --show-sql``) would otherwise fall through and exit 0 without doing
+    # anything. ``--version``/``-V`` is eager and has already raised Exit by now, so
+    # it never reaches here. Show help and exit non-zero, matching no_args_is_help.
+    if ctx.invoked_subcommand is None:
+        from rich.console import Console
+
+        Console(stderr=True).print(ctx.get_help())
+        raise typer.Exit(code=2)
+
     _maybe_start_session(ctx)
 
     valid = {"rich", "markdown", "json", "csv", "html", "yaml", "agent"}

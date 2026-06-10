@@ -163,6 +163,66 @@ class TestSemanticCLI:
         payload = json.loads(result.output)
         assert payload["code"] == "SNOWFLAKE_REQUIRED"
 
+    def test_semantic_output_file_emits_envelope_json(
+        self, snowflake_cmd_sqlite: str, tmp_path: Path, monkeypatch
+    ):
+        """Under -f json, `semantic -o <file>` must emit an envelope with the written path
+        rather than leaving stdout empty (M8)."""
+        import querido.cli.snowflake as snowflake_cli
+
+        monkeypatch.setattr(snowflake_cli, "require_snowflake", lambda *a, **k: None)
+        out_file = tmp_path / "orders.yaml"
+        result = runner.invoke(
+            app,
+            [
+                "-f",
+                "json",
+                "snowflake",
+                "semantic",
+                "-t",
+                "orders",
+                "-c",
+                snowflake_cmd_sqlite,
+                "-o",
+                str(out_file),
+                "--sample-values",
+                "0",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert out_file.exists()
+        payload = json.loads(result.output)
+        assert set(payload) == {"command", "data", "next_steps", "meta"}
+        assert payload.get("command") == "snowflake semantic"
+        assert payload.get("data", {}).get("path") == str(out_file)
+
+    def test_semantic_output_file_rich_stays_quiet_on_stdout(
+        self, snowflake_cmd_sqlite: str, tmp_path: Path, monkeypatch
+    ):
+        """Human format with -o keeps writing the file and reporting on stderr only."""
+        import querido.cli.snowflake as snowflake_cli
+
+        monkeypatch.setattr(snowflake_cli, "require_snowflake", lambda *a, **k: None)
+        out_file = tmp_path / "orders.yaml"
+        result = runner.invoke(
+            app,
+            [
+                "snowflake",
+                "semantic",
+                "-t",
+                "orders",
+                "-c",
+                snowflake_cmd_sqlite,
+                "-o",
+                str(out_file),
+                "--sample-values",
+                "0",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert out_file.exists()
+        assert "base_table" in out_file.read_text()
+
 
 # ---------------------------------------------------------------------------
 # F9: Lineage CLI — non-Snowflake rejection

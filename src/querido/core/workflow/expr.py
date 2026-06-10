@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import re
+import uuid
 from typing import Any
 
 REF_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_.]*)\}")
@@ -58,11 +59,26 @@ def resolve_path(path: str, context: dict[str, Any]) -> Any:
     return val
 
 
-def interpolate(template: str, context: dict[str, Any]) -> str:
-    """Return *template* with every ``${path}`` replaced by ``str(value)``."""
+def interpolate(template: str, context: dict[str, Any], *, reject_none: bool = False) -> str:
+    """Return *template* with every ``${path}`` replaced by ``str(value)``.
+
+    When *reject_none* is true, a reference that resolves to ``None`` raises
+    :class:`UnresolvedReference` instead of rendering the literal string
+    ``"None"``. Run-template interpolation passes this so an omitted optional
+    input can't silently produce a run line like ``-C None``; output and
+    ``when`` resolution keep the lenient default (None stays comparable).
+    """
 
     def repl(m: re.Match[str]) -> str:
-        return str(resolve_path(m.group(1), context))
+        value = resolve_path(m.group(1), context)
+        if reject_none and value is None:
+            raise UnresolvedReference(
+                f"reference ${{{m.group(1)}}} resolved to null and cannot be "
+                "substituted into a run command (it would render the literal "
+                "string 'None'). Guard the step with `when: ${" + m.group(1) + "} "
+                "!= null`, or make the input required / give it a default."
+            )
+        return str(value)
 
     return REF_RE.sub(repl, template)
 
@@ -86,7 +102,10 @@ def evaluate_when(expr: str, context: dict[str, Any]) -> bool:
     refs: dict[str, Any] = {}
 
     def repl(m: re.Match[str]) -> str:
-        placeholder = f"__qdo_ref_{len(refs)}"
+        # A sentinel that an author is extremely unlikely to type as a literal
+        # identifier in a ``when:`` expression (lint additionally rejects quoted
+        # refs, which would otherwise turn into the literal placeholder string).
+        placeholder = f"qdo_ref_{uuid.uuid4().hex}"
         refs[placeholder] = resolve_path(m.group(1), context)
         return placeholder
 

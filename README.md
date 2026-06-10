@@ -133,7 +133,7 @@ qdo catalog -c my-db -f json > schema.json
 qdo profile -c my-db -t orders -f csv > stats.csv
 ```
 
-If you are recording a session, `query` and `export` can reuse SQL from a prior query step. Record the source step with `-f json` so `--from` has the canonical SQL to replay:
+Setting `QDO_SESSION=<name>` (or running `qdo session start <name>`) records each qdo step to `.qdo/sessions/<name>/` — see [Sessions](#sessions--record-an-investigation) below. While recording, `query` and `export` can reuse SQL from a prior query step. Record the source step with `-f json` so `--from` has the canonical SQL to replay:
 
 ```bash
 QDO_SESSION=scratch qdo -f json query -c my-db --sql "select * from orders where status = 'pending'"
@@ -354,6 +354,16 @@ export QDO_SAMPLE_THRESHOLD=5000000   # only sample tables over 5M rows
 export QDO_SAMPLE_THRESHOLD=0         # always sample (use for testing)
 ```
 
+**Auto-capturing scan facts:**
+
+`context`, `profile`, `values`, and `quality` can persist the deterministic facts they compute (sample values → `valid_values`, null rates → `likely_sparse`, temporal columns) into `.qdo/metadata/<conn>/<table>.yaml` with the `--write-metadata` flag. To opt in for every scan without passing the flag each time, set `QDO_AUTO_CAPTURE`:
+
+```bash
+export QDO_AUTO_CAPTURE=1   # context/profile/values/quality auto-write metadata after every scan
+```
+
+Writes are always deterministic and provenance-tracked; human-authored fields (`confidence: 1.0`) are never overwritten, and every write is reversible via `qdo metadata undo`. Opt-in by design so agents and CI never get surprise writes by default.
+
 ## Wide tables (50+ columns)
 
 Profiling tables with many columns can be slow. qdo has a tiered profiling system designed for wide tables:
@@ -444,6 +454,56 @@ including an enriched `orders` metadata file and a generated sample report.
 The `context` command is the anchor for agent workflows: it returns everything
 an LLM needs to write correct SQL for a table in one call, and metadata turns
 that understanding into durable context for later runs and other teammates.
+
+## Automate and share
+
+Once an investigation is worth repeating, capture it as a **workflow** — a
+declarative YAML file of qdo steps, with inputs, captures, and conditional
+steps. Workflows are files (project, user, or bundled), so they're diffable and
+reviewable, and `qdo workflow run` is the single canonical way to execute one.
+
+```bash
+qdo workflow list                      # discoverable workflows (project/user/bundled)
+qdo workflow spec --examples           # the JSON Schema, plus bundled examples
+qdo workflow show table-investigate    # print a workflow's YAML
+qdo workflow run table-investigate -c my-db table=orders   # run it (key=value inputs)
+qdo workflow lint ./my-workflow.yaml   # structural + semantic checks (CI-friendly)
+qdo workflow from-session scratch -o draft.yaml            # draft one from a session
+```
+
+Authoring guide: [WORKFLOW_AUTHORING.md](integrations/skills/WORKFLOW_AUTHORING.md).
+Annotated examples: [WORKFLOW_EXAMPLES.md](integrations/skills/WORKFLOW_EXAMPLES.md).
+
+To hand accumulated knowledge to a teammate, export a **bundle** — a portable,
+connection-agnostic zip of metadata (plus optional column sets):
+
+```bash
+qdo bundle export -c my-db -t orders -o orders.qdobundle   # package metadata
+qdo bundle inspect orders.qdobundle                        # see what's inside
+qdo bundle diff a.qdobundle b.qdobundle                    # compare two bundles
+qdo bundle import orders.qdobundle --into my-db            # DRY-RUN by default
+qdo bundle import orders.qdobundle --into my-db --apply    # actually write
+```
+
+`bundle import` is a dry run by default — it prints the merge diff and writes
+nothing until you pass `--apply`. Merges preserve provenance: human-authored
+fields are never overwritten by an import.
+
+## Sessions — record an investigation
+
+Set `QDO_SESSION=<name>` (or run `qdo session start <name>`) and every qdo
+invocation appends a step to `.qdo/sessions/<name>/steps.jsonl` plus that step's
+stdout — no daemon, just append-only files scoped to the current directory.
+Recorded steps power `--from` replay, `qdo session show/replay`, session
+reports, and `qdo workflow from-session`.
+
+```bash
+qdo session start scratch              # create the session dir + print the export hint
+export QDO_SESSION=scratch             # now every qdo run is recorded
+qdo session note "checked null rates"  # annotate the most recent step
+qdo session show scratch               # readable summary of the steps
+qdo report session scratch -o run.html # single-file HTML report of the investigation
+```
 
 ## Configuration
 

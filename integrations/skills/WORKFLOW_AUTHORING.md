@@ -36,7 +36,7 @@ steps:                 # ordered, must be non-empty
 name: <slug>
 description: <one-line>
 version: 1
-qdo_min_version: "0.1.0"    # optional; reject runs on older qdo
+qdo_min_version: "0.1.0"    # optional; run refuses when the installed qdo is older
 
 inputs:                      # caller-supplied values bound as ${name}
   connection:
@@ -71,12 +71,14 @@ References: `${name}` or `${name.dotted.path}`. Walks nested dicts and lists (li
 
 **Available inside `run`, `when`, and `outputs`:**
 - Any input name declared in `inputs:`.
-- Any prior step's `id` or `capture` (captured JSON is the value).
+- Any prior step's `capture:` name (the captured JSON is the value). A step `id` alone does **not** create a ref — add `capture:` to expose a step's output.
 
 **In `when:` only**, comparisons and boolean combinators work:
 - `==  !=  <  <=  >  >=`
 - `and  or  not`
 - bare `${ref}` evaluates as truthy/falsy
+
+**Never quote `${refs}` in `when:`.** Refs substitute as their typed value, so quoting one (`when: "${x}" == "active"`) turns it into a literal placeholder string and the comparison silently compares false. Write `when: ${x} == "active"` — quote only the string literal you compare against, never the ref. Lint catches this as `QUOTED_REF_IN_WHEN`.
 
 **Not supported:** function calls (`len(x)`), attribute access (`obj.method()`), arithmetic (`a + b`), subscript syntax (`a[0]` — use `a.0`), string concatenation. This is deliberate — workflows are declarative.
 
@@ -86,14 +88,14 @@ Captures parse stdout as JSON, so captured steps must run under `-f json`. The r
 
 | Step has `capture:`? | `-f` / `--format` in `run`? | Runner behavior |
 |----------------------|-----------------------------|-----------------|
-| No                   | No                          | Inherits the outer format (usually `rich`; `QDO_FORMAT=json` or `-f` on `qdo workflow run` also propagates via env). |
+| No                   | No                          | Inherits the resolved format of the `qdo workflow run` invocation — the runner exports it to each step as `QDO_FORMAT` (an explicit `-f` on `workflow run` wins over the caller's `QDO_FORMAT`; default `rich`). |
 | No                   | Yes                         | Hoisted right after `qdo` so the root callback parses it. Value is respected. |
 | Yes                  | No                          | **Auto-injects `-f json`** — captures need JSON. |
 | Yes                  | Yes (any value)             | Hoisted as-is — your value wins, even if it's not JSON. |
 
 Because of that last row, **if you write an explicit non-JSON format on a captured step, the capture will fail at runtime** with `step {id}: capture requires JSON output but parse failed: ...`. The fix is either to drop the explicit `-f` (let the runner inject `-f json`) or change it to `-f json`.
 
-Position of the flag inside `run` doesn't matter — the runner pulls it out and places it at the head. Arg styles that work: `-f json`, `--format json`, `--format=json`.
+Position of the flag inside `run` doesn't matter — the runner pulls it out and places it at the head. Arg styles that work: `-f json`, `--format json`, `--format=json`. An explicit flag in a step's `run` always beats the exported `QDO_FORMAT` — qdo prefers an explicit `-f` over the env var.
 
 ```yaml
 # All three forms work identically — runner normalizes them.
@@ -126,6 +128,8 @@ A step without `capture:` can use any format — it's executed for its side effe
 ```
 
 When a step is skipped, its capture is never set. Any `outputs:` that reference it resolve to `null` rather than aborting the run.
+
+An omitted optional input (no `default`, `required: false`) resolves to null. Referencing it directly inside a `run:` line is an error — the runner refuses rather than rendering the literal string `None` into the command (e.g. `-C None`). Guard the step with `when: ${x} != null`, give the input a `default:`, or mark it `required: true`. (`run:` is strict about null; `when:` and `outputs:` stay null-tolerant.)
 
 ### Null-safe comparisons
 
@@ -222,7 +226,7 @@ steps:
 
 **When to opt down:** per-step `timeout:` when a step *should* be fast and you want hangs to surface quickly (e.g. a local SQLite inspect). `--step-timeout` at the CLI when iterating interactively and you don't want to wait 5 minutes for a hung step.
 
-Lint rejects negative timeouts (`INVALID_STEP_TIMEOUT`). Non-integer values fail schema validation before lint runs.
+Lint rejects negative or non-integer timeouts with `INVALID_STEP_TIMEOUT` — it checks the value with `isinstance(timeout, int)` and explicitly excludes booleans, so `timeout: true` is rejected rather than silently treated as `1` second.
 
 ## Sessions, automatic
 
@@ -303,6 +307,7 @@ outputs:
 - **Duplicate step ids.** Lint catches this (`DUPLICATE_STEP_ID`). Use `inspect`, `inspect_2`, `inspect_3` if you really need the same subcommand multiple times.
 - **Inputs with no type.** `inputs:` entries require `type:`. Use `string` if you have no better choice.
 - **Hardcoding connections.** Parameterize with `${connection}`. A workflow that only runs against `prod` is a query.
+- **Workflows that run workflows.** A step may invoke `qdo workflow run`, but nesting is capped at **3 levels** — the runner refuses deeper runs (`WORKFLOW_RECURSION_LIMIT`), so a workflow that invokes itself fails fast instead of recursing forever.
 
 ## Lint error catalog
 
@@ -328,6 +333,7 @@ outputs:
 | `INVALID_CAPTURE` | Capture name fails `^[a-z][a-z0-9_]*$` | Rename. |
 | `CAPTURE_SHADOWS` | Capture reuses an input or earlier capture name | Pick a unique name. |
 | `UNRESOLVED_REFERENCE` | `${ref}` doesn't match any input/capture/id in scope | Declare it as an input or capture it earlier. |
+| `QUOTED_REF_IN_WHEN` | A `${ref}` is wrapped in quotes inside a `when:` expression | Drop the quotes around the ref; quote only the literal you compare against. |
 | `WRITE_WITHOUT_ALLOW` | Destructive SQL without `allow_write: true` | Add `allow_write: true` after confirming intent. |
 | `UNKNOWN_COLUMN` | `--columns`/`-C` names a column missing from the target table (schema-aware lint only) | Check the name against `qdo inspect`; fire only when lint is called with `--connection --table`. |
 | `INVALID_OUTPUTS` | `outputs:` not a mapping | Make it a YAML map. |

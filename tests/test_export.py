@@ -391,3 +391,17 @@ def test_export_estimate_json_file_not_written(sqlite_path: str, tmp_path: Path)
     assert payload["data"]["mode"] == "estimate"
     assert payload["data"]["row_estimate"] == 2
     assert not Path(out).exists()
+
+
+def test_classify_complexity_detects_leading_cte():
+    # Failure mode: padded-substring matching (" with ") never fires for a
+    # query that *starts* with ``with``, so CTE-heavy SQL scored as trivial.
+    from querido.core.estimate import _classify_complexity
+
+    trivial = _classify_complexity("select 1")
+    cte = _classify_complexity(
+        "with recent as (select * from orders) select * from recent group by id"
+    )
+    _RANK = {"low": 0, "medium": 1, "high": 2}
+    assert trivial == "low"
+    assert _RANK[cte] > _RANK[trivial]

@@ -9,10 +9,11 @@ from querido.connectors.base import validate_table_name, wrap_driver_error
 class DuckDBConnector:
     """DuckDB connector (also handles Parquet via ``register_parquet``).
 
-    ``_columns_cache`` key convention: ``table.lower()``. DuckDB folds
-    unquoted identifiers to lowercase in its catalog, so lowercasing in
-    Python up front keeps cache lookups consistent with what ``duckdb_columns()``
-    sees and avoids a per-row ``lower()`` in the catalog query.
+    DuckDB preserves identifier case as written in its catalog but resolves
+    identifiers case-insensitively, so catalog queries match with
+    ``lower(table_name) = lower($table_name)`` rather than assuming a
+    lowercase catalog. ``_columns_cache`` is keyed by ``table.lower()`` so
+    any casing of the same table hits the same cache entry.
     """
 
     dialect = "duckdb"
@@ -103,13 +104,11 @@ class DuckDBConnector:
         cache_key = table.lower()
         if cache_key in self._columns_cache:
             return self._columns_cache[cache_key]
-        # Case normalization is done in Python (.lower()) rather than in SQL
-        # (lower()) to avoid per-row function calls on large catalogs.
         rows = self.execute(
             "select column_name, data_type, is_nullable, column_default, comment "
             "from duckdb_columns() "
-            "where schema_name = 'main' and table_name = $table_name",
-            {"table_name": cache_key},
+            "where schema_name = 'main' and lower(table_name) = lower($table_name)",
+            {"table_name": table},
         )
         result = [
             {
@@ -130,8 +129,8 @@ class DuckDBConnector:
         validate_table_name(table)
         rows = self.execute(
             "select comment from duckdb_tables() "
-            "where schema_name = 'main' and table_name = $table_name",
-            {"table_name": table.lower()},
+            "where schema_name = 'main' and lower(table_name) = lower($table_name)",
+            {"table_name": table},
         )
         if rows and rows[0]["comment"]:
             return rows[0]["comment"]
@@ -141,8 +140,9 @@ class DuckDBConnector:
         """Return the SQL definition of a view from duckdb_views()."""
         validate_table_name(view)
         rows = self.execute(
-            "select sql from duckdb_views() where schema_name = 'main' and view_name = $view_name",
-            {"view_name": view.lower()},
+            "select sql from duckdb_views() "
+            "where schema_name = 'main' and lower(view_name) = lower($view_name)",
+            {"view_name": view},
         )
         if rows and rows[0]["sql"]:
             return rows[0]["sql"]
@@ -157,8 +157,8 @@ class DuckDBConnector:
         validate_table_name(table)
         rows = self.execute(
             "select estimated_size from duckdb_tables() "
-            "where schema_name = 'main' and table_name = $table_name",
-            {"table_name": table.lower()},
+            "where schema_name = 'main' and lower(table_name) = lower($table_name)",
+            {"table_name": table},
         )
         if rows:
             return rows[0].get("estimated_size", 0)

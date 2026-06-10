@@ -334,3 +334,20 @@ def test_yaml_round_trip_handles_special_characters_in_values(tmp_path):
     assert ": starts with colon" in sample_vals
     assert 'has "quotes" inside' in sample_vals
     assert "line one\nline two" in sample_vals
+
+
+def test_agent_render_coerces_non_string_dict_keys():
+    """Regression: -f agent raised TypeError on int dict keys (TOON's
+    _encode_key re.match expects str; the YAML fallback only catches
+    ToonUnsupportedShape) while -f json stringified them silently."""
+    from querido.output.envelope import _normalize_for_structured, render_agent
+
+    payload = {"data": {"by_year": {2024: 10, 2025: 12}}}
+
+    normalized = _normalize_for_structured(payload)
+    assert normalized["data"]["by_year"] == {"2024": 10, "2025": 12}
+
+    # The agent renderer must not crash where the JSON path succeeds.
+    rendered = render_agent(payload)
+    assert "2024" in rendered
+    assert "2025" in rendered

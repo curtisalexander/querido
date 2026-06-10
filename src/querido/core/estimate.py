@@ -144,19 +144,21 @@ def estimate_export(
 
 
 def _classify_complexity(sql: str) -> str:
-    lowered = sql.lower()
+    import re
+
+    words = set(re.findall(r"\b\w+\b", sql.lower()))
     score = 0
-    for token, weight in (
-        (" join ", 2),
-        (" group by ", 2),
-        (" order by ", 1),
-        (" distinct ", 1),
-        (" union ", 2),
-        (" with ", 2),
-        (" over (", 2),
-        (" having ", 1),
+    for keyword, weight in (
+        ("join", 2),
+        ("group", 2),  # group by
+        ("order", 1),  # order by
+        ("distinct", 1),
+        ("union", 2),
+        ("with", 2),
+        ("over", 2),  # window functions
+        ("having", 1),
     ):
-        if token in lowered:
+        if keyword in words:
             score += weight
     if score >= 4:
         return "high"

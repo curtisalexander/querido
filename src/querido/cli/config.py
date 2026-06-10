@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
+
+if TYPE_CHECKING:
+    from typing import NoReturn
 
 from querido.cli._errors import friendly_errors
 
@@ -31,6 +35,9 @@ def _missing_backend_extra(db_type: str) -> str | None:
 @friendly_errors
 def add(
     name: str = typer.Option(..., "--name", "-n", help="Connection name."),
+    # NOTE: ``-t`` here means ``--type`` (db type), NOT ``--table`` as in ~20 other
+    # commands. Deliberate divergence preserved for CLI back-compat (see L21). The
+    # help text says "Database type" so ``--help`` is unambiguous; do not "harmonize".
     db_type: str = typer.Option(
         ..., "--type", "-t", help="Database type (sqlite/duckdb/snowflake)."
     ),
@@ -68,8 +75,11 @@ def add(
     # Load existing connections
     existing = load_connections(config_dir)
     if name in existing:
-        raise typer.BadParameter(
-            f"Connection '{name}' already exists. Remove it first or choose another name."
+        from querido.cli._errors import CodedBadParameter
+
+        raise CodedBadParameter(
+            f"Connection '{name}' already exists. Remove it first or choose another name.",
+            code="CONNECTION_EXISTS",
         )
 
     # Build connection entry
@@ -330,6 +340,11 @@ def test(
             connector.execute("select 1")
         elapsed = time.monotonic() - t0
     except Exception as exc:
+        from querido.cli._context import get_output_format
+
+        if get_output_format() in ("json", "agent"):
+            # Let friendly_errors emit the structured error payload.
+            raise
         console.print(f"[red bold]FAIL[/red bold] ({conn_type}) {exc}")
         raise typer.Exit(1) from None
 
@@ -347,6 +362,20 @@ def test(
 # ---------------------------------------------------------------------------
 # Column set management
 # ---------------------------------------------------------------------------
+
+
+def _column_set_not_found(connection: str, table: str, name: str, console) -> NoReturn:
+    """Report a missing column set: structured error under json/agent, rich otherwise."""
+    from querido.cli._context import get_output_format
+
+    msg = f"Column set '{name}' not found for {connection}.{table}"
+    if get_output_format() in ("json", "agent"):
+        from querido.cli._errors import CodedBadParameter
+
+        raise CodedBadParameter(msg, code="COLUMN_SET_NOT_FOUND")
+    console.print(f"[red]{msg}[/red]")
+    raise typer.Exit(1)
+
 
 column_set_app = typer.Typer(help="Manage saved column sets.")
 app.add_typer(column_set_app, name="column-set")
@@ -403,12 +432,13 @@ def column_set_list(
     grid.add_column("Set Name", style="yellow")
     grid.add_column("Columns", style="dim")
 
-    for key, cols in sets.items():
-        parts = key.split(".", 2)
-        if len(parts) != 3:
-            continue
-        k_conn, k_table, k_name = parts
-        grid.add_row(k_conn, k_table, k_name, ", ".join(cols))
+    for entry in sets:
+        grid.add_row(
+            entry.get("connection", ""),
+            entry.get("table", ""),
+            entry.get("set", ""),
+            ", ".join(entry.get("columns", [])),
+        )
 
     console.print(grid)
 
@@ -428,8 +458,7 @@ def column_set_show(
     cols = load_column_set(connection, table, name)
     console = Console()
     if cols is None:
-        console.print(f"[red]Column set '{name}' not found for {connection}.{table}[/red]")
-        raise typer.Exit(1)
+        _column_set_not_found(connection, table, name, console)
     console.print(f"[bold]{name}[/bold] ({connection}.{table}): {len(cols)} columns")
     for col in cols:
         console.print(f"  {col}")
@@ -454,8 +483,7 @@ def column_set_delete(
             f"[green]Deleted column set '[bold]{name}[/bold]' for {connection}.{table}[/green]"
         )
     else:
-        console.print(f"[red]Column set '{name}' not found for {connection}.{table}[/red]")
-        raise typer.Exit(1)
+        _column_set_not_found(connection, table, name, console)
 
 
 def _write_connections(config_file: Path | str, connections: dict) -> None:

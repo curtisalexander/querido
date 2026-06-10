@@ -32,8 +32,8 @@ def explore(
         "--lesson",
         "-l",
         min=1,
-        max=15,
-        help="Start from a specific lesson number (1-15).",
+        max=10,
+        help="Start from a specific lesson number (1-10).",
     ),
     list_lessons: bool = typer.Option(
         False,
@@ -49,7 +49,7 @@ def explore(
     """Core exploration workflow: catalog, inspect, profile, query.
 
     Generates a DuckDB database with parks, trails, wildlife sightings,
-    and visitor statistics, then guides you through 15 lessons covering
+    and visitor statistics, then guides you through 10 lessons covering
     the full qdo exploration and query workflow.
 
     Requires DuckDB: install with  uv pip install 'querido[duckdb]'

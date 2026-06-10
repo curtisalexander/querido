@@ -9,12 +9,17 @@ title: CLI Reference
 
 ## Installation
 
+Pre-built wheels are available from [GitHub Releases](https://github.com/curtisalexander/querido/releases). Requires Python >= 3.12 and [uv](https://docs.astral.sh/uv/).
+
 ```bash
-uv pip install querido              # core (SQLite)
-uv pip install 'querido[duckdb]'    # + DuckDB support
-uv pip install 'querido[snowflake]' # + Snowflake support
-uv pip install 'querido[tui]'       # Interactive TUI (qdo explore)
+# core (SQLite)
+uv tool install 'querido @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
+
+# optional backends — swap the extras: [duckdb], [snowflake], [tui], [all]
+uv tool install 'querido[duckdb] @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
 ```
+
+See the [README install section](https://github.com/curtisalexander/querido#install) for `uvx` one-off runs and installing from source.
 
 ## Connection Setup
 
@@ -44,7 +49,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 
 | Command | Purpose |
 |---------|---------|
-| `qdo catalog -c CONN [--pattern P] [--tables-only]` | Discover tables, columns, and row counts |
+| `qdo catalog -c CONN [--pattern P] [--tables-only] [--live] [--enrich] [--schema S]` | Discover tables, columns, and row counts |
 | `qdo context -c CONN -t TABLE` | Schema + stats + sample values in one call |
 | `qdo metadata init -c CONN -t TABLE` | Create metadata YAML for shared table knowledge |
 | `qdo metadata show -c CONN -t TABLE` | Read stored metadata back into the workflow |
@@ -70,6 +75,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness, issues) |
 | `qdo diff -c CONN -t A --target B` | Compare schemas between two tables |
 | `qdo joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
+| `qdo catalog functions -c CONN` | List SQL functions exposed by the backend (DuckDB/Snowflake) |
 
 ### Query And Validate
 
@@ -86,24 +92,33 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | Command | Purpose |
 |---------|---------|
 | `qdo sql select -c CONN -t TABLE` | Generate SELECT statement |
+| `qdo sql insert -c CONN -t TABLE` | Generate INSERT statement with named placeholders |
 | `qdo sql ddl -c CONN -t TABLE` | Generate CREATE TABLE DDL |
+| `qdo sql udf -c CONN -t TABLE` | Generate a UDF template using table columns as parameters |
 | `qdo sql scratch -c CONN -t TABLE` | Temp table + sample INSERTs |
 | `qdo template -c CONN -t TABLE` | Generate documentation template |
-| `qdo view-def -c CONN -v VIEW` | View SQL definition |
+| `qdo view-def -c CONN --view VIEW` | View SQL definition |
 
 ### Automate And Share
 
 | Command | Purpose |
 |---------|---------|
 | `qdo workflow list` | List bundled, project, and user workflows |
+| `qdo workflow spec [--examples]` | Print the workflow JSON Schema, or bundled example YAML with `--examples` |
+| `qdo workflow show NAME` | Print the resolved workflow's YAML source |
 | `qdo workflow run NAME key=value` | Execute a declarative workflow |
 | `qdo workflow lint NAME` | Lint a workflow before running it |
 | `qdo workflow from-session NAME` | Draft a workflow from a recorded session |
-| `qdo session start NAME` | Create a new session directory |
+| `qdo session start [NAME] [--yes]` | Create a new session directory and print the `export QDO_SESSION` hint |
 | `qdo session list` | List recorded sessions |
+| `qdo session note "TEXT" [-s SESSION]` | Attach a note to the most recent step in the current session |
 | `qdo session show NAME` | Review recorded steps in a session |
 | `qdo session replay NAME [--into NEW]` | Re-execute successful recorded steps into a replay session |
 | `qdo report session NAME -o report.html` | Generate a shareable HTML session narrative |
+| `qdo bundle export -c CONN -t TABLE -o bundle.zip` | Package metadata (and optional column sets) into a bundle |
+| `qdo bundle import BUNDLE --into CONN [--apply]` | Import a bundle (dry-run by default; `--apply` writes) |
+| `qdo bundle inspect BUNDLE` | Summarize a bundle's contents |
+| `qdo bundle diff BUNDLE_A BUNDLE_B` | Compare two bundles and report differences |
 
 ### Setup
 
@@ -123,6 +138,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo cache clear [-c CONN]` | Clear cached metadata |
 | `qdo metadata init -c CONN -t TABLE` | Generate metadata YAML template |
 | `qdo metadata show -c CONN -t TABLE` | Show stored metadata |
+| `qdo metadata edit -c CONN -t TABLE` | Open the metadata YAML in `$EDITOR` |
 | `qdo metadata list -c CONN` | List metadata files |
 | `qdo metadata search -c CONN QUERY [--limit N]` | Lexical search across stored table + column descriptions |
 | `qdo metadata score -c CONN` | Rank metadata completeness |
@@ -130,9 +146,11 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo metadata refresh -c CONN -t TABLE` | Refresh machine fields, keep human fields |
 | `qdo metadata undo -c CONN -t TABLE [--dry-run]` | Restore the last qdo-managed metadata snapshot |
 | `qdo agent list` | List packaged coding-agent integration docs |
-| `qdo agent install skill` | Install Claude Code skill files into `skills/querido/` |
+| `qdo agent show skill\|continue` | Print a packaged integration doc without writing files |
+| `qdo agent install skill` | Install the qdo skill files into `skills/querido/` (copy into your agent's skill dir) |
 | `qdo agent install continue` | Install Continue.dev rules into `.continue/rules/` |
 | `qdo completion show SHELL` | Generate shell completion scripts |
+| `qdo overview` | Print this CLI reference (the source for `docs/cli-reference.md`) |
 
 ### Snowflake
 

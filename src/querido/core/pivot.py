@@ -8,6 +8,12 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
+def _agg_alias(agg: str, value: str) -> str:
+    """Result-column alias for an aggregation, e.g. count_id or count_star."""
+    suffix = "star" if value == "*" else value
+    return f"{agg.lower()}_{suffix}"
+
+
 def build_pivot_query(
     table: str,
     rows: list[str],
@@ -45,22 +51,34 @@ def build_pivot_query(
 
     from querido.connectors.base import validate_column_name, validate_table_name
 
+    valid_aggs = {"COUNT", "SUM", "AVG", "MIN", "MAX"}
+    if agg.upper() not in valid_aggs:
+        raise ValueError(f"Invalid aggregation: {agg!r}. Must be one of: {sorted(valid_aggs)}")
+
     validate_table_name(table)
     for col in rows:
         validate_column_name(col)
     for col in values:
+        # The literal * deliberately bypasses identifier validation: count(*)
+        # must count all rows, including those with null values. Only the
+        # exact one-character token * is allowed through, and only for count.
+        if col == "*":
+            if agg.upper() != "COUNT":
+                raise ValueError("'*' is only valid with the count aggregation.")
+            continue
         validate_column_name(col)
-
-    valid_aggs = {"COUNT", "SUM", "AVG", "MIN", "MAX"}
-    if agg.upper() not in valid_aggs:
-        raise ValueError(f"Invalid aggregation: {agg!r}. Must be one of: {sorted(valid_aggs)}")
 
     def _q(name: str) -> str:
         """Quote an identifier with double quotes."""
         return '"' + name.replace('"', '""') + '"'
 
+    def _agg_expr(v: str) -> str:
+        if v == "*":
+            return f'{agg.lower()}(*) as "{_agg_alias(agg, v)}"'
+        return f'{agg.lower()}({_q(v)}) as "{_agg_alias(agg, v)}"'
+
     group_cols = ", ".join(_q(r) for r in rows)
-    agg_exprs = ", ".join(f'{agg}({_q(v)}) AS "{agg.lower()}_{v}"' for v in values)
+    agg_exprs = ", ".join(_agg_expr(v) for v in values)
 
     parts = [f"select {group_cols}, {agg_exprs} from {_q(table)}"]
 
@@ -111,7 +129,7 @@ def get_pivot(
         limit=limit,
     )
     data = connector.execute(sql)
-    headers = list(data[0].keys()) if data else rows + [f"{agg.lower()}_{v}" for v in values]
+    headers = list(data[0].keys()) if data else rows + [_agg_alias(agg, v) for v in values]
     return {
         "headers": headers,
         "rows": data,
