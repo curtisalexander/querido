@@ -1,7 +1,7 @@
 ---
 name: querido
 description: Use querido (qdo) to explore database schemas, profile data, enrich tables with metadata, and generate SQL. Use when working with SQLite, DuckDB, Snowflake, or Parquet files, when asked to write SQL against a local or named database, when asked to profile or summarize a table, or when the user mentions qdo.
-compatibility: Requires qdo CLI (pip install querido). DuckDB support requires querido[duckdb]. Snowflake support requires querido[snowflake].
+compatibility: Requires qdo CLI (install the wheel from GitHub Releases, https://github.com/curtisalexander/querido/releases). DuckDB support requires the querido[duckdb] extra. Snowflake support requires the querido[snowflake] extra.
 ---
 
 # Using querido (qdo)
@@ -340,8 +340,8 @@ qdo sql scratch -c <connection> -t <table>
 # CSV to stdout — pipe to file or another tool
 qdo -f csv preview -c <connection> -t <table> -r 100
 
-# JSON lines — one object per row
-qdo -f jsonl query -c <connection> --sql "select ..."
+# JSON lines — one object per row (file export)
+qdo export -c <connection> --sql "select ..." -e jsonl -o rows.jsonl
 
 # Export command uses its own -e/--export-format for file format
 qdo export -c <connection> -t <table> -e csv
@@ -399,6 +399,7 @@ Operator gotchas — setup / environment behavior, not needed for day-to-day que
 - **Metadata portability** — a local YAML's `connection:` field stores whatever was passed to `-c` (possibly an absolute path). Don't rely on it across machines. The portability boundary is `qdo bundle export`: bundles match tables by a `schema_fingerprint` (hash of columns+types) and import cleanly regardless of local paths.
 - **`metadata refresh` vs `init`** — `init` creates a new file and errors if one exists; `refresh` updates machine fields on an existing file. Use `init --force` to overwrite.
 - **Wide-table threshold is configurable** — `export QDO_QUICK_THRESHOLD=100` raises the bar for auto-engaging quick mode. Set to 0 to always engage; very large to always skip.
+- **Auto-capture is opt-in** — `export QDO_AUTO_CAPTURE=1` makes `context`/`profile`/`values`/`quality` behave as if `--write-metadata` was passed, persisting deterministic facts after every scan. Off by default so agents and CI never get surprise writes; human fields (`confidence: 1.0`) are still preserved and writes remain reversible via `qdo metadata undo`.
 
 ## Workflows — author, run, share
 

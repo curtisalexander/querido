@@ -56,6 +56,55 @@ def test_metadata_init_no_force_errors(sqlite_path: str, tmp_path: Path, monkeyp
     assert result.exit_code == 1
 
 
+def test_metadata_init_emits_envelope(sqlite_path: str, tmp_path: Path, monkeypatch):
+    """Under -f json, init must emit a parseable envelope (not silence) with the path."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "init", "-c", sqlite_path, "-t", "users"],
+    )
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload.get("command") == "metadata init"
+    data = payload.get("data")
+    assert data.get("created") is True
+    assert Path(data.get("path")).exists()
+    assert payload.get("meta", {}).get("table") == "users"
+    # init nudges toward deterministic auto-fill
+    assert any("metadata suggest" in s.get("cmd", "") for s in payload.get("next_steps"))
+
+
+def test_metadata_init_resolves_table_case(sqlite_path: str, tmp_path: Path, monkeypatch):
+    """init goes through resolve_table — mixed-case names resolve to the canonical table."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["metadata", "init", "-c", sqlite_path, "-t", "USERS"],
+    )
+    assert result.exit_code == 0, result.output
+    meta_file = tmp_path / ".qdo" / "metadata" / "test" / "users.yaml"
+    assert meta_file.exists()
+
+
+def test_metadata_init_table_not_found_structured(sqlite_path: str, tmp_path: Path, monkeypatch):
+    """A mistyped table yields a structured TABLE_NOT_FOUND error with suggestions."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "init", "-c", sqlite_path, "-t", "userz"],
+    )
+    assert result.exit_code != 0
+    import json
+
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "TABLE_NOT_FOUND"
+    assert isinstance(payload.get("try_next"), list)
+
+
 def test_metadata_show(sqlite_path: str, tmp_path: Path, monkeypatch):
     """Show reads back stored metadata."""
     monkeypatch.chdir(tmp_path)
@@ -146,6 +195,44 @@ def test_metadata_refresh(sqlite_path: str, tmp_path: Path, monkeypatch):
     assert refreshed.get("columns", [{}])[0].get("description") == "Primary key"
     # Machine fields updated
     assert refreshed.get("row_count") == 2
+
+
+def test_metadata_refresh_emits_envelope(sqlite_path: str, tmp_path: Path, monkeypatch):
+    """Under -f json, refresh must emit a parseable envelope (not silence) with the path."""
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "refresh", "-c", sqlite_path, "-t", "users"],
+    )
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)
+    assert set(payload) == {"command", "data", "next_steps", "meta"}
+    assert payload.get("command") == "metadata refresh"
+    data = payload.get("data")
+    assert Path(data.get("path")).exists()
+    assert data.get("row_count") == 2
+    assert payload.get("meta", {}).get("table") == "users"
+
+
+def test_metadata_refresh_table_not_found_structured(
+    sqlite_path: str, tmp_path: Path, monkeypatch
+):
+    """A mistyped table on refresh yields a structured TABLE_NOT_FOUND error."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["-f", "json", "metadata", "refresh", "-c", sqlite_path, "-t", "userz"],
+    )
+    assert result.exit_code != 0
+    import json
+
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "TABLE_NOT_FOUND"
 
 
 def test_metadata_refresh_not_found(sqlite_path: str, tmp_path: Path, monkeypatch):

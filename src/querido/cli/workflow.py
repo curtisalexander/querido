@@ -18,6 +18,21 @@ from querido.cli._errors import friendly_errors
 app = typer.Typer(help="Declarative workflows (spec, run, lint, list, show).")
 
 
+class WorkflowLintFailed(RuntimeError):
+    """Raised when ``workflow run`` aborts because the workflow fails lint.
+
+    Carries an explicit ``code`` (``WORKFLOW_LINT_FAILED``) so the structured
+    error path in ``_errors.py`` maps it to a stable code rather than the
+    opaque ``UNKNOWN_ERROR`` a bare ``RuntimeError`` would yield.
+    """
+
+    code = "WORKFLOW_LINT_FAILED"
+
+    def __init__(self, message: str, *, issue_count: int) -> None:
+        super().__init__(message)
+        self.issue_count = issue_count
+
+
 @app.command()
 @friendly_errors
 def spec(
@@ -215,9 +230,10 @@ def run(
 
     lint_result = run_lint(doc)
     if not lint_result.ok:
-        raise RuntimeError(
+        raise WorkflowLintFailed(
             f"workflow {entry.path} has {len(lint_result.issues)} lint issue(s); "
-            "run 'qdo workflow lint' for details."
+            "run 'qdo workflow lint' for details.",
+            issue_count=len(lint_result.issues),
         )
 
     parsed_inputs = _parse_kv_inputs(inputs or [])
@@ -229,6 +245,7 @@ def run(
             cwd=Path.cwd(),
             verbose=verbose,
             step_timeout=step_timeout,
+            output_format=get_output_format(),
         )
     except StepFailed as exc:
         fmt = get_output_format()

@@ -8,6 +8,46 @@ from querido.cli.main import app
 runner = CliRunner()
 
 
+def test_quote_qualified_name_quotes_per_segment():
+    # Failure mode: quoting the whole name as one identifier turns
+    # ``schema.table`` into ``"schema.table"`` (a single name containing a
+    # dot) instead of ``"schema"."table"``.
+    from querido.connectors.base import quote_qualified_name
+
+    assert quote_qualified_name("table") == '"table"'
+    assert quote_qualified_name("schema.table") == '"schema"."table"'
+    assert quote_qualified_name("db.schema.table") == '"db"."schema"."table"'
+
+
+def test_get_distinct_values_quotes_dotted_table_per_segment():
+    # The generated SQL must reference ``"main"."users"``, never the broken
+    # single-identifier form ``"main.users"``.
+    from typing import cast
+
+    from querido.connectors.base import Connector
+    from querido.core.values import get_distinct_values
+
+    class _CaptureConnector:
+        def __init__(self) -> None:
+            self.sql = ""
+
+        def execute(self, sql: str):
+            self.sql = sql
+            return []
+
+        def get_row_count(self, table: str) -> int:
+            return 0
+
+    conn = _CaptureConnector()
+    get_distinct_values(cast(Connector, conn), "main.users", "name")
+    assert 'from "main"."users"' in conn.sql
+    assert '"main.users"' not in conn.sql
+
+    conn_plain = _CaptureConnector()
+    get_distinct_values(cast(Connector, conn_plain), "users", "name")
+    assert 'from "users"' in conn_plain.sql
+
+
 def test_values_sqlite(sqlite_path: str):
     result = runner.invoke(app, ["values", "-c", sqlite_path, "-t", "users", "-C", "name"])
     assert result.exit_code == 0
@@ -217,3 +257,50 @@ def test_column_singular_alias_accepted(sqlite_path: str):
             f"qdo {subcommand} --column (singular alias) should succeed; got "
             f"exit {result.exit_code}: {result.output[:200]}"
         )
+
+
+def test_values_total_rows_includes_null_rows(tmp_path: Path):
+    """Regression: the total_rows window function ran after the
+    ``where value is not null`` filter, so a 3-row table with one NULL
+    reported ``total_rows: 2`` alongside ``null_count: 1``."""
+    db_path = str(tmp_path / "one_null.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE t (id INTEGER, status TEXT)")
+    conn.execute("INSERT INTO t VALUES (1, 'active')")
+    conn.execute("INSERT INTO t VALUES (2, NULL)")
+    conn.execute("INSERT INTO t VALUES (3, 'inactive')")
+    conn.commit()
+    conn.close()
+
+    result = runner.invoke(app, ["-f", "json", "values", "-c", db_path, "-t", "t", "-C", "status"])
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)["data"]
+    assert payload["total_rows"] == 3
+    assert payload["null_count"] == 1
+    assert payload["distinct_count"] == 2
+
+
+def test_values_all_null_column_reports_every_row_null(tmp_path: Path):
+    """Regression: an all-NULL column returns zero grouped rows and the
+    empty-result fallback reported ``null_count: 0`` — exactly backwards.
+    Every row is NULL, so null_count must equal total_rows."""
+    db_path = str(tmp_path / "all_null.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE t (id INTEGER, status TEXT)")
+    conn.execute("INSERT INTO t VALUES (1, NULL)")
+    conn.execute("INSERT INTO t VALUES (2, NULL)")
+    conn.execute("INSERT INTO t VALUES (3, NULL)")
+    conn.commit()
+    conn.close()
+
+    result = runner.invoke(app, ["-f", "json", "values", "-c", db_path, "-t", "t", "-C", "status"])
+    assert result.exit_code == 0, result.output
+    import json
+
+    payload = json.loads(result.output)["data"]
+    assert payload["total_rows"] == 3
+    assert payload["null_count"] == 3
+    assert payload["distinct_count"] == 0
+    assert payload["values"] == []

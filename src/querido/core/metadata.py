@@ -720,7 +720,9 @@ def _merge_metadata(existing: dict, fresh: dict) -> dict:
         if key in fresh:
             merged[key] = fresh.get(key)
 
-    # Preserve human table fields (only update if still placeholder)
+    # Preserve human table fields — refresh re-profiles machine fields and
+    # keeps any human-authored values untouched, including placeholders.
+    # Only seed a key that is entirely absent from the existing metadata.
     for key in _HUMAN_TABLE_FIELDS:
         if key not in merged:
             merged[key] = fresh.get(key, "")

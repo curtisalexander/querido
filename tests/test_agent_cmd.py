@@ -44,6 +44,21 @@ def test_agent_install_skill_writes_skill_directory(tmp_path: Path) -> None:
     assert (destination / "WORKFLOW_EXAMPLES.md").exists()
 
 
+def test_agent_install_skill_prints_discovery_note(tmp_path: Path) -> None:
+    destination = tmp_path / "skills" / "querido"
+    result = runner.invoke(app, ["agent", "install", "skill", "--path", str(destination)])
+    assert result.exit_code == 0
+    assert ".claude/skills/querido" in result.output
+    assert "--path" in result.output
+
+
+def test_agent_install_continue_has_no_discovery_note(tmp_path: Path) -> None:
+    destination = tmp_path / ".continue" / "rules"
+    result = runner.invoke(app, ["agent", "install", "continue", "--path", str(destination)])
+    assert result.exit_code == 0
+    assert ".claude/skills" not in result.output
+
+
 def test_agent_install_continue_writes_rule_file(tmp_path: Path) -> None:
     destination = tmp_path / ".continue" / "rules"
     result = runner.invoke(app, ["agent", "install", "continue", "--path", str(destination)])
@@ -62,6 +77,23 @@ def test_agent_install_refuses_to_overwrite_without_force(tmp_path: Path) -> Non
     assert (destination / "SKILL.md").read_text() == "custom"
 
 
+def test_agent_install_conflict_writes_nothing(tmp_path: Path) -> None:
+    """L27 — a conflict on any target file (here the 2nd, not the 1st) must
+    leave none of the files written, not a partial install."""
+    destination = tmp_path / "skills" / "querido"
+    destination.mkdir(parents=True)
+    # Pre-create the *second* file in the list so the loop would otherwise
+    # write SKILL.md before raising on WORKFLOW_AUTHORING.md.
+    (destination / "WORKFLOW_AUTHORING.md").write_text("custom")
+
+    result = runner.invoke(app, ["agent", "install", "skill", "--path", str(destination)])
+
+    assert result.exit_code != 0
+    assert not (destination / "SKILL.md").exists()
+    assert not (destination / "WORKFLOW_EXAMPLES.md").exists()
+    assert (destination / "WORKFLOW_AUTHORING.md").read_text() == "custom"
+
+
 def test_agent_install_force_overwrites(tmp_path: Path) -> None:
     destination = tmp_path / "skills" / "querido"
     destination.mkdir(parents=True)
@@ -73,3 +105,16 @@ def test_agent_install_force_overwrites(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "Using querido (qdo)" in (destination / "SKILL.md").read_text()
+
+
+def test_agent_install_no_longer_accepts_short_f_for_force(tmp_path: Path) -> None:
+    """`-f` is reserved for the root --format hoist; install must not bind it."""
+    destination = tmp_path / "skills" / "querido"
+    destination.mkdir(parents=True)
+    (destination / "SKILL.md").write_text("custom")
+
+    result = runner.invoke(app, ["agent", "install", "skill", "--path", str(destination), "-f"])
+
+    assert result.exit_code != 0
+    # -f did not act as --force: the existing file is untouched.
+    assert (destination / "SKILL.md").read_text() == "custom"

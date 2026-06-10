@@ -160,10 +160,15 @@ def _normalize_for_structured(value: Any) -> Any:
     """Coerce values the TOON/YAML path can't handle into strings.
 
     Mirrors what ``json.dumps(..., default=str)`` does for us on the JSON path:
-    datetime, Decimal, bytes, etc. round-trip through ``str()``.
+    datetime, Decimal, bytes, etc. round-trip through ``str()``.  Dict keys are
+    coerced to strings too — TOON's key encoder and YAML output both expect
+    string keys, while JSON stringifies int/date keys silently.
     """
     if isinstance(value, dict):
-        return {k: _normalize_for_structured(v) for k, v in value.items()}
+        return {
+            (k if isinstance(k, str) else str(k)): _normalize_for_structured(v)
+            for k, v in value.items()
+        }
     if isinstance(value, list):
         return [_normalize_for_structured(v) for v in value]
     if isinstance(value, (str, int, float, bool)) or value is None:

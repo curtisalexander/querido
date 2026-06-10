@@ -144,6 +144,29 @@ def test_readback_absent_without_metadata(
     assert extract(payload) is None
 
 
+# -- context as a writer ------------------------------------------------------
+#
+# context now also closes the loop on its own: ``context --write-metadata``
+# captures low-cardinality sample values as ``valid_values``, and the next
+# plain ``context`` run surfaces them. This mirrors the ``values`` writer path
+# but proves context is self-sufficient.
+
+
+def test_context_write_then_readback(
+    orders_db: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """context --write-metadata captures valid_values; next context reads them back."""
+    monkeypatch.chdir(tmp_path)
+
+    write = runner.invoke(app, ["context", "-c", orders_db, "-t", "orders", "--write-metadata"])
+    assert write.exit_code == 0, write.output
+
+    result = runner.invoke(app, ["-f", "json", "context", "-c", orders_db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert sorted(_valid_values_on_column(payload) or []) == ["active", "inactive", "pending"]
+
+
 # -- enum-violation check: a distinct contract -------------------------------
 #
 # Stored ``valid_values`` should not just appear in output — ``quality`` runs

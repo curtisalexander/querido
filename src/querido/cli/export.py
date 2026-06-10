@@ -9,6 +9,45 @@ from querido.cli._errors import friendly_errors
 app = typer.Typer(help="Export data to a file (csv, tsv, json, jsonl).")
 
 
+def _build_run_cmd(
+    *,
+    connection: str,
+    table: str | None,
+    from_step: str | None,
+    sql: str | None,
+    output: str | None,
+    export_format: str,
+    filter_expr: str | None,
+    limit: int | None,
+    columns: str | None,
+    clipboard: bool,
+) -> list[str]:
+    """Reconstruct the equivalent ``qdo export`` invocation for next_steps.
+
+    Shared by the ``--plan`` and ``--estimate`` paths so the two stay in sync.
+    """
+    run_cmd = ["qdo", "export", "-c", connection]
+    if table:
+        run_cmd += ["-t", table]
+    if from_step:
+        run_cmd += ["--from", from_step]
+    elif sql:
+        run_cmd += ["--sql", sql]
+    if output:
+        run_cmd += ["-o", output]
+    if export_format != "csv":
+        run_cmd += ["-e", export_format]
+    if filter_expr:
+        run_cmd += ["--filter", filter_expr]
+    if limit is not None:
+        run_cmd += ["--limit", str(limit)]
+    if columns:
+        run_cmd += ["--columns", columns]
+    if clipboard:
+        run_cmd.append("--clipboard")
+    return run_cmd
+
+
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def export(
@@ -79,10 +118,13 @@ def export(
     if plan and estimate:
         raise typer.BadParameter("Cannot use both --plan and --estimate.")
 
+    from querido.cli._errors import CodedBadParameter
+
     valid_formats = {"csv", "tsv", "json", "jsonl"}
     if export_format not in valid_formats:
-        raise typer.BadParameter(
-            f"--export-format must be one of: {', '.join(sorted(valid_formats))}"
+        raise CodedBadParameter(
+            f"--export-format must be one of: {', '.join(sorted(valid_formats))}",
+            code="EXPORT_FORMAT_INVALID",
         )
 
     # Clipboard mode forces TSV and no output file
@@ -90,7 +132,7 @@ def export(
         export_format = "tsv"
         output = None
 
-    from querido.cli._options import parse_column_list, resolve_export_sql
+    from querido.cli._options import build_source_meta, parse_column_list, resolve_export_sql
 
     col_list = parse_column_list(columns)
     table, sql, source = resolve_export_sql(
@@ -99,24 +141,11 @@ def export(
         from_option=from_step,
     )
     if not table and not sql:
-        raise typer.BadParameter("Must provide --table, --sql, or --from.")
+        raise CodedBadParameter(
+            "Must provide --table, --sql, or --from.", code="TABLE_OR_SQL_REQUIRED"
+        )
 
-    source_meta: dict[str, object] = {}
-    if source is not None:
-        source_meta = {
-            "source_session": source["session"],
-            "source_step": source["step_index"],
-            "source_command": source["source_command"],
-        }
-        source_connection = source.get("source_connection")
-        if isinstance(source_connection, str):
-            source_meta["source_connection"] = source_connection
-            if source_connection != connection:
-                typer.echo(
-                    f"Warning: --from step was recorded against {source_connection!r}, "
-                    f"running against {connection!r}.",
-                    err=True,
-                )
+    source_meta = build_source_meta(source, connection=connection)
 
     if plan:
         from querido.core.export import build_export_query
@@ -143,25 +172,18 @@ def export(
             filter_expr=filter_expr,
         )
 
-        run_cmd = ["qdo", "export", "-c", connection]
-        if table:
-            run_cmd += ["-t", table]
-        if from_step:
-            run_cmd += ["--from", from_step]
-        elif sql:
-            run_cmd += ["--sql", sql]
-        if output:
-            run_cmd += ["-o", output]
-        if export_format != "csv":
-            run_cmd += ["-e", export_format]
-        if filter_expr:
-            run_cmd += ["--filter", filter_expr]
-        if limit is not None:
-            run_cmd += ["--limit", str(limit)]
-        if columns:
-            run_cmd += ["--columns", columns]
-        if clipboard:
-            run_cmd.append("--clipboard")
+        run_cmd = _build_run_cmd(
+            connection=connection,
+            table=table,
+            from_step=from_step,
+            sql=sql,
+            output=output,
+            export_format=export_format,
+            filter_expr=filter_expr,
+            limit=limit,
+            columns=columns,
+            clipboard=clipboard,
+        )
 
         steps = [{"cmd": cmd(run_cmd), "why": "Run the planned export for real."}]
         if is_structured_format():
@@ -204,25 +226,18 @@ def export(
                 filter_expr=filter_expr,
             )
 
-        run_cmd = ["qdo", "export", "-c", connection]
-        if table:
-            run_cmd += ["-t", table]
-        if from_step:
-            run_cmd += ["--from", from_step]
-        elif sql:
-            run_cmd += ["--sql", sql]
-        if output:
-            run_cmd += ["-o", output]
-        if export_format != "csv":
-            run_cmd += ["-e", export_format]
-        if filter_expr:
-            run_cmd += ["--filter", filter_expr]
-        if limit is not None:
-            run_cmd += ["--limit", str(limit)]
-        if columns:
-            run_cmd += ["--columns", columns]
-        if clipboard:
-            run_cmd.append("--clipboard")
+        run_cmd = _build_run_cmd(
+            connection=connection,
+            table=table,
+            from_step=from_step,
+            sql=sql,
+            output=output,
+            export_format=export_format,
+            filter_expr=filter_expr,
+            limit=limit,
+            columns=columns,
+            clipboard=clipboard,
+        )
 
         steps = [{"cmd": cmd(run_cmd), "why": "Run the estimated export for real."}]
         if is_structured_format():

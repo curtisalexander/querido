@@ -16,6 +16,7 @@ from querido.core.metadata_write import (
     FieldUpdate,
     _is_human_field,
     apply_updates,
+    derive_from_context,
     derive_from_profile,
     derive_from_quality,
     derive_from_values,
@@ -101,6 +102,60 @@ def test_derive_from_quality_flags_sparse_columns():
     assert all(u.field == "likely_sparse" and u.value is True for u in updates)
 
 
+def test_derive_from_context_reuses_all_rule_sets():
+    """context fuses the three rule sets: valid_values + likely_sparse + temporal."""
+    result = {
+        "columns": [
+            # low-cardinality string whose sample covers every distinct value
+            {
+                "name": "status",
+                "type": "VARCHAR",
+                "distinct_count": 3,
+                "null_pct": 0.0,
+                "sample_values": ["active", "inactive", "pending"],
+            },
+            # sparse column (>95% null)
+            {
+                "name": "notes",
+                "type": "VARCHAR",
+                "distinct_count": 1,
+                "null_pct": 98.5,
+                "sample_values": ["only one"],
+            },
+            # temporal column
+            {
+                "name": "created_at",
+                "type": "TIMESTAMP",
+                "distinct_count": 100,
+                "null_pct": 0.0,
+                "sample_values": None,
+            },
+        ]
+    }
+    updates = derive_from_context(result)
+    by_field = {(u.column, u.field): u for u in updates}
+    assert by_field[("status", "valid_values")].value == ["active", "inactive", "pending"]
+    assert by_field[("status", "valid_values")].confidence == 0.8
+    assert by_field[("notes", "likely_sparse")].value is True
+    assert by_field[("created_at", "temporal")].value is True
+
+
+def test_derive_from_context_skips_partial_sample():
+    """A top-K sample that doesn't cover every distinct value yields no valid_values."""
+    result = {
+        "columns": [
+            {
+                "name": "city",
+                "type": "VARCHAR",
+                "distinct_count": 50,
+                "null_pct": 0.0,
+                "sample_values": ["NYC", "LA", "SF"],  # only 3 of 50
+            },
+        ]
+    }
+    assert not any(u.field == "valid_values" for u in derive_from_context(result))
+
+
 # ---------------------------------------------------------------------------
 # Human field detection
 # ---------------------------------------------------------------------------
@@ -168,6 +223,48 @@ def test_profile_write_metadata_creates_yaml_with_provenance(tmp_path: Path, mon
     }
     # non-temporal column should not receive the field
     assert "temporal" not in cols["status"]
+
+
+def test_provenance_stores_iso_written_at_and_separate_session(tmp_path: Path, monkeypatch):
+    """Regression (L4): written_at is always ISO; session name goes in its own field.
+
+    Overloading a session name into ``written_at`` made the bundle-merge
+    tie-break (lexicographic) meaningless, so the session is recorded separately
+    and ``written_at`` always parses as an ISO-8601 timestamp.
+    """
+    from datetime import datetime
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("QDO_AUTHOR", "testbot")
+    monkeypatch.setenv("QDO_SESSION", "my-investigation")
+    db = _make_db_with_temporal(tmp_path)
+
+    result = runner.invoke(app, ["profile", "-c", db, "-t", "orders", "--write-metadata"])
+    assert result.exit_code == 0, result.output
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    meta = yaml.safe_load(meta_file.read_text())
+    cols = {c["name"]: c for c in meta["columns"]}
+    temporal = cols["created_at"]["temporal"]
+
+    # written_at must parse as ISO-8601, not be the session name.
+    assert temporal["written_at"] != "my-investigation"
+    datetime.fromisoformat(temporal["written_at"])
+    # session name recorded in its own field.
+    assert temporal["session"] == "my-investigation"
+
+
+def test_provenance_omits_session_when_unset(tmp_path: Path, monkeypatch):
+    """No QDO_SESSION -> no ``session`` key in the provenance dict."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("QDO_SESSION", raising=False)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["profile", "-c", db, "-t", "orders", "--write-metadata"])
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    meta = yaml.safe_load(meta_file.read_text())
+    cols = {c["name"]: c for c in meta["columns"]}
+    assert "session" not in cols["created_at"]["temporal"]
 
 
 def test_profile_write_metadata_is_idempotent(tmp_path: Path, monkeypatch):
@@ -253,6 +350,123 @@ def test_quality_write_metadata_writes_likely_sparse(tmp_path: Path, monkeypatch
 
 
 # ---------------------------------------------------------------------------
+# End-to-end CLI: `qdo context --write-metadata`
+# ---------------------------------------------------------------------------
+
+
+def test_context_write_metadata_writes_valid_values_with_provenance(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("QDO_AUTHOR", "testbot")
+    db = _make_db_with_temporal(tmp_path)
+
+    result = runner.invoke(app, ["context", "-c", db, "-t", "orders", "--write-metadata"])
+    assert result.exit_code == 0, result.output
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    assert meta_file.exists()
+    meta = yaml.safe_load(meta_file.read_text())
+    cols = {c["name"]: c for c in meta["columns"]}
+
+    vv = cols["status"]["valid_values"]
+    assert sorted(vv["value"]) == ["active", "pending"]
+    assert vv["source"] == "context"
+    assert vv["confidence"] == 0.8
+    assert vv["author"] == "testbot"
+    # temporal column captured too
+    assert cols["created_at"]["temporal"]["value"] is True
+    assert cols["created_at"]["temporal"]["source"] == "context"
+
+
+def test_context_write_metadata_preserves_human_field(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["metadata", "init", "-c", db, "-t", "orders"])
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    meta = yaml.safe_load(meta_file.read_text())
+    for col in meta["columns"]:
+        if col["name"] == "status":
+            col["valid_values"] = ["active", "inactive", "pending", "cancelled"]
+    meta_file.write_text(yaml.safe_dump(meta))
+
+    runner.invoke(app, ["context", "-c", db, "-t", "orders", "--write-metadata"])
+    meta = yaml.safe_load(meta_file.read_text())
+    cols = {c["name"]: c for c in meta["columns"]}
+    assert cols["status"]["valid_values"] == [
+        "active",
+        "inactive",
+        "pending",
+        "cancelled",
+    ]
+
+
+def test_context_write_metadata_undo_reverts_write(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    runner.invoke(app, ["metadata", "init", "-c", db, "-t", "orders"])
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    scaffold = yaml.safe_load(meta_file.read_text())
+
+    runner.invoke(app, ["context", "-c", db, "-t", "orders", "--write-metadata"])
+    changed = yaml.safe_load(meta_file.read_text())
+    changed_cols = {c["name"]: c for c in changed["columns"]}
+    assert "valid_values" in changed_cols["status"]
+
+    result = runner.invoke(app, ["metadata", "undo", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    restored = yaml.safe_load(meta_file.read_text())
+    assert restored == scaffold
+
+
+# ---------------------------------------------------------------------------
+# QDO_AUTO_CAPTURE env var
+# ---------------------------------------------------------------------------
+
+
+def test_auto_capture_env_triggers_context_write(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("QDO_AUTO_CAPTURE", "1")
+    db = _make_db_with_temporal(tmp_path)
+
+    result = runner.invoke(app, ["context", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    assert meta_file.exists()
+    meta = yaml.safe_load(meta_file.read_text())
+    cols = {c["name"]: c for c in meta["columns"]}
+    assert cols["status"]["valid_values"]["source"] == "context"
+
+
+def test_auto_capture_env_triggers_values_write(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("QDO_AUTO_CAPTURE", "true")
+    db = _make_db_with_temporal(tmp_path)
+
+    result = runner.invoke(app, ["values", "-c", db, "-t", "orders", "-C", "status"])
+    assert result.exit_code == 0, result.output
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    assert meta_file.exists()
+    meta = yaml.safe_load(meta_file.read_text())
+    cols = {c["name"]: c for c in meta["columns"]}
+    assert cols["status"]["valid_values"]["source"] == "values"
+
+
+def test_no_auto_capture_env_does_not_write(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("QDO_AUTO_CAPTURE", raising=False)
+    db = _make_db_with_temporal(tmp_path)
+
+    result = runner.invoke(app, ["context", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "shop" / "orders.yaml"
+    assert not meta_file.exists()
+
+
+# ---------------------------------------------------------------------------
 # Human field protection + --force
 # ---------------------------------------------------------------------------
 
@@ -306,6 +520,32 @@ def test_write_metadata_preserves_human_fields(tmp_path: Path, monkeypatch):
     assert isinstance(vv, dict)
     assert vv["source"] == "values"
     assert vv["value"] == ["active", "pending"]
+
+
+# ---------------------------------------------------------------------------
+# Capture hint in rich output
+# ---------------------------------------------------------------------------
+
+
+def test_context_rich_shows_capture_hint_when_uncaptured(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    result = runner.invoke(app, ["context", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    assert "--write-metadata" in result.output
+
+
+def test_context_rich_no_hint_when_already_captured(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = _make_db_with_temporal(tmp_path)
+
+    # Capture everything first.
+    runner.invoke(app, ["context", "-c", db, "-t", "orders", "--write-metadata"])
+
+    result = runner.invoke(app, ["context", "-c", db, "-t", "orders"])
+    assert result.exit_code == 0, result.output
+    assert "Capture:" not in result.output
 
 
 # ---------------------------------------------------------------------------

@@ -148,7 +148,7 @@ def show(
 def install(
     target: str = typer.Argument(..., help="Target to install: skill or continue."),
     path: Path | None = _INSTALL_PATH_OPTION,
-    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing files."),
 ) -> None:
     """Install agent integration docs into the current project."""
     agent_target = _get_target(target)
@@ -159,15 +159,27 @@ def install(
         )
 
     destination_dir = path or agent_target.default_path
+
+    # Pre-check every destination for conflicts before writing anything so a
+    # mid-list collision can't leave a partial install (e.g. SKILL.md written
+    # but WORKFLOW_AUTHORING.md refused). Either all files write, or none do.
+    if not force:
+        conflicts = [
+            destination_dir / file.destination
+            for file in agent_target.files
+            if (destination_dir / file.destination).exists()
+        ]
+        if conflicts:
+            joined = ", ".join(str(c) for c in conflicts)
+            raise typer.BadParameter(
+                f"{joined} already exist(s). Pass --force to overwrite. No files were written."
+            )
+
     destination_dir.mkdir(parents=True, exist_ok=True)
 
     written: list[Path] = []
     for file in agent_target.files:
         destination = destination_dir / file.destination
-        if destination.exists() and not force:
-            raise typer.BadParameter(
-                f"{destination} already exists. Pass --force to overwrite it."
-            )
         destination.write_text(_read_agent_file(file.source), encoding="utf-8")
         written.append(destination)
 
@@ -176,3 +188,9 @@ def install(
     console = Console(stderr=True)
     for destination in written:
         console.print(f"[green]Wrote[/green] {destination}")
+    if target.lower() == "skill":
+        console.print(
+            f"[dim]Note:[/dim] copy or symlink {destination_dir} into your agent's skill "
+            "directory — e.g. .claude/skills/querido (project) or ~/.claude/skills/querido "
+            "(global) for Claude Code — or re-run with --path pointing there."
+        )

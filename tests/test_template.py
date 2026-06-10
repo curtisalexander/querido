@@ -126,6 +126,48 @@ def test_template_yaml_has_sample_values(sqlite_path: str):
     assert "Alice" in result.output
 
 
+def test_get_sample_values_batched_multi_column(sqlite_path: str):
+    """Regression: the batched union-all sample query put `limit` on each
+    branch without a subquery, which SQLite rejects — any multi-column table
+    raised a raw sqlite3.OperationalError instead of returning samples."""
+    from querido.connectors.sqlite import SQLiteConnector
+    from querido.core.semantic import get_sample_values
+
+    with SQLiteConnector(sqlite_path) as conn:
+        columns = [{"name": c["name"]} for c in conn.get_columns("users")]
+        assert len(columns) > 1
+        samples = get_sample_values(conn, "users", columns, limit=5)
+
+    assert "Alice" in samples["name"]
+    assert samples["id"]  # every column got values from the single batched query
+
+
+def test_get_sample_values_falls_back_on_connector_error(sqlite_path: str):
+    """Regression: the fallback except tuple omitted ConnectorError and raw
+    driver errors, so a failing batched query escaped instead of triggering
+    the per-column fallback path."""
+    from querido.connectors.base import ConnectorError
+    from querido.connectors.sqlite import SQLiteConnector
+    from querido.core.semantic import get_sample_values
+
+    class FlakyConnector(SQLiteConnector):
+        def __init__(self, path: str) -> None:
+            super().__init__(path)
+            self._batched_calls = 0
+
+        def execute(self, sql: str, params: dict | tuple | None = None) -> list[dict]:
+            if "union all" in sql:
+                self._batched_calls += 1
+                raise ConnectorError("batched query unsupported")
+            return super().execute(sql, params)
+
+    with FlakyConnector(sqlite_path) as conn:
+        samples = get_sample_values(conn, "users", [{"name": "name"}, {"name": "age"}], limit=5)
+        assert conn._batched_calls == 1
+
+    assert "Alice" in samples["name"]
+
+
 def test_template_yaml_structured_base_table():
     """Qualified table names should produce structured base_table."""
     from querido.core.semantic import build_semantic_yaml

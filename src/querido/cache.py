@@ -179,7 +179,7 @@ class MetadataCache:
         now = time.time()
 
         if connection_name:
-            where = "WHERE connection = ?"
+            where = "where connection = ?"
             params: tuple = (connection_name,)
         else:
             where = ""

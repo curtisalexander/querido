@@ -83,13 +83,19 @@ def profile(
 ) -> None:
     """Statistical profile of table columns."""
     from querido.cli._context import maybe_show_sql
-    from querido.cli._errors import set_last_sql
+    from querido.cli._errors import CodedBadParameter, set_last_sql
     from querido.cli._pipeline import dispatch_output, table_command
 
     if columns and column_set:
-        raise typer.BadParameter("Cannot use both --columns and --column-set.")
+        raise CodedBadParameter(
+            "Cannot use both --columns and --column-set.", code="MUTUALLY_EXCLUSIVE_OPTIONS"
+        )
     if plan and not write_metadata:
         raise typer.BadParameter("--plan requires --write-metadata.")
+
+    from querido.cli._options import resolve_write_metadata
+
+    effective_write_metadata = resolve_write_metadata(write_metadata)
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         # Resolve --column-set to a comma-separated column string.
@@ -108,8 +114,12 @@ def profile(
             from querido.core.profile import get_profile
             from querido.sql.renderer import render_template
 
+            # NOTE: don't --show-sql the bare count template here. The real work
+            # (and the row-count query under sampling) is done inside get_profile
+            # and may differ from this template; showing it would mislead. We keep
+            # it only as error-context via set_last_sql until the genuine profile
+            # SQL is rendered below, which is what --show-sql actually surfaces.
             count_sql = render_template("count", ctx.connector.dialect, table=ctx.table)
-            maybe_show_sql(count_sql)
             set_last_sql(count_sql)
 
             # --classify implies --quick
@@ -164,7 +174,7 @@ def profile(
             )
 
         metadata_write_summary = None
-        if write_metadata:
+        if effective_write_metadata:
             from querido.core.metadata_write import preview_from_profile, write_from_profile
 
             if plan:

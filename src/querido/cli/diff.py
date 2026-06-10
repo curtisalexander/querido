@@ -89,19 +89,24 @@ def diff(
             current_row_count=current_row_count,
             snapshot=snapshot,
         )
+        table = resolved_table
     elif target_connection:
         assert target_table is not None
-        # Cross-connection diff
+        # Cross-connection diff — the target resolves against its own connector.
         target_config = resolve_connection(target_connection, db_type)
         with create_connector(config) as left_conn:
+            table = resolve_table(left_conn, table)
             left_cols = left_conn.get_columns(table)
         with create_connector(target_config) as right_conn:
+            target_table = resolve_table(right_conn, target_table)
             right_cols = right_conn.get_columns(target_table)
         result = schema_diff(table, left_cols, target_table, right_cols)
     else:
         assert target_table is not None
         # Same connection
         with create_connector(config) as conn:
+            table = resolve_table(conn, table)
+            target_table = resolve_table(conn, target_table)
             left_cols = conn.get_columns(table)
             right_cols = conn.get_columns(target_table)
         result = schema_diff(table, left_cols, target_table, right_cols)

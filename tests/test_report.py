@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -74,7 +75,14 @@ def test_report_table_with_initialized_metadata(sqlite_path: str, tmp_path: Path
 
     html = out.read_text(encoding="utf-8")
     assert "coverage" in html
-    assert "&lt;data_owner&gt;" in html
+    # Regression: `metadata init` writes "<description>" / "<data_owner>"
+    # placeholders. They must not render as real metadata, and they must not
+    # count toward documentation coverage.
+    assert "&lt;data_owner&gt;" not in html
+    assert "&lt;description&gt;" not in html
+    coverage_match = re.search(r"(\d+)/(\d+) columns documented", html)
+    assert coverage_match is not None, "coverage row missing from metadata panel"
+    assert coverage_match.group(1) == "0", "placeholder descriptions counted as documented columns"
 
 
 def test_report_table_no_joins_panel_on_single_table_db(tmp_path: Path):

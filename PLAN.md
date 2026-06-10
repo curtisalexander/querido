@@ -108,6 +108,18 @@ The cluster took four eval runs: baseline-regressed → after `--counts` / `--co
 
 ---
 
+## Review-findings pass + auto-capture (committed 2026-06-10)
+
+A full code/docs review (multi-agent: core, connectors/SQL security, CLI, workflow engine + agent docs, docs-vs-code) produced [REVIEW_FINDINGS.md](./REVIEW_FINDINGS.md) — 7 high, 19 medium, 35 low items, all committed work. High items block dogfooding; the rest land opportunistically. Tick items off there, not here.
+
+**Auto-capture track — shipped 2026-06-10.** Reduced capture friction so the compounding loop fires without a separate deliberate step. The loop's weak link was that `context`/`quality` *compute* durable facts (distinct values, null rates, min/max, freshness) and then threw them away unless the user separately ran `metadata suggest --apply` or `values --write-metadata`. All deterministic and provenance-tracked (`metadata_write.py` rules, `confidence < 1.0`, human fields never overwritten, `metadata undo` covers regret):
+
+1. **`context --write-metadata`** ✅ — the anchor command gained the same flag `profile`/`values`/`quality` have, via `derive_from_context`/`write_from_context` in `metadata_write.py` reusing the existing rule helpers (no new fields/thresholds). Writes `valid_values` (only when the top-K sample provably covers every distinct value — a partial sample is deferred to `values --write-metadata` so the allowed set is never understated), `likely_sparse` (null_pct > 95%), and `temporal`. `_READBACK_CASES` row added proving context is now a self-sufficient writer.
+2. **Capture hint in rich output** ✅ — `context`/`quality` rich output ends with a one-line dim `Capture: qdo <cmd> ... --write-metadata` on stderr, shown only when derived fields aren't already in stored metadata (`maybe_capture_hint`/`_has_uncaptured_updates` in `cli/_pipeline.py`).
+3. **`QDO_AUTO_CAPTURE=1` (opt-in)** ✅ — resolved at one choke point (`resolve_write_metadata` in `cli/_options.py`); when truthy, `context`/`profile`/`values`/`quality` auto-persist. Opt-in so agents and CI never get surprise writes by default. Documented in README beside `QDO_SAMPLE_THRESHOLD` and as a SKILL.md operator gotcha.
+
+---
+
 ## What's next (new session, cold start)
 
 Read this first if you're picking the project back up after the audit pass. It's the short version of "what just shipped, what to do first, what to defer."
@@ -334,6 +346,7 @@ Files to resist future pressure to shrink:
 
 Capture but don't start. Each is standalone and non-blocking.
 
+- Publish to PyPI. Until then, GitHub Releases wheels are the canonical install path and all docs say so consistently — no `uv pip install querido` instructions that assume a PyPI listing.
 - Optional embedding/reranker layer for `qdo metadata search` if the lexical baseline proves insufficient.
 - Progressive disclosure `--level 1..3` on expensive commands.
 - Snowflake `RESULT_SCAN` reuse for chained queries.

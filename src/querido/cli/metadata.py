@@ -38,29 +38,58 @@ def init(
     Creates .qdo/metadata/<connection>/<table>.yaml with auto-populated
     fields and placeholder human fields ready to fill in.
     """
+    from querido.cli._pipeline import table_command
+    from querido.core.metadata import init_metadata, metadata_path
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    with (
+        table_command(table=table, connection=connection, db_type=db_type) as ctx,
+        ctx.spin(f"Generating metadata for [bold]{ctx.table}[/bold]"),
+    ):
+        init_metadata(
+            ctx.connector,
+            connection,
+            ctx.table,
+            sample_values=sample_values,
+            force=force,
+        )
+
+    path = metadata_path(connection, ctx.table)
+
+    if is_structured_format():
+        from querido.output.envelope import cmd
+
+        emit_envelope(
+            command="metadata init",
+            data={"path": str(path), "table": ctx.table, "created": True},
+            next_steps=[
+                {
+                    "cmd": cmd(
+                        [
+                            "qdo",
+                            "metadata",
+                            "suggest",
+                            "-c",
+                            connection,
+                            "-t",
+                            ctx.table,
+                            "--apply",
+                        ]
+                    ),
+                    "why": "Auto-fill deterministic fields (valid_values, flags) from scans.",
+                },
+                {
+                    "cmd": cmd(["qdo", "metadata", "edit", "-c", connection, "-t", ctx.table]),
+                    "why": "Fill in descriptions, owner, and notes.",
+                },
+            ],
+            connection=connection,
+            table=ctx.table,
+        )
+        return
+
     import sys
 
-    from querido.config import resolve_connection
-    from querido.connectors.factory import create_connector
-    from querido.core.metadata import init_metadata, metadata_path
-
-    config = resolve_connection(connection, db_type)
-    with create_connector(config) as connector:
-        from rich.console import Console
-
-        from querido.cli._progress import query_status
-
-        console = Console(stderr=True)
-        with query_status(console, f"Generating metadata for [bold]{table}[/bold]", connector):
-            init_metadata(
-                connector,
-                connection,
-                table,
-                sample_values=sample_values,
-                force=force,
-            )
-
-    path = metadata_path(connection, table)
     print(f"Created: {path}", file=sys.stderr)
     print("Edit the file to fill in descriptions, owner, and notes.", file=sys.stderr)
 
@@ -193,32 +222,47 @@ def refresh(
     Preserves human-written fields (description, owner, notes) while
     updating auto-populated fields (row counts, types, statistics).
     """
+    from querido.cli._pipeline import table_command
+    from querido.core.metadata import metadata_path, refresh_metadata
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    with (
+        table_command(table=table, connection=connection, db_type=db_type) as ctx,
+        ctx.spin(f"Refreshing metadata for [bold]{ctx.table}[/bold]"),
+    ):
+        merged = refresh_metadata(
+            ctx.connector,
+            connection,
+            ctx.table,
+            sample_values=sample_values,
+        )
+
+    path = metadata_path(connection, ctx.table)
+
+    if is_structured_format():
+        from querido.output.envelope import cmd
+
+        emit_envelope(
+            command="metadata refresh",
+            data={
+                "path": str(path),
+                "table": ctx.table,
+                "row_count": merged.get("row_count"),
+                "column_count": len(merged.get("columns") or []),
+            },
+            next_steps=[
+                {
+                    "cmd": cmd(["qdo", "metadata", "show", "-c", connection, "-t", ctx.table]),
+                    "why": "Inspect the refreshed metadata.",
+                }
+            ],
+            connection=connection,
+            table=ctx.table,
+        )
+        return
+
     import sys
 
-    from querido.config import resolve_connection
-    from querido.connectors.factory import create_connector
-    from querido.core.metadata import metadata_path, refresh_metadata
-
-    config = resolve_connection(connection, db_type)
-    with create_connector(config) as connector:
-        from rich.console import Console
-
-        from querido.cli._progress import query_status
-
-        console = Console(stderr=True)
-        with query_status(
-            console,
-            f"Refreshing metadata for [bold]{table}[/bold]",
-            connector,
-        ):
-            refresh_metadata(
-                connector,
-                connection,
-                table,
-                sample_values=sample_values,
-            )
-
-    path = metadata_path(connection, table)
     print(f"Refreshed: {path}", file=sys.stderr)
 
 

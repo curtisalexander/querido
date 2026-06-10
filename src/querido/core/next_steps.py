@@ -1009,9 +1009,9 @@ def _preview_column_sql(table: str, column: str) -> str:
     quoted_table = table.replace('"', '""')
     quoted_column = column.replace('"', '""')
     return (
-        f'SELECT "{quoted_column}" '
-        f'FROM "{quoted_table}" '
-        f'WHERE "{quoted_column}" IS NOT NULL LIMIT 20'
+        f'select "{quoted_column}" '
+        f'from "{quoted_table}" '
+        f'where "{quoted_column}" is not null limit 20'
     )
 
 

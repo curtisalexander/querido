@@ -60,16 +60,31 @@ def semantic(
 
     yaml_str = build_semantic_yaml(ctx.table, columns, table_comment, sample_values_per_col=sv)
 
+    from querido.output.envelope import emit_envelope, is_structured_format
+
     if output_file:
         from pathlib import Path
 
         Path(output_file).write_text(yaml_str)
+
+        if is_structured_format():
+            emit_envelope(
+                command="snowflake semantic",
+                data={
+                    "path": output_file,
+                    "table": ctx.table,
+                    "column_count": len(columns),
+                },
+                next_steps=[],
+                connection=connection,
+                table=ctx.table,
+            )
+            return
+
         import sys
 
         print(f"Wrote semantic model to {output_file}", file=sys.stderr)
         return
-
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     if is_structured_format():
         emit_envelope(

@@ -9,12 +9,22 @@ def _validate_identifier(name: str, kind: str) -> str:
 
     Allows letters, digits, underscores, and dots (for schema-qualified names).
     Raises ValueError if the name contains unsafe characters.
+
+    This is a deliberate allowlist (validate, don't escape): qdo interpolates
+    identifiers into SQL templates and sampling subqueries, so it accepts only
+    plain identifiers and rejects names needing quoting — spaces, hyphens, ``$``,
+    or unicode. Such names are legal when quoted in every supported dialect, but
+    supporting them would mean carrying an escaping layer across three dialects;
+    qdo keeps the security boundary simple instead. Rename or alias such a column
+    in a view if you need to explore it.
     """
     if not _SAFE_IDENTIFIER.match(name):
         raise ValueError(
             f"Invalid {kind} name: {name!r}. "
-            "Names must start with a letter or underscore and contain only "
-            "letters, digits, underscores, and dots."
+            "For SQL-injection safety qdo accepts only plain identifiers: a name "
+            "must start with a letter or underscore and contain only letters, "
+            "digits, underscores, and dots. Names that would need quoting (spaces, "
+            "hyphens, '$', unicode) are not supported — alias the column in a view."
         )
     return name
 
@@ -32,6 +42,16 @@ def validate_column_name(name: str) -> str:
 def validate_object_name(name: str) -> str:
     """Validate a fully-qualified object name (e.g. db.schema.table)."""
     return _validate_identifier(name, "object")
+
+
+def quote_qualified_name(name: str) -> str:
+    """Quote a (possibly schema-qualified) identifier per segment.
+
+    ``schema.table`` becomes ``"schema"."table"`` rather than a single
+    quoted identifier containing a dot. Segments are assumed already
+    validated by :func:`validate_table_name` / :func:`validate_column_name`.
+    """
+    return ".".join(f'"{part}"' for part in name.split("."))
 
 
 # ---------------------------------------------------------------------------
@@ -94,15 +114,47 @@ def wrap_driver_error(exc: Exception) -> ConnectorError | None:
     switch on exception type instead of parsing messages.
     """
     msg = str(exc).lower()
-    if "no such table" in msg or "does not exist" in msg:
-        return TableNotFoundError(str(exc))
-    if "no such column" in msg:
+    # Column errors first: "does not exist" / "invalid identifier" are used by
+    # Snowflake and DuckDB for missing columns too, so match those before the
+    # table branch to avoid misclassifying a column error as a missing table.
+    if (
+        "no such column" in msg
+        or "invalid identifier" in msg
+        or ("column" in msg and ("does not exist" in msg or "not found" in msg))
+    ):
         return ColumnNotFoundError(str(exc), "")
+    if "no such table" in msg:
+        return TableNotFoundError(str(exc))
+    if "does not exist" in msg or "not found" in msg:
+        # Snowflake/DuckDB phrasing for a missing table/object/relation. Column
+        # cases were already handled above. We can't reliably extract the bare
+        # identifier from an arbitrary driver message, so only wrap as a table
+        # error when the message is table/object/relation-shaped; otherwise fall
+        # through to the generic wrapper rather than stuffing the whole message
+        # into TableNotFoundError.table.
+        if any(kw in msg for kw in ("table", "object", "relation", "view")):
+            return TableNotFoundError(str(exc))
+        return DatabaseError(str(exc))
     if "database is locked" in msg:
         return DatabaseLockedError(str(exc))
     if "unable to open database" in msg or "could not open" in msg:
         return DatabaseOpenError(str(exc))
-    if "authentication" in msg or "password" in msg:
+    if "readonly database" in msg or "read-only" in msg:
+        # SQLite: "attempt to write a readonly database";
+        # DuckDB: "Cannot execute statement ... in read-only mode!".
+        return DatabaseError(
+            f"{exc} (connections are read-only by default; use --allow-write for write statements)"
+        )
+    # Auth: match auth-shaped phrases, not any message merely containing the
+    # word "password" (e.g. a query referencing a column called password).
+    if (
+        "authentication" in msg
+        or "incorrect username or password" in msg
+        or "invalid password" in msg
+        or "password is incorrect" in msg
+        or "password expired" in msg
+        or "authentication token" in msg
+    ):
         return AuthenticationError(str(exc))
     return None
 

@@ -163,6 +163,7 @@ def test_assert_with_name(sqlite_path: str):
 
 
 def test_assert_sql_error(sqlite_path: str):
+    """SQL errors exit 2 so CI can tell a broken query from a failed assertion."""
     result = runner.invoke(
         app,
         [
@@ -175,7 +176,29 @@ def test_assert_sql_error(sqlite_path: str):
             "0",
         ],
     )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
+
+
+def test_assert_sql_error_json_envelope(sqlite_path: str):
+    """Exit 2 on SQL error must not lose the structured error payload."""
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "assert",
+            "-c",
+            sqlite_path,
+            "--sql",
+            "select * from nonexistent",
+            "--expect",
+            "0",
+        ],
+    )
+    assert result.exit_code == 2
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "TABLE_NOT_FOUND"
 
 
 def test_assert_no_operator(sqlite_path: str):

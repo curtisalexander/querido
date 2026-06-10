@@ -15,8 +15,12 @@ querido/
 ├── IDEAS.md                        # Unimplemented feature ideas
 ├── README.md
 ├── docs/
-│   ├── cli-reference.md            # Auto-generated CLI reference
-│   └── qdo-cheatsheet.html         # Visual cheatsheet
+│   ├── cli-reference.md            # CLI reference (generated from `qdo overview`; regenerate after CLI changes)
+│   ├── qdo-cheatsheet.html         # Visual cheatsheet
+│   ├── _config.yml                 # GitHub Pages (Jekyll) config
+│   ├── _layouts/                   # Pages HTML layout(s)
+│   ├── examples/                   # Curated example artifacts (metadata, reports, screenshots)
+│   └── research/                   # Background research notes
 ├── integrations/
 │   ├── agent-workflow-example.md    # Example agent workflow with metadata
 │   ├── skills/SKILL.md             # Claude Code skill file
@@ -25,11 +29,15 @@ querido/
 │   └── continue/qdo.md             # Continue.dev rule
 ├── scripts/
 │   ├── init_test_data.py           # Generate synthetic data → data/test.{db,duckdb} (customers, products, orders, datatypes)
+│   ├── init-test-data.sh           # Shell wrapper around init_test_data.py
 │   ├── init_tutorial_data.py       # Generate tutorial National Parks DB
 │   ├── check_deps.py              # Dependency checker with supply-chain quarantine
 │   ├── benchmark.py               # Performance benchmarks (generates large DuckDB, times operations)
+│   ├── benchmark_agent_format.py  # Token-count benchmark for the agent (TOON/YAML) output format
+│   ├── generate_tui_screenshots.py # Render reproducible qdo explore screenshots for docs/examples
 │   ├── eval_workflow_authoring.py # Self-hosting eval: claude -p writes workflows (Phase 4.6)
 │   ├── eval_skill_files_claude.py # Self-hosting eval: claude -p answers data questions via SKILL.md (EV.Build)
+│   ├── eval_skill_files_codex.py  # Same eval catalog against Codex via codex exec
 │   └── retag.sh                   # Move release tag to current commit
 ├── src/
 │   └── querido/
@@ -391,7 +399,7 @@ CLI resolves `--connection` by:
 2. If not found, treating it as a file path (for SQLite/DuckDB/Parquet)
 3. `.duckdb`/`.ddb` → DuckDB, `.parquet` → Parquet (via DuckDB), else → SQLite
 
-### 6. Output
+### 7. Output
 
 Rich is used for all terminal output. Output functions live in `output/console.py` and accept data in a generic format (list of dicts) so they're decoupled from the database layer. Rich is imported lazily inside each output function.
 
@@ -399,7 +407,7 @@ Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
-### 7. Sessions
+### 8. Sessions
 
 When `QDO_SESSION=<name>` is set in the environment, every `qdo` invocation
 appends a record to `.qdo/sessions/<name>/steps.jsonl` and saves that step's
@@ -411,9 +419,11 @@ The recorder is installed in `cli/main.py:_maybe_start_session()` which tees
 stdout into a buffer and registers a `ctx.call_on_close()` finalizer so the
 step is recorded whether the command succeeds or fails. `LazyGroup.resolve_command()`
 stashes the raw subcommand argv on `ctx.obj` so the finalizer can persist the
-exact invocation. `qdo session start/list/show` manage session directories.
+exact invocation. `qdo session start/list/show/note/replay` manage session
+directories — `note` annotates the most recent step, and `replay` re-executes a
+recorded investigation.
 
-### 8. CLI Command Grouping
+### 9. CLI Command Grouping
 
 Multi-action command groups like `bundle`, `workflow`, `config`, `metadata`, `session`, `sql`, and `snowflake` are each a sub-`Typer` mounted on the root app via `add_typer()` in `cli/main.py`. Inside a group, the convention is:
 
@@ -422,7 +432,7 @@ Multi-action command groups like `bundle`, `workflow`, `config`, `metadata`, `se
 
 Anti-pattern: wrapping every leaf action in its own sub-`Typer` just to get a per-action `--help` screen. `@app.command()` already provides that for free — the nested pattern adds ~8 lines per action with no user-visible benefit.
 
-### 9. Global Flags
+### 10. Global Flags
 
 - `--version` / `-V`: Show version and exit
 - `--show-sql`: Print rendered SQL to stderr with syntax highlighting before executing. Uses Rich `Syntax` with SQL lexer. Stored in Click context, accessed by `cli/_context.py:maybe_show_sql()`.

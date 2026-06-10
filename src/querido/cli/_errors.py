@@ -4,10 +4,27 @@ from __future__ import annotations
 
 import threading
 from functools import wraps
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, overload
+
+import typer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+class CodedBadParameter(typer.BadParameter):
+    """A ``typer.BadParameter`` that carries an explicit structured error *code*.
+
+    The string-prefix matcher in :func:`_bad_parameter_code` infers a code from
+    the message wording, which silently degrades to ``VALIDATION_ERROR`` whenever
+    a message is reworded. Raising ``CodedBadParameter(msg, code="...")`` instead
+    pins the code to the raise site so it survives any wording change. The matcher
+    remains the fallback for the many sites that still raise plain ``BadParameter``.
+    """
+
+    def __init__(self, message: str, *, code: str, **kwargs: Any) -> None:
+        super().__init__(message, **kwargs)
+        self.code = code
 
 
 # SQL that was most recently rendered — set by set_last_sql or directly by
@@ -54,7 +71,19 @@ def _format_db_error(exc: Exception) -> str:
     return f"Database error ({type(exc).__name__}): {msg}"
 
 
-def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
+@overload
+def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]: ...
+
+
+@overload
+def friendly_errors[T, **P](
+    *, db_error_exit_code: int
+) -> Callable[[Callable[P, T]], Callable[P, T]]: ...
+
+
+def friendly_errors[T, **P](
+    fn: Callable[P, T] | None = None, *, db_error_exit_code: int = 1
+) -> Callable[P, T] | Callable[[Callable[P, T]], Callable[P, T]]:
     """Decorator that catches common exceptions and prints clean CLI messages.
 
     Database errors, ValueErrors from validation, file-not-found errors, and
@@ -64,15 +93,26 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
 
     When ``--format json`` is active, errors are emitted as structured JSON
     to stderr so that coding agents can parse them programmatically.
-    """
 
+    ``db_error_exit_code`` lets a command exit with a distinct code for
+    database/SQL errors (e.g. ``qdo assert`` uses 2 so CI can tell a broken
+    query apart from a failed assertion). All other errors still exit 1.
+    """
+    if fn is None:
+
+        def decorate(inner: Callable[P, T]) -> Callable[P, T]:
+            return _friendly_errors_impl(inner, db_error_exit_code)
+
+        return decorate
+    return _friendly_errors_impl(fn, db_error_exit_code)
+
+
+def _friendly_errors_impl[T, **P](fn: Callable[P, T], db_error_exit_code: int) -> Callable[P, T]:
     @wraps(fn)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         global _last_sql
         with _last_sql_lock:
             _last_sql = None
-
-        import typer
 
         from querido.cli._context import get_output_format
 
@@ -84,7 +124,9 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
                 raise
 
             msg = str(exc)
-            code = _bad_parameter_code(msg)
+            # Prefer an explicit code carried by CodedBadParameter; fall back to
+            # inferring one from the message wording for plain BadParameter.
+            code = getattr(exc, "code", None) or _bad_parameter_code(msg)
             try_next = _try_next_for(code)
             _emit_structured_error(msg, code, None, None, try_next, fmt)
             raise typer.Exit(code=1) from None
@@ -110,7 +152,8 @@ def friendly_errors[T, **P](fn: Callable[P, T]) -> Callable[P, T]:
             else:
                 _emit_rich_error(msg, exc, last, try_next)
 
-            raise typer.Exit(code=1) from None
+            exit_code = db_error_exit_code if _is_db_error(exc) else 1
+            raise typer.Exit(code=exit_code) from None
 
     return wrapper
 
@@ -298,8 +341,13 @@ def _bad_parameter_code(msg: str) -> str:
 
 def _classify_error(exc: Exception) -> str:
     """Produce a human-readable message for *exc*."""
+    from querido.config import ConnectionNotFoundError
+
     if _is_db_error(exc):
         return _format_db_error(exc)
+
+    if isinstance(exc, ConnectionNotFoundError):
+        return str(exc)
 
     if isinstance(exc, FileNotFoundError):
         return f"File not found: {exc}"
@@ -313,11 +361,23 @@ def _classify_error(exc: Exception) -> str:
     if isinstance(exc, PermissionError):
         return f"Permission denied: {exc}"
 
+    # Exceptions that pin an explicit structured code already carry a
+    # user-facing message — don't prefix it with the class name.
+    if isinstance(getattr(exc, "code", None), str):
+        return str(exc)
+
     return f"{type(exc).__name__}: {exc}"
 
 
 def _error_code(exc: Exception) -> str:
     """Return a machine-readable error code for *exc*."""
+    # An exception may pin its own structured code (e.g. WorkflowLintFailed,
+    # CodedBadParameter) — honor it before the type-based inference below so
+    # reworded messages or new exception types don't degrade to UNKNOWN_ERROR.
+    explicit = getattr(exc, "code", None)
+    if isinstance(explicit, str) and explicit:
+        return explicit
+
     from querido.connectors.base import (
         AuthenticationError,
         ColumnNotFoundError,
@@ -339,6 +399,17 @@ def _error_code(exc: Exception) -> str:
     if _is_db_error(exc):
         return "DATABASE_ERROR"
 
+    from querido.core.workflow.runner import MinVersionError, RecursionLimitError
+
+    if isinstance(exc, RecursionLimitError):
+        return "WORKFLOW_RECURSION_LIMIT"
+    if isinstance(exc, MinVersionError):
+        return "WORKFLOW_MIN_VERSION"
+
+    from querido.config import ConnectionNotFoundError
+
+    if isinstance(exc, ConnectionNotFoundError):
+        return "CONNECTION_NOT_FOUND"
     if isinstance(exc, FileNotFoundError):
         return "FILE_NOT_FOUND"
     if isinstance(exc, ValueError):
@@ -368,6 +439,13 @@ def _recovery_hint(exc: Exception) -> str | None:
     if isinstance(exc, AuthenticationError):
         return "Check your credentials in connections.toml or re-authenticate"
 
+    from querido.config import ConnectionNotFoundError
+
+    if isinstance(exc, ConnectionNotFoundError):
+        return (
+            "Run: qdo config list to see configured connections, or add one with: "
+            "qdo config add --name <name> --type <type> --path <path>"
+        )
     if isinstance(exc, FileNotFoundError):
         return "Check the file path and ensure it exists"
     if isinstance(exc, ImportError):

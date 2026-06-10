@@ -9,6 +9,30 @@ from querido.cli._errors import friendly_errors
 app = typer.Typer(help="Execute ad-hoc SQL queries.")
 
 
+def _build_run_cmd(
+    *,
+    connection: str,
+    from_step: str | None,
+    query_sql: str,
+    allow_write: bool,
+    limit: int,
+) -> list[str]:
+    """Reconstruct the equivalent ``qdo query`` invocation for next_steps.
+
+    Shared by the ``--plan`` and ``--estimate`` paths so the two stay in sync.
+    """
+    run_cmd = ["qdo", "query", "-c", connection]
+    if from_step:
+        run_cmd += ["--from", from_step]
+    else:
+        run_cmd += ["--sql", query_sql]
+    if allow_write:
+        run_cmd.append("--allow-write")
+    if limit != 1000:
+        run_cmd += ["--limit", str(limit)]
+    return run_cmd
+
+
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def query(
@@ -60,7 +84,7 @@ def query(
 
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
-    from querido.cli._options import resolve_query_sql
+    from querido.cli._options import build_source_meta, resolve_query_sql
     from querido.cli._pipeline import database_command, dispatch_output
 
     query_sql, source = resolve_query_sql(
@@ -72,22 +96,7 @@ def query(
     if plan and estimate:
         raise typer.BadParameter("Cannot use both --plan and --estimate.")
 
-    source_meta: dict[str, object] = {}
-    if source is not None:
-        source_meta = {
-            "source_session": source["session"],
-            "source_step": source["step_index"],
-            "source_command": source["source_command"],
-        }
-        source_connection = source.get("source_connection")
-        if isinstance(source_connection, str):
-            source_meta["source_connection"] = source_connection
-            if source_connection != connection:
-                typer.echo(
-                    f"Warning: --from step was recorded against {source_connection!r}, "
-                    f"running against {connection!r}.",
-                    err=True,
-                )
+    source_meta = build_source_meta(source, connection=connection)
 
     from querido.core.query import _apply_limit
     from querido.core.sql_safety import any_statement_is_destructive
@@ -108,20 +117,13 @@ def query(
             limit=limit,
             destructive=destructive,
         )
-        run_cmd = [
-            "qdo",
-            "query",
-            "-c",
-            connection,
-        ]
-        if from_step:
-            run_cmd += ["--from", from_step]
-        else:
-            run_cmd += ["--sql", query_sql]
-        if allow_write:
-            run_cmd.append("--allow-write")
-        if limit != 1000:
-            run_cmd += ["--limit", str(limit)]
+        run_cmd = _build_run_cmd(
+            connection=connection,
+            from_step=from_step,
+            query_sql=query_sql,
+            allow_write=allow_write,
+            limit=limit,
+        )
 
         steps = []
         if payload["executable"]:
@@ -163,15 +165,13 @@ def query(
                 destructive=destructive,
             )
 
-        run_cmd = ["qdo", "query", "-c", connection]
-        if from_step:
-            run_cmd += ["--from", from_step]
-        else:
-            run_cmd += ["--sql", query_sql]
-        if allow_write:
-            run_cmd.append("--allow-write")
-        if limit != 1000:
-            run_cmd += ["--limit", str(limit)]
+        run_cmd = _build_run_cmd(
+            connection=connection,
+            from_step=from_step,
+            query_sql=query_sql,
+            allow_write=allow_write,
+            limit=limit,
+        )
 
         steps = [{"cmd": cmd(run_cmd), "why": "Run the estimated query for real."}]
         if destructive and not allow_write:
@@ -199,7 +199,9 @@ def query(
 
     require_allow_write(query_sql, allow_write=allow_write)
 
-    with database_command(connection=connection, db_type=db_type) as ctx:
+    with database_command(
+        connection=connection, db_type=db_type, read_only=not allow_write
+    ) as ctx:
         maybe_show_sql(query_sql)
         set_last_sql(query_sql)
 

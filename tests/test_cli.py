@@ -16,6 +16,21 @@ def test_version():
     assert __version__ in result.output
 
 
+def test_flags_without_subcommand_exits_nonzero():
+    # --show-sql with no subcommand must not silently exit 0; it shows help
+    # and exits non-zero like no_args_is_help (L20).
+    result = runner.invoke(app, ["--show-sql"])
+    assert result.exit_code != 0
+    assert "Usage" in result.output
+
+
+def test_no_subcommand_does_not_break_version():
+    # --version is eager and must still exit 0 even though it has no subcommand.
+    result = runner.invoke(app, ["--show-sql", "--version"])
+    assert result.exit_code == 0
+    assert __version__ in result.output
+
+
 def test_show_sql_flag(sqlite_path: str):
     result = runner.invoke(
         app, ["--show-sql", "preview", "-c", sqlite_path, "-t", "users", "--rows", "1"]

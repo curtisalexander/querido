@@ -24,6 +24,12 @@ _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 _SLUG = re.compile(r"^[a-z][a-z0-9-]*$")
 _SEMVER = re.compile(r"^\d+\.\d+(\.\d+)?$")
 _QDO_INVOCATION = re.compile(r"^qdo\s+\S+")
+# A ``${ref}`` adjacent to a quote (e.g. ``"${x}"`` or ``'${x}'``) inside a
+# ``when:`` expression — the ref becomes a literal placeholder string and the
+# comparison silently fails. Matches a quote on either side of the ref.
+_QUOTED_REF = re.compile(
+    r"""(["'])\$\{[a-zA-Z_][a-zA-Z0-9_.]*\}|\$\{[a-zA-Z_][a-zA-Z0-9_.]*\}(["'])"""
+)
 
 _VALID_INPUT_TYPES = {"string", "integer", "number", "boolean", "table", "connection"}
 
@@ -129,7 +135,9 @@ def _check_top_level(doc: dict[str, Any], result: LintResult) -> None:
         )
 
     step_timeout = doc.get("step_timeout")
-    if "step_timeout" in doc and (not isinstance(step_timeout, int) or step_timeout < 0):
+    if "step_timeout" in doc and (
+        not isinstance(step_timeout, int) or isinstance(step_timeout, bool) or step_timeout < 0
+    ):
         result.add(
             "INVALID_STEP_TIMEOUT",
             "step_timeout must be a non-negative integer (seconds). 0 = no limit.",
@@ -221,7 +229,9 @@ def _check_steps(steps: list[Any], doc: dict[str, Any], result: LintResult) -> N
             )
 
         timeout = step.get("timeout")
-        if "timeout" in step and (not isinstance(timeout, int) or timeout < 0):
+        if "timeout" in step and (
+            not isinstance(timeout, int) or isinstance(timeout, bool) or timeout < 0
+        ):
             result.add(
                 "INVALID_STEP_TIMEOUT",
                 (
@@ -277,6 +287,22 @@ def _check_steps(steps: list[Any], doc: dict[str, Any], result: LintResult) -> N
                     path=f"{base}/capture",
                 )
 
+        # Quoted ref inside a ``when:`` expression silently compares false:
+        # the runner substitutes refs as bare typed values, so wrapping one in
+        # quotes (``"${x}" == "active"``) turns it into a literal placeholder
+        # string that never equals what the author intended.
+        when_value = step.get("when")
+        if isinstance(when_value, str) and _QUOTED_REF.search(when_value):
+            result.add(
+                "QUOTED_REF_IN_WHEN",
+                "a ${ref} is wrapped in quotes inside this when: expression",
+                fix=(
+                    "remove the quotes around the ref — refs substitute as typed "
+                    'values (compare with `${x} == "active"`, not `"${x}" == ...`)'
+                ),
+                path=f"{base}/when",
+            )
+
         # ${ref} checks on run/when
         for field_name in ("run", "when"):
             value = step.get(field_name)
@@ -301,9 +327,9 @@ def _check_steps(steps: list[Any], doc: dict[str, Any], result: LintResult) -> N
                 path=f"{base}/allow_write",
             )
 
-        # Record what's available to subsequent steps.
-        if step_id:
-            defined.add(step_id)
+        # Record what's available to subsequent steps. Only ``capture:``
+        # names define refs — the runner never binds a bare step id into
+        # the context, so step ids must not satisfy ${ref} resolution.
         if capture:
             defined.add(capture)
 
@@ -319,9 +345,6 @@ def _check_outputs(doc: dict[str, Any], steps: list[Any], result: LintResult) ->
     defined: set[str] = set(doc.get("inputs") or {})
     for step in steps:
         if isinstance(step, dict):
-            sid = step.get("id")
-            if isinstance(sid, str):
-                defined.add(sid)
             cap = step.get("capture")
             if isinstance(cap, str):
                 defined.add(cap)
@@ -340,7 +363,7 @@ def _check_outputs(doc: dict[str, Any], steps: list[Any], result: LintResult) ->
                 result.add(
                     "UNRESOLVED_REFERENCE",
                     f"output {key!r} references ${{{ref}}} which is not defined",
-                    fix="reference an input or a step id/capture",
+                    fix="reference an input or a step's capture name",
                     path=base,
                 )
 

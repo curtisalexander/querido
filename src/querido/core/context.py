@@ -103,12 +103,23 @@ def get_context(
         col_meta_future = executor.submit(_load_column_metadata, connection, table)
 
         # --- Fetch stats (and optionally top-K) from DB ----------------------
-        stats_by_col, row_count, top_values_by_col, primary_sql = _fetch_stats(
+        stats_by_col, scan_row_count, top_values_by_col, primary_sql = _fetch_stats(
             connector, col_info, source, sample_values=sample_values, approx=not exact
         )
 
         stored_metadata = meta_future.result()
         stored_column_metadata = col_meta_future.result()
+
+    # When the scan was sampled, scan_row_count is just the sample size; keep
+    # the true table count instead.  resolve_row_count_for_sampling returns a
+    # sentinel (sample + 1) for an explicit --sample, so fetch the real count
+    # in that case.
+    if not sampled:
+        row_count = scan_row_count
+    elif sample is not None:
+        row_count = connector.get_row_count(table)
+    else:
+        row_count = row_count_for_sample
 
     # --- Load table comment --------------------------------------------------
     table_comment = connector.get_table_comment(table)

@@ -763,3 +763,24 @@ def test_sql_select_case_insensitive_emits_canonical_name(sqlite_path: str) -> N
     result = runner.invoke(app, ["sql", "select", "-c", sqlite_path, "-t", "USERS"])
     assert result.exit_code == 0
     assert "from users;" in result.output
+
+
+def test_coded_bad_parameter_pins_code_regardless_of_wording() -> None:
+    """CodedBadParameter yields its explicit code; the string matcher never sees it (L22)."""
+    from querido.cli._errors import CodedBadParameter, _bad_parameter_code
+
+    exc = CodedBadParameter("totally unrecognizable wording", code="EXPORT_FORMAT_INVALID")
+    # The wording would degrade to VALIDATION_ERROR under the string matcher...
+    assert _bad_parameter_code(str(exc)) == "VALIDATION_ERROR"
+    # ...but the pinned code survives.
+    assert exc.code == "EXPORT_FORMAT_INVALID"
+
+
+def test_lookup_formatter_missing_key_raises_clear_error() -> None:
+    """A missing REGISTRY key surfaces a clear internal error, not a raw KeyError (L17)."""
+    from querido.cli._pipeline import _lookup_formatter
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _lookup_formatter("querido.output.formats", "no-such-command")
+    assert "no-such-command" in str(excinfo.value)
+    assert not isinstance(excinfo.value, KeyError)

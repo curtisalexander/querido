@@ -169,7 +169,7 @@ def sessions_root(cwd: Path | None = None) -> Path:
 
 def session_dir(name: str, cwd: Path | None = None) -> Path:
     """Return the directory for a named session. Does not create it."""
-    if not name or any(c in name for c in "/\\:"):
+    if not name or name in {".", ".."} or any(c in name for c in "/\\:"):
         raise ValueError(f"Invalid session name: {name!r}")
     return sessions_root(cwd) / name
 

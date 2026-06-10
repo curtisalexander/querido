@@ -34,6 +34,10 @@ def run_query(
     from querido.core.sql_safety import any_statement_is_destructive
 
     is_write = any_statement_is_destructive(sql)
+    if is_write and not allow_write:
+        raise ValueError(
+            "Write queries require allow_write=True; this query is read-only by default."
+        )
     effective_sql = _apply_limit(sql, limit) if limit > 0 and not is_write else sql
     data, is_arrow = execute_arrow_or_dicts(connector, effective_sql)
     rows = arrow_to_dicts(data, is_arrow)

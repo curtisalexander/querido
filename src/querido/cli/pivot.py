@@ -128,12 +128,14 @@ def _parse_agg_spec(group_by: str, agg: str) -> tuple[list[str], list[str], str]
 
     agg_fn = functions.pop()
 
-    # Handle count(*) — replace * with first group-by column for the pivot API
-    values_list = []
-    for col in columns:
-        if col == "*":
-            values_list.append(rows_list[0])
-        else:
-            values_list.append(col)
+    # count(*) passes the literal * through so the row count includes rows
+    # with null group values (count(col) would exclude them). The regex above
+    # guarantees only the bare token * gets this far; build_pivot_query
+    # rejects * for any function other than count.
+    if "*" in columns and agg_fn != "COUNT":
+        raise typer.BadParameter(
+            f"Invalid aggregation expression: {agg_fn.lower()}(*). "
+            "'*' is only valid with count(*)."
+        )
 
-    return rows_list, values_list, agg_fn
+    return rows_list, columns, agg_fn

@@ -151,9 +151,24 @@ def note(
 
     steps[-1]["note"] = text
     steps_file = dir_ / STEPS_FILE
-    with steps_file.open("w", encoding="utf-8") as f:
-        for step in steps:
-            f.write(json.dumps(step) + "\n")
+
+    # Rewrite atomically: write a temp file in the same directory, then
+    # os.replace it over the log so an interrupt can't corrupt the session.
+    import os
+    import tempfile
+
+    fd, tmp_path = tempfile.mkstemp(dir=dir_, prefix=f"{STEPS_FILE}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            for step in steps:
+                f.write(json.dumps(step) + "\n")
+        os.replace(tmp_path, steps_file)
+    except BaseException:
+        import contextlib
+
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_path)
+        raise
 
     target = steps[-1].get("index", "?")
     typer.echo(f"Annotated step {target} of session {session_name!r}.")

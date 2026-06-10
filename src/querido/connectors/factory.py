@@ -6,10 +6,15 @@ if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
-def create_connector(config: dict) -> Connector:
+def create_connector(config: dict, *, read_only: bool = True) -> Connector:
     """Create a connector from a connection config dict.
 
     Config must have a 'type' key ('sqlite', 'duckdb', or 'snowflake').
+
+    *read_only* applies to file-backed local databases (SQLite/DuckDB):
+    the default opens them read-only so exploration never mutates the
+    user's file. The CLI passes ``read_only=False`` only for the explicit
+    ``--allow-write`` path.
     """
     db_type = config.get("type")
     if not db_type:
@@ -22,7 +27,7 @@ def create_connector(config: dict) -> Connector:
         if not path:
             raise ValueError("SQLite connection config missing required 'path' key.")
         check_same_thread = config.get("check_same_thread", True)
-        return SQLiteConnector(path, check_same_thread=check_same_thread)
+        return SQLiteConnector(path, check_same_thread=check_same_thread, read_only=read_only)
     elif db_type == "duckdb":
         try:
             from querido.connectors.duckdb import DuckDBConnector
@@ -30,7 +35,12 @@ def create_connector(config: dict) -> Connector:
             raise ImportError(
                 "DuckDB is not installed. Install it with: uv pip install 'querido[duckdb]'"
             ) from None
-        connector = DuckDBConnector(config.get("path", ":memory:"))
+        # read_only=None keeps DuckDB's auto behavior (read-only when the
+        # file already exists); the allow-write path requests writable.
+        connector = DuckDBConnector(
+            config.get("path", ":memory:"),
+            read_only=None if read_only else False,
+        )
         if "parquet_path" in config:
             try:
                 connector.register_parquet(config["parquet_path"])

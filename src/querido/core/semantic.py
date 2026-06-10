@@ -9,11 +9,50 @@ from __future__ import annotations
 import io
 from typing import TYPE_CHECKING
 
+from querido.connectors.base import ConnectorError
+
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
 
 _AGG_AVG_KEYWORDS = ("rate", "pct", "percent", "ratio", "avg", "average", "mean")
+
+
+def _fetch_error_types() -> tuple[type[Exception], ...]:
+    """Exception types that should trigger the sample-value fallback path.
+
+    Connectors wrap recognized driver errors in :class:`ConnectorError`
+    subclasses, but ``wrap_driver_error`` returns ``None`` for unrecognized
+    messages (e.g. dialect syntax quirks) and the original driver exception
+    is re-raised unwrapped — so the raw driver base errors must be caught
+    too.  Driver modules are imported lazily; absent drivers can't be the
+    active connector, so their error types are simply omitted.
+    """
+    import sqlite3
+
+    errors: list[type[Exception]] = [
+        ConnectorError,
+        sqlite3.Error,
+        ValueError,
+        LookupError,
+        OSError,
+        RuntimeError,
+    ]
+    try:
+        import duckdb
+
+        errors.append(duckdb.Error)
+    except ImportError:
+        pass
+    try:
+        import snowflake.connector  # type: ignore[import-not-found]
+
+        sf_error = snowflake.connector.Error
+    except (ImportError, AttributeError):
+        pass
+    else:
+        errors.append(sf_error)
+    return tuple(errors)
 
 
 def _infer_aggregation(col: dict) -> str:
@@ -66,7 +105,7 @@ def get_sample_values(
     if col_names:
         try:
             return _fetch_batched(connector, table, col_names, limit)
-        except (ValueError, LookupError, OSError, RuntimeError):
+        except _fetch_error_types():
             pass  # fall through to per-column path
 
     # --- Fallback: per-column queries ----------------------------------------
@@ -80,14 +119,20 @@ def _fetch_batched(
     limit: int,
 ) -> dict[str, list[str]]:
     """Fetch sample values for all columns in a single UNION ALL query."""
+    from querido.connectors.base import quote_qualified_name
+
+    quoted_table = quote_qualified_name(table)
     safe_limit = int(limit)
+    # Each branch is wrapped in a subquery so the per-branch limit is legal
+    # on all dialects (SQLite rejects a bare "limit" before "union all").
     parts = [
+        f"select * from ("
         f"select '{col_name}' as col_name, "
         f'cast("{col_name}" as varchar) as val '
-        f'from "{table}" '
+        f"from {quoted_table} "
         f'where "{col_name}" is not null '
         f'group by "{col_name}" '
-        f"limit {safe_limit}"
+        f"limit {safe_limit})"
         for col_name in col_names
     ]
     sql = " union all ".join(parts)
@@ -109,18 +154,21 @@ def _fetch_per_column(
     limit: int,
 ) -> dict[str, list[str]]:
     """Fetch sample values one column at a time, with optional concurrency."""
+    from querido.connectors.base import quote_qualified_name
+
+    quoted_table = quote_qualified_name(table)
 
     def _fetch_one(col_name: str) -> tuple[str, list[str]]:
         sql = (
             f'select distinct "{col_name}" as val '
-            f'from "{table}" '
+            f"from {quoted_table} "
             f'where "{col_name}" is not null '
             f"limit {int(limit)}"
         )
         try:
             rows = connector.execute(sql)
             return col_name, [str(r.get("val", "")) for r in rows if r.get("val") is not None]
-        except (ValueError, LookupError, OSError, RuntimeError):
+        except _fetch_error_types():
             return col_name, []
 
     concurrent = getattr(connector, "supports_concurrent_queries", False)

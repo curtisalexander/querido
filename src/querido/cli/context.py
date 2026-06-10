@@ -43,6 +43,25 @@ def context(
         "--exact",
         help="Use exact COUNT(DISTINCT) instead of approximations (slower).",
     ),
+    write_metadata: bool = typer.Option(
+        False,
+        "--write-metadata",
+        help=(
+            "Write deterministic inferences (valid_values, likely_sparse, temporal) to "
+            ".qdo/metadata/<conn>/<table>.yaml. Human-authored fields "
+            "(confidence 1.0) are preserved unless --force."
+        ),
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="With --write-metadata: overwrite human-authored fields (confidence 1.0).",
+    ),
+    plan: bool = typer.Option(
+        False,
+        "--plan",
+        help="With --write-metadata: preview metadata changes without writing the YAML.",
+    ),
 ) -> None:
     """Get rich context for a table: schema, stats, sample values, and metadata.
 
@@ -67,41 +86,76 @@ def context(
     """
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
+    from querido.cli._options import resolve_write_metadata
     from querido.cli._pipeline import dispatch_output, table_command
 
-    with (
-        table_command(table=table, connection=connection, db_type=db_type) as ctx,
-        ctx.spin(f"Loading context for [bold]{ctx.table}[/bold]"),
-    ):
-        from querido.core.context import get_context
+    if plan and not write_metadata:
+        raise typer.BadParameter("--plan requires --write-metadata.")
+    effective_write_metadata = resolve_write_metadata(write_metadata)
 
-        result = get_context(
-            ctx.connector,
-            ctx.table,
-            connection,
-            sample_values=sample_values,
-            no_sample=no_sample,
-            sample=sample,
-            exact=exact,
-        )
+    with table_command(table=table, connection=connection, db_type=db_type) as ctx:
+        with ctx.spin(f"Loading context for [bold]{ctx.table}[/bold]"):
+            from querido.core.context import get_context
 
-    rendered_sql = result.get("sql") or ""
-    if rendered_sql:
-        maybe_show_sql(rendered_sql)
-        set_last_sql(rendered_sql)
+            result = get_context(
+                ctx.connector,
+                ctx.table,
+                connection,
+                sample_values=sample_values,
+                no_sample=no_sample,
+                sample=sample,
+                exact=exact,
+            )
 
-    from querido.output.envelope import emit_envelope, is_structured_format
+        rendered_sql = result.get("sql") or ""
+        if rendered_sql:
+            maybe_show_sql(rendered_sql)
+            set_last_sql(rendered_sql)
 
-    if is_structured_format():
-        from querido.core.next_steps import for_context
+        metadata_write_summary = None
+        if effective_write_metadata:
+            from querido.core.metadata_write import preview_from_context, write_from_context
 
-        emit_envelope(
-            command="context",
-            data=result,
-            next_steps=for_context(result, connection=connection, table=result.get("table", "")),
-            connection=connection,
-            table=result.get("table"),
-        )
-        return
+            if plan:
+                metadata_write_summary = preview_from_context(
+                    ctx.connector, connection, ctx.table, result, force=force
+                )
+            else:
+                metadata_write_summary = write_from_context(
+                    ctx.connector, connection, ctx.table, result, force=force
+                )
 
-    dispatch_output("context", result)
+        from querido.output.envelope import emit_envelope, is_structured_format
+
+        if is_structured_format():
+            from querido.core.next_steps import for_context
+
+            envelope_data: dict = dict(result)
+            if metadata_write_summary is not None:
+                envelope_data["metadata_write"] = metadata_write_summary
+
+            emit_envelope(
+                command="context",
+                data=envelope_data,
+                next_steps=for_context(
+                    result, connection=connection, table=result.get("table", "")
+                ),
+                connection=connection,
+                table=result.get("table"),
+            )
+            return
+
+        dispatch_output("context", result)
+
+        import sys
+
+        if metadata_write_summary is not None:
+            from querido.core.metadata_write import format_write_note
+
+            print(format_write_note(metadata_write_summary), file=sys.stderr)
+        else:
+            from querido.cli._pipeline import maybe_capture_hint
+
+            maybe_capture_hint(
+                "context", result, connection=connection, table=ctx.table, file=sys.stderr
+            )

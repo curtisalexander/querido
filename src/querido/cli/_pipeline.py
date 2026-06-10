@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -166,12 +167,16 @@ def database_command(
     *,
     connection: str,
     db_type: str | None = None,
+    read_only: bool = True,
 ) -> Generator[CommandContext]:
     """Context manager for CLI commands that don't target a specific table.
 
     Like ``table_command`` but skips table validation and resolution.
     Use for commands like ``query``, ``catalog``, ``explain``, ``assert``,
     and ``export`` that operate at the database level.
+
+    *read_only* defaults to True; ``qdo query --allow-write`` passes False
+    so file-backed local databases get a writable connection.
 
     Usage::
 
@@ -191,7 +196,7 @@ def database_command(
     detail = config.get("path") or config.get("account", "")
     log.debug("Connection: type=%s %s", config.get("type", "?"), detail)
 
-    with create_connector(config) as connector:
+    with create_connector(config, read_only=read_only) as connector:
         from rich.console import Console
 
         console = Console(stderr=True)
@@ -200,32 +205,130 @@ def database_command(
         yield CommandContext(connector=connector, console=console)
 
 
+def maybe_capture_hint(
+    command_name: str,
+    result: Mapping[str, Any],
+    *,
+    connection: str,
+    table: str,
+    file: Any,
+) -> None:
+    """Print a one-line dim capture hint when a scan computed uncaptured facts.
+
+    Mirrors the agent-facing ``next_steps`` nudge: when ``context``/``quality``
+    derive deterministic fields the stored metadata doesn't yet hold, the
+    human-facing (rich) output ends with the exact ``--write-metadata`` command.
+    Stays silent when there is nothing uncaptured to write so it never nags a
+    table whose metadata is already complete.
+    """
+    from querido.cli._context import get_output_format
+
+    # Only nudge on the human-facing rich path; structured formats carry the
+    # same signal through next_steps / metadata_write in the envelope.
+    if get_output_format() != "rich":
+        return
+
+    from querido.core.metadata_write import (
+        _is_human_field,
+        derive_from_context,
+        derive_from_quality,
+    )
+
+    if command_name == "context":
+        updates = derive_from_context(result)
+    elif command_name == "quality":
+        updates = derive_from_quality(result)  # type: ignore[arg-type]
+    else:
+        return
+
+    if not _has_uncaptured_updates(result, updates, _is_human_field):
+        return
+
+    from querido.output.envelope import cmd
+
+    capture = cmd(["qdo", command_name, "-c", connection, "-t", table, "--write-metadata"])
+    print(f"\n  Capture: {capture}", file=file)
+
+
+def _has_uncaptured_updates(
+    result: Mapping[str, Any],
+    updates: list[Any],
+    is_human_field: Any,
+) -> bool:
+    """Return True if any derived update targets a field not already captured.
+
+    A field counts as already captured when stored metadata holds a non-empty
+    value for it (human-authored or a prior auto-write) — re-deriving the same
+    fact is not worth a nudge.
+    """
+    if not updates:
+        return False
+
+    cols_by_name: dict[str, dict] = {}
+    for col in result.get("columns") or []:
+        name = col.get("name")
+        if isinstance(name, str):
+            cols_by_name[name] = col
+
+    for upd in updates:
+        target = result if upd.column is None else cols_by_name.get(upd.column)
+        if target is None:
+            continue
+        existing = target.get(upd.field)
+        # Stored metadata is merged onto the result; treat any non-empty value
+        # for the derived field as "already captured".
+        if existing is None or existing == [] or existing == "":
+            return True
+        if not is_human_field(existing):
+            # A placeholder / low-value entry still counts as uncaptured.
+            return True
+    return False
+
+
+def _lookup_formatter(module_path: str, command_name: str) -> Any:
+    """Fetch ``command_name`` from a formatter module's ``REGISTRY``.
+
+    A missing key is a programming error (a command wired to dispatch_output
+    without a matching formatter), not user input — so raise a structured
+    ``RuntimeError`` with a clear internal-error message instead of letting a
+    raw ``KeyError`` bubble up and surface as an opaque ``UNKNOWN_ERROR``.
+    """
+    from importlib import import_module
+    from typing import cast
+
+    registry = cast(Any, import_module(module_path)).REGISTRY
+    try:
+        return registry[command_name]
+    except KeyError:
+        raise RuntimeError(
+            f"internal error: no '{command_name}' formatter registered in "
+            f"{module_path}.REGISTRY — this is a qdo bug, please open an issue."
+        ) from None
+
+
 def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
     """Three-way output dispatch based on the ``--format`` CLI flag.
 
-    Each output module exposes a ``REGISTRY`` dict mapping command names
-    to their output functions.  This catches missing formatters at import
-    time rather than failing with an opaque ``AttributeError`` at runtime.
+    Each output module exposes a ``REGISTRY`` dict mapping command names to
+    their output functions. A missing formatter raises a runtime ``KeyError``
+    when the command dispatches; ``_lookup_formatter`` traps that and re-raises
+    a clear internal-error ``RuntimeError`` so the failure is diagnosable rather
+    than surfacing as an opaque ``UNKNOWN_ERROR``.
 
     - ``rich``: ``querido.output.console.REGISTRY[command_name]``
     - ``html``: ``querido.output.html.REGISTRY[command_name]``
     - Otherwise: ``querido.output.formats.REGISTRY[command_name]``
     """
-    from importlib import import_module
-    from typing import cast
-
     from querido.cli._context import get_output_format
 
     fmt = get_output_format()
     if fmt == "rich":
-        mod = import_module("querido.output.console")
-        fn: Any = cast(Any, mod.REGISTRY)[command_name]
+        fn: Any = _lookup_formatter("querido.output.console", command_name)
         fn(*args, **kwargs)
     elif fmt == "html":
         from querido.cli._context import emit_html
 
-        mod = import_module("querido.output.html")
-        fn = cast(Any, mod.REGISTRY)[command_name]
+        fn = _lookup_formatter("querido.output.html", command_name)
         html = fn(*args, **kwargs)
         emit_html(html)
     else:
@@ -244,7 +347,6 @@ def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
                 file=sys.stderr,
             )
             effective_fmt = "json"
-        mod = import_module("querido.output.formats")
-        fn = cast(Any, mod.REGISTRY)[command_name]
+        fn = _lookup_formatter("querido.output.formats", command_name)
         text = fn(*args, effective_fmt, **kwargs)
         print(text)

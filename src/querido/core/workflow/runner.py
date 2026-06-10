@@ -47,6 +47,31 @@ class InputError(WorkflowError):
     """Raised when caller-supplied inputs don't match the workflow spec."""
 
 
+class RecursionLimitError(WorkflowError):
+    """Raised when nested ``qdo workflow run`` invocations exceed the depth cap."""
+
+    def __init__(self, depth: int, limit: int) -> None:
+        super().__init__(
+            f"workflow recursion limit reached: depth {depth} >= {limit} "
+            f"(a step ran 'qdo workflow run' {limit} levels deep — check for a "
+            "workflow that invokes itself)"
+        )
+        self.depth = depth
+        self.limit = limit
+
+
+class MinVersionError(WorkflowError):
+    """Raised when the workflow's ``qdo_min_version`` exceeds the installed qdo."""
+
+    def __init__(self, required: str, installed: str) -> None:
+        super().__init__(
+            f"workflow requires qdo >= {required}, but installed qdo is "
+            f"{installed} — upgrade qdo to run this workflow"
+        )
+        self.required = required
+        self.installed = installed
+
+
 class StepFailed(WorkflowError):
     """Raised when a subprocess step exits non-zero or exceeds its timeout."""
 
@@ -176,14 +201,68 @@ def _hoist_format_flag(tokens: list[str], has_capture: bool) -> list[str]:
     return [tokens[0], "-f", fmt_value, *cleaned]
 
 
-def _session_env(workflow_name: str) -> tuple[dict[str, str], str]:
+#: How many nested ``qdo workflow run`` levels are allowed before the runner
+#: refuses.  Guards against a workflow whose step invokes itself (directly or
+#: via a cycle), which would otherwise recurse as unbounded subprocesses.
+MAX_WORKFLOW_DEPTH = 3
+
+
+def _current_depth(env: dict[str, str] | None = None) -> int:
+    """Return the nesting depth recorded in ``QDO_WORKFLOW_DEPTH`` (0 if unset/bad)."""
+    raw = (env if env is not None else os.environ).get("QDO_WORKFLOW_DEPTH", "").strip()
+    try:
+        return max(int(raw), 0)
+    except ValueError:
+        return 0
+
+
+def _session_env(
+    workflow_name: str, output_format: str | None = None
+) -> tuple[dict[str, str], str]:
     env = os.environ.copy()
+    # Children inherit depth + 1 so a workflow that runs ``qdo workflow run``
+    # as a step can be refused once MAX_WORKFLOW_DEPTH is reached (M14).
+    env["QDO_WORKFLOW_DEPTH"] = str(_current_depth(env) + 1)
+    # Propagate the parent invocation's resolved format (``-f`` on
+    # ``qdo workflow run``, or the caller's QDO_FORMAT). An explicit ``-f``
+    # on a step's own run line still wins — the root callback prefers the
+    # flag over the env var (M16).
+    if output_format:
+        env["QDO_FORMAT"] = output_format
     existing = env.get("QDO_SESSION", "").strip()
     if existing:
         return env, existing
     session = f"workflow-{workflow_name}-{int(time.time())}"
     env["QDO_SESSION"] = session
     return env, session
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    """Parse a dotted version string into a tuple of ints (lenient on suffixes)."""
+    parts: list[int] = []
+    for piece in value.strip().split("."):
+        digits = ""
+        for ch in piece:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
+def _check_min_version(doc: dict[str, Any]) -> None:
+    """Enforce ``qdo_min_version`` against the installed qdo (M15)."""
+    required = doc.get("qdo_min_version")
+    if not isinstance(required, str) or not required.strip():
+        return
+    from querido import __version__
+
+    req = _version_tuple(required)
+    inst = _version_tuple(__version__)
+    width = max(len(req), len(inst))
+    if inst + (0,) * (width - len(inst)) < req + (0,) * (width - len(req)):
+        raise MinVersionError(required=required.strip(), installed=__version__)
 
 
 #: Built-in fallback when no layer sets a timeout.  Lenient enough to let a
@@ -230,11 +309,11 @@ def _resolve_step_timeout(
         layered.append(env_val)
 
     step_val = step.get("timeout")
-    if isinstance(step_val, int):
+    if isinstance(step_val, int) and not isinstance(step_val, bool):
         layered.append(step_val)
 
     doc_val = doc.get("step_timeout")
-    if isinstance(doc_val, int):
+    if isinstance(doc_val, int) and not isinstance(doc_val, bool):
         layered.append(doc_val)
 
     layered.append(DEFAULT_STEP_TIMEOUT)
@@ -251,18 +330,29 @@ def run_workflow(
     verbose: bool = False,
     stderr: Any = None,
     step_timeout: int | None = None,
+    output_format: str | None = None,
 ) -> RunResult:
     """Execute *doc*. See module docstring for semantics.
 
     ``step_timeout`` is the runtime override (``--step-timeout`` CLI flag).
     When ``None``, the env var / YAML fields / built-in default decide —
     see :func:`_resolve_step_timeout`.
+
+    ``output_format`` is the resolved format of the ``workflow run``
+    invocation; it is exported to child steps as ``QDO_FORMAT`` so format
+    intent propagates. A step's own explicit ``-f`` still wins.
     """
+    depth = _current_depth()
+    if depth >= MAX_WORKFLOW_DEPTH:
+        raise RecursionLimitError(depth=depth, limit=MAX_WORKFLOW_DEPTH)
+
+    _check_min_version(doc)
+
     name = doc.get("name") or "workflow"
     bound = bind_inputs(doc, inputs or {})
     context: dict[str, Any] = dict(bound)
 
-    env, session_name = _session_env(str(name))
+    env, session_name = _session_env(str(name), output_format)
     qdo = _qdo_argv()
     out_stderr = stderr if stderr is not None else sys.stderr
     result = RunResult(session=session_name)
@@ -309,7 +399,7 @@ def run_workflow(
         if not template_tokens or template_tokens[0] != "qdo":
             raise WorkflowError(f"step {step_id!r}: run must begin with 'qdo' (got {raw_run!r})")
         try:
-            tokens = [interpolate(t, context) for t in template_tokens]
+            tokens = [interpolate(t, context, reject_none=True) for t in template_tokens]
         except UnresolvedReference as exc:
             raise WorkflowError(f"step {step_id!r}: {exc}") from exc
         tokens = _hoist_format_flag(tokens, has_capture)
@@ -423,7 +513,10 @@ def _decode_stream(value: bytes | str | None) -> str:
 
 __all__ = [
     "DEFAULT_STEP_TIMEOUT",
+    "MAX_WORKFLOW_DEPTH",
     "InputError",
+    "MinVersionError",
+    "RecursionLimitError",
     "RunResult",
     "StepFailed",
     "StepRecord",

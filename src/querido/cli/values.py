@@ -57,7 +57,7 @@ def values(
     For low-cardinality columns, returns every distinct value. For
     high-cardinality columns (> --max), returns the top values by frequency.
     """
-    from querido.cli._options import parse_column_list
+    from querido.cli._options import parse_column_list, resolve_write_metadata
     from querido.cli._pipeline import dispatch_output, table_command
 
     valid_sorts = {"value", "frequency"}
@@ -65,6 +65,7 @@ def values(
         raise typer.BadParameter(f"--sort must be one of: {', '.join(sorted(valid_sorts))}")
     if plan and not write_metadata:
         raise typer.BadParameter("--plan requires --write-metadata.")
+    effective_write_metadata = resolve_write_metadata(write_metadata)
 
     col_names = parse_column_list(columns) or []
     if len(col_names) != 1:
@@ -92,7 +93,7 @@ def values(
             )
 
         metadata_write_summary = None
-        if write_metadata:
+        if effective_write_metadata:
             from querido.core.metadata_write import preview_from_values, write_from_values
 
             if plan:

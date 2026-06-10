@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import Self
 
 
@@ -89,7 +90,13 @@ class SnowflakeConnector:
             if wrapped is not None:
                 raise wrapped from exc
             raise
-        self._active_cursor: object | None = None
+        # ``supports_concurrent_queries`` is True, so profiling/template runs
+        # issue per-column queries in parallel threads.  Track every in-flight
+        # cursor in a set guarded by a lock so ``cancel()`` can best-effort
+        # cancel all of them rather than whichever thread happened to win the
+        # single-slot race.
+        self._active_cursors: set[object] = set()
+        self._active_cursors_lock = threading.Lock()
         self._columns_cache: dict[str, list[dict]] = {}
 
         # Use config values when available; fall back to querying the session
@@ -130,7 +137,8 @@ class SnowflakeConnector:
         from querido.connectors.base import wrap_driver_error
 
         cursor = self.conn.cursor()
-        self._active_cursor = cursor
+        with self._active_cursors_lock:
+            self._active_cursors.add(cursor)
         try:
             try:
                 cursor.execute(sql, params)
@@ -146,7 +154,8 @@ class SnowflakeConnector:
             except (ImportError, NotImplementedError, RuntimeError):
                 return self._fetch_standard(cursor)
         finally:
-            self._active_cursor = None
+            with self._active_cursors_lock:
+                self._active_cursors.discard(cursor)
             cursor.close()
 
     def execute_arrow(self, sql: str, params: dict | tuple | None = None) -> object:
@@ -157,7 +166,8 @@ class SnowflakeConnector:
         from querido.connectors.base import wrap_driver_error
 
         cursor = self.conn.cursor()
-        self._active_cursor = cursor
+        with self._active_cursors_lock:
+            self._active_cursors.add(cursor)
         try:
             try:
                 cursor.execute(sql, params)
@@ -174,7 +184,8 @@ class SnowflakeConnector:
             table = pa.concat_tables(batches)
             return table.rename_columns([c.lower() for c in table.column_names])
         finally:
-            self._active_cursor = None
+            with self._active_cursors_lock:
+                self._active_cursors.discard(cursor)
             cursor.close()
 
     def _resolve_table(self, name: str) -> tuple[str, str, str]:
@@ -335,11 +346,26 @@ class SnowflakeConnector:
 
         Uses ``information_schema.tables`` — no table scans.
         """
+        from querido.connectors.base import validate_object_name
+
         if not table_names:
             return {}
         # All table names share the same database/schema context
         db = self._database
         sch = self._schema
+        if not db or not sch:
+            missing = []
+            if not db:
+                missing.append("'database'")
+            if not sch:
+                missing.append("'schema'")
+            raise ValueError(
+                f"Cannot count table rows — {' and '.join(missing)} not set. "
+                "Set them in your connection config or use a fully-qualified "
+                "table name (database.schema.table)."
+            )
+        validate_object_name(db)
+        validate_object_name(sch)
         rows = self.execute(
             f"select table_name, row_count from {db}.information_schema.tables "
             f"where table_schema = %s",
@@ -354,27 +380,48 @@ class SnowflakeConnector:
         return result
 
     def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
-        # Use block sampling for large tables (>10M rows). Block sampling
-        # operates on whole micropartitions and is 5-10x faster because it
-        # skips entire storage blocks rather than evaluating each row.
-        from querido.connectors.base import validate_object_name
+        """Return a SQL source expression that samples *sample_size* rows.
 
-        validate_object_name(table)
+        The table name is routed through :meth:`_resolve_table` so casing and
+        qualification match ``get_columns`` / ``get_row_count``.
+
+        For very large tables (>10M rows) ``sample system`` (block-level
+        sampling over whole micropartitions) is 5-10x faster because it skips
+        entire storage blocks.  ``sample system`` is **invalid on views**,
+        however, so when the target is a view the connector falls back to
+        ``sample bernoulli`` (row-level percentage sampling), which works on
+        views at the cost of a full scan.  Fixed-size ``sample (n rows)`` used
+        for smaller tables already works on both tables and views.
+        """
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
+        database, schema, tbl = self._resolve_table(table)
+        qualified = f'"{database}"."{schema}"."{tbl}"'
         if row_count > 10_000_000:
+            # Block sampling operates on whole micropartitions and is 5-10x
+            # faster, but Snowflake rejects `sample system` on views.  Probe
+            # cheaply via information_schema.views and fall back to row-level
+            # bernoulli sampling (valid on views) when the target is a view.
             pct = max(sample_size / row_count * 100, 0.01)
-            return f"(select * from {table} sample system ({pct:.4f})) as _sample"
-        return f"(select * from {table} sample ({sample_size} rows)) as _sample"
+            method = "bernoulli" if self.get_view_definition(table) is not None else "system"
+            return f"(select * from {qualified} sample {method} ({pct:.4f})) as _sample"
+        return f"(select * from {qualified} sample ({sample_size} rows)) as _sample"
 
     def cancel(self) -> None:
-        """Cancel the currently executing query on the Snowflake connection."""
+        """Best-effort cancel every in-flight query on this connection.
+
+        Snowflake's ``cursor.cancel()`` only cancels the one cursor's query,
+        so under the connector's own per-column concurrency there may be
+        several cursors running at once.  Snapshot the tracked set under the
+        lock and attempt each, swallowing per-cursor errors.
+        """
         import contextlib
 
-        cursor = self._active_cursor
-        if cursor is not None:
+        with self._active_cursors_lock:
+            cursors = list(self._active_cursors)
+        for cursor in cursors:
             with contextlib.suppress(Exception):
-                cursor.cancel()  # type: ignore[union-attr]
+                cursor.cancel()  # type: ignore[attr-defined]
 
     def close(self) -> None:
         self.conn.close()

@@ -84,6 +84,18 @@ def test_diff_changed_type(diff_db: str):
     assert len(payload["changed"]) >= 1
 
 
+def test_diff_target_mixed_case_resolves(diff_db: str):
+    """--target table names resolve case-insensitively, like --since does."""
+    result = runner.invoke(
+        app,
+        ["-f", "json", "diff", "-c", diff_db, "-t", "USERS_V1", "--target", "Users_V2"],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)["data"]
+    added_names = [c["name"] for c in payload["added"]]
+    assert "email" in added_names
+
+
 def test_diff_unchanged_count(diff_db: str):
     result = runner.invoke(
         app,
@@ -168,6 +180,43 @@ def test_diff_cross_connection(tmp_path: Path):
     )
     assert result.exit_code == 0
 
+    payload = json.loads(result.output)["data"]
+    added_names = [c["name"] for c in payload["added"]]
+    assert "extra" in added_names
+
+
+def test_diff_cross_connection_mixed_case_resolves(tmp_path: Path):
+    """Cross-connection --target resolves casing against the target connector."""
+    db1 = str(tmp_path / "left.db")
+    db2 = str(tmp_path / "right.db")
+
+    conn1 = sqlite3.connect(db1)
+    conn1.execute("CREATE TABLE t (id INTEGER, name TEXT)")
+    conn1.commit()
+    conn1.close()
+
+    conn2 = sqlite3.connect(db2)
+    conn2.execute("CREATE TABLE t (id INTEGER, name TEXT, extra REAL)")
+    conn2.commit()
+    conn2.close()
+
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "diff",
+            "-c",
+            db1,
+            "-t",
+            "T",
+            "--target-connection",
+            db2,
+            "--target",
+            "T",
+        ],
+    )
+    assert result.exit_code == 0
     payload = json.loads(result.output)["data"]
     added_names = [c["name"] for c in payload["added"]]
     assert "extra" in added_names

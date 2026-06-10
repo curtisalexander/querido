@@ -404,3 +404,147 @@ def test_config_test_invalid_connection(tmp_path):
     env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
     result = runner.invoke(app, ["config", "test", "no_such_connection"], env=env)
     assert result.exit_code != 0
+
+
+def test_config_test_mistyped_name_json_uses_connection_not_found(tmp_path):
+    """A mistyped connection name maps to CONNECTION_NOT_FOUND, not FILE_NOT_FOUND."""
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    runner.invoke(
+        app,
+        ["config", "add", "--name", "mydb", "--type", "sqlite", "--path", "/tmp/test.db"],
+        env=env,
+    )
+    result = runner.invoke(app, ["-f", "json", "config", "test", "mydp"], env=env)
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "CONNECTION_NOT_FOUND"
+    # The hint suggests a valid config add invocation (--name flag, not positional)
+    assert "qdo config add --name" in payload.get("hint", "")
+    # Available connections are listed in the message
+    assert "mydb" in payload.get("message", "")
+
+
+def test_config_test_failing_connection_json_emits_structured_error(tmp_path):
+    """A connector failure under -f json yields a parseable structured payload."""
+    bad_db = tmp_path / "notadb.db"
+    bad_db.write_text("this is not a sqlite database, just text")
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path / "config")}
+    result = runner.invoke(app, ["-f", "json", "config", "test", str(bad_db)], env=env)
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert isinstance(payload.get("code"), str) and payload.get("code")
+
+
+def test_config_test_failing_connection_rich_output_unchanged(tmp_path):
+    """Human-facing output keeps the FAIL line for connector errors."""
+    bad_db = tmp_path / "notadb.db"
+    bad_db.write_text("this is not a sqlite database, just text")
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path / "config")}
+    result = runner.invoke(app, ["config", "test", str(bad_db)], env=env)
+    assert result.exit_code == 1
+    assert "FAIL" in result.output
+
+
+# ---------------------------------------------------------------------------
+# column-set show/delete structured errors + dotted table names
+# ---------------------------------------------------------------------------
+
+
+def test_column_set_show_missing_json_uses_structured_error(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "config",
+            "column-set",
+            "show",
+            "-c",
+            "conn",
+            "-t",
+            "orders",
+            "-n",
+            "ghost",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "COLUMN_SET_NOT_FOUND"
+
+
+def test_column_set_delete_missing_json_uses_structured_error(tmp_path):
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(
+        app,
+        [
+            "-f",
+            "json",
+            "config",
+            "column-set",
+            "delete",
+            "-c",
+            "conn",
+            "-t",
+            "orders",
+            "-n",
+            "ghost",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.output)
+    assert payload.get("error") is True
+    assert payload.get("code") == "COLUMN_SET_NOT_FOUND"
+
+
+def test_column_set_cli_dotted_table_round_trip(tmp_path):
+    """Save, list-filter, show, and delete a column set for a dotted table name."""
+    env = {**os.environ, "QDO_CONFIG": str(tmp_path)}
+    result = runner.invoke(
+        app,
+        [
+            "config",
+            "column-set",
+            "save",
+            "-c",
+            "snow",
+            "-t",
+            "db.schema.tbl",
+            "-n",
+            "wide",
+            "--columns",
+            "a,b,c",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0
+
+    # Table-filtered list matches the full dotted name
+    result = runner.invoke(app, ["config", "column-set", "list", "-t", "db.schema.tbl"], env=env)
+    assert result.exit_code == 0
+    assert "snow" in result.output
+    assert "wide" in result.output
+
+    # Filtering on a prefix segment must not match
+    result = runner.invoke(app, ["config", "column-set", "list", "-t", "db"], env=env)
+    assert result.exit_code == 0
+    assert "No column sets found" in result.output
+
+    result = runner.invoke(
+        app,
+        ["config", "column-set", "show", "-c", "snow", "-t", "db.schema.tbl", "-n", "wide"],
+        env=env,
+    )
+    assert result.exit_code == 0
+
+    result = runner.invoke(
+        app,
+        ["config", "column-set", "delete", "-c", "snow", "-t", "db.schema.tbl", "-n", "wide"],
+        env=env,
+    )
+    assert result.exit_code == 0
