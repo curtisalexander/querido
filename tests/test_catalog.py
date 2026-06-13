@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 
@@ -30,8 +31,6 @@ def test_catalog_tables_only(sqlite_path: str):
 def test_catalog_format_json(sqlite_path: str):
     result = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["table_count"] == 1
     assert payload["tables"][0]["name"] == "users"
@@ -42,8 +41,6 @@ def test_catalog_format_json(sqlite_path: str):
 def test_catalog_format_json_tables_only(sqlite_path: str):
     result = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path, "--tables-only"])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["table_count"] == 1
     assert payload["tables"][0]["columns"] is None
@@ -85,8 +82,6 @@ def test_catalog_multiple_tables(tmp_path: Path):
 
     result = runner.invoke(app, ["-f", "json", "catalog", "-c", db_path])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["table_count"] == 2
     names = {t["name"] for t in payload["tables"]}
@@ -104,8 +99,6 @@ def test_catalog_includes_views(tmp_path: Path):
 
     result = runner.invoke(app, ["-f", "json", "catalog", "-c", db_path])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     types = {t["name"]: t["type"] for t in payload["tables"]}
     assert types["users"] == "table"
@@ -116,8 +109,6 @@ def test_catalog_live_flag(sqlite_path: str):
     """--live should always query the database, not the cache."""
     result = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path, "--live"])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["table_count"] == 1
 
@@ -125,8 +116,6 @@ def test_catalog_live_flag(sqlite_path: str):
 def test_catalog_functions_duckdb_json(duckdb_path: str):
     result = runner.invoke(app, ["-f", "json", "catalog", "functions", "-c", duckdb_path])
     assert result.exit_code == 0, result.output
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["supported"] is True
     assert payload["dialect"] == "duckdb"
@@ -140,8 +129,6 @@ def test_catalog_functions_duckdb_pattern_filters(duckdb_path: str):
         ["-f", "json", "catalog", "functions", "-c", duckdb_path, "--pattern", "lower"],
     )
     assert result.exit_code == 0, result.output
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["supported"] is True
     assert payload["function_count"] >= 1
@@ -151,8 +138,6 @@ def test_catalog_functions_duckdb_pattern_filters(duckdb_path: str):
 def test_catalog_functions_sqlite_is_gracefully_unsupported(sqlite_path: str):
     result = runner.invoke(app, ["-f", "json", "catalog", "functions", "-c", sqlite_path])
     assert result.exit_code == 0, result.output
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["supported"] is False
     assert payload["dialect"] == "sqlite"
@@ -170,8 +155,6 @@ def test_catalog_column_details(sqlite_path: str):
     """Columns should include type and nullable info."""
     result = runner.invoke(app, ["-f", "json", "catalog", "-c", sqlite_path])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     cols = payload["tables"][0]["columns"]
     col_names = [c["name"] for c in cols]
@@ -210,8 +193,6 @@ def test_catalog_enrich(sqlite_path: str, tmp_path: Path, monkeypatch):
         ["-f", "json", "catalog", "-c", sqlite_path, "--enrich"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     users_table = payload["tables"][0]
     assert users_table.get("table_description") == "Application user accounts"
@@ -230,8 +211,6 @@ def test_catalog_enrich_no_metadata(sqlite_path: str, tmp_path: Path, monkeypatc
         ["-f", "json", "catalog", "-c", sqlite_path, "--enrich"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     # Should work fine, just no enrichment
     assert payload["table_count"] == 1

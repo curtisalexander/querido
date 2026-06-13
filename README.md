@@ -26,7 +26,7 @@ For the full orientation (what qdo is, what it deliberately isn't, invariants th
 
 ## Install
 
-Pre-built wheels are available from [GitHub Releases](https://github.com/curtisalexander/querido/releases). Requires Python >= 3.12 and [uv](https://docs.astral.sh/uv/).
+Pre-built wheels are available from [GitHub Releases](https://github.com/curtisalexander/querido/releases). Requires Python >= 3.12 and [uv](https://docs.astral.sh/uv/). The examples below pin `v0.1.0`; replace it with the latest release tag.
 
 ### With `uv tool install` (recommended)
 
@@ -97,9 +97,7 @@ uv pip install 'querido[all]'        # Everything
 
 ## Quick Start
 
-The opinionated qdo workflow is:
-
-`discover -> understand -> capture -> answer -> hand off`
+Walk the loop from above end-to-end against your own database:
 
 ```bash
 # 1. Discover what exists

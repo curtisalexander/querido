@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
@@ -87,8 +88,6 @@ def test_agent_meta_signals_yaml_when_falling_back(sqlite_path: str):
 
 def test_agent_meta_serialization_absent_on_json(sqlite_path: str):
     """-f json is always JSON; don't pollute the meta block with a redundant tag."""
-    import json
-
     result = runner.invoke(app, ["-f", "json", "preview", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)

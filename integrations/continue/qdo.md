@@ -11,17 +11,23 @@ qdo is an agent-first data exploration CLI that turns one-off investigation into
 
 Pass `-f json` on every invocation for machine-readable output — the envelope is `{command, data, next_steps, meta}` with deterministic `next_steps` hints that chain investigations. Canonical placement is right after `qdo` (`qdo -f json <cmd> ...`). Shortcut: `export QDO_FORMAT=json` sets the default for a shell session.
 
-## Default agent workflow
+## Promoted workflow
 
-Unless the user clearly asks for something else, use this path:
+Unless the user clearly asks for something else, use this path. It is the main
+story qdo is optimized for: discover data, understand it, capture what you
+learned, answer the question, then share the result.
 
 ```bash
-qdo -f json catalog -c <connection>                                   # discover candidate tables
-qdo -f json context -c <connection> -t <table>                         # understand one table deeply
-qdo -f json metadata show -c <connection> -t <table>                   # load existing shared knowledge
-qdo -f json query -c <connection> --sql "select ..."                   # answer a concrete question
-qdo -f json assert -c <connection> --sql "select ..." --expect ...     # verify an invariant when useful
-qdo report table -c <connection> -t <table> -o report.html             # hand off a shareable artifact (file output)
+qdo -f json catalog -c <connection>                                   # 1. discover candidate tables
+qdo -f json context -c <connection> -t <table>                         # 2. understand one table deeply
+qdo -f json metadata show -c <connection> -t <table>                   # 3. load existing shared knowledge...
+qdo metadata init -c <connection> -t <table>                           #    ...or capture it: scaffold the file
+qdo metadata suggest -c <connection> -t <table> --apply                #    then enrich from deterministic scans
+qdo -f json query -c <connection> --sql "select ..."                   # 4. answer a concrete question
+qdo -f json assert -c <connection> --sql "select ..." --expect ...     #    verify an invariant when useful
+qdo report table -c <connection> -t <table> -o report.html             # 5. hand off a shareable artifact (file output)
+qdo bundle export -c <connection> -t <table> -o bundle.zip             #    ...or a portable knowledge bundle
+qdo bundle inspect bundle.zip                                          #    always inspect after export
 ```
 
 Treat `catalog -> context -> metadata -> query/assert -> report/bundle` as the default path.
@@ -57,33 +63,6 @@ qdo catalog -c ./data.parquet
 ```
 
 The `-c` flag accepts either a named connection or a direct file path.
-
-## Promoted workflow
-
-For most analyst and agent tasks, use this sequence:
-
-```bash
-# 1. Discover candidate tables
-qdo catalog -c <connection>
-
-# 2. Build context for one table
-qdo context -c <connection> -t <table>
-
-# 3. Load or capture shared understanding
-qdo metadata show -c <connection> -t <table> -f json
-qdo metadata init -c <connection> -t <table>
-qdo metadata suggest -c <connection> -t <table> --apply
-
-# 4. Answer a concrete question
-qdo query -c <connection> --sql "select ..."
-
-# 5. Verify or hand off
-qdo assert -c <connection> --sql "select ..." --expect ...
-qdo report table -c <connection> -t <table> -o report.html
-qdo bundle export -c <connection> -t <table> -o bundle.zip
-```
-
-This is the main story qdo is optimized for: discover data, understand it, capture what you learned, answer the question, then share the result.
 
 ## Drill-down commands
 

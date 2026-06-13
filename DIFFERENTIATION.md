@@ -166,8 +166,9 @@ When evaluating any proposed feature, in order:
 
 ## Current state (snapshot, 2026-04-23)
 
-- **Tests:** 1193 passing / 25 skipped. `ruff check`, `ruff format`, `ty check`
-  all green. Zero `TODO` / `FIXME` markers anywhere in src or tests.
+- **Tests:** full suite green — `pytest`, `ruff check`, `ruff format`, and
+  `ty check` all pass, with zero `TODO` / `FIXME` markers anywhere in src or
+  tests. See [PLAN.md](./PLAN.md#status-as-of-2026-04-23) for the exact counts.
 - **Shipped phases:** 1–4, 6, 7. Phase 5 dropped by design. R-series complete.
   Sharpening Waves 1–4 complete. Pre-release polish pass (items 0–6) landed
   2026-04-22. Pre-beta audit pass (26 items across 5 tiers) landed 2026-04-23.

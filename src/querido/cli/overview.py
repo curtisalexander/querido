@@ -13,6 +13,7 @@ from pathlib import Path
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import VALID_FORMATS
 
 app = typer.Typer(help="Print CLI overview (markdown or json).")
 
@@ -86,7 +87,7 @@ def _print_fallback() -> None:
     lines += [
         "## Global Options",
         "",
-        "`--format`, `-f` : rich, json, csv, markdown, html, yaml",
+        f"`--format`, `-f` : {', '.join(VALID_FORMATS)}",
         "`--show-sql`     : Print rendered SQL to stderr",
         "`--debug`        : Enable debug logging to stderr",
         "`--version`, `-V`: Show version",
@@ -441,7 +442,7 @@ def _build_payload() -> dict:
     global_options = [
         {
             "flag": "-f, --format",
-            "values": ["rich", "json", "agent", "csv", "markdown", "html", "yaml"],
+            "values": list(VALID_FORMATS),
             "default": "rich",
             "help": "Output format.",
         },
@@ -489,7 +490,7 @@ def _build_payload() -> dict:
                 "structured JSON output from all commands by default."
             ),
             "env_var": "QDO_FORMAT",
-            "valid_values": ["rich", "json", "csv", "markdown", "html", "yaml"],
+            "valid_values": list(VALID_FORMATS),
             "priority": "explicit --format flag > QDO_FORMAT env var > rich",
             "recommended_workflow": [
                 "export QDO_FORMAT=json",
