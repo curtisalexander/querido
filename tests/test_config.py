@@ -75,6 +75,7 @@ def test_resolve_connection_expands_tilde_for_direct_path(tmp_path, monkeypatch)
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))  # expanduser reads this on Windows
     (home / "data.db").touch()
 
     config = resolve_connection("~/data.db")
@@ -89,6 +90,7 @@ def test_resolve_connection_expands_tilde_for_named_connection(tmp_path, monkeyp
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))  # expanduser reads this on Windows
     (config_dir / "connections.toml").write_text(
         '[connections.mydb]\ntype = "sqlite"\npath = "~/data.db"\n'
     )
@@ -102,6 +104,7 @@ def test_resolve_connection_expands_tilde_for_parquet(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))  # expanduser reads this on Windows
 
     config = resolve_connection("~/events.parquet")
     assert config.get("type") == "duckdb"
