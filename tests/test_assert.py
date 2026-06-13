@@ -236,8 +236,6 @@ def test_assert_format_json(sqlite_path: str):
         ],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)
     assert payload["command"] == "assert"
     data = payload["data"]
@@ -263,8 +261,6 @@ def test_assert_format_json_fail(sqlite_path: str):
         ],
     )
     assert result.exit_code == 1
-    import json
-
     payload = json.loads(result.output)
     data = payload["data"]
     assert data["passed"] is False

@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 
@@ -67,8 +68,6 @@ def test_values_format_json(sqlite_path: str):
         app, ["-f", "json", "values", "-c", sqlite_path, "-t", "users", "-C", "name"]
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["column"] == "name"
     assert payload["distinct_count"] == 2
@@ -115,8 +114,6 @@ def test_values_sort_frequency(sqlite_path: str):
         ],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     # Both have count 1, so order doesn't matter much
     assert len(payload["values"]) == 2
@@ -137,8 +134,6 @@ def test_values_truncated(tmp_path: Path):
         ["-f", "json", "values", "-c", db_path, "-t", "items", "-C", "label", "--max", "10"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["distinct_count"] == 50
     assert payload["truncated"] is True
@@ -158,8 +153,6 @@ def test_values_with_nulls(tmp_path: Path):
 
     result = runner.invoke(app, ["-f", "json", "values", "-c", db_path, "-t", "t", "-C", "status"])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["null_count"] == 2
     assert payload["distinct_count"] == 2
@@ -189,8 +182,6 @@ def test_values_numeric_column(sqlite_path: str):
         app, ["-f", "json", "values", "-c", sqlite_path, "-t", "users", "-C", "age"]
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     vals = [v["value"] for v in payload["values"]]
     assert 25 in vals
@@ -274,8 +265,6 @@ def test_values_total_rows_includes_null_rows(tmp_path: Path):
 
     result = runner.invoke(app, ["-f", "json", "values", "-c", db_path, "-t", "t", "-C", "status"])
     assert result.exit_code == 0, result.output
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["total_rows"] == 3
     assert payload["null_count"] == 1
@@ -297,8 +286,6 @@ def test_values_all_null_column_reports_every_row_null(tmp_path: Path):
 
     result = runner.invoke(app, ["-f", "json", "values", "-c", db_path, "-t", "t", "-C", "status"])
     assert result.exit_code == 0, result.output
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["total_rows"] == 3
     assert payload["null_count"] == 3

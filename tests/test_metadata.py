@@ -1,5 +1,6 @@
 """Tests for qdo metadata command."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -64,8 +65,6 @@ def test_metadata_init_emits_envelope(sqlite_path: str, tmp_path: Path, monkeypa
         ["-f", "json", "metadata", "init", "-c", sqlite_path, "-t", "users"],
     )
     assert result.exit_code == 0, result.output
-    import json
-
     payload = json.loads(result.output)
     assert set(payload) == {"command", "data", "next_steps", "meta"}
     assert payload.get("command") == "metadata init"
@@ -97,8 +96,6 @@ def test_metadata_init_table_not_found_structured(sqlite_path: str, tmp_path: Pa
         ["-f", "json", "metadata", "init", "-c", sqlite_path, "-t", "userz"],
     )
     assert result.exit_code != 0
-    import json
-
     payload = json.loads(result.output)
     assert payload.get("error") is True
     assert payload.get("code") == "TABLE_NOT_FOUND"
@@ -115,8 +112,6 @@ def test_metadata_show(sqlite_path: str, tmp_path: Path, monkeypatch):
         ["-f", "json", "metadata", "show", "-c", sqlite_path, "-t", "users"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)
     # CS.3 — metadata show now wraps output in the standard envelope.
     data = payload["data"]
@@ -144,8 +139,6 @@ def test_metadata_list(sqlite_path: str, tmp_path: Path, monkeypatch):
         ["-f", "json", "metadata", "list", "-c", sqlite_path],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)
     tables = payload.get("tables", [])
     assert len(tables) == 1
@@ -161,8 +154,6 @@ def test_metadata_list_empty(tmp_path: Path, monkeypatch):
         ["-f", "json", "metadata", "list", "-c", "no-such-conn"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)
     assert payload.get("tables") == []
 
@@ -207,8 +198,6 @@ def test_metadata_refresh_emits_envelope(sqlite_path: str, tmp_path: Path, monke
         ["-f", "json", "metadata", "refresh", "-c", sqlite_path, "-t", "users"],
     )
     assert result.exit_code == 0, result.output
-    import json
-
     payload = json.loads(result.output)
     assert set(payload) == {"command", "data", "next_steps", "meta"}
     assert payload.get("command") == "metadata refresh"
@@ -228,8 +217,6 @@ def test_metadata_refresh_table_not_found_structured(
         ["-f", "json", "metadata", "refresh", "-c", sqlite_path, "-t", "userz"],
     )
     assert result.exit_code != 0
-    import json
-
     payload = json.loads(result.output)
     assert payload.get("error") is True
     assert payload.get("code") == "TABLE_NOT_FOUND"
@@ -251,8 +238,6 @@ def test_metadata_completeness(sqlite_path: str, tmp_path: Path, monkeypatch):
     Regression: this used to be a separate human-fields-only calculation, so
     ``suggest --apply`` could write ``valid_values`` without moving the number.
     """
-    import json
-
     monkeypatch.chdir(tmp_path)
     runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
 
@@ -351,8 +336,6 @@ def test_metadata_search_prefers_matching_column(sqlite_path: str, tmp_path: Pat
     )
     assert result.exit_code == 0, result.output
 
-    import json
-
     payload = json.loads(result.output)
     assert payload["command"] == "metadata search"
     data = payload["data"]
@@ -372,8 +355,6 @@ def test_metadata_search_empty_index_emits_envelope(tmp_path: Path, monkeypatch)
         ["-f", "json", "metadata", "search", "-c", "missing-conn", "customer email"],
     )
     assert result.exit_code == 0, result.output
-
-    import json
 
     payload = json.loads(result.output)
     assert set(payload) == {"command", "data", "next_steps", "meta"}

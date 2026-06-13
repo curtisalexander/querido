@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 
@@ -49,8 +50,6 @@ def test_inspect_verbose_sqlite_no_comments(sqlite_path: str):
 
 
 def test_inspect_verbose_json_includes_comments(duckdb_with_comments_path: str):
-    import json
-
     result = runner.invoke(
         app, ["--format", "json", "inspect", "-c", duckdb_with_comments_path, "-t", "users", "-v"]
     )

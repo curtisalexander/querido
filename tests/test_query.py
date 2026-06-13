@@ -235,8 +235,6 @@ def test_query_format_json(sqlite_path: str):
         ["-f", "json", "query", "-c", sqlite_path, "--sql", "select * from users"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["row_count"] == 2
     assert payload["columns"] == ["id", "name", "age"]
@@ -287,8 +285,6 @@ def test_query_aggregate(sqlite_path: str):
         ["-f", "json", "query", "-c", sqlite_path, "--sql", "select count(*) as cnt from users"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["rows"][0]["cnt"] == 2
 

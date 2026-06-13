@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from querido.cli.argv_hoist import hoist_format_flag, split_format_flag
@@ -158,7 +160,5 @@ class TestIntegrationWithCli:
         )
         assert proc.returncode == 0, f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
         # JSON output should parse and include the command.
-        import json
-
         payload = json.loads(proc.stdout)
         assert payload["command"] == "inspect"

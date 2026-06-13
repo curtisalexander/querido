@@ -150,8 +150,6 @@ def test_profile_columns_filter(sqlite_path: str):
         ],
     )
     assert result.exit_code == 0
-    import json
-
     data = json.loads(result.output)["data"]
     col_names = [c["column_name"] for c in data["columns"]]
     assert "name" in col_names
@@ -165,8 +163,6 @@ def test_profile_short_C_flag(sqlite_path: str):
         ["-f", "json", "profile", "-c", sqlite_path, "-t", "users", "-C", "name"],
     )
     assert result.exit_code == 0
-    import json
-
     data = json.loads(result.output)["data"]
     col_names = [c["column_name"] for c in data["columns"]]
     assert col_names == ["name"]

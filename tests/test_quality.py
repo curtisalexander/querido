@@ -1,5 +1,6 @@
 """Tests for qdo quality command."""
 
+import json
 import sqlite3
 from pathlib import Path
 from typing import cast
@@ -26,8 +27,6 @@ def test_quality_duckdb(duckdb_path: str):
 def test_quality_format_json(sqlite_path: str):
     result = runner.invoke(app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["table"] == "users"
     assert payload["row_count"] == 2
@@ -64,8 +63,6 @@ def test_quality_with_nulls(tmp_path: Path):
 
     result = runner.invoke(app, ["-f", "json", "quality", "-c", db_path, "-t", "t"])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     by_name = {c["name"]: c for c in payload["columns"]}
 
@@ -87,8 +84,6 @@ def test_quality_column_filter(sqlite_path: str):
         ["-f", "json", "quality", "-c", sqlite_path, "-t", "users", "--columns", "name,age"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     col_names = [c["name"] for c in payload["columns"]]
     assert "name" in col_names
@@ -103,8 +98,6 @@ def test_quality_short_C_flag(sqlite_path: str):
         ["-f", "json", "quality", "-c", sqlite_path, "-t", "users", "-C", "age"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     col_names = [c["name"] for c in payload["columns"]]
     assert col_names == ["age"]
@@ -126,8 +119,6 @@ def test_quality_check_duplicates_none(sqlite_path: str):
         ],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["duplicate_rows"] == 0
 
@@ -148,8 +139,6 @@ def test_quality_check_duplicates_found(tmp_path: Path):
         ["-f", "json", "quality", "-c", db_path, "-t", "t", "--check-duplicates"],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["duplicate_rows"] == 2  # 3 copies - 1 = 2 extra
 
@@ -158,8 +147,6 @@ def test_quality_no_duplicates_flag_means_null(sqlite_path: str):
     """Without --check-duplicates, duplicate_rows should be null."""
     result = runner.invoke(app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     assert payload["duplicate_rows"] is None
 
@@ -168,8 +155,6 @@ def test_quality_uniqueness(sqlite_path: str):
     """Each user has unique id/name/age so uniqueness should be 100%."""
     result = runner.invoke(app, ["-f", "json", "quality", "-c", sqlite_path, "-t", "users"])
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)["data"]
     by_name = {c["name"]: c for c in payload["columns"]}
     assert by_name["id"]["uniqueness_pct"] == 100.0

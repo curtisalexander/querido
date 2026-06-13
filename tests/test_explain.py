@@ -40,8 +40,6 @@ def test_explain_format_json(sqlite_path: str):
         ],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)
     assert payload["command"] == "explain"
     data = payload["data"]
@@ -104,8 +102,6 @@ def test_explain_analyze_duckdb(duckdb_path: str):
         ],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)
     assert payload["data"].get("analyzed") is True
 
@@ -158,7 +154,5 @@ def test_explain_with_where_clause(sqlite_path: str):
         ],
     )
     assert result.exit_code == 0
-    import json
-
     payload = json.loads(result.output)
     assert len(payload["data"].get("plan", "")) > 0
