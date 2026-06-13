@@ -1,6 +1,7 @@
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt, table_opt
 
 app = typer.Typer(help="Inspect table structure.")
 
@@ -8,13 +9,9 @@ app = typer.Typer(help="Inspect table structure.")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def inspect(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show extended metadata (comments, descriptions)."
     ),

@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt
 
 app = typer.Typer(help="Compare schemas between two tables.")
 
@@ -13,9 +14,7 @@ app = typer.Typer(help="Compare schemas between two tables.")
 @friendly_errors
 def diff(
     table: str = typer.Option(..., "--table", "-t", help="Left table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
     target: str | None = typer.Option(None, "--target", help="Right table name."),
     since: str | None = typer.Option(
         None,
@@ -27,11 +26,7 @@ def diff(
         "--target-connection",
         help="Connection for right table (default: same as --connection).",
     ),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type (sqlite/duckdb). Inferred from path if omitted.",
-    ),
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Compare column schemas between two tables.
 

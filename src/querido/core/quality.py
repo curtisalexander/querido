@@ -336,11 +336,13 @@ def _check_duplicate_rows(
 
     col_list = ", ".join(_q(c.get("name", "")) for c in columns)
 
+    from querido.connectors.base import quote_qualified_name
+
     # Count groups that appear more than once
     sql = (
         f"select coalesce(sum(dup_count - 1), 0) as duplicates from "
         f"(select {col_list}, count(*) as dup_count "
-        f'from "{table}" group by {col_list} having count(*) > 1) as _d'
+        f"from {quote_qualified_name(table)} group by {col_list} having count(*) > 1) as _d"
     )
     result = connector.execute(sql)
     return int(result[0].get("duplicates", 0)) if result else 0

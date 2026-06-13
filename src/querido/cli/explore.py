@@ -1,6 +1,7 @@
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt, table_opt
 
 app = typer.Typer(help="Interactive TUI with selected-column context and wide-table triage.")
 
@@ -8,14 +9,10 @@ app = typer.Typer(help="Interactive TUI with selected-column context and wide-ta
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def explore(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
     rows: int = typer.Option(1000, "--rows", "-r", min=1, help="Maximum rows to load initially."),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Launch the interactive TUI for table exploration.
 

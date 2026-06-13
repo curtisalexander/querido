@@ -4,13 +4,23 @@ from querido.sql.renderer import render_template
 
 
 def test_render_common_template():
+    # Executed-query templates quote the table identifier so reserved-word /
+    # special-char names are safe.
     sql = render_template("test", "sqlite", table="users", limit=10)
-    assert "select * from users limit 10" in sql
+    assert 'select * from "users" limit 10' in sql
 
 
 def test_render_falls_back_to_common():
     sql = render_template("test", "duckdb", table="orders", limit=5)
-    assert "select * from orders limit 5" in sql
+    assert 'select * from "orders" limit 5' in sql
+
+
+def test_executed_template_quotes_reserved_word_table():
+    # Regression: a table named ``order`` must not produce ``from order``.
+    for command in ("test", "preview", "count"):
+        sql = render_template(command, "duckdb", table="order", limit=5)
+        assert 'from "order"' in sql
+        assert "from order " not in sql and not sql.rstrip().endswith("from order")
 
 
 def test_dialect_specific_overrides_common():

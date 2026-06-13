@@ -5,4 +5,4 @@ select
     min("{{ col.name }}") as "{{ col.name }}_min",
     max("{{ col.name }}") as "{{ col.name }}_max"{% if not loop.last %},{% endif %}
 {% endfor %}
-from {{ table }}
+from {{ table | quote_ident }}

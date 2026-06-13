@@ -256,8 +256,6 @@ def _maybe_start_session(ctx: typer.Context) -> None:
     ``.qdo/sessions/<name>/``. The finalizer runs during context teardown so
     the step is recorded whether the command succeeds or fails.
     """
-    import sys
-
     from querido.core.session import SessionRecorder, active_session_name
 
     name = active_session_name()
@@ -367,8 +365,6 @@ def main(
     # Reset handlers to avoid accumulation across CliRunner invocations in tests
     logger.handlers.clear()
     if debug:
-        import sys
-
         logger.setLevel(logging.DEBUG)
         handler = logging.StreamHandler(sys.stderr)
         handler.setFormatter(logging.Formatter("[qdo] %(message)s"))

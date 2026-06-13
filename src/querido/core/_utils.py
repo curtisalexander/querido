@@ -169,7 +169,9 @@ def build_sample_source(
 
     Returns ``(source, sampled, sample_size)``.
     """
-    source = table
+    from querido.connectors.base import quote_qualified_name
+
+    source = quote_qualified_name(table)
     sampled = False
     sample_size = None
 

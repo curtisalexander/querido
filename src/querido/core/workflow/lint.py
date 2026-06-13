@@ -18,7 +18,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from querido.core.sql_safety import any_statement_is_destructive
-from querido.core.workflow.expr import REF_RE
+from querido.core.workflow.expr import iter_refs
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 _SLUG = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -307,7 +307,7 @@ def _check_steps(steps: list[Any], doc: dict[str, Any], result: LintResult) -> N
         for field_name in ("run", "when"):
             value = step.get(field_name)
             if isinstance(value, str):
-                for ref in _iter_refs(value):
+                for ref in iter_refs(value):
                     root = ref.split(".")[0]
                     if root not in defined:
                         result.add(
@@ -357,7 +357,7 @@ def _check_outputs(doc: dict[str, Any], steps: list[Any], result: LintResult) ->
         if not isinstance(expr, str) or not expr.strip():
             result.add("INVALID_OUTPUT", f"output {key!r} must be a non-empty string", path=base)
             continue
-        for ref in _iter_refs(expr):
+        for ref in iter_refs(expr):
             root = ref.split(".")[0]
             if root not in defined:
                 result.add(
@@ -366,10 +366,6 @@ def _check_outputs(doc: dict[str, Any], steps: list[Any], result: LintResult) ->
                     fix="reference an input or a step's capture name",
                     path=base,
                 )
-
-
-def _iter_refs(s: str) -> list[str]:
-    return [m.group(1) for m in REF_RE.finditer(s)]
 
 
 def _is_write_query(run: str) -> bool:

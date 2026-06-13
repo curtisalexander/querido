@@ -639,6 +639,11 @@ def format_metadata(
     if fmt == "json":
         return json.dumps(meta, indent=2, default=str)
 
+    # show_metadata returns raw YAML: descriptions may be unfilled placeholders
+    # (`<description>`) or provenance-wrapped dicts. Unwrap to plain text so
+    # markdown/csv/html match the Rich and report_html renderers (M11).
+    from querido.core.metadata import _unwrap_field
+
     if fmt == "csv":
         columns = meta.get("columns", [])
         if not columns:
@@ -647,7 +652,7 @@ def format_metadata(
             {
                 "name": c.get("name", ""),
                 "type": c.get("type", ""),
-                "description": c.get("description", ""),
+                "description": _unwrap_field(c.get("description")) or "",
                 "nullable": c.get("nullable", False),
                 "null_count": c.get("null_count", ""),
                 "distinct_count": c.get("distinct_count", ""),
@@ -658,8 +663,8 @@ def format_metadata(
 
     # markdown
     lines = [f"## {meta.get('table', '')}"]
-    desc = meta.get("table_description", "")
-    if desc and not str(desc).startswith("<"):
+    desc = _unwrap_field(meta.get("table_description"))
+    if desc:
         lines.append(f"\n{desc}")
     lines.append(f"\nRow count: {meta.get('row_count', 0):,}")
     lines.append("")
@@ -670,7 +675,7 @@ def format_metadata(
             [
                 c.get("name", ""),
                 c.get("type", ""),
-                c.get("description", ""),
+                str(_unwrap_field(c.get("description")) or ""),
                 str(c.get("null_count", "")),
                 str(c.get("distinct_count", "")),
             ]

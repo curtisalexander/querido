@@ -749,18 +749,32 @@ def _merge_metadata(existing: dict, fresh: dict) -> dict:
 
 
 def _write_yaml(path: Path, data: dict) -> None:
-    """Write a dict as YAML to *path*."""
+    """Write a dict as YAML to *path* atomically.
+
+    Writes to a temp file in the same directory and ``os.replace``s it over the
+    target so an interrupt or disk-full mid-write can't truncate the user's live
+    metadata (the same corruption window the session log closes).
+    """
+    import tempfile
+
     import yaml
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            data,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-        )
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, prefix=f"{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.dump(
+                data,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+        os.replace(tmp_path, path)
+    except BaseException:
+        with suppress(OSError):
+            os.unlink(tmp_path)
+        raise
 
 
 def _read_yaml(path: Path) -> dict | None:

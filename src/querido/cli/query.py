@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt
 
 app = typer.Typer(help="Execute ad-hoc SQL queries.")
 
@@ -36,9 +37,7 @@ def _build_run_cmd(
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def query(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
     sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query string."),
     file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file to execute."),
     from_step: str | None = typer.Option(
@@ -68,9 +67,7 @@ def query(
     limit: int = typer.Option(
         1000, "--limit", "-l", min=0, help="Max rows to return (0 = no limit)."
     ),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Execute arbitrary SQL and display results.
 
@@ -144,8 +141,6 @@ def query(
                 extra_meta=source_meta or None,
             )
             return
-        from querido.cli._pipeline import dispatch_output
-
         dispatch_output("plan", payload)
         return
 

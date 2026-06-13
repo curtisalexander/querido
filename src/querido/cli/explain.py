@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt
 
 app = typer.Typer(help="Show query execution plan (EXPLAIN).")
 
@@ -12,16 +13,10 @@ app = typer.Typer(help="Show query execution plan (EXPLAIN).")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def explain(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
     sql: str | None = typer.Option(None, "--sql", "-s", help="SQL query to explain."),
     file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file."),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type (sqlite/duckdb). Inferred from path if omitted.",
-    ),
+    db_type: str | None = dbtype_opt,
     analyze: bool = typer.Option(
         False,
         "--analyze",

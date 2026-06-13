@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from querido.cli._errors import friendly_errors
-from querido.cli._options import conn_opt, dbtype_opt
+from querido.cli._options import conn_opt, dbtype_opt, table_opt
 from querido.cli._validation import require_snowflake
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ app = typer.Typer(help="Snowflake-specific commands.")
 @app.command()
 @friendly_errors
 def semantic(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    table: str = table_opt,
     connection: str = conn_opt,
     db_type: str | None = dbtype_opt,
     output_file: str | None = typer.Option(
@@ -131,19 +131,24 @@ def lineage(
     depth: int = typer.Option(5, "--depth", help="Maximum traversal depth."),
 ) -> None:
     """Trace upstream/downstream lineage via Snowflake GET_LINEAGE."""
+    from querido.cli._errors import CodedBadParameter
     from querido.cli._pipeline import dispatch_output
     from querido.config import resolve_connection
     from querido.connectors.factory import create_connector
 
     valid_directions = {"upstream", "downstream"}
     if direction not in valid_directions:
-        raise typer.BadParameter(
-            f"--direction must be one of: {', '.join(sorted(valid_directions))}"
+        raise CodedBadParameter(
+            f"--direction must be one of: {', '.join(sorted(valid_directions))}",
+            code="LINEAGE_DIRECTION_INVALID",
         )
 
     valid_domains = {"table", "column"}
     if domain not in valid_domains:
-        raise typer.BadParameter(f"--domain must be one of: {', '.join(sorted(valid_domains))}")
+        raise CodedBadParameter(
+            f"--domain must be one of: {', '.join(sorted(valid_domains))}",
+            code="LINEAGE_DOMAIN_INVALID",
+        )
 
     config = resolve_connection(connection, db_type)
 

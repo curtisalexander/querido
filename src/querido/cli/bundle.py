@@ -12,6 +12,7 @@ import sys
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt
 
 app = typer.Typer(help="Export, import, inspect, or diff knowledge bundles.")
 
@@ -35,9 +36,7 @@ def _parse_maps(pairs: list[str]) -> dict[str, str]:
 @app.command()
 @friendly_errors
 def export(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
     # NOTE: ``-t`` here means ``--tables`` (comma-separated list), NOT the singular
     # ``--table`` of ~20 other commands. Deliberate divergence preserved for CLI
     # back-compat (see L21). The help text says "table names to include" so ``--help``

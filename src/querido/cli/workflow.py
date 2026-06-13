@@ -14,6 +14,7 @@ from pathlib import Path
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import dbtype_opt
 
 app = typer.Typer(help="Declarative workflows (spec, run, lint, list, show).")
 
@@ -128,11 +129,7 @@ def lint(
             "is checked against the table's actual columns."
         ),
     ),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type for --connection (sqlite/duckdb). Inferred from path if omitted.",
-    ),
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Lint a workflow. Exits 1 if any issue is found.
 

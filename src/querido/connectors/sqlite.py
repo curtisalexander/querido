@@ -4,7 +4,11 @@ import sqlite3
 from typing import Self
 from urllib.parse import quote
 
-from querido.connectors.base import validate_table_name, wrap_driver_error
+from querido.connectors.base import (
+    quote_qualified_name,
+    validate_table_name,
+    wrap_driver_error,
+)
 
 
 def _validate_sqlite_table(name: str) -> str:
@@ -163,17 +167,18 @@ class SQLiteConnector:
         _validate_sqlite_table(table)
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
+        qtable = quote_qualified_name(table)
         if row_count > 0:
             modulus = max(row_count // sample_size, 1)
         else:
             # Fallback: embed the count subquery when row_count is unknown.
             return (
-                f"(select * from {table} where abs(random()) % "
-                f"max((select count(*) from {table}) / {sample_size}, 1) = 0 "
+                f"(select * from {qtable} where abs(random()) % "
+                f"max((select count(*) from {qtable}) / {sample_size}, 1) = 0 "
                 f"limit {sample_size}) as _sample"
             )
         return (
-            f"(select * from {table} where abs(random()) % {modulus} = 0 "
+            f"(select * from {qtable} where abs(random()) % {modulus} = 0 "
             f"limit {sample_size}) as _sample"
         )
 

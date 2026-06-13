@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt, table_opt
 
 app = typer.Typer(
     help="Manage enriched table metadata (init, show, list, search, edit, refresh, undo)."
@@ -14,15 +15,9 @@ app = typer.Typer(
 @app.command()
 @friendly_errors
 def init(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type (sqlite/duckdb). Inferred from path if omitted.",
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     sample_values: int = typer.Option(
         3,
         "--sample-values",
@@ -97,10 +92,8 @@ def init(
 @app.command()
 @friendly_errors
 def show(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
 ) -> None:
     """Show stored metadata for a table."""
     from querido.cli._pipeline import dispatch_output
@@ -132,9 +125,7 @@ def show(
 @app.command("list")
 @friendly_errors
 def list_cmd(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
 ) -> None:
     """List all tables with stored metadata for a connection."""
     from querido.cli._pipeline import dispatch_output
@@ -148,9 +139,7 @@ def list_cmd(
 @friendly_errors
 def search_cmd(
     query: str = typer.Argument(..., help="Meaning-based metadata search query."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
     limit: int = typer.Option(5, "--limit", min=1, max=20, help="Maximum results to return."),
 ) -> None:
     """Search stored metadata by meaning across table and column descriptions."""
@@ -177,10 +166,8 @@ def search_cmd(
 @app.command()
 @friendly_errors
 def edit(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
 ) -> None:
     """Open the metadata YAML file in your default editor."""
     import os
@@ -199,15 +186,9 @@ def edit(
 @app.command()
 @friendly_errors
 def refresh(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type (sqlite/duckdb). Inferred from path if omitted.",
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     sample_values: int = typer.Option(
         3,
         "--sample-values",
@@ -269,10 +250,8 @@ def refresh(
 @app.command()
 @friendly_errors
 def undo(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
     steps: int = typer.Option(1, "--steps", min=1, help="Undo the last N qdo-managed writes."),
     dry_run: bool = typer.Option(
         False,
@@ -301,9 +280,11 @@ def undo(
         raise typer.BadParameter(str(exc)) from None
 
     if is_structured_format():
+        from querido.output.envelope import cmd
+
         next_steps = [
             {
-                "cmd": f"qdo metadata show -c {connection} -t {table}",
+                "cmd": cmd(["qdo", "metadata", "show", "-c", connection, "-t", table]),
                 "why": "Inspect the restored metadata.",
             }
         ]
@@ -318,17 +299,15 @@ def undo(
 
     action = "Would restore" if dry_run else "Restored"
     target = (
-        "delete the metadata file" if summary["restored"] == "delete" else "the prior snapshot"
+        "delete the metadata file" if summary.get("restored") == "delete" else "the prior snapshot"
     )
-    print(f"{action} {target} for {summary['path']}")
+    print(f"{action} {target} for {summary.get('path')}")
 
 
 @app.command()
 @friendly_errors
 def score(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
 ) -> None:
     """Per-table metadata completeness ranking (worst first)."""
     from querido.core.metadata_score import score_connection
@@ -351,15 +330,9 @@ def score(
 @app.command()
 @friendly_errors
 def suggest(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type (sqlite/duckdb). Inferred from path if omitted.",
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     apply_flag: bool = typer.Option(
         False,
         "--apply",

@@ -517,7 +517,7 @@ def replay_session(
 
         started = time.monotonic()
         proc = subprocess.run(
-            [*_qdo_argv(), *args],
+            [*qdo_argv(), *args],
             cwd=run_cwd,
             env=env,
             text=True,
@@ -549,7 +549,7 @@ def replay_session(
     return ReplayResult(source_session=name, replay_session=replay_name, steps=results)
 
 
-def _qdo_argv() -> list[str]:
+def qdo_argv() -> list[str]:
     """Return the argv prefix that invokes qdo as a subprocess.
 
     Uses ``sys.executable -m querido`` unconditionally rather than looking up
