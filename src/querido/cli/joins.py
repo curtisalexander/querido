@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt
 
 app = typer.Typer(help="Discover likely join keys between tables.")
 
@@ -13,14 +14,8 @@ app = typer.Typer(help="Discover likely join keys between tables.")
 @friendly_errors
 def joins(
     table: str = typer.Option(..., "--table", "-t", help="Source table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type (sqlite/duckdb). Inferred from path if omitted.",
-    ),
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     target: str | None = typer.Option(
         None,
         "--target",

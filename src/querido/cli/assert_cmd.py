@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt
 
 app = typer.Typer(help="Assert conditions on query results.")
 
@@ -12,18 +13,12 @@ app = typer.Typer(help="Assert conditions on query results.")
 @app.callback(invoke_without_command=True)
 @friendly_errors(db_error_exit_code=2)
 def assert_cmd(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
     sql: str | None = typer.Option(
         None, "--sql", "-s", help="SQL query (must return a single numeric value)."
     ),
     file: str | None = typer.Option(None, "--file", "-F", help="Path to a .sql file."),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type (sqlite/duckdb). Inferred from path if omitted.",
-    ),
+    db_type: str | None = dbtype_opt,
     expect: float | None = typer.Option(None, "--expect", help="Assert result equals this value."),
     expect_gt: float | None = typer.Option(None, "--expect-gt", help="Assert result > value."),
     expect_lt: float | None = typer.Option(None, "--expect-lt", help="Assert result < value."),

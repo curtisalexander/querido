@@ -278,3 +278,47 @@ def test_sqlite_sample_source_rejects_unsafe_names(sqlite_path: str, bad_name: s
 def test_duckdb_sample_source_rejects_unsafe_names(duckdb_path: str, bad_name: str):
     with DuckDBConnector(duckdb_path) as conn, pytest.raises(ValueError, match="Invalid table"):
         conn.sample_source(bad_name, 10)
+
+
+# ---------------------------------------------------------------------------
+# Reserved-word / quote-needing table names must be quoted in the scan path.
+# Before the fix, sample_source interpolated the bare name, so a table named
+# ``order`` produced a parser error while get_row_count (which quotes) worked.
+# ---------------------------------------------------------------------------
+
+
+def test_duckdb_sample_source_quotes_reserved_word_table():
+    with DuckDBConnector(":memory:") as conn:
+        conn.execute('create table "order" (id integer)')
+        conn.execute('insert into "order" values (1), (2), (3)')
+        # Both the small-sample and the >10M percent branches must be valid SQL.
+        for src in (
+            conn.sample_source("order", 2, row_count=3),
+            conn.sample_source("order", 1, row_count=20_000_000),
+        ):
+            rows = conn.execute(f"select count(*) as cnt from {src}")
+            assert "cnt" in rows[0]
+
+
+def test_sqlite_sample_source_quotes_reserved_word_table():
+    with SQLiteConnector(":memory:") as conn:
+        conn.execute('create table "order" (id integer)')
+        conn.execute('insert into "order" values (1), (2), (3)')
+        # Exercise both the known-row_count branch and the count-subquery fallback.
+        for src in (conn.sample_source("order", 2, row_count=3), conn.sample_source("order", 2)):
+            rows = conn.execute(f"select count(*) as cnt from {src}")
+            assert "cnt" in rows[0]
+
+
+def test_duckdb_nonexistent_path_raises_instead_of_creating(tmp_path):
+    # Regression: duckdb.connect(read_only=False) silently creates an empty DB
+    # at a missing path, so a typo'd --connection would materialize a junk file
+    # under --allow-write. Refuse, like the SQLite connector, in both modes.
+    from querido.connectors.base import DatabaseOpenError
+
+    missing = tmp_path / "does_not_exist.duckdb"
+    with pytest.raises(DatabaseOpenError):
+        DuckDBConnector(str(missing))
+    with pytest.raises(DatabaseOpenError):
+        DuckDBConnector(str(missing), read_only=False)
+    assert not missing.exists()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt, optional_conn_opt
 
 app = typer.Typer(help="Show full database catalog (tables, columns, row counts).")
 
@@ -13,12 +14,8 @@ app = typer.Typer(help="Show full database catalog (tables, columns, row counts)
 @friendly_errors
 def catalog(
     ctx: typer.Context,
-    connection: str | None = typer.Option(
-        None, "--connection", "-c", help="Named connection or file path."
-    ),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    connection: str | None = optional_conn_opt,
+    db_type: str | None = dbtype_opt,
     tables_only: bool = typer.Option(
         False, "--tables-only", help="List tables only (skip columns and row counts)."
     ),
@@ -101,12 +98,8 @@ def catalog(
 @app.command("functions")
 @friendly_errors
 def catalog_functions(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     pattern: str | None = typer.Option(
         None,
         "--pattern",

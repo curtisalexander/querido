@@ -220,6 +220,26 @@ def test_joins_confidence_scoring(relational_db: str):
             assert 0.0 <= key["confidence"] <= 1.0
 
 
+@pytest.mark.parametrize(
+    ("table", "fk_column"),
+    [
+        ("orders", "order_id"),  # regular plural
+        ("users", "user_id"),
+        ("categories", "category_id"),  # consonant-y plural (ies -> y)
+        ("companies", "company_id"),
+        ("activities", "activity_id"),
+        ("movies", "movie_id"),  # ies ending that is NOT y-plural — must not regress
+        ("address", "address_id"),  # ss ending — never s-stripped
+        ("status", "status_id"),  # singular noun ending in s — as-is candidate
+        ("order", "order_id"),  # already singular
+    ],
+)
+def test_singular_candidates_cover_fk_convention(table: str, fk_column: str):
+    from querido.core.joins import _singular_candidates
+
+    assert fk_column in {f"{stem}_id" for stem in _singular_candidates(table)}
+
+
 def test_joins_duckdb(tmp_path: Path):
     import duckdb
 

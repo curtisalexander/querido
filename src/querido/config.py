@@ -234,13 +234,26 @@ def _looks_like_path(value: str) -> bool:
     return value.lower().endswith(_LOCAL_DB_SUFFIXES)
 
 
+def _expand_user_path(value: str) -> str:
+    """Expand a leading ``~`` and canonicalize separators for the host OS.
+
+    ``os.path.expanduser`` keeps the literal separator from the input, so
+    ``~/db`` becomes ``C:\\Users\\me/db`` on Windows (the home half uses
+    backslashes, the rest keeps the ``/``). Normalize the tilde-expanded result
+    so config output and downstream path comparisons get OS-canonical paths.
+    """
+    if not value.startswith("~"):
+        return value
+    return os.path.normpath(os.path.expanduser(value))
+
+
 def _expand_local_paths(config: dict) -> dict:
     """Return a copy of *config* with ``~`` expanded in local file paths."""
     out = dict(config)
     for key in ("path", "parquet_path"):
         val = out.get(key)
         if isinstance(val, str) and val.startswith("~"):
-            out[key] = os.path.expanduser(val)
+            out[key] = _expand_user_path(val)
     return out
 
 
@@ -256,7 +269,7 @@ def resolve_connection(connection: str, db_type: str | None = None) -> dict:
         return _expand_local_paths(connections.get(connection, {}))
 
     # Treat as a file path — expand ~ and infer type from extension if not provided
-    expanded = os.path.expanduser(connection)
+    expanded = _expand_user_path(connection)
     if db_type is None:
         if expanded.endswith(".duckdb") or expanded.endswith(".ddb"):
             db_type = "duckdb"

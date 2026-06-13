@@ -535,11 +535,11 @@ class TestSnowflakeTemplates:
         assert "10" in sql
 
     def test_preview_qualified_table(self):
-        """Qualified table names work in FROM clauses."""
+        """Qualified table names are quoted per-segment in FROM clauses."""
         from querido.sql.renderer import render_template
 
         sql = render_template("preview", "snowflake", table="MY_DB.STAGING.ORDERS", limit=10)
-        assert "MY_DB.STAGING.ORDERS" in sql
+        assert '"MY_DB"."STAGING"."ORDERS"' in sql
 
     def test_scratch_uses_table_name_for_identifier(self):
         """Scratch template uses short table_name for tmp_ prefix, not full qualified name."""
@@ -695,6 +695,75 @@ class TestNoDefaultDatabaseSchema:
         )
         with pytest.raises(ValueError, match="'schema' not set"):
             connector.get_table_row_counts(["ORDERS"])
+
+
+class TestRowCountViewFallback:
+    """row_count is NULL for views in information_schema → fall back to count(*)."""
+
+    def test_get_row_count_falls_back_to_count_for_view(self):
+        import pyarrow as pa
+
+        connector, mock_conn, _ = _make_connector(
+            type="snowflake", account="x", database="DB", schema="SC"
+        )
+        meta_cur = _make_mock_cursor(
+            arrow_batches=[pa.table({"ROW_COUNT": pa.array([None], type=pa.int64())})],
+            columns=["ROW_COUNT"],
+        )
+        count_cur = _make_mock_cursor(
+            arrow_batches=[pa.table({"CNT": pa.array([42], type=pa.int64())})],
+            columns=["CNT"],
+        )
+        mock_conn.cursor.side_effect = [meta_cur, count_cur]
+
+        assert connector.get_row_count("MY_VIEW") == 42
+        # The fallback query must be an actual count(*), not another metadata read.
+        assert "count(*)" in count_cur.execute.call_args[0][0].lower()
+
+    def test_get_row_count_uses_metadata_for_base_table(self):
+        import pyarrow as pa
+
+        connector, mock_conn, _ = _make_connector(
+            type="snowflake", account="x", database="DB", schema="SC"
+        )
+        meta_cur = _make_mock_cursor(
+            arrow_batches=[pa.table({"ROW_COUNT": pa.array([1000], type=pa.int64())})],
+            columns=["ROW_COUNT"],
+        )
+        # Only ONE cursor: a base table must not trigger the count(*) fallback.
+        mock_conn.cursor.side_effect = [meta_cur, AssertionError("must not fall back")]
+        assert connector.get_row_count("ORDERS") == 1000
+
+
+class TestSampleSource:
+    """sample_source must be valid on views and avoid extra round-trips."""
+
+    def test_large_table_uses_bernoulli_not_system(self):
+        """Percentage sampling uses BERNOULLI (valid on tables AND views).
+
+        SYSTEM/BLOCK sampling is rejected by Snowflake on views, and the only
+        way to know an object is a base table is an extra information_schema
+        probe — so the connector must not call ``get_view_definition`` here.
+        """
+        from unittest.mock import MagicMock
+
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", database="DB", schema="SC"
+        )
+        connector.get_view_definition = MagicMock(
+            side_effect=AssertionError("sample_source must not probe for views")
+        )
+        sql = connector.sample_source("ORDERS", 100_000, row_count=50_000_000).lower()
+        assert "sample bernoulli" in sql
+        assert "system" not in sql
+        connector.get_view_definition.assert_not_called()
+
+    def test_small_table_uses_fixed_size_sample(self):
+        connector, _, _ = _make_connector(
+            type="snowflake", account="x", database="DB", schema="SC"
+        )
+        sql = connector.sample_source("ORDERS", 100, row_count=1000).lower()
+        assert "sample (100 rows)" in sql
 
 
 # ---------------------------------------------------------------------------

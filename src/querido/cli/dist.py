@@ -1,6 +1,7 @@
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt, table_opt
 
 app = typer.Typer(help="Column distribution visualization.")
 
@@ -8,7 +9,7 @@ app = typer.Typer(help="Column distribution visualization.")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def dist(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    table: str = table_opt,
     columns: str = typer.Option(
         ...,
         "--columns",
@@ -16,9 +17,7 @@ def dist(
         "-C",
         help="Column to visualize (exactly one). `--column` is an alias.",
     ),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    connection: str = conn_opt,
     buckets: int = typer.Option(
         20, "--buckets", "-b", min=2, max=100, help="Number of buckets for numeric histograms."
     ),
@@ -35,9 +34,7 @@ def dist(
     no_sample: bool = typer.Option(
         False, "--no-sample", help="Force full table scan, no sampling."
     ),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Visualize distribution of a column's values."""
     from querido.cli._options import parse_column_list

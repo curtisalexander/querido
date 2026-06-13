@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import os
 import shlex
-import shutil
 import subprocess
 import sys
 import time
@@ -143,7 +142,7 @@ def bind_inputs(doc: dict[str, Any], inputs: dict[str, Any]) -> dict[str, Any]:
         if name in inputs:
             bound[name] = _coerce_input(name, inputs[name], spec.get("type", "string"))
         elif "default" in spec:
-            bound[name] = spec["default"]
+            bound[name] = spec.get("default")
         elif spec.get("required", False):
             raise InputError(f"required input missing: {name!r}")
         else:
@@ -171,14 +170,6 @@ def _coerce_input(name: str, value: Any, type_: str) -> Any:
                 return False
             raise InputError(f"input {name!r} must be a boolean, got {value!r}")
     return value
-
-
-def _qdo_argv() -> list[str]:
-    """Return the argv prefix that invokes qdo as a subprocess."""
-    binary = shutil.which("qdo")
-    if binary:
-        return [binary]
-    return [sys.executable, "-m", "querido"]
 
 
 def _hoist_format_flag(tokens: list[str], has_capture: bool) -> list[str]:
@@ -352,8 +343,10 @@ def run_workflow(
     bound = bind_inputs(doc, inputs or {})
     context: dict[str, Any] = dict(bound)
 
+    from querido.core.session import qdo_argv
+
     env, session_name = _session_env(str(name), output_format)
-    qdo = _qdo_argv()
+    qdo = qdo_argv()
     out_stderr = stderr if stderr is not None else sys.stderr
     result = RunResult(session=session_name)
 

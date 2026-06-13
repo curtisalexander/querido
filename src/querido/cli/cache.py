@@ -1,6 +1,7 @@
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt
 
 app = typer.Typer(help="Manage local metadata cache.")
 
@@ -8,12 +9,8 @@ app = typer.Typer(help="Manage local metadata cache.")
 @app.command()
 @friendly_errors
 def sync(
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    connection: str = conn_opt,
+    db_type: str | None = dbtype_opt,
     cache_ttl: int = typer.Option(
         24 * 60 * 60,
         "--cache-ttl",

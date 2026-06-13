@@ -3,7 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Self
 
-from querido.connectors.base import validate_table_name, wrap_driver_error
+from querido.connectors.base import (
+    DatabaseOpenError,
+    quote_qualified_name,
+    validate_table_name,
+    wrap_driver_error,
+)
 
 
 class DuckDBConnector:
@@ -22,8 +27,14 @@ class DuckDBConnector:
     def __init__(self, path: str = ":memory:", *, read_only: bool | None = None) -> None:
         import duckdb
 
+        if path != ":memory:" and not Path(path).exists():
+            # duckdb.connect(read_only=False) silently creates an empty database
+            # at a missing path; a typo'd --connection should fail, not litter
+            # the filesystem with a junk DB.  (SQLite already refuses via mode=rw.)
+            raise DatabaseOpenError(f"DuckDB database not found: {path}")
+
         if read_only is None:
-            read_only = path != ":memory:" and Path(path).exists()
+            read_only = path != ":memory:"
 
         try:
             self.conn = duckdb.connect(path, read_only=read_only)
@@ -36,8 +47,6 @@ class DuckDBConnector:
 
     def register_parquet(self, parquet_path: str) -> None:
         """Register a parquet file as a view."""
-        from pathlib import Path
-
         p = Path(parquet_path)
         if not p.exists():
             raise FileNotFoundError(f"Parquet file not found: {parquet_path}")
@@ -197,10 +206,11 @@ class DuckDBConnector:
         validate_table_name(table)
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
+        qtable = quote_qualified_name(table)
         if row_count > 10_000_000:
             pct = max(sample_size / row_count * 100, 0.01)
-            return f"(select * from {table} using sample {pct:.4f} percent (system)) as _sample"
-        return f"(select * from {table} using sample {sample_size}) as _sample"
+            return f"(select * from {qtable} using sample {pct:.4f} percent (system)) as _sample"
+        return f"(select * from {qtable} using sample {sample_size}) as _sample"
 
     def cancel(self) -> None:
         """Interrupt a running query."""

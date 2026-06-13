@@ -22,6 +22,13 @@ def _get_env() -> Environment:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        # ``quote_ident`` quotes a (possibly schema-qualified) identifier per
+        # segment so executed-query templates are safe for reserved-word /
+        # special-char table names. Human-facing ``generate/*`` scaffolds
+        # deliberately do NOT use it — they print bare, readable names.
+        from querido.connectors.base import quote_qualified_name
+
+        _env.filters["quote_ident"] = quote_qualified_name
     return _env
 
 

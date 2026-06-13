@@ -331,7 +331,10 @@ class SnowflakeConnector:
         """Return row count from Snowflake metadata (no scan).
 
         Uses ``information_schema.tables`` which Snowflake maintains
-        automatically.
+        automatically for base tables. ``row_count`` is **NULL for views**
+        (and external/never-statted objects), so fall back to ``count(*)`` —
+        the only reliable way to count a view — exactly as the DuckDB
+        connector does.
         """
         database, schema, tbl = self._resolve_table(table)
         rows = self.execute(
@@ -339,7 +342,12 @@ class SnowflakeConnector:
             f"where table_schema = %s and table_name = %s",
             (schema, tbl),
         )
-        return rows[0].get("row_count", 0) if rows else 0
+        if rows and rows[0].get("row_count") is not None:
+            return rows[0].get("row_count", 0)
+        # View / external table / unstatted object — metadata has no count.
+        qualified = f'"{database}"."{schema}"."{tbl}"'
+        counted = self.execute(f"select count(*) as cnt from {qualified}")
+        return counted[0].get("cnt", 0) if counted else 0
 
     def get_table_row_counts(self, table_names: list[str]) -> dict[str, int]:
         """Return row counts for all tables in one metadata query.
@@ -371,12 +379,18 @@ class SnowflakeConnector:
             f"where table_schema = %s",
             (sch,),
         )
-        metadata = {r.get("table_name", ""): r.get("row_count", 0) for r in rows}
+        # Preserve NULL (don't coerce to 0): ``row_count`` is NULL for views, so
+        # a 0 here would be indistinguishable from a genuinely empty table.
+        metadata = {r.get("table_name", ""): r.get("row_count") for r in rows}
 
         result: dict[str, int] = {}
         for name in table_names:
-            upper_name = name.upper()
-            result[name] = metadata.get(upper_name, 0)
+            count = metadata.get(name.upper())
+            if count is not None:
+                result[name] = count
+            else:
+                # View / missing from metadata — count it directly (matches DuckDB).
+                result[name] = self.get_row_count(name)
         return result
 
     def sample_source(self, table: str, sample_size: int, *, row_count: int = 0) -> str:
@@ -385,26 +399,22 @@ class SnowflakeConnector:
         The table name is routed through :meth:`_resolve_table` so casing and
         qualification match ``get_columns`` / ``get_row_count``.
 
-        For very large tables (>10M rows) ``sample system`` (block-level
-        sampling over whole micropartitions) is 5-10x faster because it skips
-        entire storage blocks.  ``sample system`` is **invalid on views**,
-        however, so when the target is a view the connector falls back to
-        ``sample bernoulli`` (row-level percentage sampling), which works on
-        views at the cost of a full scan.  Fixed-size ``sample (n rows)`` used
-        for smaller tables already works on both tables and views.
+        Percentage sampling uses ``sample bernoulli`` (row-level), which is
+        valid on **both tables and views**. ``sample system`` (block-level) is
+        faster on very large base tables but Snowflake *rejects* it on views,
+        and the only way to know an object is a base table is an extra
+        ``information_schema`` round-trip on every sample. For a general-purpose
+        exploration CLI that isn't worth it, so we default to the universally
+        valid method. Fixed-size ``sample (n rows)`` for smaller tables already
+        works on both tables and views.
         """
         if sample_size <= 0:
             raise ValueError(f"sample_size must be positive, got {sample_size}")
         database, schema, tbl = self._resolve_table(table)
         qualified = f'"{database}"."{schema}"."{tbl}"'
         if row_count > 10_000_000:
-            # Block sampling operates on whole micropartitions and is 5-10x
-            # faster, but Snowflake rejects `sample system` on views.  Probe
-            # cheaply via information_schema.views and fall back to row-level
-            # bernoulli sampling (valid on views) when the target is a view.
             pct = max(sample_size / row_count * 100, 0.01)
-            method = "bernoulli" if self.get_view_definition(table) is not None else "system"
-            return f"(select * from {qualified} sample {method} ({pct:.4f})) as _sample"
+            return f"(select * from {qualified} sample bernoulli ({pct:.4f})) as _sample"
         return f"(select * from {qualified} sample ({sample_size} rows)) as _sample"
 
     def cancel(self) -> None:

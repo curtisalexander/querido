@@ -122,9 +122,8 @@ def _find_join_keys(
                 )
 
         # 2. Convention: source.{target_table}_id ↔ target.id
-        tgt_lower = tgt_table.lower().rstrip("s")  # naive singular
-        convention_name = f"{tgt_lower}_id"
-        if sc_name == convention_name and "id" in tgt_by_name:
+        convention_names = {f"{stem}_id" for stem in _singular_candidates(tgt_table)}
+        if sc_name in convention_names and "id" in tgt_by_name:
             tc = tgt_by_name.get("id", {})
             tc_type = _type_family(tc.get("type", ""))
             pair = (sc.get("name", ""), tc.get("name", ""))
@@ -142,10 +141,9 @@ def _find_join_keys(
                 )
 
     # 3. Reverse convention: source.id ↔ target.{source_table}_id
-    src_lower = src_table.lower().rstrip("s")
-    reverse_name = f"{src_lower}_id"
+    reverse_names = {f"{stem}_id" for stem in _singular_candidates(src_table)}
     for tc in tgt_cols:
-        if tc.get("name", "").lower() == reverse_name:
+        if tc.get("name", "").lower() in reverse_names:
             # Find source "id" column
             src_id = next((c for c in src_cols if c.get("name", "").lower() == "id"), None)
             if src_id:
@@ -166,6 +164,31 @@ def _find_join_keys(
                     )
 
     return keys
+
+
+def _singular_candidates(table: str) -> set[str]:
+    """Return plausible singular column-name stems for a table name.
+
+    Foreign keys conventionally reference a table by its *singular* form plus
+    ``_id`` (``orders`` -> ``order_id``). English pluralization isn't reversible
+    from the plural alone — ``categories`` -> ``category`` but ``movies`` ->
+    ``movie`` — so instead of guessing one stem we return every plausible one
+    and let the caller match a FK column against any of them:
+
+    * the name as-is        — already-singular tables (``address`` -> ``address_id``)
+    * trailing ``s`` dropped — regular plurals (``orders`` -> ``order_id``)
+    * trailing ``ies`` -> ``y`` — consonant-y plurals (``categories`` -> ``category_id``)
+
+    ``ss`` endings (``address``, ``class``) are never ``s``-stripped, and the
+    as-is candidate keeps the convention working for genuinely singular tables.
+    """
+    lower = table.lower()
+    candidates = {lower}
+    if lower.endswith("ies"):
+        candidates.add(lower[:-3] + "y")
+    if lower.endswith("s") and not lower.endswith("ss"):
+        candidates.add(lower[:-1])
+    return candidates
 
 
 def _type_family(type_str: str) -> str:

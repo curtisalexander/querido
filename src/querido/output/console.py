@@ -1000,15 +1000,6 @@ def print_freshness(
     console.print(grid)
 
 
-def _print_values_summary(result: dict, *, truncated: bool, console: Console) -> None:
-    parts = [f"  [bold]{result['distinct_count']:,}[/bold] distinct values"]
-    if result["null_count"] > 0:
-        parts.append(f"[dim]{result['null_count']:,} nulls[/dim]")
-    if truncated:
-        parts.append("[yellow]truncated[/yellow]")
-    console.print("\n" + "  |  ".join(parts))
-
-
 def print_plan(
     result: dict,
     console: Console | None = None,

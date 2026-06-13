@@ -1,6 +1,7 @@
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt, table_opt
 
 app = typer.Typer(help="Profile table data.")
 
@@ -8,10 +9,8 @@ app = typer.Typer(help="Profile table data.")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def profile(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
     columns: str | None = typer.Option(
         None,
         "--columns",
@@ -56,11 +55,7 @@ def profile(
         "--classify",
         help="Classify columns by category (implies --quick). Agent-friendly with --format json.",
     ),
-    db_type: str | None = typer.Option(
-        None,
-        "--db-type",
-        help="Database type (sqlite/duckdb/snowflake). Inferred from path if omitted.",
-    ),
+    db_type: str | None = dbtype_opt,
     write_metadata: bool = typer.Option(
         False,
         "--write-metadata",

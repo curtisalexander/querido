@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import conn_opt, dbtype_opt, table_opt
 
 app = typer.Typer(help="Pivot / aggregate table data.")
 
@@ -12,10 +13,8 @@ app = typer.Typer(help="Pivot / aggregate table data.")
 @app.callback(invoke_without_command=True)
 @friendly_errors
 def pivot(
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
-    connection: str = typer.Option(
-        ..., "--connection", "-c", help="Named connection or file path."
-    ),
+    table: str = table_opt,
+    connection: str = conn_opt,
     group_by: str = typer.Option(
         ..., "--group-by", "-g", help="Comma-separated columns to group by."
     ),
@@ -25,9 +24,7 @@ def pivot(
         "-a",
         help="Comma-separated aggregation expressions, e.g. sum(amount),count(id).",
     ),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    db_type: str | None = dbtype_opt,
     filter_expr: str | None = typer.Option(
         None, "--filter", "-w", help="SQL WHERE clause expression."
     ),

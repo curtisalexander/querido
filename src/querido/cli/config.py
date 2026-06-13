@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from typing import NoReturn
 
 from querido.cli._errors import friendly_errors
+from querido.cli._options import dbtype_opt, table_opt
 
 app = typer.Typer(help="Manage connections.")
 
@@ -318,9 +319,7 @@ def remove(
 @friendly_errors
 def test(
     connection: str = typer.Argument(..., help="Connection name or file path to test."),
-    db_type: str | None = typer.Option(
-        None, "--db-type", help="Database type (sqlite/duckdb). Inferred from path if omitted."
-    ),
+    db_type: str | None = dbtype_opt,
 ) -> None:
     """Test a connection by running SELECT 1."""
     import time
@@ -385,7 +384,7 @@ app.add_typer(column_set_app, name="column-set")
 @friendly_errors
 def column_set_save(
     connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    table: str = table_opt,
     name: str = typer.Option(..., "--name", "-n", help="Column set name."),
     columns: str = typer.Option(..., "--columns", help="Comma-separated column names."),
 ) -> None:
@@ -447,7 +446,7 @@ def column_set_list(
 @friendly_errors
 def column_set_show(
     connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    table: str = table_opt,
     name: str = typer.Option(..., "--name", "-n", help="Column set name."),
 ) -> None:
     """Show columns in a saved column set."""
@@ -468,7 +467,7 @@ def column_set_show(
 @friendly_errors
 def column_set_delete(
     connection: str = typer.Option(..., "--connection", "-c", help="Connection name."),
-    table: str = typer.Option(..., "--table", "-t", help="Table name."),
+    table: str = table_opt,
     name: str = typer.Option(..., "--name", "-n", help="Column set name."),
 ) -> None:
     """Delete a saved column set."""

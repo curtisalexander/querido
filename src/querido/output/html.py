@@ -569,13 +569,17 @@ def format_metadata_html(
     meta: dict,
 ) -> str:
     """Render stored metadata as a standalone HTML page."""
+    # Unwrap placeholder / provenance-wrapped descriptions so they don't leak as
+    # literal `<description>` text (matches console / report_html — M11).
+    from querido.core.metadata import _unwrap_field
+
     columns = meta.get("columns", [])
     headers = ["Name", "Type", "Description", "Nulls", "Distinct"]
     rows = [
         [
             c.get("name", ""),
             c.get("type", ""),
-            c.get("description", ""),
+            str(_unwrap_field(c.get("description")) or ""),
             str(c.get("null_count", "")),
             str(c.get("distinct_count", "")),
         ]
@@ -663,8 +667,6 @@ def format_explain_html(
     analyzed = " (ANALYZE)" if result.get("analyzed") else ""
 
     # Render plan as preformatted text
-    import html
-
     plan_html = f"<pre style='font-family:monospace;padding:1em'>{html.escape(plan)}</pre>"
 
     return _html_page(
