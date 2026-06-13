@@ -6,6 +6,11 @@ from typing import Any
 
 import typer
 
+# Single source of truth for the global ``--format`` choices. Order is
+# presentation order for help/overview text; ``main.py`` validates against the
+# set of these. Add new formats here only — do not re-list them elsewhere.
+VALID_FORMATS: tuple[str, ...] = ("rich", "json", "agent", "csv", "markdown", "html", "yaml")
+
 table_opt = typer.Option(..., "--table", "-t", help="Table name.")
 conn_opt = typer.Option(..., "--connection", "-c", help="Named connection or file path.")
 optional_conn_opt = typer.Option(None, "--connection", "-c", help="Named connection or file path.")

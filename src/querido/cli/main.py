@@ -8,12 +8,13 @@ import click
 import typer
 from typer.core import TyperGroup
 
+from querido.cli._options import VALID_FORMATS
 from querido.cli.argv_hoist import hoist_format_flag
 
 # ---------------------------------------------------------------------------
 # Lazy subcommand loading
 # ---------------------------------------------------------------------------
-# Instead of importing all 14 subcommand modules at startup, we only import
+# Instead of importing every subcommand module at startup, we only import
 # the module for the subcommand actually being invoked.  This avoids paying
 # the import cost of every subcommand on every CLI call (including --help).
 
@@ -322,7 +323,7 @@ def main(
         None,
         "--format",
         "-f",
-        help="Output format: rich, markdown, json, csv, html, yaml, agent.",
+        help=f"Output format: {', '.join(VALID_FORMATS)}.",
     ),
     debug: bool = typer.Option(
         False,
@@ -345,7 +346,7 @@ def main(
 
     _maybe_start_session(ctx)
 
-    valid = {"rich", "markdown", "json", "csv", "html", "yaml", "agent"}
+    valid = set(VALID_FORMATS)
 
     # Resolve format: explicit --format > QDO_FORMAT env var > "rich"
     if output_format is None:
