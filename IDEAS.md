@@ -32,6 +32,30 @@ Querido sits in a niche between:
 
 **qdo's differentiator:** CLI-native, multi-backend (SQLite/DuckDB/Snowflake/Parquet), structured agent-facing output, metadata-aware exploration, tiered profiling for wide tables, and a strong "pay for what you use" discipline. The Snowflake depth and metadata compounding loop remain the most differentiated parts of the product.
 
+**The gap qdo fills:** agents can already *run* SQL. They are bad at knowing *what* to run. qdo gives them the pre-query understanding layer — schema, statistics, quality signals, join candidates, metadata, sample values — with stable JSON contracts. It is the tool layer that sits between "I have a database" and "I wrote a correct query."
+
+### Competitive landscape (detail)
+
+Updated 2026-06-23 with web research. Links and notes for future context.
+
+**qsv** ([github.com/dathere/qsv](https://github.com/dathere/qsv)) — Rust CSV/Parquet/Excel toolbelt, 80+ subcommands. Notable: `stats` (rich per-column summary with type inference), `frequency` (value distributions), `schema` (infer JSON Schema + validation rules), `scoresql` (pre-flight SQL scoring/cost hints — scores a query *before* running it using cached stats/freq data), `describegpt` (LLM integration with MiniJinja prompt templates, supports Ollama/local models), `validate` (JSON Schema validation with custom keywords like `dynamicEnum`, `uniqueCombinedWith`), `sample` (reservoir/stratified/weighted/cluster sampling). qsv now ships an MCP server. Most interesting for qdo: `scoresql` concept (preflight cost/quality scoring) and the stratified sampling strategies. Most of qsv is CSV-stream processing that doesn't apply to SQL engines.
+
+**datasette** ([datasette.io](https://datasette.io)) — Web-first SQLite/Parquet explorer with 150+ plugins. The interesting parts for qdo are NOT the web layer but the companion tools: **sqlite-utils** ([sqlite-utils.datasette.io](https://sqlite-utils.datasette.io)) has `memory` (query CSV/JSON files via in-memory SQLite), `analyze-tables` (per-column stats + most-common values), `transform` (safe ALTER TABLE), `extract` (normalize repeated columns into lookup tables). **llm** ([llm.datasette.io](https://llm.datasette.io)) has auto-logging of every prompt/response to a queryable SQLite DB (`llm logs`), embeddings collections with `llm similar`, and tool-calling plugins (`llm-tools-datasette`, `llm-tools-sqlite`). The auto-log-everything-to-SQLite pattern is worth studying — it's what makes llm sessions auditable and replayable. `datasette-embeddings` stores vectors as table columns with cosine similarity search. Skip: all auth plugins, HTML rendering, publishing, GraphQL, dashboards — web-platform concerns.
+
+**Harlequin** ([harlequin.sh](https://harlequin.sh)) — SQL IDE TUI for DuckDB/Postgres/Snowflake/MySQL/SQLite. Beautiful catalog tree, autocomplete, adapter pattern. Purely interactive — no scriptable/JSON mode, no profiling verbs, no agent APIs, no templating. Confirms our TUI should stay a secondary interface, not the main product.
+
+**DuckDB CLI** ([duckdb.org/docs/api/cli](https://duckdb.org/docs/api/cli)) — In-process OLAP engine REPL. `SUMMARIZE`, `DESCRIBE`, direct Parquet/CSV/JSON reads, httpfs for S3. No agent-oriented output contracts, no semantic layer, weak profiling beyond SUMMARIZE, no assertions, no diff/lineage, no multi-warehouse abstraction. qdo already wraps DuckDB and adds the missing layers.
+
+**dbt** ([docs.getdbt.com](https://docs.getdbt.com)) — SQL transformation framework. Relevant: YAML column metadata pattern (`description`/`tests` per column in `schema.yml`), `sources.yml` freshness checks, compiled SQL artifacts, `manifest.json` as machine-readable context. dbt now ships an MCP server. 2026 benchmark shows semantic-layer-routed queries approach ~100% accuracy vs raw text-to-SQL. Heavy project scaffolding; not an analysis tool. Our metadata YAML system is spiritually adjacent but lighter.
+
+**Great Expectations / Soda Core** ([greatexpectations.io](https://greatexpectations.io), [soda.io](https://www.soda.io)) — Declarative data-quality frameworks. Relevant: expectation vocabulary (`expect_column_values_to_not_be_null`), Soda's compact SCL language, checkpoint concept. Heavy setup, slow iteration, not agent-native. Our `quality` and `assert` commands cover the same ground with less ceremony.
+
+**VisiData** ([visidata.org](https://www.visidata.org)) — Terminal spreadsheet for 50+ formats. Relevant: frequency tables, column type inference UX, pivot ergonomics, **save session as replay script** (worth studying for our session model). Purely interactive — no SQL scaffolding, no warehouse connectivity.
+
+**Miller / mlr** ([miller.readthedocs.io](https://miller.readthedocs.io)) — Awk/sed/cut for structured rows. Verb chaining DSL, format-transparent IO. Not SQL, no warehouses, no catalog/metadata.
+
+**Agent-era tools (2025-2026):** MCP database servers (postgres-mcp, sqlite-mcp, duckdb-mcp, snowflake-mcp) all expose `list_tables` + `describe_table` + `execute_sql` and stop there. No profiling, no quality, no diff, no cost guards, no metadata enrichment. Aggregators like DBHub and ToolFront wrap multiple backends. Vanna.AI ([vanna.ai](https://vanna.ai)) uses RAG-trained NL-to-SQL with DDL/docs/query embeddings. WrenAI ([wren.ai](https://wren.ai)) and Cube ([cube.dev](https://cube.dev)) push a "semantic layer for LLMs" concept — agents query metrics (governed, typed) rather than raw tables. Direction of travel: semantic-layer-routed queries beat raw text-to-SQL on accuracy.
+
 ### Lean into
 
 1. **Agent-first, but not agent-only.** Stable flags, structured errors, deterministic next-step hints, and coherent command chains matter more than clever prose.
@@ -47,6 +71,66 @@ Querido sits in a niche between:
 - **harlequin.** Avoid growing `explore` into a full terminal SQL IDE.
 - **a Rust rewrite.** The hot path lives in DuckDB / SQLite / Snowflake already.
 - **an in-product NL-to-SQL assistant.** The agent is the brain; qdo should stay the deterministic tool layer.
+- **a CSV ETL pipeline** (qsv, miller, csvkit own this).
+- **a data-loading / ingestion tool** (dlt, Airbyte own this).
+- **a visualization platform** or BI tool.
+- **a semantic layer *authoring* tool** (Cube, dbt own this) — we *read* semantic models, we don't author them beyond `snowflake semantic`.
+
+### `--for-agent` vs `--format json` (design analysis)
+
+Research from 2026-06-23 on emerging agent-first CLI conventions.
+
+`--format json` is **serialization** — it changes the output encoding but nothing else. `--for-agent` is a **behavior profile** that bundles multiple concerns:
+
+| Concern | `--format json` | `--for-agent` (proposed) |
+|---|---|---|
+| Output format | JSON | JSON |
+| Spinners / progress on stderr | Still emitted | Suppressed |
+| Colors / ANSI codes | Still possible in errors | Suppressed |
+| Key ordering | Python dict order | Deterministic (sorted or schema-stable) |
+| Long strings / large arrays | Full output | Truncated with counts + continuation hints |
+| Error shape | Structured JSON to stderr | Same, plus `suggested_command` field |
+| `next_actions` hints | Not included | Included (list of logical next commands) |
+| Sampling notes | Prose in `sampling_note` | Structured fields only (`sampled: true`, `sample_size: N`) |
+| Token budget awareness | None | Default `--top 5` instead of 10, preview `--rows 5` instead of 20 |
+
+**Implementation:** `--for-agent` could be a single flag or env var (`QDO_AGENT=1`) that implies `QDO_FORMAT=json` + `QDO_NO_COLOR=1` + the behavioral changes above. The env var approach means agents set it once in their environment and forget it, similar to the existing `QDO_FORMAT=json` pattern.
+
+**Key insight from research:** the 2026 agent-CLI design community consensus is that `--format json` is necessary but not sufficient. The behavior profile (token efficiency, deterministic ordering, continuation cursors, next-action hints) is what separates "has JSON output" from "designed for agents." Multiple sources describe this as the single highest-leverage improvement for agent adoption.
+
+**What NOT to do:** don't create a separate "agent API" surface with different command names or arguments. The same commands, the same flags, just a different behavior profile. One surface, not two.
+
+### MCP server tradeoffs (analysis)
+
+Research from 2026-06-23 on MCP database servers and the thin-wrapper pattern.
+
+**What exists today:** MCP database servers (postgres, sqlite, duckdb, snowflake) all expose 3-5 tools: `list_tables`, `describe_table`, `sample_rows`, `execute_sql`, sometimes `explain`. They are thin wrappers with no profiling, quality, diff, cost guards, or metadata enrichment. Aggregators like DBHub wrap multiple backends.
+
+**What MCP gives you that CLI doesn't:**
+- Host compatibility (Claude Desktop, Cursor, Windsurf) without shell access
+- Tool discovery via protocol (agents enumerate available tools automatically)
+- OAuth scoping and audit logging in hosted environments
+- Stateful connections (no per-command connection overhead)
+
+**What CLI gives you that MCP doesn't:**
+- Token efficiency: MCP tool schemas consume 70k-90k tokens for large surfaces; a `qdo ... --json` invocation is hundreds of tokens
+- Composability via pipes: LLMs have massive Unix training data; near-zero MCP composition training data
+- Debuggability: stderr, exit codes, `--show-sql`, standard shell patterns
+- Dual-use by humans
+
+**Thin MCP-over-CLI is a real pattern** (MCPorter, smithery wrappers, dbt-mcp all wrap their respective CLIs). It works when: (a) the CLI returns stable JSON, (b) the wrapper exposes a *small curated* tool set (~5-8 macro tools) rather than 1:1 subcommand mirroring, and (c) multi-step flows are collapsed into single tools to save tokens.
+
+**Recommended shape if we build it:** `qdo mcp serve` exposing ~6 tools:
+- `list_sources` (catalog)
+- `describe_table` (context — schema + stats + samples in one call)
+- `profile_table` (profile with classify)
+- `query` (ad-hoc SQL with cost guard)
+- `sample_rows` (preview)
+- `check_quality` (quality)
+
+Each tool shells out to qdo CLI with `--for-agent`. Don't mirror every flag — collapse into sensible defaults. Don't expose template, metadata, config, or snowflake-specific tools via MCP (too niche, wastes token budget on schema).
+
+**Current recommendation:** keep MCP deferred. The CLI with `--for-agent` serves 90% of agent use cases. Build MCP only if there is real pull from Claude Desktop / Cursor users who lack shell access. The prep work is: stable JSON contracts + `--for-agent` profile.
 
 ---
 
@@ -92,6 +176,52 @@ Shipped as a lightweight BM25 ranker over command docs / descriptions. Cut durin
 ## Deferred Ideas
 
 These ideas are not committed. Some also appear in `PLAN.md`'s deferred section once they become concrete enough to track there.
+
+### Agent-only tutorial document
+
+Not the same as `qdo tutorial agent` (interactive, lesson-by-lesson). This is a **static markdown document** designed to be fed to a coding agent as a prompt or cached in its context. Not a command list — a workflow guide with decision points.
+
+**What makes this different from AGENTS.md or SKILL.md:**
+- AGENTS.md teaches how to *develop* qdo. SKILL.md is a command reference for agents *using* qdo.
+- The agent tutorial teaches *how to think* about data exploration — when to stop profiling, when to sample, when to use metadata, how to interpret signals.
+
+**Proposed structure:**
+1. **Orientation** — set `QDO_FORMAT=json`, pick a connection, run `catalog --tables-only` to scope the database.
+2. **Triage** — for each relevant table, run `context`. Read the output. Decision: if `row_count` > 1M, expect sampling. If 50+ columns, expect `--classify` before full profile.
+3. **Narrowing** — use `profile --classify` to categorize columns. Decision: if `distinct_count == row_count`, column is likely a PK — stop profiling it. If `null_pct > 50`, column is sparse — note it but don't drill in unless relevant.
+4. **Join discovery** — run `joins` on tables you plan to join. Verify cardinality before writing JOIN SQL. Decision: if join candidate shows many-to-many, investigate with `dist` before assuming correctness.
+5. **Quality check** — run `quality` on tables entering a query. Decision: if uniqueness violations or high null rates on key columns, flag to the user before proceeding.
+6. **Metadata enrichment** — if metadata exists (`metadata show`), merge business context. If not, note the gap but don't block.
+7. **Writing SQL** — use `sql select` scaffold as a starting point. Run queries with `query`. Verify results with `assert`.
+8. **Cost consciousness** (Snowflake) — prefer `--no-sample` only when exact stats matter. Use `--rows 5` for preview, not 100.
+
+**Deliverable:** `integrations/tutorials/agent-workflow.md` — a single file, ~1000-1500 tokens, designed to fit in an agent's context alongside SKILL.md. Not a replacement for SKILL.md (which stays a command reference) but a companion that teaches sequencing and judgment.
+
+### Cherry-picked ideas from competitors
+
+Ideas worth stealing from the competitive landscape (2026-06-23 research). Each has a note on fit.
+
+**From qsv:**
+- **Preflight SQL scoring (`scoresql` concept)** — score a query *before* running it using cached stats/freq data, suggest optimizations. Natural fit for `qdo plan` or `qdo explain --preflight`. Medium lift. Would need cached profile data to score against. Very agent-friendly: "don't run this, it'll scan 2B rows; add a WHERE on event_date."
+- **Stratified / weighted sampling** — qdo currently does simple random sampling at >1M rows. Stratified sampling (sample proportionally across a grouping column) would give more representative previews. Small-medium lift. Upgrade to `--sample-strategy stratified --sample-by region`.
+- **JSON Schema inference from data** — qsv's `schema` infers validation rules from column data. Could feed into `assert` or `metadata` as auto-generated constraints. Medium lift.
+
+**From sqlite-utils / llm:**
+- **Auto-log every invocation to local SQLite** — llm's `llm logs` pattern. Every qdo invocation records: timestamp, command, connection, table, flags, duration, row_count, whether sampled, exit code. Queryable with `qdo log` or raw SQL. HIGH VALUE for debugging agent loops (what did it run? what failed? how long did it take?). Overlaps with session log but lower-ceremony — sessions are explicit, the auto-log is ambient. Small lift (just log to `~/.config/qdo/history.db` on every invocation).
+- **`memory`-style ad-hoc file query** — sqlite-utils lets you `memory data.csv "select ..."`. qdo already supports Parquet-as-connection via DuckDB pass-through. Could extend to CSV/JSON/NDJSON with `qdo query -c data.csv --sql "..."` using DuckDB's auto-detection. Small lift — DuckDB already handles this; we'd just relax connection resolution.
+
+**From dbt:**
+- **Lightweight metrics manifest** — a YAML file defining measures and dimensions over tables, separate from metadata descriptions. Agents query metrics (governed, typed) instead of raw columns. Aligns with semantic-layer trend. Would NOT be a full dbt-style semantic layer — just a simple `metrics.yaml` that `context` can surface. BIG lift to do well. Defer unless there's real pull.
+
+**From VisiData:**
+- **Session as replay script** — VisiData saves sessions as replayable command logs. Our session system already captures structured steps; the gap is a `qdo session replay <id>` that re-executes. Medium lift. Mentioned elsewhere in deferred ideas.
+
+**Not stealing:**
+- qsv's CSV-stream transforms, row-level processing, file-format converters — SQL engines handle this
+- datasette's web publishing, auth, GraphQL, plugin marketplace — not our model
+- VisiData's interactive-only design — we need scriptability
+- dbt's project scaffolding, ref() DAG, heavy YAML ceremony — too much overhead for ad-hoc analysis
+- Great Expectations' Python-class expectation authoring — our `assert` is SQL-native and lighter
 
 ### Discovery and navigation
 
@@ -147,8 +277,23 @@ These ideas are not committed. Some also appear in `PLAN.md`'s deferred section 
 
 ### Portability and external surfaces
 
-- **MCP thin wrapper** — still deferred; keep the CLI MCP-ready instead of building a large parallel surface.
+- **MCP thin wrapper** — still deferred; keep the CLI MCP-ready instead of building a large parallel surface. See the MCP tradeoffs analysis in Positioning above for the recommended 6-tool shape and the "don't build until there's pull" recommendation.
 - **Browser / Pyodide demo (`querido-lite`)** — only worth doing if there is a real adoption or embedding pull.
+- **Ad-hoc CSV/JSON/NDJSON connection** — extend connection resolution so `qdo query -c data.csv --sql "..."` works via DuckDB auto-detection. Small lift since DuckDB already handles these formats; we'd just relax the file-extension-to-type mapping in `config.py`. Currently only `.parquet`, `.duckdb`, `.ddb` and SQLite files are auto-detected.
+
+### High-value near-term ideas (small lift, big impact)
+
+Ideas specifically flagged as worth considering now because the implementation cost is low relative to the value. Not committed — just called out for easy promotion to PLAN.md.
+
+1. **`--for-agent` behavior profile** — env var `QDO_AGENT=1` or flag that implies JSON format + suppressed spinners + deterministic key ordering + token-efficient defaults + `next_actions` hints in output. The single highest-leverage agent adoption improvement per 2026 research. Small-medium lift: most of the machinery exists (`QDO_FORMAT`, structured errors, `--top`, `--rows` defaults). Main new work: `next_actions` hint generation and deterministic ordering audit.
+
+2. **Auto-log invocations to local SQLite** — every qdo command records timestamp, command, connection, table, flags, duration, row_count, exit code to `~/.config/qdo/history.db`. Queryable via `qdo log` (show recent) or raw SQL. Invaluable for debugging agent loops. Small lift: ~50 lines in a decorator or CLI callback. Does not replace sessions (which are explicit and structured) but complements them as ambient telemetry.
+
+3. **CSV/JSON/NDJSON as ad-hoc connections** — extend file-path connection resolution to `.csv`, `.json`, `.jsonl`, `.ndjson` via DuckDB auto-detection. Small lift: relax `config.py` extension mapping + test.
+
+4. **Deterministic JSON output** — audit all JSON output paths for stable key ordering (sorted keys or schema-defined order). Tiny lift. Matters for agent tool-calling where output diffs should be meaningful.
+
+5. **`next_actions` field in JSON output** — each command's JSON output includes a list of suggested follow-up commands based on what the agent just learned. Example: `profile` output includes `next_actions: ["qdo dist -c X -t Y -C high_null_column", "qdo values -c X -t Y -C low_cardinality_column"]`. Medium lift — requires per-command heuristics. Very high value for agent discoverability and workflow coherence.
 
 ### Convenience / team ergonomics
 
