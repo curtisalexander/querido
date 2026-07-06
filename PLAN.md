@@ -351,7 +351,7 @@ Capture but don't start. Each is standalone and non-blocking.
 - Progressive disclosure `--level 1..3` on expensive commands.
 - Snowflake `RESULT_SCAN` reuse for chained queries.
 - Pyodide `querido-lite` browser demo (only if concrete adoption pulls for it).
-- MCP thin wrapper (defer; keep CLI surface MCP-ready — stable flags, structured errors, no TTY-required behaviors).
+- MCP thin wrapper — design drafted 2026-07-06 in [docs/research/mcp-wrapper-design.md](docs/research/mcp-wrapper-design.md) (subprocess-per-call, ~9 curated tools returning the envelope verbatim, `querido[mcp]` extra, `qdo mcp serve`). Proposed as the 0.3.0 headline after the 0.2.0 PyPI debut + dogfood week. Build only after dogfood.
 
 ---
 
