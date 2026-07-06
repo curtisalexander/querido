@@ -68,7 +68,7 @@ def list_cmd() -> None:
     entries = list_available_workflows()
     fmt = get_output_format()
 
-    if fmt in ("json", "agent"):
+    if fmt == "json":
         from querido.output.envelope import emit_envelope
 
         data = [
@@ -165,7 +165,7 @@ def lint(
     result = run_lint(doc, valid_columns=valid_columns)
 
     fmt = get_output_format()
-    if fmt in ("json", "agent"):
+    if fmt == "json":
         from querido.output.envelope import emit_envelope
 
         payload = {
@@ -246,8 +246,8 @@ def run(
         )
     except StepFailed as exc:
         fmt = get_output_format()
-        if fmt in ("json", "agent"):
-            _emit_step_failure_envelope(exc, workflow=entry.name, fmt=fmt)
+        if fmt == "json":
+            _emit_step_failure_envelope(exc, workflow=entry.name)
             raise typer.Exit(code=1) from exc
         # Non-structured path: dump stderr verbatim and re-raise so
         # friendly_errors renders a human-readable message.
@@ -258,7 +258,7 @@ def run(
         raise WorkflowError(str(exc)) from exc
 
     fmt = get_output_format()
-    if fmt in ("json", "agent"):
+    if fmt == "json":
         from querido.output.envelope import emit_envelope
 
         data = {
@@ -354,15 +354,14 @@ def _parse_kv_inputs(items: list[str]) -> dict[str, str]:
 _STDERR_TAIL_BYTES = 4096
 
 
-def _emit_step_failure_envelope(exc, *, workflow: str, fmt: str) -> None:
+def _emit_step_failure_envelope(exc, *, workflow: str) -> None:
     """Print a structured step-failure error to stderr.
 
     Matches the shape of other error payloads (``{error, code, message,
-    try_next}``) so agents parsing ``-f json`` / ``-f agent`` can act on
-    the failure without scraping stderr. See R.7 in PLAN.md.
+    try_next}``) so agents parsing ``-f json`` can act on the failure
+    without scraping stderr. See R.7 in PLAN.md.
     """
     from querido.core.next_steps import for_workflow_step_failed
-    from querido.output.envelope import render_agent
 
     stderr_raw = exc.stderr or ""
     stderr_truncated = len(stderr_raw) > _STDERR_TAIL_BYTES
@@ -403,7 +402,4 @@ def _emit_step_failure_envelope(exc, *, workflow: str, fmt: str) -> None:
         timed_out=bool(exc.timed_out),
     )
 
-    if fmt == "agent":
-        print(render_agent(payload), file=sys.stderr)
-    else:
-        print(json.dumps(payload, indent=2), file=sys.stderr)
+    print(json.dumps(payload, indent=2), file=sys.stderr)

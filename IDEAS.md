@@ -56,6 +56,8 @@ Updated 2026-06-23 with web research. Links and notes for future context.
 
 **Agent-era tools (2025-2026):** MCP database servers (postgres-mcp, sqlite-mcp, duckdb-mcp, snowflake-mcp) all expose `list_tables` + `describe_table` + `execute_sql` and stop there. No profiling, no quality, no diff, no cost guards, no metadata enrichment. Aggregators like DBHub and ToolFront wrap multiple backends. Vanna.AI ([vanna.ai](https://vanna.ai)) uses RAG-trained NL-to-SQL with DDL/docs/query embeddings. WrenAI ([wren.ai](https://wren.ai)) and Cube ([cube.dev](https://cube.dev)) push a "semantic layer for LLMs" concept — agents query metrics (governed, typed) rather than raw tables. Direction of travel: semantic-layer-routed queries beat raw text-to-SQL on accuracy.
 
+**Research refresh (2026-07-06):** two independent landscape sweeps confirmed the integrated loop (deterministic CLI → exploration-time capture to repo YAML → same-tool consumption) still has no exact incumbent, but every adjacent cell is occupied and the window is narrowing. Closest neighbors: **ai-analyst-lab/ai-analyst** ([github](https://github.com/ai-analyst-lab/ai-analyst)) — auto-profiles and writes schema docs/quirks to `.knowledge/datasets/` for cross-session reuse, but prompt-orchestrated rather than deterministic; **duckdb/duckdb-skills** ([github](https://github.com/duckdb/duckdb-skills)) — official DuckDB plugin persisting session state (`state.sql`), one step from semantic metadata; **Anthropic's data-engineering plugin** (by Astronomer, 14,750+ installs) already *markets* "caches discovered patterns so repeated analysis gets faster over time"; **dbt Agent Skills** (Feb 2026) adopted the SKILL.md playbook for modeled data. Architecture tailwinds confirmed: skills + CLIs won over MCP-everything (Anthropic's own code-execution-with-MCP post, Zechner's MCP-vs-CLI benchmark, "many skills, few MCPs" consensus). Sobering signals: dbt-mcp sits at ~587 GitHub stars despite dbt's brand (solo data-CLI ceiling is real); skill files alone moved dbt's ADE-bench only 56%→58.5% (the pitch must rest on deterministic enforcement + compounding metadata, not "the skill makes the agent smarter"); distribution now runs through the Claude Code plugin marketplace and `npx skills add`, not PyPI alone. The strongest demand evidence found: hallucinated identifiers are the #1 documented agent failure mode and CLAUDE.md instructions demonstrably fail to fix it ([claude-code#53988](https://github.com/anthropics/claude-code/issues/53988)) — see DIFFERENTIATION.md "The failure mode qdo exists to prevent" and the hallucination benchmark in PLAN.md.
+
 ### Lean into
 
 1. **Agent-first, but not agent-only.** Stable flags, structured errors, deterministic next-step hints, and coherent command chains matter more than clever prose.
@@ -164,6 +166,20 @@ No hosted viewer, no plugin marketplace, no server-first direction. Files remain
 **Status:** rejected.
 
 Natural-language-to-SQL inside qdo and similar LLM-in-the-loop features remain out of scope. Deterministic heuristics and stable outputs are the intended product boundary.
+
+### `-f agent` TOON output format
+
+**Status:** built then cut (2026-07-06).
+
+Shipped as an alternate envelope serialization: TOON for tabular payloads, YAML
+for nested, with an in-tree encoder and vendored spec-conformance fixtures. Cut
+because it had zero adoption even internally: SKILL.md promoted `-f json`
+exclusively, the 45/45 eval never exercised `-f agent`, and independent 2026
+benchmarks showed token-format gains are shape-dependent with marginal accuracy
+impact. An unpromoted parallel format is pure maintenance surface. Don't
+re-propose without evidence that JSON token cost is an actual adoption blocker
+— and if it is, promote the format in SKILL.md and re-run the eval as part of
+the same change.
 
 ### `qdo search "<intent>"` (BM25 command discovery)
 
@@ -274,6 +290,15 @@ Ideas worth stealing from the competitive landscape (2026-06-23 research). Each 
 
 - **RESULT_SCAN reuse for chained queries** — reduce repeated scans across multi-step flows.
 - **Warehouse/cost awareness in output** — more explicit time / credit signals where they matter.
+- **`CREATE SEMANTIC VIEW` export** — **shipped 2026-07-06**: `qdo snowflake
+  semantic` now emits `create semantic view` DDL instead of stage-based Cortex
+  Analyst YAML (Snowflake calls the YAML path the "legacy stage API" and
+  recommends semantic views for all new implementations; Snowflake-Labs'
+  semantic-model-generator is deprecated in favor of the Snowsight generator).
+  The legacy YAML builder survives only behind `qdo template --format yaml`.
+  Refs:
+  https://docs.snowflake.com/en/user-guide/views-semantic/semantic-models-vs-views,
+  https://github.com/Snowflake-Labs/semantic-model-generator.
 
 ### Portability and external surfaces
 

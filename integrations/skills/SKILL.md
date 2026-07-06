@@ -355,8 +355,8 @@ Not in the common workflow, but worth knowing about:
 - **`qdo view-def -c <conn> --view <name>`** — fetch the SQL definition of
   a view. Works on DuckDB, SQLite (via `sqlite_master`), and Snowflake
   (`information_schema.views`).
-- **`qdo snowflake semantic -c <conn> …`** — emit a Cortex Analyst semantic
-  model YAML from stored metadata. Snowflake-only.
+- **`qdo snowflake semantic -c <conn> …`** — emit `create semantic view` DDL
+  from stored metadata (review, then run it in Snowflake). Snowflake-only.
 - **`qdo snowflake lineage -c <conn> -t <table>`** — upstream/downstream
   trace via Snowflake `GET_LINEAGE`. Snowflake-only.
 
@@ -366,7 +366,7 @@ Behavior an agent needs to know so it doesn't write broken SQL or pick the wrong
 
 - **Table names are case-insensitive** — qdo normalizes them internally; use whatever case feels natural.
 - **Parquet files** — pass the file path directly as the connection: `-c ./data.parquet`. No separate config step needed.
-- **Snowflake** — requires a named connection set up via `qdo config add`. Use `qdo snowflake` for Cortex Analyst semantic model generation.
+- **Snowflake** — requires a named connection set up via `qdo config add`. Use `qdo snowflake` for semantic view DDL generation and lineage.
 - **pivot aggregations** — the `-a` argument is a SQL aggregate expression: `"count(*)"`, `"avg(price)"`, `"sum(revenue)"`. Quote it to prevent shell interpretation.
 - **Wide tables auto-engage quick mode at 50+ columns** — only null counts + distinct counts are computed. Use `--classify` for a category breakdown, `--column-set` to reuse a saved selection, `--no-quick` to force full stats. If exploring interactively, `qdo explore` opens quick triage first when you press `p` on a wide table.
 - **Metadata merge preserves human fields** — scans that `--write-metadata` never overwrite fields stored with `confidence: 1.0`. Pass `--force` only when the human value is actually stale.

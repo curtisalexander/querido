@@ -341,7 +341,7 @@ def test(
     except Exception as exc:
         from querido.cli._context import get_output_format
 
-        if get_output_format() in ("json", "agent"):
+        if get_output_format() == "json":
             # Let friendly_errors emit the structured error payload.
             raise
         console.print(f"[red bold]FAIL[/red bold] ({conn_type}) {exc}")
@@ -364,11 +364,11 @@ def test(
 
 
 def _column_set_not_found(connection: str, table: str, name: str, console) -> NoReturn:
-    """Report a missing column set: structured error under json/agent, rich otherwise."""
+    """Report a missing column set: structured error under json, rich otherwise."""
     from querido.cli._context import get_output_format
 
     msg = f"Column set '{name}' not found for {connection}.{table}"
-    if get_output_format() in ("json", "agent"):
+    if get_output_format() == "json":
         from querido.cli._errors import CodedBadParameter
 
         raise CodedBadParameter(msg, code="COLUMN_SET_NOT_FOUND")

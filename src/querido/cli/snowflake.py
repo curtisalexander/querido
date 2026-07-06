@@ -28,7 +28,7 @@ def semantic(
     connection: str = conn_opt,
     db_type: str | None = dbtype_opt,
     output_file: str | None = typer.Option(
-        None, "--output", "-o", help="Write YAML to file instead of stdout."
+        None, "--output", "-o", help="Write DDL to file instead of stdout."
     ),
     sample_values: int = typer.Option(
         25,
@@ -38,7 +38,7 @@ def semantic(
         help="Distinct sample values per column (0 to skip). Snowflake recommends 25+.",
     ),
 ) -> None:
-    """Generate a Cortex Analyst semantic model YAML from table metadata."""
+    """Generate create semantic view DDL from table metadata."""
     from querido.cli._pipeline import table_command
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
@@ -56,16 +56,16 @@ def semantic(
         else:
             sv = None
 
-    from querido.core.semantic import build_semantic_yaml
+    from querido.core.semantic import build_semantic_view_ddl
 
-    yaml_str = build_semantic_yaml(ctx.table, columns, table_comment, sample_values_per_col=sv)
+    ddl_str = build_semantic_view_ddl(ctx.table, columns, table_comment, sample_values_per_col=sv)
 
     from querido.output.envelope import emit_envelope, is_structured_format
 
     if output_file:
         from pathlib import Path
 
-        Path(output_file).write_text(yaml_str)
+        Path(output_file).write_text(ddl_str)
 
         if is_structured_format():
             emit_envelope(
@@ -83,14 +83,14 @@ def semantic(
 
         import sys
 
-        print(f"Wrote semantic model to {output_file}", file=sys.stderr)
+        print(f"Wrote semantic view DDL to {output_file}", file=sys.stderr)
         return
 
     if is_structured_format():
         emit_envelope(
             command="snowflake semantic",
             data={
-                "yaml": yaml_str,
+                "ddl": ddl_str,
                 "table": ctx.table,
                 "column_count": len(columns),
                 "sample_values_per_column": sample_values if sample_values > 0 else 0,
@@ -98,8 +98,9 @@ def semantic(
             next_steps=[
                 {
                     "cmd": f"qdo snowflake semantic -c {connection} -t {ctx.table} "
-                    f"-o {ctx.table}.yaml",
-                    "why": "Write the YAML to a file for Cortex Analyst upload.",
+                    f"-o {ctx.table}.sql",
+                    "why": "Write the DDL to a file, review it, then run it in "
+                    "Snowflake to create the semantic view.",
                 },
             ],
             connection=connection,
@@ -107,7 +108,7 @@ def semantic(
         )
         return
 
-    print(yaml_str)
+    print(ddl_str)
 
 
 # ---------------------------------------------------------------------------

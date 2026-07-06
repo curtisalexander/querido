@@ -20,6 +20,63 @@ Positioning and "what sets qdo apart" live in [DIFFERENTIATION.md](./DIFFERENTIA
 
 ---
 
+## Hallucination benchmark — the launch claim (planned 2026-07-06)
+
+**Why.** Independent research (2026-07-06) confirmed that hallucinated identifiers are the
+top documented failure mode for agents doing data work, and that *instructions alone do
+not fix it*: in [anthropics/claude-code#53988](https://github.com/anthropics/claude-code/issues/53988)
+("Claude hallucinated identifiers: writes column/field/config names from memory instead
+of reading source files"), explicit CLAUDE.md instructions demonstrably failed where
+tool-enforced verification works. That is qdo's thesis stated by the market — and it
+names qdo's real competitor: not any product, but the null hypothesis of *"the agent
+just writes what it learned into CLAUDE.md for free."* qdo must visibly beat that, and
+today nothing demonstrates it does. This benchmark is that demonstration, and the
+launch blog post / README claim comes straight out of it.
+
+**Claim to substantiate:** an agent using qdo hallucinates fewer identifiers and invalid
+filter values, answers more questions correctly, and gets *better across sessions*
+(compounding), compared to the same agent with a bare database CLI or with self-written
+CLAUDE.md notes.
+
+**Design.**
+
+- **Trap corpus.** A generated database (extend `scripts/init_test_data.py` or a new
+  `scripts/init_bench_data.py`) seeded with realistic traps, each recorded in an answer
+  key: enum columns storing codes (`'P'`, `'S'`, `'D'`, `'X'`) where the natural guess
+  is words (`'pending'`); lookalike columns (`order_date` is the load timestamp,
+  `ordered_at` is the business date); plausible-but-absent columns (`customers.email`
+  doesn't exist — it's `contact_email` on a joined table); a many-to-many join that
+  looks one-to-many; one wide (50+ col) table.
+- **Tasks.** 15–25 natural-language questions with exact, deterministically gradeable
+  answers (a scalar or short list), each phrased so the naive path hits a trap.
+- **Arms.**
+  - **A — bare:** agent + `duckdb`/`sqlite3` CLI, no docs.
+  - **B — notes (the null hypothesis):** agent + bare CLI + a CLAUDE.md written by a
+    prior agent session told to "record what you learned about this database."
+  - **C — qdo cold:** agent + SKILL.md + empty `.qdo/`.
+  - **D — qdo warm:** agent + SKILL.md + metadata populated by a prior
+    `--write-metadata` pass. The compounding claim is D vs C; the null-hypothesis
+    claim is D vs B.
+- **Metrics per task.** (1) hallucinated-identifier incidents — executed SQL references
+  a nonexistent table/column; (2) invalid-literal incidents — a predicate compares an
+  enum column against a value outside its actual domain; (3) final-answer accuracy;
+  (4) tokens in/out; (5) recovery cost — attempts between first wrong identifier and a
+  corrected query.
+- **Grader is deterministic, like the product.** Capture every executed SQL statement
+  (qdo arms: sessions already record this; arms A/B: parse the transcript), then
+  validate identifiers against `information_schema` and literals against actual column
+  domains. No LLM grading for the core metrics.
+- **Harness.** Extend `scripts/eval_skill_files_claude.py` — it already has the
+  `claude -p` invocation, budget caps, and multi-model plumbing. New work: the arms,
+  SQL extraction, and the two validators.
+- **Honesty rules.** Publish the methodology and negative results. If B ≈ D, that's a
+  product gap to fix (the metadata isn't earning its structure), not a result to bury.
+
+**Sequencing.** After the PyPI publish, alongside or right after real dogfood. No new
+product features are prerequisites — only the trap corpus and grader.
+
+---
+
 ## Pre-beta audit pass — active
 
 A multi-agent audit on 2026-04-23 simulated first-contact with the project across five angles: fresh-user Quick Start walkthrough, public-docs consistency, CLI help + error-message quality, tutorials + agent-integration polish, and release-artifact completeness. Tier ordering is by damage to the first-contact story, not implementation cost.
@@ -323,7 +380,6 @@ Each is a parametrized case list; extending is a one-line addition:
 
 Files to resist future pressure to shrink:
 
-- **`tests/test_toon.py`** (118 tests) — one `@pytest.mark.parametrize` over vendored TOON spec-conformance fixtures. Model for spec-implementation suites.
 - **Per-rule scenario tests in `tests/test_next_steps.py`** — three `for_inspect_*` tests each exercise a distinct branch (populated / empty / no-comment); not redundant.
 - **Dialect-specific `sql` tests where outputs diverge** — DDL types (TEXT vs VARCHAR), UDF syntax (Python `create_function` vs SQL `CREATE FUNCTION`). Keep both dialects.
 - **`tests/test_readback_loop.py`** — 7 tests on the R.1 compounding-loop invariant.
@@ -337,7 +393,7 @@ Files to resist future pressure to shrink:
 
 ### Open items the test cleanup deferred
 
-- Keep rewriting lingering prose-oriented validation tests against structured payloads whenever a command now emits a stable code under `-f json` / `-f agent`.
+- Keep rewriting lingering prose-oriented validation tests against structured payloads whenever a command now emits a stable code under `-f json`.
 - Only promote additional validation failures from generic `VALIDATION_ERROR` into named codes when the failure shape is durable, actionable, and likely to matter to agents.
 
 ---

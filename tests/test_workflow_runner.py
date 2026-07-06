@@ -1191,27 +1191,10 @@ def test_step_failure_emits_structured_envelope_to_stderr(
     assert payload["session"].startswith("workflow-fail-demo-")
 
 
-def test_step_failure_agent_format_renders_via_toon_or_yaml(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """-f agent uses the TOON/YAML envelope path — the error payload must
-    include the code and step id as keys parseable by either format."""
-    monkeypatch.delenv("QDO_SESSION", raising=False)
-    _write_failing_workflow(tmp_path)
-    monkeypatch.chdir(tmp_path)
-
-    result = runner.invoke(app, ["-f", "agent", "workflow", "run", "fail-demo"])
-    assert result.exit_code != 0
-    out = result.output
-    assert "code: WORKFLOW_STEP_FAILED" in out
-    assert "step_id: broken" in out
-    assert "try_next" in out
-
-
 def test_step_failure_non_structured_keeps_stderr_dump(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Non-json/agent formats keep the current behavior: raw stderr + friendly-
+    """Non-json formats keep the current behavior: raw stderr + friendly-
     errors message.  No JSON payload should appear."""
     monkeypatch.delenv("QDO_SESSION", raising=False)
     _write_failing_workflow(tmp_path)
@@ -1247,7 +1230,7 @@ def test_step_failure_marks_stderr_truncated_when_oversized(
 
     captured: list[str] = []
     monkeypatch.setattr(sys, "stderr", _Capture(captured))
-    _emit_step_failure_envelope(exc, workflow="oversized", fmt="json")
+    _emit_step_failure_envelope(exc, workflow="oversized")
     payload = json.loads("".join(captured))
     assert payload["stderr_truncated"] is True
     # The stored stderr field is the truncated tail, prefixed with the marker.
@@ -1274,7 +1257,7 @@ def test_step_failure_omits_stderr_truncated_when_short(monkeypatch: pytest.Monk
 
     captured: list[str] = []
     monkeypatch.setattr(sys, "stderr", _Capture(captured))
-    _emit_step_failure_envelope(exc, workflow="short", fmt="json")
+    _emit_step_failure_envelope(exc, workflow="short")
     payload = json.loads("".join(captured))
     assert "stderr_truncated" not in payload
     assert payload["stderr"] == small

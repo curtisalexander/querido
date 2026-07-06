@@ -33,7 +33,7 @@ def overview() -> None:
 
     fmt = get_output_format()
 
-    if fmt in ("json", "agent"):
+    if fmt == "json":
         from querido.output.envelope import emit_envelope
 
         emit_envelope(command="overview", data=_build_payload())

@@ -100,10 +100,7 @@ LLMs inside qdo — the agent brings the brain; qdo brings the memory and the ma
   Schema-fingerprint checks catch drift on import.
 - **Declarative workflows** — YAML workflow spec + runner + lint (`qdo workflow
   run/list/show/lint/spec/from-session`), with bundled worked examples.
-- **Agent output format** — `-f agent` emits TOON for tabular data and YAML for
-  nested data. In-tree TOON encoder ships with vendored spec-conformance
-  fixtures.
-- **Structured error envelope** — CLI failures under `-f json` / `-f agent`
+- **Structured error envelope** — CLI failures under `-f json`
   return `{error, code, message, hint, try_next}` with stable codes agents can
   gate on.
 - **Session recording** — `QDO_SESSION=<name> qdo ...` appends JSONL + stdout
@@ -120,8 +117,8 @@ LLMs inside qdo — the agent brings the brain; qdo brings the memory and the ma
   default; `--allow-write` opts into mutating SQL.
 - **`sql select/insert/ddl/udf/procedure/task/scratch`** — dialect-aware SQL
   scaffolds with envelope output.
-- **`snowflake semantic` and `snowflake lineage`** — Cortex Analyst YAML
-  generation and `GET_LINEAGE`-based dependency discovery.
+- **`snowflake semantic` and `snowflake lineage`** — `create semantic view`
+  DDL generation and `GET_LINEAGE`-based dependency discovery.
 - **`report table` and `report session`** — single-file shareable HTML reports
   (no JS, no external assets, print-friendly).
 - **`qdo explore`** — interactive Textual TUI with selected-column facts sidebar,
