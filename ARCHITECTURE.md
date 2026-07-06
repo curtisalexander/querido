@@ -15,7 +15,7 @@ querido/
 ├── IDEAS.md                        # Unimplemented feature ideas
 ├── README.md
 ├── docs/
-│   ├── cli-reference.md            # CLI reference (generated from `qdo overview`; regenerate after CLI changes)
+│   ├── cli-reference.md            # CLI reference (hand-maintained; `qdo overview` prints this file, falling back to auto-generated summary when absent)
 │   ├── qdo-cheatsheet.html         # Visual cheatsheet
 │   ├── _config.yml                 # GitHub Pages (Jekyll) config
 │   ├── _layouts/                   # Pages HTML layout(s)
