@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NotRequired, TypedDict, TypeGuard
 
-from querido.core.metadata import _read_yaml, _write_yaml
+from querido.core.metadata import _read_yaml, _write_yaml, read_table_doc, write_table_doc
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
@@ -66,6 +66,27 @@ class Provenance(TypedDict):
 
 BUNDLE_FORMAT_VERSION = "1"
 
+
+def _check_format_version(manifest: dict) -> None:
+    """Refuse bundles written in a newer format than this qdo understands.
+
+    A missing ``format_version`` means a pre-versioning (or hand-built)
+    bundle and is treated as format 1.
+    """
+    raw = manifest.get("format_version")
+    if raw is None:
+        return
+    try:
+        found = int(str(raw))
+    except ValueError:
+        raise ValueError(f"Bundle manifest has an unreadable format_version: {raw!r}") from None
+    if found > int(BUNDLE_FORMAT_VERSION):
+        raise ValueError(
+            f"Bundle format_version {found} is newer than this qdo understands "
+            f"(max {BUNDLE_FORMAT_VERSION}). Upgrade qdo to import this bundle."
+        )
+
+
 _IMPORTABLE_TABLE_FIELDS = {
     "table_description",
     "data_owner",
@@ -73,7 +94,13 @@ _IMPORTABLE_TABLE_FIELDS = {
     "notes",
 }
 _MACHINE_TABLE_FIELDS = {"row_count", "table_comment"}
-_NEVER_IMPORT_TABLE_FIELDS = {"table", "connection", "schema_fingerprint", "columns"}
+_NEVER_IMPORT_TABLE_FIELDS = {
+    "table",
+    "connection",
+    "schema_fingerprint",
+    "schema_version",
+    "columns",
+}
 
 _IMPORTABLE_COLUMN_FIELDS = {
     "description",
@@ -272,7 +299,7 @@ def export_bundle(
             out["schema_fingerprint"] = fingerprints.get(t)
             if redact:
                 _apply_redact(out)
-            _write_yaml(meta_dir / f"{t}.yaml", out)
+            write_table_doc(meta_dir / f"{t}.yaml", out)
             table_entries.append({"name": t, "schema_fingerprint": fingerprints.get(t)})
 
         column_set_entries: list[dict] = []
@@ -446,6 +473,7 @@ def import_bundle(
 
     with _open_bundle(bundle_path) as root:
         manifest = _read_yaml(root / "manifest.yaml") or {}
+        _check_format_version(manifest)
         bundle_tables = manifest.get("tables") or []
 
         # Compute target fingerprints (best-effort — missing DB just skips check).
@@ -482,7 +510,7 @@ def import_bundle(
             if not bundle_meta_path.exists():
                 continue
             bundle_mtime = bundle_meta_path.stat().st_mtime
-            bundle_meta = _read_yaml(bundle_meta_path) or {}
+            bundle_meta = read_table_doc(bundle_meta_path) or {}
 
             local_meta = show_metadata(target_connection, tgt) or {}
             local_path = metadata_path(target_connection, tgt)
@@ -503,10 +531,11 @@ def import_bundle(
             merged["connection"] = target_connection
             merged["table"] = tgt
             merged.pop("schema_fingerprint", None)
+            merged.pop("schema_version", None)
 
             wrote_any = any(a.get("action") == "write" for a in field_actions)
             if apply and wrote_any:
-                _write_yaml(local_path, merged)
+                write_table_doc(local_path, merged)
 
             table_diffs.append(
                 {

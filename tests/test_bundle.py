@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -201,6 +202,27 @@ def test_import_into_fresh_connection_writes_metadata(
     imported = show_metadata(other, "users")
     assert imported is not None
     assert imported["table_description"] == "exported desc"
+
+
+def test_import_refuses_newer_format_version(
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
+):
+    # Failure mode: a bundle written by a future qdo (format_version 2+) was
+    # imported as if it were format 1, silently misreading its contents. The
+    # importer must refuse and tell the user to upgrade.
+    monkeypatch.chdir(tmp_path)
+    _seed_metadata(sqlite_path, "users")
+    out = tmp_path / "src.qdobundle"
+    export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
+
+    manifest_path = out / "manifest.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text())
+    manifest["format_version"] = "99"
+    manifest_path.write_text(yaml.safe_dump(manifest))
+
+    other = make_sqlite_db(str(tmp_path / "other.db"))
+    with pytest.raises(ValueError, match="format_version 99"):
+        import_bundle(out, other, apply=False)
 
 
 def test_import_dry_run_does_not_write(

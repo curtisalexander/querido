@@ -17,6 +17,18 @@ _DESTRUCTIVE_FIRST_KEYWORDS = frozenset(
         "replace",
         "grant",
         "revoke",
+        # Statements that mutate state outside the connection's read-only
+        # guard: COPY/EXPORT write files even on a read-only DuckDB handle,
+        # ATTACH can open a second writable database, INSTALL/LOAD pull in
+        # extensions, CALL runs procedures, VACUUM rewrites the file.
+        "copy",
+        "export",
+        "attach",
+        "detach",
+        "install",
+        "load",
+        "call",
+        "vacuum",
     }
 )
 _SQL_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)

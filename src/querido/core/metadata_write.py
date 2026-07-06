@@ -35,10 +35,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from querido.core.metadata import (
-    _read_yaml,
     _record_metadata_history,
-    _write_yaml,
     metadata_path,
+    read_table_doc,
+    write_table_doc,
 )
 from querido.core.quality import QualityResult
 from querido.core.values import ValuesResult
@@ -300,7 +300,7 @@ def apply_updates(
     if not path.exists():
         init_metadata(connector, connection, table)
 
-    meta = _read_yaml(path) or {}
+    meta = read_table_doc(path) or {}
     author = _resolve_author()
     written_at = _resolve_written_at()
     session = _resolve_session()
@@ -349,7 +349,7 @@ def apply_updates(
         )
 
     before_text = path.read_text(encoding="utf-8")
-    _write_yaml(path, meta)
+    write_table_doc(path, meta)
     _record_metadata_history(
         connection=connection,
         table=table,
@@ -371,7 +371,7 @@ def preview_updates(
 ) -> dict:
     """Preview *updates* against the metadata YAML without writing anything."""
     path = metadata_path(connection, table)
-    meta: dict[str, Any] = (_read_yaml(path) if path.exists() else {}) or {}
+    meta: dict[str, Any] = (read_table_doc(path) if path.exists() else {}) or {}
 
     cols_by_name: dict[str, dict] = {}
     for c in meta.get("columns") or []:

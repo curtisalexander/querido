@@ -43,9 +43,11 @@ querido/
 │   └── querido/
 │       ├── __init__.py             # Version string (__version__)
 │       ├── py.typed                # PEP 561 marker for typed package
-│       ├── cache.py                # Local metadata cache (SQLite-backed)
+│       ├── _argv.py                # Pure -f/--format argv hoist (shared by cli/main.py and the workflow runner)
+│       ├── _runtime.py             # Root-context lookups (get_output_format) shared by cli/ and output/
+│       ├── cache.py                # Local metadata cache (SQLite-backed; pragma user_version schema check)
 │       ├── config.py               # TOML config loading, connection resolution, column sets
-│       ├── agent_docs/             # Packaged agent integration docs installed by `qdo agent`
+│       ├── agent_docs/             # Packaged agent integration docs installed by `qdo agent` (created at wheel-build time from integrations/ via force-include; not present in the source tree)
 │       │   ├── skills/             # Claude Code SKILL.md + workflow references
 │       │   └── continue/           # Continue.dev rule
 │       ├── cli/
@@ -56,7 +58,6 @@ querido/
 │       │   ├── _progress.py        # Elapsed-time query spinner with cancellation
 │       │   ├── _options.py         # Shared Typer option definitions (--connection, --db-type, etc.)
 │       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, destructive SQL guard
-│       │   ├── argv_hoist.py       # Hoist -f/--format anywhere in argv to the root callback
 │       │   ├── main.py             # Entry point, Typer app, lazy subcommand loading
 │       │   ├── agent.py            # `qdo agent list/show/install` — packaged coding-agent docs
 │       │   ├── assert_cmd.py       # `qdo assert` — assert conditions on query results (CI-friendly)

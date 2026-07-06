@@ -12,9 +12,9 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from querido.core.metadata import (
-    _read_yaml,
     get_metadata_dir,
     metadata_path,
+    read_table_doc,
 )
 from querido.core.metadata_write import (
     FieldUpdate,
@@ -154,7 +154,7 @@ def score_connection(connection: str) -> dict:
 
     rows: list[dict] = []
     for yaml_file in sorted(meta_dir.glob("*.yaml")):
-        meta = _read_yaml(yaml_file)
+        meta = read_table_doc(yaml_file)
         if meta is None:
             continue
         rows.append(score_table(meta, mtime=yaml_file.stat().st_mtime))
@@ -258,7 +258,7 @@ def build_suggestions(
             )
             candidates.extend(derive_from_values(values_result))
 
-    meta = _read_yaml(metadata_path(connection, table)) or {}
+    meta = read_table_doc(metadata_path(connection, table)) or {}
     return _filter_novel(candidates, meta, force=force)
 
 
@@ -325,7 +325,7 @@ def peek_score(connection: str, table: str) -> float | None:
     path = metadata_path(connection, table)
     if not path.exists():
         return None
-    meta = _read_yaml(path)
+    meta = read_table_doc(path)
     if not meta:
         return None
     result = score_table(meta, mtime=path.stat().st_mtime)
