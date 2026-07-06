@@ -155,6 +155,24 @@ Two separate variants were considered and rejected:
 - **Rust + PyO3 for hot paths:** low ROI because the meaningful performance work already happens inside native database engines.
 - **Rust -> WASM browser rewrite:** too much code duplication for too little differentiation; if browser qdo ever matters, Pyodide is the more pragmatic path.
 
+Detailed assessment (2026-06-23 research): qdo is I/O bound — most time is spent
+waiting on database queries and rendering output, and the engines (DuckDB C++,
+SQLite C, Snowflake network) are already native. Startup time is the one real
+Python tax: ruff (Rust) ~10 ms cold start, uv ~20-30 ms, ripgrep ~5-10 ms,
+versus a typical Python CLI with heavy imports at 300-800 ms (Click/Typer
+50-150 ms baseline; refs: [Charlie Marsh on ruff
+startup](https://astral.sh/blog/the-ruff-formatter),
+[notes.crmarsh.com](https://notes.crmarsh.com/python-tooling-could-be-much-much-faster)).
+For a tool run once per query that returns after 2+ seconds of database latency,
+500 ms startup is noise, and qdo already uses lazy imports to minimize it. If
+startup ever matters: adopt `orjson` (already Rust/PyO3, ~5x faster JSON), push
+aggregations into SQL, and distribute via `uv tool install` or
+[PyApp](https://github.com/ofek/pyapp) — all far cheaper than custom PyO3. Do
+**not** add maturin/Rust as a contributor requirement, write PyO3 for
+Arrow→JSON (pyarrow is already C++), or use PyOxidizer (unmaintained since
+2023). Revisit only if profiling shows a specific CPU-bound Python hot loop —
+today there isn't one.
+
 ### Rich hosted / plugin platform
 
 **Status:** rejected.
@@ -213,6 +231,21 @@ Not the same as `qdo tutorial agent` (interactive, lesson-by-lesson). This is a 
 
 **Deliverable:** `integrations/tutorials/agent-workflow.md` — a single file, ~1000-1500 tokens, designed to fit in an agent's context alongside SKILL.md. Not a replacement for SKILL.md (which stays a command reference) but a companion that teaches sequencing and judgment.
 
+**Follow-up assessment (2026-06-23):** a skill file is already effectively an
+agent tutorial, so a separate static document would largely duplicate
+`integrations/skills/SKILL.md`. We already have SKILL.md (comprehensive skill
+file covering the `catalog -> context -> metadata -> query` workflow), `qdo
+tutorial agent` (13 interactive lessons for human-guided onboarding), and
+AGENTS.md (development context). Rather than a new duplicating document, the
+higher-value moves are: (1) **workflow recipes in the skill file** — 3-5 named
+investigation patterns (freshness check, migration safety audit, join
+validation, data quality triage) as step-by-step sequences with expected
+outputs, so agents can pattern-match; (2) **"commonly follows" hints in `qdo
+overview`** so agents chain commands without memorizing the skill file; (3) a
+**compact skill file variant** for smaller context windows (Haiku-class models
+or tight system-prompt limits). Do not embed workflow logic in qdo itself — the
+agent harness is the orchestrator.
+
 ### Cherry-picked ideas from competitors
 
 Ideas worth stealing from the competitive landscape (2026-06-23 research). Each has a note on fit.
@@ -232,12 +265,107 @@ Ideas worth stealing from the competitive landscape (2026-06-23 research). Each 
 **From VisiData:**
 - **Session as replay script** — VisiData saves sessions as replayable command logs. Our session system already captures structured steps; the gap is a `qdo session replay <id>` that re-executes. Medium lift. Mentioned elsewhere in deferred ideas.
 
+More from the 2026-06-23 pass, organized by source (some sources also described in the Positioning section):
+
+**More from qsv** ([github.com/jqnatividad/qsv](https://github.com/jqnatividad/qsv)):
+- **Stats cache** — `qsv stats` produces a reusable stats cache consumed by `frequency`, `schema`, `tojsonl`. qdo's `profile` output could be cached and reused by `template`, `metadata refresh`, `context` to avoid re-scanning. More aggressive than generic cache improvements — make profile results a first-class cached artifact.
+- **Schema inference + JSON Schema validation** — `qsv schema` generates JSON Schema from stats+frequency; `qsv validate` checks rows against it, emitting `.valid.csv` + `.invalid.csv`. The validate/quarantine pattern is gold for agent data-cleaning loops. Could map to `qdo schema` + `qdo validate`, or extend `qdo quality`.
+
+**From datasette** ([datasette.io](https://datasette.io)):
+- **Canned queries** — named SQL in YAML, parameterizable via `:param`. qdo could store named queries in `.qdo/queries/<conn>/<name>.sql` and invoke via `qdo query -c mydb --name monthly-revenue --param month=2024-06`. Agents discover available queries and reuse validated SQL instead of generating from scratch. Docs: https://docs.datasette.io/en/stable/sql_queries.html#canned-queries
+
+**From xsv** ([github.com/BurntSushi/xsv](https://github.com/BurntSushi/xsv)):
+- **Column selection mini-language** — `1,3,5`, `name,age`, ranges `1-3`, negation `!`. A uniform `--columns` spec across every subcommand would be a significant agent UX win. Currently qdo accepts comma-separated names; consider adding index-based and range-based selection.
+
+**From datacontract-cli** ([cli.datacontract.com](https://cli.datacontract.com/)):
+- **Breaking change detection** — `breaking` command detects changes that break downstream consumers (column removals, type narrowings, nullable→non-nullable). Could map to `qdo diff --breaking-only`.
+
+**From Great Expectations / Soda** ([docs.soda.io](https://docs.soda.io/), [dbt-expectations](https://github.com/calogica/dbt-expectations)):
+- **Expectation vocabulary** — GX naming (`expect_column_values_to_not_be_null`) is de-facto standard. If qdo adds `qdo expect`, adopting this vocabulary means agents that know GX map directly.
+- **SodaCL-style YAML assertions** — clean input format for `qdo assert` or new `qdo expect`:
+  ```yaml
+  checks for orders:
+    - row_count > 0
+    - missing_count(status) = 0
+    - values in (status): [pending, shipped, delivered, cancelled]
+    - freshness(created_at) < 24h
+  ```
+
+**From DuckDB CLI** ([duckdb.org/docs/stable/clients/cli/overview](https://duckdb.org/docs/stable/clients/cli/overview)):
+- **`SUMMARIZE` delegation** — `qdo profile` could delegate to `SUMMARIZE` on DuckDB backend for the fast path and add qdo extras (top-k, classification) on top.
+- **Glob patterns and URL support** — `FROM 'data/*.parquet'`, `FROM 'https://...'`. qdo handles single Parquet files; consider passing globs and URLs through to DuckDB.
+- **`ATTACH` for cross-DB diff** — `qdo diff` could attach two databases in-process for in-engine comparison.
+
+**From Metabase / Mathesar:**
+- **FK hydration in catalog/inspect** — always surface FK constraints where the backend exposes them. Makes `qdo joins` authoritative when FKs exist.
+- **dbt manifest.json ingestion** — `qdo context` could read dbt `manifest.json` when present and enrich catalog output with model descriptions and tests.
+
+**From Recap** ([recap.build](https://recap.build/docs/quickstart/)):
+- **Canonical type normalization** — agents see `VARCHAR` (DuckDB), `TEXT` (SQLite), `STRING` (Snowflake) for the same concept. A normalized type vocabulary in `--format compact` output would reduce agent confusion.
+
 **Not stealing:**
 - qsv's CSV-stream transforms, row-level processing, file-format converters — SQL engines handle this
 - datasette's web publishing, auth, GraphQL, plugin marketplace — not our model
 - VisiData's interactive-only design — we need scriptability
 - dbt's project scaffolding, ref() DAG, heavy YAML ceremony — too much overhead for ad-hoc analysis
 - Great Expectations' Python-class expectation authoring — our `assert` is SQL-native and lighter
+
+### Token-efficient output mode (agent-focused)
+
+**Status:** deferred, research completed 2026-06-23. See also the `-f agent` TOON
+format in "Rejected Or Dropped" — that specific envelope was built then cut
+(2026-07-06); this note captures the underlying research and a lighter TSV-based
+alternative. Don't re-propose without evidence that JSON token cost is an actual
+adoption blocker.
+
+**Problem:** JSON repeats keys per row in arrays, which is the dominant token cost. For a 500-row dataset, JSON can use 2-3x more tokens than a header-once format. Agents consume qdo output in their context window and pay per token.
+
+**Research findings** (sources: [Nathaniel Thomas benchmarks](https://nathom.dev/llm-data-formats/), [David Gilbertson JSON vs TSV](https://david-gilbertson.medium.com/llm-output-formats-why-json-costs-more-than-tsv-ebaf590bd541), [LogRocket TOON analysis](https://blog.logrocket.com/reduce-tokens-with-toon/), [Tensorlake TOON vs JSON](https://www.tensorlake.ai/blog-posts/toon-vs-json), [TOON spec](https://github.com/toon-format/spec), [Anthropic tool use docs](https://docs.anthropic.com/en/docs/build-with-claude/tool-use), [MCP token bloat SEP-1576](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1576)):
+
+| Format | Relative cost vs minified JSON | Notes |
+|---|---|---|
+| TOON (column-major tabular) | ~40-60% fewer tokens | 500-row dataset: JSON 11,842 → TOON 4,617 tokens (−61%) |
+| CSV / TSV | ~30-50% fewer tokens | "CSV crushes everything" for flat uniform data |
+| Minified JSON | 1.0× (baseline) | Best for nested/irregular data |
+| Markdown lists | ~-15% for simple lists | |
+| YAML | +15-25% more tokens | Surprisingly poor despite readability |
+| Markdown pipe tables | Often worst | Pipes/dashes are pure token bloat |
+| Pretty JSON | +60-90% vs minified | Pure whitespace cost |
+
+**Key guidance from Anthropic:** "Design tool responses to return only high-signal information... include only the fields Claude needs. Bloated responses waste context." XML tags for bookends cost ~4 tokens total and help Claude isolate tool output. No published evidence that Claude tokenizes markdown vs JSON differently *structurally* — the win comes from fewer punctuation tokens and key deduplication. ([Claude 4 prompting best practices](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/claude-4-best-practices), [Speakeasy MCP token reduction](https://www.speakeasy.com/blog/how-we-reduced-token-usage-by-100x-dynamic-toolsets-v2))
+
+**Concrete plan for `--format compact` (or `--format llm`):**
+
+1. Per-command optimal format: `compact` for catalog = TOON-style (nested tabular), `compact` for context/profile/query = TSV with typed header.
+2. Header once, rows after. Never repeat keys per row.
+3. Always minify — pretty JSON costs +60-90% tokens for zero agent benefit.
+4. Truncate aggressively with explicit markers: `... 1199950 more rows (use --limit to expand)`. Default 50 rows for compact mode.
+5. One-line preamble: `# qdo catalog db=prod tables=3 format=compact` — cheap, lets agent self-orient.
+6. Do NOT use markdown pipe tables, YAML, or TOML — all worse than minified JSON per every 2025-2026 benchmark.
+7. Consider `orjson` ([github.com/ijl/orjson](https://github.com/ijl/orjson), Rust-based, ~5x faster than stdlib) for JSON serialization; it's already a PyO3 binding so zero new Rust build infra needed.
+
+**Example compact output for `qdo context`:**
+```
+# qdo context db=mydb table=orders rows=50000
+column	type	null_pct	distinct	min	max	samples
+id	int	0.0	50000	1	50000	
+status	str	0.5	4			pending|shipped|delivered|cancelled
+amount	num	1.2	12543	0.99	9999.0	
+created_at	ts	0.0	49823	2020-01-01	2024-12-31	
+```
+
+**Example compact output for `qdo catalog`:**
+```
+# qdo catalog db=mydb tables=3
+table	rows	columns
+orders	50000	id:int,status:str,amount:num,created_at:ts
+users	12000	id:int,email:str,name:str,created_at:ts
+events	9400000	id:int,ts:ts,user_id:int,kind:str
+```
+
+**What NOT to do:** Don't invent a new format spec or require a parser. TSV with a comment preamble is universally parseable by every agent, jq, awk, and spreadsheet. Don't abbreviate field names to single letters — saving 2-3 tokens per row is not worth mystery abbreviations.
+
+**Trigger to promote:** measure actual token costs of current JSON output across the top 5 commands using `tiktoken` (GPT-4o) and Anthropic's tokenizer. If the savings are >30% on real output, ship it.
 
 ### Discovery and navigation
 
@@ -303,6 +431,27 @@ Ideas worth stealing from the competitive landscape (2026-06-23 research). Each 
 ### Portability and external surfaces
 
 - **MCP thin wrapper** — still deferred; keep the CLI MCP-ready instead of building a large parallel surface. See the MCP tradeoffs analysis in Positioning above for the recommended 6-tool shape and the "don't build until there's pull" recommendation.
+
+  Auto-generation sketch (2026-06-23 research): if built, it should be
+  *generated* from `qdo overview --format json` rather than hand-written, keeping
+  it near-zero maintenance. The official Anthropic Python SDK (`pip install
+  "mcp[cli]"`) bundles FastMCP
+  ([python-sdk](https://github.com/modelcontextprotocol/python-sdk),
+  [gofastmcp.com](https://gofastmcp.com)). A ~100-line wrapper would: parse the
+  overview manifest on startup; `FastMCP.add_tool()` per command (name,
+  description, JSON Schema derived from the overview); each handler converts
+  kwargs to CLI flags and `subprocess.run(["qdo", ...])`, returning stdout; mark
+  read-only commands `readOnlyHint: true` and mutating ones
+  `destructiveHint: true`; expose `--include`/`--exclude` globs to trim the tool
+  list (20 tools × ~200 tokens = 4k baseline); stdio transport only for v1.
+  Reference servers in the data space: MotherDuck/DuckDB
+  ([mcp-server-motherduck](https://github.com/motherduckdb/mcp-server-motherduck)),
+  Snowflake Labs ([mcp](https://github.com/Snowflake-Labs/mcp)), dbt
+  ([dbt-mcp](https://github.com/dbt-labs/dbt-mcp), literally subprocess calls),
+  the DuckDB community `duckdb_mcp` extension, and Google's [MCP Toolbox for
+  Databases](https://github.com/googleapis/mcp-toolbox). Keep it a thin shim: no
+  hand-written per-tool wrappers, no parallel feature surface, no MCP-specific
+  features.
 - **Browser / Pyodide demo (`querido-lite`)** — only worth doing if there is a real adoption or embedding pull.
 - **Ad-hoc CSV/JSON/NDJSON connection** — extend connection resolution so `qdo query -c data.csv --sql "..."` works via DuckDB auto-detection. Small lift since DuckDB already handles these formats; we'd just relax the file-extension-to-type mapping in `config.py`. Currently only `.parquet`, `.duckdb`, `.ddb` and SQLite files are auto-detected.
 
@@ -319,6 +468,16 @@ Ideas specifically flagged as worth considering now because the implementation c
 4. **Deterministic JSON output** — audit all JSON output paths for stable key ordering (sorted keys or schema-defined order). Tiny lift. Matters for agent tool-calling where output diffs should be meaningful.
 
 5. **`next_actions` field in JSON output** — each command's JSON output includes a list of suggested follow-up commands based on what the agent just learned. Example: `profile` output includes `next_actions: ["qdo dist -c X -t Y -C high_null_column", "qdo values -c X -t Y -C low_cardinality_column"]`. Medium lift — requires per-command heuristics. Very high value for agent discoverability and workflow coherence.
+
+6. **`--format json-min`** — minified JSON (`indent=None`, or adopt `orjson`). Saves 60-90% of whitespace tokens versus pretty JSON. Near-zero implementation effort; agents should default to this. Overlaps with the "Token-efficient output mode" research above.
+
+7. **FK metadata in `inspect` / `catalog`** — surface foreign-key constraints from `PRAGMA foreign_key_list` (SQLite), `duckdb_constraints()` (DuckDB), `information_schema.referential_constraints` (Snowflake). Makes `qdo joins` authoritative when FKs exist.
+
+8. **Accept SQL from stdin** — `echo "SELECT ..." | qdo query -c mydb`. Useful for agent piping where SQL is generated in one step and executed in another.
+
+9. **Glob patterns for Parquet** — `qdo preview -c 'data/*.parquet' -t data`. DuckDB handles this natively; qdo passes the glob through.
+
+10. **`qdo profile` → `SUMMARIZE` delegation on DuckDB** — delegate to the built-in `SUMMARIZE` for the fast path and add qdo extras on top. Could halve profile time.
 
 ### Convenience / team ergonomics
 
