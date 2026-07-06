@@ -15,8 +15,7 @@ import os
 from pathlib import Path
 
 import pytest
-from click.testing import Result
-from typer.testing import CliRunner
+from typer.testing import CliRunner, Result
 
 from querido.cli.main import app
 from querido.core.report import build_session_report

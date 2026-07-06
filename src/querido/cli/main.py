@@ -4,10 +4,10 @@ import importlib
 import sys
 from typing import Any
 
-import click
 import typer
 from typer.core import TyperGroup
 
+from querido import _click as click
 from querido._argv import hoist_format_flag
 from querido.cli._options import VALID_FORMATS
 
@@ -239,7 +239,7 @@ app = typer.Typer(
 _original_get_group = typer.main.get_group
 
 
-def _patched_get_group(typer_app: typer.Typer, **kwargs: Any) -> click.Group:
+def _patched_get_group(typer_app: typer.Typer, **kwargs: Any) -> TyperGroup:
     group = _original_get_group(typer_app, **kwargs)
     if isinstance(group, LazyGroup) and typer_app is app:
         group._lazy_subcommands = _SUBCOMMANDS

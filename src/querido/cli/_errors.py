@@ -213,14 +213,13 @@ def _emit_structured_error(
 
 def _try_next_for(code: str) -> list[dict]:
     """Build ``try_next`` entries from the active CLI params (best-effort)."""
-    import click
-
+    from querido._click import get_current_context
     from querido.core.next_steps import for_error
 
     connection: str | None = None
     table: str | None = None
     try:
-        ctx = click.get_current_context(silent=True)
+        ctx = get_current_context(silent=True)
         while ctx is not None:
             params = ctx.params or {}
             connection = connection or params.get("connection")

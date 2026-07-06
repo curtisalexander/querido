@@ -10,9 +10,9 @@ from __future__ import annotations
 
 def _get_root_obj() -> dict:
     """Walk up the Click context chain and return the root context's obj dict."""
-    import click
+    from querido._click import get_current_context
 
-    ctx = click.get_current_context(silent=True)
+    ctx = get_current_context(silent=True)
     if ctx is None:
         return {}
 
