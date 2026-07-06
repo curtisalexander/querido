@@ -346,7 +346,7 @@ Files to resist future pressure to shrink:
 
 Capture but don't start. Each is standalone and non-blocking.
 
-- ~~Publish to PyPI.~~ **Promoted 2026-07-06:** the `pypi-readiness` branch bumps to 0.2.0, adds a trusted-publishing job to release.yml, and rewrites install docs for PyPI. Remaining manual steps: create the `pypi` GitHub environment, add the trusted publisher on pypi.org, tag v0.2.0, then run the L35 clean-room verification.
+- ~~Publish to PyPI.~~ **Promoted 2026-07-06:** 0.2.0 is prepped (version bump, trusted-publishing job in release.yml, PyPI install docs). The remaining manual steps — one-time pypi.org trusted-publisher + GitHub `pypi` environment setup, tagging v0.2.0, and the L35 clean-room verification — are documented step-by-step in [RELEASING.md](RELEASING.md). Merging to main publishes nothing; only pushing a `v*` tag does.
 - Optional embedding/reranker layer for `qdo metadata search` if the lexical baseline proves insufficient.
 - Progressive disclosure `--level 1..3` on expensive commands.
 - Snowflake `RESULT_SCAN` reuse for chained queries.

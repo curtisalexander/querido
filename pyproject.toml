@@ -88,6 +88,7 @@ exclude = [
     "IDEAS.md",
     "REVIEW_FINDINGS.md",
     "RELEASE_READINESS_REVIEW.md",
+    "RELEASING.md",
 ]
 
 [tool.hatch.build.targets.wheel]
