@@ -70,3 +70,23 @@ jobs:
           generate_release_notes: true
           make_latest: true
           files: dist/*
+
+  # Publishes via PyPI trusted publishing (OIDC) — no API token stored in the
+  # repo. One-time setup on pypi.org: project "querido" → Publishing → add
+  # this repo/workflow ("release.yml", environment "pypi") as a trusted
+  # publisher, and create a GitHub environment named "pypi".
+  publish-pypi:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

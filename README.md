@@ -1,5 +1,10 @@
 # querido
 
+[![CI](https://github.com/curtisalexander/querido/actions/workflows/ci.yml/badge.svg)](https://github.com/curtisalexander/querido/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/querido)](https://pypi.org/project/querido/)
+[![Python versions](https://img.shields.io/pypi/pyversions/querido)](https://pypi.org/project/querido/)
+[![License: MIT](https://img.shields.io/pypi/l/querido)](./LICENSE)
+
 > **querido** (Spanish): *dear*, *beloved*
 >
 > Also: **queri**-**do** — your data is dear to you, and you want to query it. `qdo` = query, do.
@@ -26,34 +31,30 @@ For the full orientation (what qdo is, what it deliberately isn't, invariants th
 
 ## Install
 
-Pre-built wheels are available from [GitHub Releases](https://github.com/curtisalexander/querido/releases). Requires Python >= 3.12 and [uv](https://docs.astral.sh/uv/). The examples below pin `v0.1.0`; replace it with the latest release tag.
+Requires Python >= 3.12. Available on [PyPI](https://pypi.org/project/querido/); pre-built wheels are also attached to [GitHub Releases](https://github.com/curtisalexander/querido/releases).
+
+> **Package vs command:** the package is **`querido`**; the command it installs is **`qdo`**. Always install `querido` — there is an unrelated, long-abandoned `qdo` package on PyPI.
 
 ### With `uv tool install` (recommended)
 
 Install globally so the `qdo` command is always available:
 
 ```bash
-uv tool install 'querido @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
+uv tool install querido
 ```
 
 With optional backends:
 
 ```bash
-uv tool install 'querido[duckdb] @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
-
-uv tool install 'querido[snowflake] @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
+uv tool install 'querido[duckdb]'     # + DuckDB + Parquet
+uv tool install 'querido[snowflake]'  # + Snowflake
+uv tool install 'querido[all]'        # everything
 ```
 
-With all optional backends:
+To upgrade later:
 
 ```bash
-uv tool install 'querido[all] @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
-```
-
-To upgrade later (update the version in the URL):
-
-```bash
-uv tool install --upgrade 'querido @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
+uv tool upgrade querido
 ```
 
 To uninstall:
@@ -67,9 +68,13 @@ uv tool uninstall querido
 Run without installing:
 
 ```bash
-uvx \
-  --from 'querido @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl' \
-  qdo --help
+uvx --from querido qdo --help
+```
+
+### With `pip`
+
+```bash
+pip install querido
 ```
 
 ### From source

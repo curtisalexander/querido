@@ -9,17 +9,17 @@ title: CLI Reference
 
 ## Installation
 
-Pre-built wheels are available from [GitHub Releases](https://github.com/curtisalexander/querido/releases). Requires Python >= 3.12 and [uv](https://docs.astral.sh/uv/).
+Available on [PyPI](https://pypi.org/project/querido/) — the package is `querido`; the command it installs is `qdo`. Requires Python >= 3.12.
 
 ```bash
 # core (SQLite)
-uv tool install 'querido @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
+uv tool install querido
 
 # optional backends — swap the extras: [duckdb], [snowflake], [tui], [all]
-uv tool install 'querido[duckdb] @ https://github.com/curtisalexander/querido/releases/download/v0.1.0/querido-0.1.0-py3-none-any.whl'
+uv tool install 'querido[duckdb]'
 ```
 
-See the [README install section](https://github.com/curtisalexander/querido#install) for `uvx` one-off runs and installing from source.
+See the [README install section](https://github.com/curtisalexander/querido#install) for `uvx` one-off runs, pip, and installing from source.
 
 ## Connection Setup
 
