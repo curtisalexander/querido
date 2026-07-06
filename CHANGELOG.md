@@ -65,11 +65,14 @@ tracked in `REVIEW_FINDINGS.md`) landed in full. Highlights:
   errors return `CONNECTION_NOT_FOUND` with a correct hint.
 - Identifier quoting hardened for schema-qualified and quoted names;
   Snowflake concurrent-query cancellation covers all active cursors.
-- `click` is now a declared dependency. qdo imports it directly, but it only
-  arrived transitively via typer — and typer 0.26+ no longer depends on
-  click, so a fresh install resolved to a broken environment
-  (`ModuleNotFoundError: No module named 'click'`). Caught by the clean-room
-  install check.
+- `click` is now a declared dependency and typer is bounded to `<0.26`. qdo
+  imports click directly, but it only arrived transitively via typer — and
+  typer 0.26+ vendors its own click internals and drops the dependency, so a
+  fresh install crashed with `ModuleNotFoundError: No module named 'click'`,
+  and even with click installed, typer 0.26's separate context stack made
+  `-f json` / `--show-sql` / session recording silently degrade to defaults.
+  Both caught by the clean-room install check; the bound lifts once qdo
+  migrates to typer 0.26's context API.
 
 ## [0.1.0] — 2026-04-22
 
