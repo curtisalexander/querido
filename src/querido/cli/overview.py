@@ -368,8 +368,6 @@ def _introspect_command(name: str, module_path: str) -> dict:
     """Introspect a Typer subcommand module to extract options and metadata."""
     import importlib
 
-    import click
-
     mod = importlib.import_module(module_path)
     sub_app: typer.Typer = mod.app
     click_group = typer.main.get_group(sub_app)
@@ -383,9 +381,9 @@ def _introspect_command(name: str, module_path: str) -> dict:
         subcommands = sorted(click_group.commands.keys())
     elif hasattr(click_group, "list_commands"):
         try:
-            import click
+            from querido._click import Context
 
-            ctx = click.Context(click_group)
+            ctx = Context(click_group)
             sub_names = click_group.list_commands(ctx)
             if sub_names:
                 subcommands = sorted(sub_names)
@@ -393,9 +391,11 @@ def _introspect_command(name: str, module_path: str) -> dict:
             pass
 
     # Extract options from the main callback command
+    from typer.core import TyperOption
+
     options = []
     for param in click_group.params:
-        if isinstance(param, click.Option):
+        if isinstance(param, TyperOption):
             flag = ", ".join(param.opts)
             opt: dict = {
                 "flag": flag,

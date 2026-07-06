@@ -41,18 +41,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # <0.26: typer 0.26+ vendors its own click internals and drops the click
-    # dependency, so the standalone click's context stack — which qdo reads
-    # via click.get_current_context() for --format / --show-sql / session
-    # state — is never populated, and -f json silently degrades to rich
-    # output. Raise the bound only after migrating qdo's direct click usage
-    # to whatever context API typer 0.26+ exposes, and re-running the
-    # clean-room check in RELEASING.md.
-    "typer>=0.15,<0.26",
-    # qdo imports click directly (cli/main.py, _errors.py, _runtime.py, ...).
-    # Newer typer releases no longer depend on click, so it must be declared
-    # here — relying on it transitively broke clean installs (typer 0.26+).
-    "click>=8.1",
+    # >=0.26: qdo imports typer's vendored click (typer._click) through the
+    # querido._click shim — the standalone click package is not used. See
+    # src/querido/_click.py for why the context stack must come from typer's
+    # own click.
+    "typer>=0.26",
     "rich>=13.7",
     "platformdirs>=4.2",
     "jinja2>=3.1",

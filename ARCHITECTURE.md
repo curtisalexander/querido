@@ -44,6 +44,7 @@ querido/
 │       ├── __init__.py             # Version string (__version__)
 │       ├── py.typed                # PEP 561 marker for typed package
 │       ├── _argv.py                # Pure -f/--format argv hoist (shared by cli/main.py and the workflow runner)
+│       ├── _click.py               # Single import point for typer's vendored click (typer 0.26+ bundles its own)
 │       ├── _runtime.py             # Root-context lookups (get_output_format) shared by cli/ and output/
 │       ├── cache.py                # Local metadata cache (SQLite-backed; pragma user_version schema check)
 │       ├── config.py               # TOML config loading, connection resolution, column sets

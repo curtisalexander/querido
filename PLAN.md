@@ -351,7 +351,7 @@ Capture but don't start. Each is standalone and non-blocking.
 - Progressive disclosure `--level 1..3` on expensive commands.
 - Snowflake `RESULT_SCAN` reuse for chained queries.
 - Pyodide `querido-lite` browser demo (only if concrete adoption pulls for it).
-- Migrate off direct `click` imports to typer 0.26+'s context API, then lift the `typer<0.26` bound in pyproject. Typer 0.26 vendors click and drops the dependency; qdo's `click.get_current_context()` reads (`--format`, `--show-sql`, session state) see an empty stack under it. Re-run the RELEASING.md clean-room check when lifting.
+- ~~Migrate off direct `click` imports to typer 0.26+.~~ **Done 2026-07-06:** all click-shaped imports route through `src/querido/_click.py`, a single shim over typer's vendored `typer._click`; `typer>=0.26` and the standalone `click` dependency is gone. Invariant going forward: never `import click` in src/ — import from `querido._click` so context reads share typer's stack and a vendoring move is a one-line fix.
 - MCP thin wrapper — design drafted 2026-07-06 in [docs/research/mcp-wrapper-design.md](docs/research/mcp-wrapper-design.md) (subprocess-per-call, ~9 curated tools returning the envelope verbatim, `querido[mcp]` extra, `qdo mcp serve`). Proposed as the 0.3.0 headline after the 0.2.0 PyPI debut + dogfood week. Build only after dogfood.
 
 ---

@@ -149,10 +149,10 @@ def _reconstruct_session_command(*, name: str, output: str | None) -> str:
 
 def _captured_argv() -> str | None:
     """Return the full argv the user ran, shell-quoted, or None outside the CLI."""
-    import click
+    from querido._click import get_current_context
 
     try:
-        ctx = click.get_current_context(silent=True)
+        ctx = get_current_context(silent=True)
         while ctx is not None and ctx.parent is not None:
             ctx = ctx.parent
         if ctx is not None and ctx.obj:
