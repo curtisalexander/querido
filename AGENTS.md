@@ -60,7 +60,7 @@ Enforce on every PR. `config add`/`clone` also probe backend importability at co
 
 ### 2. Envelope contract
 
-Every scanning command emits `{command, data, next_steps, meta}` via `output/envelope.py::emit_envelope` under `-f json` / `-f agent`. Tests in `tests/test_next_steps.py::_ENVELOPE_CASES` enforce this — adding a new scanning command means adding it to that list.
+Every scanning command emits `{command, data, next_steps, meta}` via `output/envelope.py::emit_envelope` under `-f json`. Tests in `tests/test_next_steps.py::_ENVELOPE_CASES` enforce this — adding a new scanning command means adding it to that list.
 
 ### 3. Files as primitives
 

@@ -156,7 +156,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 
 | Command | Purpose |
 |---------|---------|
-| `qdo snowflake semantic -c CONN -t TABLE` | Cortex Analyst YAML |
+| `qdo snowflake semantic -c CONN -t TABLE` | `create semantic view` DDL |
 | `qdo snowflake lineage -c CONN --object NAME` | Snowflake GET_LINEAGE graph |
 | `qdo sql task -c CONN -t TABLE` | Task template |
 | `qdo sql procedure -c CONN -t TABLE` | Stored procedure template |
@@ -183,7 +183,7 @@ qdo inspect -c mydb -t users -f markdown # Markdown table
 qdo inspect -c mydb -t users -f html    # Opens in browser
 ```
 
-Default format is `rich` (pretty terminal tables). The shared structured envelope is available in `json` and `agent` format for the main scan/query commands and an expanding set of management/reference commands. File-producing commands such as `report table` and `export` keep their artifact-oriented behavior.
+Default format is `rich` (pretty terminal tables). The shared structured envelope is available in `json` format for the main scan/query commands and an expanding set of management/reference commands. File-producing commands such as `report table` and `export` keep their artifact-oriented behavior.
 
 ## Piping & Scripting
 
@@ -235,7 +235,7 @@ Undo is table-scoped and guarded: if the current file has drifted since the last
 
 | Flag | Description |
 |------|-------------|
-| `--format`, `-f` | Output format: `rich`, `json`, `agent`, `csv`, `markdown`, `html`, `yaml` |
+| `--format`, `-f` | Output format: `rich`, `json`, `csv`, `markdown`, `html`, `yaml` |
 | `--show-sql` | Print rendered SQL to stderr before executing |
 | `--debug` | Enable debug logging to stderr |
 | `--version`, `-V` | Show version |

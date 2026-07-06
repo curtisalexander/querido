@@ -53,7 +53,7 @@ def _emit_sql(
 ) -> None:
     """Render a generate/* template and emit it.
 
-    In structured formats (``-f json`` / ``-f agent``) the rendered SQL is
+    In structured format (``-f json``) the rendered SQL is
     wrapped in the envelope so agents can parse ``data.sql`` directly and
     chain into ``qdo query`` or ``qdo explain`` without having to parse
     arbitrary stdout. Other formats (rich/markdown/csv) keep the legacy

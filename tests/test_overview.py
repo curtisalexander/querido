@@ -38,4 +38,5 @@ def test_overview_json_uses_structured_envelope() -> None:
         for option in payload["data"]["global_options"]
         if option.get("flag") == "-f, --format"
     )
-    assert "agent" in format_option["values"]
+    assert "json" in format_option["values"]
+    assert "agent" not in format_option["values"]

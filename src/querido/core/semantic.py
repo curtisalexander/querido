@@ -1,7 +1,9 @@
-"""Snowflake Cortex Analyst semantic model YAML generation.
+"""Snowflake semantic model builders.
 
-Shared builder used by both ``qdo template --format yaml`` and
-``qdo snowflake semantic``.
+``build_semantic_view_ddl`` emits ``create semantic view`` DDL — the native
+successor to stage-based Cortex Analyst YAML models — and is what
+``qdo snowflake semantic`` produces.  ``build_semantic_yaml`` emits the
+legacy stage YAML and remains only for ``qdo template --format yaml``.
 """
 
 from __future__ import annotations
@@ -277,5 +279,130 @@ def build_semantic_yaml(
     buf.write("#   - name: recent_data\n")
     buf.write("#     description: Filter to last 12 months\n")
     buf.write("#     expr: date_column >= dateadd(month, -12, current_date())\n")
+
+    return buf.getvalue()
+
+
+def _sql_str(value: str) -> str:
+    """Render a string as a single-quoted SQL literal."""
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
+def build_semantic_view_ddl(
+    table: str,
+    columns: list[dict],
+    table_comment: str | None,
+    *,
+    sample_values_per_col: dict[str, list[str]] | None = None,
+) -> str:
+    """Build a ``create semantic view`` DDL statement from table metadata.
+
+    Semantic views are the native successor to stage-based Cortex Analyst
+    YAML models — Snowflake's docs call the YAML path the "legacy stage
+    API" and recommend semantic views for all new implementations.  Clause
+    order is fixed by the syntax (tables, facts, dimensions, metrics) and
+    at least one dimension or metric must be present.
+
+    Measure columns become facts plus an auto-generated metric
+    (``sum_<col>`` / ``avg_<col>`` per :func:`_infer_aggregation`);
+    dimension and time-dimension columns become dimensions.  Descriptions
+    and sample values travel in item comments; synonyms are deliberately
+    left to a human review pass (a placeholder synonym would execute).
+
+    Parameters mirror :func:`build_semantic_yaml`.
+    """
+    from querido.core._utils import classify_column_kind
+
+    short_name = table.rsplit(".", 1)[-1]
+    alias = short_name.lower()
+    desc = table_comment or f"Semantic view for {table}"
+    samples = sample_values_per_col or {}
+
+    dimensions: list[dict] = []
+    measures: list[dict] = []
+    for col in columns:
+        if classify_column_kind(col) == "measure":
+            measures.append(col)
+        else:
+            # Semantic views have no separate time-dimension concept;
+            # time dimensions are plain dimensions.
+            dimensions.append(col)
+
+    def _comment_for(col: dict) -> str | None:
+        parts: list[str] = []
+        comment = col.get("comment")
+        if comment:
+            text = str(comment)
+            parts.append(text if text.endswith(".") else f"{text}.")
+        col_samples = samples.get(col.get("name", ""), [])
+        if col_samples:
+            shown = ", ".join(str(v) for v in col_samples[:10])
+            parts.append(f"Sample values: {shown}.")
+        return " ".join(parts) if parts else None
+
+    def _item(name: str, expr: str, comment: str | None) -> str:
+        lines = [f"    {alias}.{name} as {expr}"]
+        if comment:
+            lines.append(f"      comment = {_sql_str(comment)}")
+        return "\n".join(lines)
+
+    buf = io.StringIO()
+    buf.write(f"create or replace semantic view {alias}_semantic_view\n")
+
+    buf.write("  tables (\n")
+    buf.write(f"    {alias} as {table}\n")
+    pk_cols = [str(c.get("name", "")) for c in columns if c.get("primary_key")]
+    if pk_cols:
+        buf.write(f"      primary key ({', '.join(pk_cols)})\n")
+    buf.write(f"      comment = {_sql_str(desc)}\n")
+    buf.write("  )\n")
+
+    if measures:
+        buf.write("  facts (\n")
+        items = [
+            _item(str(c.get("name", "")).lower(), str(c.get("name", "")), _comment_for(c))
+            for c in measures
+        ]
+        buf.write(",\n".join(items) + "\n")
+        buf.write("  )\n")
+
+    if dimensions:
+        buf.write("  dimensions (\n")
+        items = [
+            _item(str(c.get("name", "")).lower(), str(c.get("name", "")), _comment_for(c))
+            for c in dimensions
+        ]
+        buf.write(",\n".join(items) + "\n")
+        buf.write("  )\n")
+
+    if measures:
+        buf.write("  metrics (\n")
+        items = []
+        for col in measures:
+            name = str(col.get("name", "")).lower()
+            agg = _infer_aggregation(col)
+            label = "Average" if agg == "avg" else "Total"
+            items.append(
+                _item(
+                    f"{agg}_{name}",
+                    f"{agg}({name})",
+                    f"{label} {name} (auto-generated; review before use)",
+                )
+            )
+        buf.write(",\n".join(items) + "\n")
+        buf.write("  )\n")
+
+    buf.write(f"  comment = {_sql_str(desc)}\n")
+    buf.write(";\n")
+
+    # Guidance for finishing the model after review.
+    buf.write("\n")
+    buf.write("-- Synonyms are informational aids for Cortex Analyst; add them per item\n")
+    buf.write("-- after review, e.g.:\n")
+    buf.write(f"--   {alias}.status as status with synonyms ('state', 'order state')\n")
+    buf.write("-- Multi-table models: add entries under tables (...) and declare joins in\n")
+    buf.write("-- a relationships (...) clause between tables (...) and facts (...), e.g.:\n")
+    buf.write(f"--   relationships ( {alias} (dim_id) references dim_table )\n")
 
     return buf.getvalue()

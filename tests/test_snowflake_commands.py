@@ -130,6 +130,99 @@ class TestSemanticYamlGeneration:
 
 
 # ---------------------------------------------------------------------------
+# Semantic view DDL — unit tests (what `qdo snowflake semantic` emits)
+# ---------------------------------------------------------------------------
+
+
+class TestSemanticViewDdl:
+    def test_basic_structure_and_clause_order(self):
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [
+            {"name": "ORDER_ID", "type": "NUMBER", "comment": "Primary key"},
+            {"name": "TOTAL", "type": "FLOAT", "comment": "Order total"},
+            {"name": "ORDER_DATE", "type": "DATE", "comment": "When placed"},
+            {"name": "STATUS", "type": "VARCHAR", "comment": "Current status"},
+        ]
+        ddl = build_semantic_view_ddl("ORDERS", columns, "Orders table")
+
+        assert ddl.startswith("create or replace semantic view orders_semantic_view")
+        assert "orders as ORDERS" in ddl
+        assert "comment = 'Orders table'" in ddl
+        # Clause order is fixed by the syntax: tables, facts, dimensions, metrics.
+        assert (
+            ddl.index("tables (")
+            < ddl.index("facts (")
+            < ddl.index("dimensions (")
+            < ddl.index("metrics (")
+        )
+
+    def test_measures_become_facts_and_metrics(self):
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [{"name": "AMOUNT", "type": "FLOAT", "comment": None}]
+        ddl = build_semantic_view_ddl("SALES", columns, None)
+        assert "sales.amount as AMOUNT" in ddl
+        assert "sales.sum_amount as sum(amount)" in ddl
+
+    def test_avg_keyword_measures_use_avg(self):
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [{"name": "RATE", "type": "FLOAT", "comment": None}]
+        ddl = build_semantic_view_ddl("SALES", columns, None)
+        assert "sales.avg_rate as avg(rate)" in ddl
+
+    def test_time_dimension_is_a_plain_dimension(self):
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [{"name": "CREATED_AT", "type": "TIMESTAMP_NTZ", "comment": None}]
+        ddl = build_semantic_view_ddl("ORDERS", columns, None)
+        assert "dimensions (" in ddl
+        assert "orders.created_at as CREATED_AT" in ddl
+        # Clause openers are indented two spaces; the trailing guidance
+        # comments also mention "facts (...)", so match the clause form.
+        assert "\n  facts (" not in ddl
+        assert "\n  metrics (" not in ddl
+
+    def test_primary_key_from_column_metadata(self):
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [
+            {"name": "ORDER_ID", "type": "NUMBER", "comment": None, "primary_key": True},
+        ]
+        ddl = build_semantic_view_ddl("ORDERS", columns, None)
+        assert "primary key (ORDER_ID)" in ddl
+
+    def test_comment_single_quotes_escaped(self):
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [{"name": "STATUS", "type": "VARCHAR", "comment": "Customer's status"}]
+        ddl = build_semantic_view_ddl("ORDERS", columns, None)
+        assert "comment = 'Customer''s status.'" in ddl
+
+    def test_sample_values_appended_to_comment(self):
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [{"name": "STATUS", "type": "VARCHAR", "comment": "Status"}]
+        ddl = build_semantic_view_ddl(
+            "ORDERS",
+            columns,
+            None,
+            sample_values_per_col={"STATUS": ["pending", "shipped"]},
+        )
+        assert "Sample values: pending, shipped." in ddl
+
+    def test_synonyms_left_to_review_not_emitted(self):
+        """A placeholder synonym would execute; guidance goes in SQL comments."""
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [{"name": "STATUS", "type": "VARCHAR", "comment": None}]
+        ddl = build_semantic_view_ddl("ORDERS", columns, None)
+        assert "with synonyms" not in ddl.split("-- Synonyms")[0]
+        assert "-- Synonyms" in ddl
+
+
+# ---------------------------------------------------------------------------
 # F8: Semantic CLI — non-Snowflake rejection
 # ---------------------------------------------------------------------------
 
@@ -171,7 +264,7 @@ class TestSemanticCLI:
         import querido.cli.snowflake as snowflake_cli
 
         monkeypatch.setattr(snowflake_cli, "require_snowflake", lambda *a, **k: None)
-        out_file = tmp_path / "orders.yaml"
+        out_file = tmp_path / "orders.sql"
         result = runner.invoke(
             app,
             [
@@ -203,7 +296,7 @@ class TestSemanticCLI:
         import querido.cli.snowflake as snowflake_cli
 
         monkeypatch.setattr(snowflake_cli, "require_snowflake", lambda *a, **k: None)
-        out_file = tmp_path / "orders.yaml"
+        out_file = tmp_path / "orders.sql"
         result = runner.invoke(
             app,
             [
@@ -221,7 +314,7 @@ class TestSemanticCLI:
         )
         assert result.exit_code == 0, result.output
         assert out_file.exists()
-        assert "base_table" in out_file.read_text()
+        assert "create or replace semantic view" in out_file.read_text()
 
 
 # ---------------------------------------------------------------------------

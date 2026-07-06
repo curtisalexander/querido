@@ -120,7 +120,7 @@ def _friendly_errors_impl[T, **P](fn: Callable[P, T], db_error_exit_code: int) -
             return fn(*args, **kwargs)
         except typer.BadParameter as exc:
             fmt = get_output_format()
-            if fmt not in ("json", "agent"):
+            if fmt != "json":
                 raise
 
             msg = str(exc)
@@ -128,7 +128,7 @@ def _friendly_errors_impl[T, **P](fn: Callable[P, T], db_error_exit_code: int) -
             # inferring one from the message wording for plain BadParameter.
             code = getattr(exc, "code", None) or _bad_parameter_code(msg)
             try_next = _try_next_for(code)
-            _emit_structured_error(msg, code, None, None, try_next, fmt)
+            _emit_structured_error(msg, code, None, None, try_next)
             raise typer.Exit(code=1) from None
         except (typer.Exit, typer.Abort, SystemExit):
             raise
@@ -145,9 +145,9 @@ def _friendly_errors_impl[T, **P](fn: Callable[P, T], db_error_exit_code: int) -
                 last = _last_sql
 
             fmt = get_output_format()
-            if fmt in ("json", "agent"):
+            if fmt == "json":
                 _emit_structured_error(
-                    msg, code, hint, last if _is_db_error(exc) else None, try_next, fmt
+                    msg, code, hint, last if _is_db_error(exc) else None, try_next
                 )
             else:
                 _emit_rich_error(msg, exc, last, try_next)
@@ -188,9 +188,9 @@ def _emit_structured_error(
     hint: str | None,
     sql: str | None,
     try_next: list[dict],
-    fmt: str,
 ) -> None:
-    """Print a structured error object to stderr in JSON or agent format."""
+    """Print a structured error object to stderr as JSON."""
+    import json
     import sys
 
     payload: dict = {"error": True, "code": code, "message": msg}
@@ -201,14 +201,7 @@ def _emit_structured_error(
     if try_next:
         payload["try_next"] = try_next
 
-    if fmt == "agent":
-        from querido.output.envelope import render_agent
-
-        print(render_agent(payload), file=sys.stderr)
-    else:
-        import json
-
-        print(json.dumps(payload, indent=2), file=sys.stderr)
+    print(json.dumps(payload, indent=2), file=sys.stderr)
 
 
 def _try_next_for(code: str) -> list[dict]:

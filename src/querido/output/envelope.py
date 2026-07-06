@@ -75,18 +75,10 @@ def emit_envelope(
     table: str | None = None,
     extra_meta: dict | None = None,
 ) -> None:
-    """Build an envelope and print it in the active structured format.
+    """Build an envelope and print it as pretty JSON.
 
-    Serialization follows ``--format``:
-
-    - ``json``: pretty JSON (the canonical machine-readable form).
-    - ``agent``: TOON where the envelope's shape allows it, YAML otherwise.
-      Tuned for LLM consumption; see :mod:`querido.output.toon`.  The
-      chosen encoding is stamped into ``meta.serialization`` (``"toon"`` or
-      ``"yaml"``) so agents can pick the right parser without probing.
-
-    For any other format the envelope is rendered as JSON — the caller is
-    expected to gate on :func:`is_structured_format` before calling.
+    The caller is expected to gate on :func:`is_structured_format` before
+    calling.
     """
     envelope = build_envelope(
         command=command,
@@ -97,83 +89,14 @@ def emit_envelope(
         extra_meta=extra_meta,
     )
 
-    from querido._runtime import get_output_format
-
-    if get_output_format() == "agent":
-        # Optimistically tag as TOON; fall back to YAML if the encoder can't
-        # handle the shape.  The tentative field has no effect on shape
-        # support (it's a plain string in ``meta``) so one retry is enough.
-        envelope["meta"]["serialization"] = "toon"
-        from querido.output.toon import ToonUnsupportedShape
-
-        try:
-            print(_encode_toon(envelope))
-        except ToonUnsupportedShape:
-            envelope["meta"]["serialization"] = "yaml"
-            print(_encode_yaml(envelope))
-    else:
-        print(json.dumps(envelope, indent=2, default=str))
+    print(json.dumps(envelope, indent=2, default=str))
 
 
 def is_structured_format() -> bool:
-    """Return True when the active ``--format`` wants the envelope (json or agent)."""
+    """Return True when the active ``--format`` wants the envelope (json)."""
     from querido._runtime import get_output_format
 
-    return get_output_format() in ("json", "agent")
-
-
-def render_agent(value: Any) -> str:
-    """Render a JSON-like value as a TOON document, falling back to YAML.
-
-    The TOON encoder covers the shapes we emit most often (tabular arrays,
-    nested objects, primitive arrays); non-uniform arrays and arrays-of-arrays
-    aren't in its v1 scope (see :mod:`querido.output.toon`). In those cases we
-    fall back to YAML, which TOON's own authors note wins on nested data.
-
-    Used for payloads that don't go through :func:`emit_envelope` (error
-    objects in :mod:`querido.cli._errors`).  Envelope callers should prefer
-    ``emit_envelope`` so ``meta.serialization`` is filled in.
-    """
-    from querido.output.toon import ToonUnsupportedShape
-
-    try:
-        return _encode_toon(value)
-    except ToonUnsupportedShape:
-        return _encode_yaml(value)
-
-
-def _encode_toon(value: Any) -> str:
-    from querido.output.toon import encode
-
-    return encode(_normalize_for_structured(value))
-
-
-def _encode_yaml(value: Any) -> str:
-    import yaml
-
-    return yaml.safe_dump(
-        _normalize_for_structured(value), sort_keys=False, default_flow_style=False
-    ).rstrip()
-
-
-def _normalize_for_structured(value: Any) -> Any:
-    """Coerce values the TOON/YAML path can't handle into strings.
-
-    Mirrors what ``json.dumps(..., default=str)`` does for us on the JSON path:
-    datetime, Decimal, bytes, etc. round-trip through ``str()``.  Dict keys are
-    coerced to strings too — TOON's key encoder and YAML output both expect
-    string keys, while JSON stringifies int/date keys silently.
-    """
-    if isinstance(value, dict):
-        return {
-            (k if isinstance(k, str) else str(k)): _normalize_for_structured(v)
-            for k, v in value.items()
-        }
-    if isinstance(value, list):
-        return [_normalize_for_structured(v) for v in value]
-    if isinstance(value, (str, int, float, bool)) or value is None:
-        return value
-    return str(value)
+    return get_output_format() == "json"
 
 
 def shell_quote_value(value: str) -> str:

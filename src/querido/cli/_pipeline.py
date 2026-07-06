@@ -333,20 +333,8 @@ def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
         emit_html(html)
     else:
         # Envelope-emitting commands short-circuit in the CLI layer before
-        # reaching dispatch_output for json/agent (see for_<cmd> rules in
-        # querido.core.next_steps).  If we arrive here with fmt == "agent",
-        # the command hasn't been wired yet — warn on stderr and degrade to
-        # json so output stays parseable rather than breaking callers.
-        effective_fmt = fmt
-        if fmt == "agent":
-            import sys
-
-            print(
-                f"warning: '{command_name}' does not yet honor --format agent; "
-                "falling back to json. Please open an issue.",
-                file=sys.stderr,
-            )
-            effective_fmt = "json"
+        # reaching dispatch_output for json (see for_<cmd> rules in
+        # querido.core.next_steps).
         fn = _lookup_formatter("querido.output.formats", command_name)
-        text = fn(*args, effective_fmt, **kwargs)
+        text = fn(*args, fmt, **kwargs)
         print(text)

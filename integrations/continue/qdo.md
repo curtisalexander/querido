@@ -275,7 +275,7 @@ fields before treating statistics as exact.
 
 - **Table names are case-insensitive** — qdo normalizes them internally; use whatever case feels natural.
 - **Parquet files** — pass the file path directly as the connection: `-c ./data.parquet`. No separate config step needed.
-- **Snowflake** — requires a named connection set up via `qdo config add`. Use `qdo snowflake` for Cortex Analyst semantic model generation.
+- **Snowflake** — requires a named connection set up via `qdo config add`. Use `qdo snowflake` for semantic view DDL generation and lineage.
 - **Metadata location** — files go to `.qdo/metadata/<connection-dir>/<table>.yaml` relative to your working directory. When `--connection` is a named connection (e.g. `-c mydb`), `<connection-dir>` is the connection name. When `--connection` is a file path (e.g. `-c ./data/test.duckdb`), `<connection-dir>` is the file *stem* (filename without extension, e.g. `.qdo/metadata/test/`). Override the root with the `QDO_METADATA_DIR` environment variable.
 - **Portability of metadata** — a local metadata YAML's `connection:` field stores whatever was passed to `-c` (possibly an absolute path). The portability boundary is `qdo bundle export` — bundles match tables by a `schema_fingerprint` (hash of columns+types), so an export from one machine imports cleanly onto another regardless of local paths.
 - **metadata refresh vs init** — `init` creates a new file and will error if one already exists. `refresh` updates machine fields in an existing file. Use `init --force` to overwrite.

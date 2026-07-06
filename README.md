@@ -27,6 +27,8 @@ catalog     context       metadata    query     report / bundle
 
 A `qdo values --write-metadata -c mydb -t orders -C status` run today sharpens tomorrow's `qdo context`, which sharpens next week's `qdo quality` (enum violations auto-flagged), which a teammate can pull down as a `qdo bundle` and have the full picture without redoing the work. No LLMs inside qdo — the agent brings the brain; qdo brings the memory and the map.
 
+qdo's home turf is **un-modeled data** — extracts, replicas, vendor drops, scratch DuckDB/SQLite files, and the warehouse corners nobody has curated yet. And the reason learned facts live in tool-enforced YAML rather than free-form agent notes is determinism: notes are advisory and agents demonstrably ignore them (hallucinated column names are the [most-documented failure mode](https://github.com/anthropics/claude-code/issues/53988) for agents doing data work), while qdo validates every identifier at the query boundary and checks documented `valid_values` mechanically.
+
 For the full orientation (what qdo is, what it deliberately isn't, invariants that keep it that way), see [DIFFERENTIATION.md](./DIFFERENTIATION.md).
 
 ## Install
@@ -236,7 +238,7 @@ qdo metadata undo    -c my-db -t orders       # restore the last qdo-managed met
 ### Snowflake — platform-specific commands
 
 ```bash
-qdo snowflake semantic -c prod -t my_table              # Cortex Analyst YAML
+qdo snowflake semantic -c prod -t my_table              # create semantic view DDL
 qdo snowflake lineage -c prod --object DB.SCHEMA.TABLE  # Snowflake GET_LINEAGE
 qdo sql task -c prod -t my_table                        # task template
 qdo sql procedure -c prod -t my_table                   # stored procedure template

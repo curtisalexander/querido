@@ -879,3 +879,21 @@ class TestSemanticYamlQualified:
         assert "table: ORDERS" in yaml_str
         # Should NOT have dots in the model name
         assert "my_db.staging.orders_semantic_model" not in yaml_str
+
+
+# ---------------------------------------------------------------------------
+# Semantic view DDL with qualified names
+# ---------------------------------------------------------------------------
+
+
+class TestSemanticViewDdlQualified:
+    def test_ddl_uses_short_name_and_full_base_table(self):
+        """View name uses just the table part; the logical table keeps the full ref."""
+        from querido.core.semantic import build_semantic_view_ddl
+
+        columns = [{"name": "ID", "type": "NUMBER", "comment": None}]
+        ddl = build_semantic_view_ddl("MY_DB.STAGING.ORDERS", columns, None)
+        assert "create or replace semantic view orders_semantic_view" in ddl
+        assert "orders as MY_DB.STAGING.ORDERS" in ddl
+        # Should NOT have dots in the view name
+        assert "my_db.staging.orders_semantic_view" not in ddl

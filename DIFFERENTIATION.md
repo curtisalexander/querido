@@ -1,7 +1,7 @@
 # What sets qdo apart
 
 Durable orientation for humans returning to the project and for coding agents starting
-fresh. Point-in-time snapshot; last reviewed 2026-04-23.
+fresh. Point-in-time snapshot; last reviewed 2026-07-06.
 
 > **Audience:** someone — you, a teammate, or an agent — who needs to understand
 > what qdo is for and why it's shaped the way it is before touching code or docs.
@@ -23,6 +23,11 @@ re-doing the work.
 
 **One-liner: qdo is the persistent-memory layer for data exploration, expressed as
 plain files and deterministic CLI commands.**
+
+qdo's home turf is **un-modeled data** — extracts, replicas, vendor drops, scratch
+DuckDB/SQLite files, and the warehouse corners nobody has curated yet. Where a
+governed, documented model already exists, use it; qdo is for the exploration that
+happens before (or instead of) that curation.
 
 ---
 
@@ -55,6 +60,40 @@ remembers". The tool remembers.
 
 ---
 
+## The failure mode qdo exists to prevent — and the real competitor
+
+Hallucinated identifiers are the top documented failure mode for agents doing data
+work, and the public evidence says *instructions alone don't fix it*. In
+[anthropics/claude-code#53988](https://github.com/anthropics/claude-code/issues/53988)
+— "Claude hallucinated identifiers: writes column/field/config names from memory
+instead of reading source files" — explicit CLAUDE.md instructions demonstrably
+failed to stop it. Tool-enforced verification is what works. That is qdo's thesis,
+stated by the market.
+
+It also names qdo's real competitor. Not another product — the null hypothesis:
+**"the agent just writes what it learned into CLAUDE.md for free."** qdo's answer,
+and the reason everything here says *deterministic*:
+
+- **Notes are advisory; qdo is enforced.** An agent can (and, per the evidence above,
+  does) ignore a note. It cannot ignore a tool error: qdo validates table and column
+  names at the query boundary and fails with fuzzy did-you-mean suggestions.
+- **Notes are prose; metadata is typed.** Free-form notes can't be machine-checked.
+  `valid_values` in YAML is mechanically enforced by `quality`, merged into `context`,
+  and exported by `snowflake semantic` — one captured fact, three deterministic
+  consumers.
+- **Notes go stale silently; metadata has provenance.** Every qdo write is
+  provenance-tracked and reversible (`metadata undo`); `metadata refresh` re-profiles
+  while preserving human-authored fields. Nothing curates a CLAUDE.md.
+- **Notes load whole; metadata loads per table.** CLAUDE.md rides along in every
+  session in full. qdo metadata surfaces only for the table being investigated.
+- **Notes are stuck in one repo; bundles and plain YAML travel.**
+
+This argument must eventually be *demonstrated*, not asserted — see "Hallucination
+benchmark" in [PLAN.md](./PLAN.md) for the eval that tests qdo against exactly this
+null hypothesis.
+
+---
+
 ## Ranked differentiators (hardest to copy first)
 
 1. **Metadata-as-persistent-memory, with envelope + next_steps.** No other tool in
@@ -69,11 +108,16 @@ remembers". The tool remembers.
    memory and the map. A philosophical boundary competitors have to *choose* to
    cross.
 
-3. **Snowflake depth.** `qdo snowflake semantic` emits a Cortex Analyst YAML from
-   stored metadata. `qdo snowflake lineage` surfaces upstream / downstream
-   objects via `GET_LINEAGE`. `sql task` and `sql procedure` templates are
-   dialect-aware. No other tool in the space goes this deep into Snowflake
-   specifically.
+3. **Snowflake depth.** `qdo snowflake semantic` emits `create semantic view`
+   DDL from stored metadata. `qdo snowflake lineage` surfaces upstream /
+   downstream objects via `GET_LINEAGE`. `sql task` and `sql procedure`
+   templates are dialect-aware. No other tool in the space goes this deep into
+   Snowflake specifically.
+   **Note (2026-07-06):** the command originally emitted stage-based Cortex
+   Analyst YAML; it was converted to semantic-view DDL when Snowflake started
+   calling the YAML path the "legacy stage API" and recommending native
+   semantic views for all new implementations. Treat this as an on-ramp to
+   Snowflake's native semantics, not a moat.
 
 4. **Self-hosting eval at 45/45 (100%).** `scripts/eval_skill_files_claude.py`
    runs `claude -p` against the SKILL file and grades results across haiku,
@@ -90,12 +134,7 @@ remembers". The tool remembers.
    Bundles are zip archives. Workflows are YAML. All portable, diffable,
    reviewable, and forkable without a running service.
 
-6. **Agent output format (TOON + YAML via the envelope).** TOON for tabular,
-   YAML for nested — ~30–70% fewer tokens than JSON for LLM consumption. In-tree
-   encoder (`src/querido/output/toon.py`) with vendored spec-conformance
-   fixtures.
-
-7. **Pay for what you use — enforced, not aspirational.** Install extras opt you
+6. **Pay for what you use — enforced, not aspirational.** Install extras opt you
    in to DuckDB, Snowflake, or the TUI. Every heavy dependency imports inside
    functions, not at module top. A command you don't invoke costs you nothing
    at startup.
