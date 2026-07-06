@@ -1,4 +1,4 @@
-"""Tests for querido.cli.argv_hoist — the -f/--format argv preprocessor."""
+"""Tests for querido._argv — the -f/--format argv preprocessor."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from querido.cli.argv_hoist import hoist_format_flag, split_format_flag
+from querido._argv import hoist_format_flag, split_format_flag
 
 
 class TestSplitFormatFlag:

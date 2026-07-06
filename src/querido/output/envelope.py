@@ -97,7 +97,7 @@ def emit_envelope(
         extra_meta=extra_meta,
     )
 
-    from querido.cli._context import get_output_format
+    from querido._runtime import get_output_format
 
     if get_output_format() == "agent":
         # Optimistically tag as TOON; fall back to YAML if the encoder can't
@@ -117,7 +117,7 @@ def emit_envelope(
 
 def is_structured_format() -> bool:
     """Return True when the active ``--format`` wants the envelope (json or agent)."""
-    from querido.cli._context import get_output_format
+    from querido._runtime import get_output_format
 
     return get_output_format() in ("json", "agent")
 

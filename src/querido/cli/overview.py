@@ -41,7 +41,9 @@ def overview() -> None:
 
     docs = Path(__file__).resolve().parents[3] / "docs" / "cli-reference.md"
     if docs.exists():
-        print(docs.read_text())
+        # end="" so stdout is byte-identical to the file — the file already
+        # ends with a newline, and doc-sync checks diff the two directly.
+        print(docs.read_text(), end="")
     else:
         _print_fallback()
 

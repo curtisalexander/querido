@@ -6,10 +6,65 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-06
+
+First PyPI release. Install with `uv tool install querido` or `pip install
+querido` — the package is `querido`, the command is `qdo`.
+
 ### Added
 
-- Release-readiness review document (`RELEASE_READINESS_REVIEW.md`) capturing the
-  final beta blockers, verification evidence, and clean-room install checklist.
+- **Auto-capture** — `context --write-metadata`, a capture hint at the end of
+  `context` / `quality` rich output when derived fields aren't stored yet, and
+  opt-in `QDO_AUTO_CAPTURE=1` to auto-persist from `context` / `profile` /
+  `values` / `quality`.
+- **On-disk contract versioning** — metadata YAML documents now carry a
+  `schema_version`, the metadata cache stores its schema version in SQLite's
+  `user_version` (mismatches rebuild the cache), and `bundle import` refuses
+  bundles with a newer `format_version` instead of silently misreading them.
+- **PyPI publishing** — the release workflow publishes to PyPI via trusted
+  publishing (OIDC) after the build + wheel smoke test.
+- Release-readiness review document (`RELEASE_READINESS_REVIEW.md`) capturing
+  the beta blockers (since resolved), verification evidence, and clean-room
+  install checklist.
+
+### Changed
+
+- CI now tests Python 3.12, 3.13, and 3.14 across all three OSes (previously
+  3.13 only).
+- Install docs across README, CLI reference, and SKILL files point at PyPI
+  instead of GitHub Release wheel URLs (wheels are still attached to releases).
+- `qdo overview` output is byte-identical to `docs/cli-reference.md` (no
+  extra trailing newline).
+- Internal layering: the `-f/--format` argv hoist moved to `querido._argv`
+  and the root-context format lookup to `querido._runtime`, so `core/` and
+  `output/` no longer import from `cli/`.
+- The sdist no longer ships internal process docs (PLAN, IDEAS,
+  REVIEW_FINDINGS, RELEASE_READINESS_REVIEW).
+
+### Fixed
+
+The 2026-06-10 multi-agent review pass (7 high / 19 medium / 35 low findings,
+tracked in `REVIEW_FINDINGS.md`) landed in full. Highlights:
+
+- DuckDB mixed-case table names resolve correctly across all catalog lookups.
+- The `--allow-write` guard can no longer be bypassed with CTE-prefixed writes
+  (`with x as (...) delete ...`), and now also classifies `copy` / `export` /
+  `attach` / `detach` / `install` / `load` / `call` / `vacuum` as destructive —
+  `copy ... to` writes files even on a read-only DuckDB handle.
+- SQLite databases open read-only by default (`mode=ro`) — no more silent WAL
+  journal-mode mutation; DuckDB no longer creates an empty database file at a
+  mistyped path.
+- `qdo assert` honors its documented exit-code contract (0 pass / 1 fail /
+  2 SQL error); `pivot` no longer rewrites `count(*)` to `count(<col>)`;
+  `values` reports correct `total_rows` for columns with NULLs.
+- Workflow docs and runner agree: step `id` binding, `qdo_min_version`
+  enforcement, `-f` propagation, recursion depth guard, and quoted-`${ref}`
+  lint warnings.
+- Hallucinated `-f jsonl` examples removed from shipped agent docs.
+- `~` expands in sqlite/duckdb/parquet connection paths; connection config
+  errors return `CONNECTION_NOT_FOUND` with a correct hint.
+- Identifier quoting hardened for schema-qualified and quoted names;
+  Snowflake concurrent-query cancellation covers all active cursors.
 
 ## [0.1.0] — 2026-04-22
 
@@ -142,5 +197,6 @@ LLMs inside qdo — the agent brings the brain; qdo brings the memory and the ma
   release artifacts. All 26 items shipped; 2 deferred by design. Eval recovered
   from 42/45 to **45/45 (100%)**.
 
-[Unreleased]: https://github.com/curtisalexander/querido/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/curtisalexander/querido/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/curtisalexander/querido/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/curtisalexander/querido/releases/tag/v0.1.0

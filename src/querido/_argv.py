@@ -8,7 +8,9 @@ correctly, we hoist `-f/--format` to position 1 before Click sees argv.
 
 The workflow runner uses the same trick (see
 ``core/workflow/runner.py::_hoist_format_flag``), which also layers in a
-capture-default injection. This module is the shared, pure hoist.
+capture-default injection. This module is the shared, pure hoist — it lives at
+the package root (not under ``cli/``) because both the CLI entry point and the
+core workflow runner import it, and ``core`` must not depend on ``cli``.
 """
 
 from __future__ import annotations

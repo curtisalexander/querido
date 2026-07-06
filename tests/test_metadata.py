@@ -35,6 +35,32 @@ def test_metadata_init(sqlite_path: str, tmp_path: Path, monkeypatch):
     assert meta.get("data_owner") == "<data_owner>"
 
 
+def test_written_metadata_carries_schema_version(sqlite_path: str, tmp_path: Path, monkeypatch):
+    # Failure mode: on-disk metadata had no version marker, so a future qdo
+    # that changes the document shape would have nothing to migrate on.
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["metadata", "init", "-c", sqlite_path, "-t", "users"])
+    assert result.exit_code == 0, result.output
+
+    meta_file = tmp_path / ".qdo" / "metadata" / "test" / "users.yaml"
+    text = meta_file.read_text()
+    meta = yaml.safe_load(text)
+    assert meta.get("schema_version") == 1
+    # Stamped first so it's the first thing a human sees in the file.
+    assert text.lstrip().startswith("schema_version:")
+
+
+def test_read_table_doc_refuses_newer_schema_version(tmp_path: Path):
+    # Failure mode: a document written by a future qdo (schema_version 2+)
+    # would be read as version 1 and silently misinterpreted.
+    from querido.core.metadata import read_table_doc
+
+    doc = tmp_path / "orders.yaml"
+    doc.write_text("schema_version: 99\ntable: orders\n")
+    with pytest.raises(ValueError, match="schema_version 99"):
+        read_table_doc(doc)
+
+
 def test_metadata_init_force(sqlite_path: str, tmp_path: Path, monkeypatch):
     """Init with --force overwrites existing file."""
     monkeypatch.chdir(tmp_path)

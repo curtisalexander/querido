@@ -8,8 +8,8 @@ import click
 import typer
 from typer.core import TyperGroup
 
+from querido._argv import hoist_format_flag
 from querido.cli._options import VALID_FORMATS
-from querido.cli.argv_hoist import hoist_format_flag
 
 # ---------------------------------------------------------------------------
 # Lazy subcommand loading

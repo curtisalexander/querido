@@ -19,6 +19,11 @@ if TYPE_CHECKING:
 # Default time-to-live for cached metadata (seconds)
 DEFAULT_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 
+#: Cache DB schema version, stored in SQLite's ``pragma user_version``.
+#: Bump when the table shapes below change; a mismatched cache is dropped
+#: and rebuilt — it's a cache, so the cost is one re-sync, never data loss.
+CACHE_SCHEMA_VERSION = 1
+
 _SCHEMA_SQL = """\
 create table if not exists cached_tables (
     connection text not null,
@@ -55,6 +60,13 @@ class MetadataCache:
         self._path = cache_path
         self._conn = sqlite3.connect(str(cache_path))
         self._conn.row_factory = sqlite3.Row
+        found_version = self._conn.execute("pragma user_version").fetchone()[0]
+        if found_version != CACHE_SCHEMA_VERSION:
+            # Stale or pre-versioning cache — drop and rebuild.
+            self._conn.executescript(
+                "drop table if exists cached_tables;\ndrop table if exists cached_columns;"
+            )
+            self._conn.execute(f"pragma user_version = {CACHE_SCHEMA_VERSION}")
         self._conn.executescript(_SCHEMA_SQL)
 
     def sync(

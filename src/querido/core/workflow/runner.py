@@ -179,7 +179,7 @@ def _hoist_format_flag(tokens: list[str], has_capture: bool) -> list[str]:
     If *has_capture* is true and no format flag is present, ``-f json`` is
     injected — capture requires JSON output.
     """
-    from querido.cli.argv_hoist import split_format_flag
+    from querido._argv import split_format_flag
 
     if not tokens or tokens[0] != "qdo":
         return tokens

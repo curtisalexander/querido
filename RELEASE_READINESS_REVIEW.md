@@ -2,6 +2,13 @@
 
 Date: 2026-04-25
 
+> **Resolved 2026-07-06.** The blockers below are closed: the v0.1.0 GitHub
+> Release was published 2026-04-28 with wheel + sdist attached, and
+> `.github/workflows/release.yml` now runs an install-from-wheel smoke test on
+> every tag. The remaining follow-up (clean-room install verification against
+> the *next* release) is tracked as REVIEW_FINDINGS.md L35. This document is
+> kept as a historical record of the 2026-04-25 pass.
+
 This review is a release-readiness pass over the repository from the perspective of a first user, a coding agent, and a future maintainer. It uses `ARCHITECTURE.md`, `PLAN.md`, `README.md`, `IDEAS.md`, and `DIFFERENTIATION.md` as background, then checks the current working tree, docs, package build, CLI behavior, and test suite.
 
 ## Verdict

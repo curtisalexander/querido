@@ -346,12 +346,12 @@ Files to resist future pressure to shrink:
 
 Capture but don't start. Each is standalone and non-blocking.
 
-- Publish to PyPI. Until then, GitHub Releases wheels are the canonical install path and all docs say so consistently — no `uv pip install querido` instructions that assume a PyPI listing.
+- ~~Publish to PyPI.~~ **Promoted 2026-07-06:** 0.2.0 is prepped (version bump, trusted-publishing job in release.yml, PyPI install docs). The remaining manual steps — one-time pypi.org trusted-publisher + GitHub `pypi` environment setup, tagging v0.2.0, and the L35 clean-room verification — are documented step-by-step in [RELEASING.md](RELEASING.md). Merging to main publishes nothing; only pushing a `v*` tag does.
 - Optional embedding/reranker layer for `qdo metadata search` if the lexical baseline proves insufficient.
 - Progressive disclosure `--level 1..3` on expensive commands.
 - Snowflake `RESULT_SCAN` reuse for chained queries.
 - Pyodide `querido-lite` browser demo (only if concrete adoption pulls for it).
-- MCP thin wrapper (defer; keep CLI surface MCP-ready — stable flags, structured errors, no TTY-required behaviors).
+- MCP thin wrapper — design drafted 2026-07-06 in [docs/research/mcp-wrapper-design.md](docs/research/mcp-wrapper-design.md) (subprocess-per-call, ~9 curated tools returning the envelope verbatim, `querido[mcp]` extra, `qdo mcp serve`). Proposed as the 0.3.0 headline after the 0.2.0 PyPI debut + dogfood week. Build only after dogfood.
 
 ---
 

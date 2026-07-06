@@ -1,7 +1,7 @@
 ---
 name: querido
 description: Use querido (qdo) to explore database schemas, profile data, enrich tables with metadata, and generate SQL. Use when working with SQLite, DuckDB, Snowflake, or Parquet files, when asked to write SQL against a local or named database, when asked to profile or summarize a table, or when the user mentions qdo.
-compatibility: Requires qdo CLI (install the wheel from GitHub Releases, https://github.com/curtisalexander/querido/releases). DuckDB support requires the querido[duckdb] extra. Snowflake support requires the querido[snowflake] extra.
+compatibility: Requires qdo CLI (`uv tool install querido` or `pip install querido` — the package is querido, the command is qdo). DuckDB support requires the querido[duckdb] extra. Snowflake support requires the querido[snowflake] extra.
 ---
 
 # Using querido (qdo)

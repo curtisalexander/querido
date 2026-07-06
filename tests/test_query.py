@@ -445,6 +445,32 @@ def test_any_statement_is_destructive_cte(sql: str, expected: bool):
     assert any_statement_is_destructive(sql) is expected
 
 
+# Regression: statements that mutate state outside the connection's read-only
+# guard (COPY TO writes files even on a read-only DuckDB handle; ATTACH opens
+# a second writable database; INSTALL/LOAD/CALL/VACUUM change engine state)
+# were not classified as destructive.
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "copy t to 'out.csv'",
+        "copy (select * from t) to 'out.parquet'",
+        "export database 'dump_dir'",
+        "attach 'other.db' as other",
+        "detach other",
+        "install httpfs",
+        "load httpfs",
+        "call my_proc()",
+        "vacuum",
+        "with x as (select 1) copy x to 'out.csv'",
+        "select 1; attach 'other.db' as other",
+    ],
+)
+def test_out_of_band_write_statements_are_destructive(sql: str):
+    from querido.core.sql_safety import any_statement_is_destructive
+
+    assert any_statement_is_destructive(sql) is True
+
+
 def test_run_query_refuses_write_without_allow_write(sqlite_path: str):
     # Failure mode: run_query is an unguarded footgun — it executes
     # destructive SQL even when allow_write=False if a caller bypasses the

@@ -211,7 +211,7 @@ def init_metadata(
     meta = _template_to_metadata(template, connection)
 
     before_text = path.read_text(encoding="utf-8") if path.exists() else None
-    _write_yaml(path, meta)
+    write_table_doc(path, meta)
     _record_metadata_history(
         connection=connection,
         table=table,
@@ -227,7 +227,7 @@ def show_metadata(connection: str, table: str) -> dict | None:
     path = metadata_path(connection, table)
     if not path.exists():
         return None
-    return _read_yaml(path)
+    return read_table_doc(path)
 
 
 # Fields surfaced to scanning commands (profile / quality / values / context)
@@ -318,7 +318,7 @@ def list_metadata(connection: str) -> list[dict]:
 
     results = []
     for yaml_file in sorted(meta_dir.glob("*.yaml")):
-        meta = _read_yaml(yaml_file)
+        meta = read_table_doc(yaml_file)
         if meta is None:
             continue
         mtime = yaml_file.stat().st_mtime
@@ -405,7 +405,7 @@ def refresh_metadata(
     if not path.exists():
         raise FileNotFoundError(f"No metadata to refresh: {path}\nRun 'qdo metadata init' first.")
 
-    existing = _read_yaml(path)
+    existing = read_table_doc(path)
     if existing is None:
         existing = {}
 
@@ -417,7 +417,7 @@ def refresh_metadata(
     merged = _merge_metadata(existing, fresh)
 
     before_text = path.read_text(encoding="utf-8")
-    _write_yaml(path, merged)
+    write_table_doc(path, merged)
     _record_metadata_history(
         connection=connection,
         table=table,
@@ -436,7 +436,7 @@ def _build_metadata_search_docs(connection: str) -> tuple[list[MetadataSearchDoc
     docs: list[MetadataSearchDoc] = []
     yaml_files = sorted(meta_dir.glob("*.yaml"))
     for yaml_file in yaml_files:
-        meta = _read_yaml(yaml_file)
+        meta = read_table_doc(yaml_file)
         if not isinstance(meta, dict):
             continue
         path_str = str(yaml_file)
@@ -746,6 +746,47 @@ def _merge_metadata(existing: dict, fresh: dict) -> dict:
 
     merged["columns"] = merged_cols
     return merged
+
+
+#: On-disk schema version stamped into every table-metadata YAML document.
+#: Bump when the document shape changes incompatibly; ``read_table_doc``
+#: refuses documents newer than this so a future qdo can migrate them
+#: explicitly instead of this version silently misreading them.
+METADATA_SCHEMA_VERSION = 1
+
+
+def write_table_doc(path: Path, doc: dict) -> None:
+    """Write a table-metadata document with ``schema_version`` stamped first.
+
+    All table-doc writers (init, refresh, ``--write-metadata``, bundle import)
+    go through here so every document on disk carries its schema version.
+    """
+    stamped = {"schema_version": METADATA_SCHEMA_VERSION}
+    stamped.update({k: v for k, v in doc.items() if k != "schema_version"})
+    _write_yaml(path, stamped)
+
+
+def read_table_doc(path: Path) -> dict | None:
+    """Read a table-metadata document, refusing newer schema versions.
+
+    A missing ``schema_version`` means a pre-versioning document and is read
+    as version 1. A version newer than this qdo understands raises, so the
+    document is never silently misread.
+    """
+    doc = _read_yaml(path)
+    if doc is None:
+        return None
+    raw = doc.get("schema_version", METADATA_SCHEMA_VERSION)
+    try:
+        found = int(str(raw))
+    except ValueError:
+        found = METADATA_SCHEMA_VERSION
+    if found > METADATA_SCHEMA_VERSION:
+        raise ValueError(
+            f"Metadata file {path.name} uses schema_version {found}, but this qdo "
+            f"only understands up to {METADATA_SCHEMA_VERSION}. Upgrade qdo to read it."
+        )
+    return doc
 
 
 def _write_yaml(path: Path, data: dict) -> None:
