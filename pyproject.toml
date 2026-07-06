@@ -42,6 +42,10 @@ classifiers = [
 ]
 dependencies = [
     "typer>=0.15",
+    # qdo imports click directly (cli/main.py, _errors.py, _runtime.py, ...).
+    # Newer typer releases no longer depend on click, so it must be declared
+    # here — relying on it transitively broke clean installs (typer 0.26+).
+    "click>=8.1",
     "rich>=13.7",
     "platformdirs>=4.2",
     "jinja2>=3.1",
