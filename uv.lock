@@ -1175,7 +1175,7 @@ requires-dist = [
     { name = "textual", marker = "extra == 'all'", specifier = ">=0.50" },
     { name = "textual", marker = "extra == 'tui'", specifier = ">=0.50" },
     { name = "tomli-w", specifier = ">=1.2" },
-    { name = "typer", specifier = ">=0.15" },
+    { name = "typer", specifier = ">=0.15,<0.26" },
 ]
 provides-extras = ["duckdb", "snowflake", "tui", "all"]
 
