@@ -146,9 +146,12 @@ JSON output shape (trimmed):
 
 Use `context` as the primary tool call when you need to understand a table before writing SQL. It replaces separate calls to `inspect`, `preview`, and much of `profile` for most workflows.
 
-## quality — detect data issues
+## quality — check contracts and describe data shape
 
-`quality` is the command to reach for when the user asks about nulls, duplicates, anomalies, enum violations, or whether a table is *healthy*. It checks stored `valid_values` and flags rows that don't match, surfaces high null rates, and labels each column `ok` / `warn` / `fail`.
+`quality` is the command to reach for when the user asks about nulls, duplicates,
+anomalies, enum violations, or whether data matches recorded expectations. Stored
+`valid_values` violations fail; null rates and uniqueness are descriptive signals
+unless metadata declares them invalid.
 
 ```bash
 qdo -f json quality -c <connection> -t <table>
@@ -176,6 +179,7 @@ JSON output shape (trimmed):
         "distinct_count": 4,
         "uniqueness_pct": 0.008,
         "status": "ok",
+        "signals": ["0.0% unique"],
         "issues": [],
         "valid_values": ["pending", "shipped", "delivered", "cancelled"],
         "invalid_count": 0
@@ -186,8 +190,9 @@ JSON output shape (trimmed):
         "null_count": 600,
         "null_pct": 1.2,
         "uniqueness_pct": 25.0,
-        "status": "warn",
-        "issues": ["null_rate_above_threshold"]
+        "status": "ok",
+        "signals": [],
+        "issues": []
       }
     ]
   }
@@ -196,7 +201,7 @@ JSON output shape (trimmed):
 
 **When to pick `quality` over `context + values`:**
 
-- The user asked about *health*, *issues*, *bad data*, *nulls*, *duplicates*, or *enum violations* — reach for `quality` first. It has a deterministic rubric agents can gate on (the `status` field + stable `issues[]` codes).
+- The user asked about *health*, *issues*, *bad data*, *nulls*, *duplicates*, or *enum violations* — reach for `quality` first. Gate only on declared violations in `status` / `issues`; use `signals` as descriptive context.
 - The user asked *what values does this column take?* — use `qdo -f json values -c <conn> -t <table> -C <col>`. Counts are in the output by default; add `--sort frequency` to order by count descending. There is no `--counts` flag.
 - The user asked *what's in this table?* — use `context`.
 - You want `quality` to auto-catch enum violations on later runs: run `values --write-metadata` (or `metadata suggest --apply`) first. `quality` then checks every row against the stored `valid_values` and populates `invalid_count`. This is the core of the compounding loop for data-quality work.
@@ -380,6 +385,8 @@ Operator gotchas — setup / environment behavior, not needed for day-to-day que
 - **Auto-capture is opt-in** — `export QDO_AUTO_CAPTURE=1` makes `context`/`profile`/`values`/`quality` behave as if `--write-metadata` was passed, persisting deterministic facts after every scan. Off by default so agents and CI never get surprise writes; human fields (`confidence: 1.0`) are still preserved and writes remain reversible via `qdo metadata undo`.
 
 ## Workflows — author, run, share
+
+**Experimental:** workflow schema and behavior may change before qdo 1.0.
 
 A **workflow** is a YAML file that composes `qdo` commands into a parameterized, repeatable investigation (think: "run catalog → context → quality against this table, expose a few fields"). Use workflows when the same 3+ step pattern repeats against different tables or connections.
 

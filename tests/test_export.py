@@ -135,6 +135,24 @@ def test_export_with_sql(sqlite_path: str, tmp_path: Path):
     assert "Bob" not in content
 
 
+def test_export_sql_cannot_copy_to_an_external_file(duckdb_path: str, tmp_path: Path) -> None:
+    """A second COPY statement must not escape export's read-only contract."""
+    copied = tmp_path / "escaped.csv"
+    result = runner.invoke(
+        app,
+        [
+            "export",
+            "-c",
+            duckdb_path,
+            "--sql",
+            f"select '--'; copy users to '{copied}' (header, delimiter ',')",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert not copied.exists()
+
+
 def test_export_with_from_session_step(sqlite_path: str, tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     _seed_session_query_step(

@@ -20,6 +20,22 @@ def test_sqlite_get_columns(sqlite_path: str):
         names = [c["name"] for c in cols]
         assert names == ["id", "name", "age"]
         assert cols[0]["primary_key"] is True
+        assert cols[0]["nullable"] is False
+
+
+def test_sqlite_primary_key_nullability_matches_storage_rules() -> None:
+    """Only rowid aliases and WITHOUT ROWID keys are implicitly non-null."""
+    with SQLiteConnector(":memory:") as conn:
+        conn.execute("create table text_key (id text primary key)")
+        conn.execute("create table composite_key (a integer, b integer, primary key (a, b))")
+        conn.execute(
+            "create table strict_composite (a integer, b integer, primary key (a, b)) "
+            "without rowid"
+        )
+
+        assert conn.get_columns("text_key")[0]["nullable"] is True
+        assert all(column["nullable"] for column in conn.get_columns("composite_key"))
+        assert not any(column["nullable"] for column in conn.get_columns("strict_composite"))
 
 
 def test_duckdb_execute(duckdb_path: str):

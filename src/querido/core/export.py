@@ -41,6 +41,10 @@ def export_data(
         table=table, sql=sql, limit=limit, filter_expr=filter_expr, columns=columns
     )
 
+    from querido.core.sql_safety import require_read_only_sql
+
+    require_read_only_sql(query_sql, context="Export SQL")
+
     data = connector.execute(query_sql)
     content = _format_data(data, fmt)
 

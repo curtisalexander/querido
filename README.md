@@ -165,6 +165,7 @@ qdo metadata  init -c my-db -t orders         # create metadata YAML
 qdo metadata  suggest -c my-db -t orders --apply  # capture deterministic additions
 qdo query     -c my-db --sql "select ..."     # answer a question
 qdo assert    -c my-db --sql "..." --expect 0 # verify an invariant
+qdo quality   -c my-db -t orders              # check contracts + describe shape
 qdo report    table -c my-db -t orders        # single-file hand-off report
 qdo bundle    export -c my-db -t orders -o bundle.zip  # portable knowledge bundle
 qdo query     -c my-db --from scratch:3       # reuse SQL from a recorded query step
@@ -180,7 +181,6 @@ qdo profile   -c my-db -t orders --quick      # fast: nulls + distinct only (aut
 qdo profile   -c my-db -t orders --classify   # classify columns by category (implies --quick)
 qdo dist      -c my-db -t orders -C amount    # histogram or value frequencies
 qdo values    -c my-db -t orders -C status    # all distinct values for a column
-qdo quality   -c my-db -t orders              # null rates, uniqueness, anomalies
 qdo freshness -c my-db -t orders              # detect temporal columns and recency
 qdo diff      -c my-db -t orders --target v2  # compare two table schemas
 qdo joins     -c my-db -t orders              # suggest likely join keys
@@ -461,6 +461,9 @@ an LLM needs to write correct SQL for a table in one call, and metadata turns
 that understanding into durable context for later runs and other teammates.
 
 ## Automate and share
+
+> **Experimental:** workflows are not part of qdo's stable core yet. Their
+> schema and behavior may change before 1.0 based on dogfood experience.
 
 Once an investigation is worth repeating, capture it as a **workflow** — a
 declarative YAML file of qdo steps, with inputs, captures, and conditional

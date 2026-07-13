@@ -29,6 +29,18 @@ DuckDB/SQLite files, and the warehouse corners nobody has curated yet. Where a
 governed, documented model already exists, use it; qdo is for the exploration that
 happens before (or instead of) that curation.
 
+### Stability boundary
+
+The supported core is `catalog`, `context`, `metadata`, `query`, `assert`,
+`quality`, `report`, and `bundle`. These commands define the public loop and
+receive compatibility treatment from the first PyPI release.
+
+Specialist exploration, generation, setup, and interactive commands remain
+available but are secondary surface. They may evolve, always with deprecation
+before a rename or removal. `workflow` is explicitly experimental until real
+projects establish that its schema and recovery behavior deserve a stable
+contract.
+
 ---
 
 ## The compounding knowledge loop (the moat)
@@ -203,11 +215,11 @@ When evaluating any proposed feature, in order:
 
 ---
 
-## Current state (snapshot, 2026-04-23)
+## Current state (snapshot, 2026-07-13)
 
 - **Tests:** full suite green — `pytest`, `ruff check`, `ruff format`, and
-  `ty check` all pass, with zero `TODO` / `FIXME` markers anywhere in src or
-  tests. See [PLAN.md](./PLAN.md#status-as-of-2026-04-23) for the exact counts.
+  `ty check` all pass locally. See [PLAN.md](./PLAN.md#pypi-release-hardening--active-2026-07-13)
+  for the active release gate; CI is the authority for cross-platform status.
 - **Shipped phases:** 1–4, 6, 7. Phase 5 dropped by design. R-series complete.
   Sharpening Waves 1–4 complete. Pre-release polish pass (items 0–6) landed
   2026-04-22. Pre-beta audit pass (26 items across 5 tiers) landed 2026-04-23.

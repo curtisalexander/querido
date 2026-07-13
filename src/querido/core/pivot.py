@@ -128,6 +128,10 @@ def get_pivot(
         order_by=order_by,
         limit=limit,
     )
+
+    from querido.core.sql_safety import require_read_only_sql
+
+    require_read_only_sql(sql, context="Pivot SQL")
     data = connector.execute(sql)
     headers = list(data[0].keys()) if data else rows + [_agg_alias(agg, v) for v in values]
     return {

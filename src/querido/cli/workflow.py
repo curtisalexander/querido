@@ -1,4 +1,4 @@
-"""``qdo workflow`` — declarative workflows (spec, run, lint, list, show).
+"""``qdo workflow`` — experimental declarative workflows.
 
 Phase 4.1 shipped the spec + bundled examples.  Phase 4.2 adds the
 runner, lint, list, and show commands (no CLI sugar / shim yet — that's
@@ -16,7 +16,7 @@ import typer
 from querido.cli._errors import friendly_errors
 from querido.cli._options import dbtype_opt
 
-app = typer.Typer(help="Declarative workflows (spec, run, lint, list, show).")
+app = typer.Typer(help="Experimental declarative workflows (spec, run, lint, list, show).")
 
 
 class WorkflowLintFailed(RuntimeError):

@@ -192,6 +192,19 @@ def _hoist_format_flag(tokens: list[str], has_capture: bool) -> list[str]:
     return [tokens[0], "-f", fmt_value, *cleaned]
 
 
+def _apply_write_authorization(tokens: list[str], allow_write: bool) -> list[str]:
+    """Translate workflow authorization into the query command's CLI flag."""
+    if not allow_write or not tokens or tokens[0] != "qdo":
+        return tokens
+
+    from querido._argv import split_format_flag
+
+    command_tokens, _ = split_format_flag(tokens[1:])
+    if not command_tokens or command_tokens[0] != "query" or "--allow-write" in command_tokens:
+        return tokens
+    return [*tokens, "--allow-write"]
+
+
 #: How many nested ``qdo workflow run`` levels are allowed before the runner
 #: refuses.  Guards against a workflow whose step invokes itself (directly or
 #: via a cycle), which would otherwise recurse as unbounded subprocesses.
@@ -395,6 +408,7 @@ def run_workflow(
             tokens = [interpolate(t, context, reject_none=True) for t in template_tokens]
         except UnresolvedReference as exc:
             raise WorkflowError(f"step {step_id!r}: {exc}") from exc
+        tokens = _apply_write_authorization(tokens, step.get("allow_write") is True)
         tokens = _hoist_format_flag(tokens, has_capture)
         rendered = " ".join(shlex.quote(t) if any(c.isspace() for c in t) else t for t in tokens)
         argv = qdo + tokens[1:]

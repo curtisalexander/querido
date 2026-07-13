@@ -233,11 +233,11 @@ class ExploreApp(App):
             await self._load_table_context()
 
         if self._filter_sql:
-            # The filter expression is user-provided SQL typed into the TUI.
-            # This is intentional — the user already has direct database access
-            # and the TUI is a local-only tool, so this is not a security risk.
             sql = f"select * from {self.table} where {self._filter_sql} limit {self.max_rows}"
             try:
+                from querido.core.sql_safety import require_read_only_sql
+
+                require_read_only_sql(sql, context="Filter SQL")
                 self._rows = self.connector.execute(sql)
             except Exception as exc:
                 self.notify(f"Filter error: {exc}", severity="error")

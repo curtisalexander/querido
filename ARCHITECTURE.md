@@ -80,7 +80,7 @@ querido/
 │       │   ├── pivot.py            # `qdo pivot` — pivot / aggregate table data
 │       │   ├── preview.py          # `qdo preview` — row preview
 │       │   ├── profile.py          # `qdo profile` — data profiling (quick, classify, column sets)
-│       │   ├── quality.py          # `qdo quality` — data quality summary (nulls, uniqueness, anomalies)
+│       │   ├── quality.py          # Contract checks + descriptive data-shape signals
 │       │   ├── query.py            # `qdo query` — execute ad-hoc SQL (read-only by default)
 │       │   ├── report.py           # `qdo report table/session` — single-file HTML reports
 │       │   ├── session.py          # `qdo session start/list/note/show/replay` — agent-workflow session logs
@@ -90,7 +90,7 @@ querido/
 │       │   ├── tutorial.py         # `qdo tutorial explore/agent` — interactive tutorial launcher
 │       │   ├── values.py           # `qdo values` — distinct values for a column
 │       │   ├── view_def.py         # `qdo view-def` — view SQL definition retrieval
-│       │   └── workflow.py         # `qdo workflow spec/run/lint/list/show/from-session` — declarative workflows
+│       │   └── workflow.py         # Experimental `qdo workflow` command group
 │       ├── connectors/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── base.py             # Connector Protocol, table name validation, error hierarchy

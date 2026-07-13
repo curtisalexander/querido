@@ -157,6 +157,46 @@ def test_sync_tables_only(tmp_path: Path, cache_sqlite: str):
         assert cache.get_cached_columns("test-conn", "users") is None
 
 
+def test_background_cache_warm_owns_resources_and_persists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The cache worker must use thread-local handles and commit table rows."""
+    from threading import Thread
+    from typing import cast
+
+    from querido.cache import MetadataCache
+    from querido.cli._pipeline import _maybe_warm_cache
+    from querido.connectors.base import Connector
+
+    class ConcurrentConnector:
+        supports_concurrent_queries = True
+
+    class WorkerConnector:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            pass
+
+        def get_tables(self) -> list[dict]:
+            return [{"name": "events", "type": "table"}]
+
+    monkeypatch.setenv("QDO_CONFIG", str(tmp_path))
+    monkeypatch.setattr("querido.config.load_connections", lambda: {"warehouse": {}})
+    monkeypatch.setattr(
+        "querido.connectors.factory.create_connector", lambda config: WorkerConnector()
+    )
+
+    outer = cast(Connector, ConcurrentConnector())
+    thread = _maybe_warm_cache("warehouse", {"type": "snowflake"}, outer)
+    assert isinstance(thread, Thread)
+    thread.join(timeout=2)
+    assert not thread.is_alive()
+
+    with MetadataCache() as cache:
+        assert cache.has_table("warehouse", "events") is True
+
+
 def test_has_table_and_get_cached(tmp_path: Path, cache_sqlite: str):
     from querido.cache import MetadataCache
     from querido.connectors.sqlite import SQLiteConnector

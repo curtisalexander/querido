@@ -779,7 +779,7 @@ def print_quality(
     grid.add_column("Distinct", justify="right")
     grid.add_column("Unique %", justify="right")
     grid.add_column("Status")
-    grid.add_column("Issues", style="dim")
+    grid.add_column("Signals / violations", style="dim")
 
     status_styles = {
         "ok": "[green]OK[/green]",
@@ -802,7 +802,7 @@ def print_quality(
             f"{col['distinct_count']:,}",
             f"[{unique_style}]{uniqueness_pct:.1f}%[/{unique_style}]",
             status_styles.get(col["status"], col["status"]),
-            "; ".join(col["issues"]) if col["issues"] else "",
+            "; ".join([*(col.get("signals") or []), *(col.get("issues") or [])]),
         )
 
     console.print(grid)

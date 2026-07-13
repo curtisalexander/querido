@@ -29,7 +29,18 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
             ("context", "querido.cli.context", "Understand one table in a single call."),
             ("metadata", "querido.cli.metadata", "Capture and read shared table knowledge."),
             ("query", "querido.cli.query", "Answer a question with ad-hoc SQL."),
+            ("assert", "querido.cli.assert_cmd", "Assert conditions on query results."),
+            (
+                "quality",
+                "querido.cli.quality",
+                "Check stored constraints and describe data shape.",
+            ),
             ("report", "querido.cli.report", "Generate a shareable HTML hand-off report."),
+            (
+                "bundle",
+                "querido.cli.bundle",
+                "Export, import, inspect, or diff knowledge bundles.",
+            ),
         ],
     ),
     (
@@ -45,12 +56,10 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
                 "querido.cli.freshness",
                 "Detect timestamp columns and summarize recency.",
             ),
-            ("quality", "querido.cli.quality", "Data quality summary for a table."),
             ("diff", "querido.cli.diff", "Compare schemas between two tables."),
             ("joins", "querido.cli.joins", "Discover likely join keys between tables."),
             ("pivot", "querido.cli.pivot", "Pivot / aggregate table data."),
             ("explain", "querido.cli.explain", "Show query execution plan (EXPLAIN)."),
-            ("assert", "querido.cli.assert_cmd", "Assert conditions on query results."),
             ("export", "querido.cli.export", "Export data to a file (csv, tsv, json, jsonl)."),
         ],
     ),
@@ -58,14 +67,9 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
         "Automate And Share",
         [
             (
-                "bundle",
-                "querido.cli.bundle",
-                "Export, import, inspect, or diff knowledge bundles.",
-            ),
-            (
                 "workflow",
                 "querido.cli.workflow",
-                "Run, lint, list, or show declarative workflows.",
+                "Experimental declarative workflow runner.",
             ),
             ("session", "querido.cli.session", "Manage agent-workflow sessions."),
             ("template", "querido.cli.template", "Generate documentation templates for tables."),
@@ -211,7 +215,10 @@ class LazyGroup(TyperGroup):
                     ("context -c my.db -t users", "Understand one table in depth."),
                     ("metadata init -c my.db -t users", "Capture what you've learned."),
                     ("query -c my.db --sql 'select ...'", "Answer a concrete question."),
+                    ("assert -c my.db --sql 'select ...' --expect 0", "Verify an invariant."),
+                    ("quality -c my.db -t users", "Check stored expectations."),
                     ("report table -c my.db -t users", "Hand off a shareable report."),
+                    ("bundle export -c my.db -t users -o users.zip", "Share durable knowledge."),
                 ]
             )
 

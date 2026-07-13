@@ -1,4 +1,4 @@
-"""Data quality checks — per-column null, uniqueness, and issue detection."""
+"""Contract checks plus descriptive null and cardinality signals."""
 
 from __future__ import annotations
 
@@ -177,6 +177,7 @@ def _compute_column_quality(
                     "min": None,
                     "max": None,
                     "status": "ok",
+                    "signals": [],
                     "issues": [],
                 }
                 for c in columns
@@ -195,7 +196,7 @@ def _compute_column_quality(
         null_pct = round(100.0 * null_count / row_count, 2) if row_count else 0.0
         uniqueness_pct = round(100.0 * distinct_count / row_count, 2) if row_count else 0.0
 
-        status, issues = _classify(null_pct, distinct_count, row_count)
+        signals = _describe_signals(null_pct, distinct_count, row_count)
 
         results.append(
             {
@@ -207,41 +208,34 @@ def _compute_column_quality(
                 "uniqueness_pct": uniqueness_pct,
                 "min": min_val,
                 "max": max_val,
-                "status": status,
-                "issues": issues,
+                "status": "ok",
+                "signals": signals,
+                "issues": [],
             }
         )
 
     return results, row_count
 
 
-def _classify(
+def _describe_signals(
     null_pct: float,
     distinct_count: int,
     row_count: int,
-) -> tuple[str, list[str]]:
-    """Classify column quality status and list issues."""
-    issues: list[str] = []
+) -> list[str]:
+    """Describe observed column shape without inventing a quality contract."""
+    signals: list[str] = []
 
     if null_pct > 20:
-        issues.append(f"{null_pct}% null")
+        signals.append(f"{null_pct}% null")
 
     if row_count > 0 and distinct_count == 0:
-        issues.append("0 distinct values (all null)")
+        signals.append("0 distinct values (all null)")
 
     uniqueness = 100.0 * distinct_count / row_count if row_count else 0
     if row_count > 0 and distinct_count > 0 and uniqueness < 1:
-        issues.append(f"{uniqueness:.1f}% unique")
+        signals.append(f"{uniqueness:.1f}% unique")
 
-    # Determine status
-    if null_pct > 90 or (row_count > 0 and distinct_count == 0):
-        status = "fail"
-    elif null_pct > 20 or (row_count > 0 and 0 < uniqueness < 1):
-        status = "warn"
-    else:
-        status = "ok"
-
-    return status, issues
+    return signals
 
 
 def _apply_stored_metadata(
@@ -279,8 +273,7 @@ def _apply_stored_metadata(
                     f"{invalid_count} value(s) not in valid_values ({len(valid_values)} allowed)"
                 )
                 col["issues"] = issues
-                if col.get("status") == "ok":
-                    col["status"] = "warn"
+                col["status"] = "fail"
 
 
 def _count_invalid(

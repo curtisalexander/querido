@@ -27,6 +27,9 @@ def get_explain(
     """
     dialect = connector.dialect
 
+    from querido.core.sql_safety import require_read_only_sql
+
+    require_read_only_sql(sql, context="Explained SQL")
     explain_sql = _explain_analyze_sql(dialect, sql) if analyze else _explain_sql(dialect, sql)
 
     rows = connector.execute(explain_sql)

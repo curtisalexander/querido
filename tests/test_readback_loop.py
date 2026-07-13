@@ -209,4 +209,4 @@ def test_quality_flags_rows_violating_stored_valid_values(
     status = _status_entry(payload["data"]["columns"])
     assert status.get("invalid_count") == 1
     assert any("not in valid_values" in issue for issue in status.get("issues") or [])
-    assert status.get("status") in ("warn", "fail")
+    assert status.get("status") == "fail"

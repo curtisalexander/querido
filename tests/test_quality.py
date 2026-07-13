@@ -35,6 +35,7 @@ def test_quality_format_json(sqlite_path: str):
         assert "null_count" in col
         assert "distinct_count" in col
         assert "status" in col
+        assert "signals" in col
 
 
 def test_quality_format_csv(sqlite_path: str):
@@ -51,7 +52,7 @@ def test_quality_format_markdown(sqlite_path: str):
 
 
 def test_quality_with_nulls(tmp_path: Path):
-    """Columns with high null rates should get warn/fail status."""
+    """High null rates are descriptive unless metadata declares a constraint."""
     db_path = str(tmp_path / "nulls.db")
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE t (id INTEGER, name TEXT, notes TEXT)")
@@ -66,12 +67,15 @@ def test_quality_with_nulls(tmp_path: Path):
     payload = json.loads(result.output)["data"]
     by_name = {c["name"]: c for c in payload["columns"]}
 
-    # notes is 100% null → fail
-    assert by_name["notes"]["status"] == "fail"
+    # notes is 100% null, but no contract says that is invalid.
+    assert by_name["notes"]["status"] == "ok"
     assert by_name["notes"]["null_pct"] == 100.0
+    assert "100.0% null" in by_name["notes"]["signals"]
+    assert by_name["notes"]["issues"] == []
 
-    # name is 20% null → warn
+    # name is 20% null and remains an observed metric.
     assert by_name["name"]["null_pct"] == 20.0
+    assert by_name["name"]["status"] == "ok"
 
     # id is 0% null → ok
     assert by_name["id"]["null_pct"] == 0.0
@@ -161,6 +165,25 @@ def test_quality_uniqueness(sqlite_path: str):
     assert by_name["name"]["uniqueness_pct"] == 100.0
 
 
+def test_quality_low_cardinality_is_a_signal_not_a_violation(tmp_path: Path) -> None:
+    """Healthy enum-like columns must not fail a generic uniqueness heuristic."""
+    db_path = str(tmp_path / "enums.db")
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("create table events (id integer, active integer)")
+        connection.executemany(
+            "insert into events values (?, ?)",
+            [(index, index % 2) for index in range(1000)],
+        )
+
+    result = runner.invoke(app, ["-f", "json", "quality", "-c", db_path, "-t", "events"])
+    assert result.exit_code == 0, result.output
+    columns = {col["name"]: col for col in json.loads(result.output)["data"]["columns"]}
+    active = columns["active"]
+    assert active["status"] == "ok"
+    assert active["issues"] == []
+    assert active["signals"] == ["0.2% unique"]
+
+
 def test_compute_column_quality_clamps_approx_distinct_to_row_count() -> None:
     """Approximate distinct estimates should not surface impossible counts."""
     from querido.connectors.base import Connector
@@ -210,6 +233,7 @@ def test_print_quality_rich_summary_uses_status_counts() -> None:
                     "distinct_count": 1000,
                     "uniqueness_pct": 100.0,
                     "status": "ok",
+                    "signals": [],
                     "issues": [],
                 },
                 {
@@ -219,8 +243,9 @@ def test_print_quality_rich_summary_uses_status_counts() -> None:
                     "null_pct": 20.0,
                     "distinct_count": 4,
                     "uniqueness_pct": 0.4,
-                    "status": "warn",
-                    "issues": ["20.0% null"],
+                    "status": "ok",
+                    "signals": ["20.0% null", "0.4% unique"],
+                    "issues": [],
                 },
                 {
                     "name": "notes",
@@ -230,7 +255,8 @@ def test_print_quality_rich_summary_uses_status_counts() -> None:
                     "distinct_count": 0,
                     "uniqueness_pct": 0.0,
                     "status": "fail",
-                    "issues": ["100.0% null", "0 distinct values (all null)"],
+                    "signals": ["100.0% null", "0 distinct values (all null)"],
+                    "issues": ["3 values not in valid_values"],
                 },
             ],
         },
@@ -238,8 +264,8 @@ def test_print_quality_rich_summary_uses_status_counts() -> None:
     )
     text = console.export_text()
     assert "Quality Summary" in text
-    assert "1 ok" in text.lower()
-    assert "1 warn" in text.lower()
+    assert "2 ok" in text.lower()
+    assert "0 warn" in text.lower()
     assert "1 fail" in text.lower()
     assert "3 duplicate rows" in text.lower()
     assert "Column Detail" in text
@@ -268,6 +294,7 @@ def test_print_quality_rich_sample_note() -> None:
                     "distinct_count": 50000,
                     "uniqueness_pct": 100.0,
                     "status": "ok",
+                    "signals": [],
                     "issues": [],
                 }
             ],

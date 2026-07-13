@@ -290,6 +290,7 @@ _OUTPUT_SHAPES: dict[str, dict] = {
                 "distinct_count": "integer",
                 "uniqueness_pct": "float",
                 "status": "ok|warn|fail",
+                "signals": ["string"],
                 "issues": ["string"],
             }
         ],

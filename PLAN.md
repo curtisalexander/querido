@@ -6,9 +6,12 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 
 ---
 
-## Status (as of 2026-04-23)
+## Status (as of 2026-07-13)
 
-**Tests:** 1325 passing, 25 skipped. Full-suite `pytest`, `ruff check`, `ruff format`, and `ty check` all green. Zero `TODO` / `FIXME` tags. CI green on all three OSes (Ubuntu, macOS, Windows).
+**Tests:** The full local `pytest`, `ruff check`, `ruff format`, and `ty check`
+gate is green. CI remains the authority for cross-platform status; do not copy
+exact collected-test counts into docs because parameterization and optional
+dependency skips make them drift.
 
 **Polish pass complete.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done. The Pre-release polish pass (items 0–6) landed 2026-04-22 — see summary under "Phases shipped" below.
 
@@ -17,6 +20,64 @@ Committed todo list for making querido the agent-first data exploration CLI. Ite
 **Pre-beta audit pass complete (2026-04-23).** A multi-agent audit simulated first-contact across docs, CLI help + error messages, tutorials + SKILL files, and release artifacts; the tiered findings list under "Pre-beta audit pass — active" below is now 26/26 shipped (2 deferred with rationale). Item 7 of the pre-release pass — real dogfood — is still the last remaining pre-release step; the audit was a pre-dogfood sanity sweep, not a replacement.
 
 Positioning and "what sets qdo apart" live in [DIFFERENTIATION.md](./DIFFERENTIATION.md). That's the cold-start doc for humans and agents re-entering the project.
+
+---
+
+## PyPI release hardening — active (2026-07-13)
+
+A full repository review found that the compounding metadata loop is worth
+shipping, but the current `0.2.0` candidate has several end-to-end contract
+defects. This track blocks the first PyPI release. It deliberately fixes
+correctness and release credibility before reopening the command-surface
+question.
+
+### Execute now — no product decision required
+
+- [x] **Make arbitrary SQL read-only by construction.** Replace the current
+  comment-stripping denylist with quote-aware, fail-closed statement
+  classification. Apply one shared policy to `query`, `export --sql`,
+  `assert --sql`, `explain --analyze`, and raw SQL filter paths. Only `qdo
+  query --allow-write` may opt into mutation. Regression coverage must include
+  comment tokens inside string literals, multiple statements, CTEs, and
+  DuckDB operations that write outside a read-only database (`copy`,
+  `export`, `attach`, `install`, `load`).
+- [x] **Align workflow write authorization end to end.** A destructive
+  `qdo query` step with `allow_write: true` must receive the query command's
+  `--allow-write` flag at runtime; without the field, lint and runtime must
+  both refuse it. Add an execution test, not only a lint test.
+- [x] **Repair background cache warming.** Do not pass a SQLite cache handle
+  or a soon-to-close connector across thread/lifetime boundaries. Add a test
+  proving a background warm actually persists table entries.
+- [x] **Restore artifact and archive safety.** Remove the Google Fonts network
+  import from single-file reports. Validate bundle member count, paths, and
+  expanded size before extraction.
+- [x] **Correct SQLite primary-key nullability.** Report rowid-alias `INTEGER
+  PRIMARY KEY` columns as non-null while preserving SQLite's unusual nullable
+  semantics for other primary-key declarations.
+- [x] **Refresh release evidence.** Replace drifting exact test-count claims,
+  document assertion exit code 2, and run a clean wheel install smoke test.
+
+### Product decisions — resolved 2026-07-13
+
+- [x] **Define the supported core.** Promote `catalog`, `context`, `metadata`,
+  `query`, `assert`, `quality`, `report`, and `bundle` as the stable public
+  core in CLI help and product docs. Keep specialist commands available as a
+  secondary surface; any later move or removal still requires deprecation.
+- [x] **Make quality contract-driven.** Stored `valid_values` contradictions
+  are failures. Null rates, cardinality, and uniqueness are descriptive
+  signals without a declared expectation; they must not independently produce
+  warning/failure status.
+- [x] **Label workflows experimental.** Keep workflows in the base wheel: they
+  reuse required YAML support, remain lazily imported, and gain nothing from a
+  synthetic extra dependency. Mark the command and authoring docs experimental
+  until dogfood covers writes, replay, and failure recovery.
+
+### Release gate
+
+Do not publish `0.2.0` to PyPI until the execute-now checklist is complete,
+the full CI-equivalent gate passes, and the proposed core has been used on a
+real project for at least one week. The hallucination benchmark remains the
+evidence required before making comparative compounding claims.
 
 ---
 

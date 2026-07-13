@@ -789,6 +789,7 @@ def format_quality_html(
         "Distinct",
         "Unique %",
         "Status",
+        "Signals",
         "Issues",
     ]
     rows = [
@@ -800,6 +801,7 @@ def format_quality_html(
             f"{col['distinct_count']:,}",
             f"{col['uniqueness_pct']}%",
             col["status"],
+            "; ".join(col.get("signals") or []),
             "; ".join(col["issues"]),
         ]
         for col in columns

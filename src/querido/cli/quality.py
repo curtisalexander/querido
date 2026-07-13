@@ -7,7 +7,7 @@ import typer
 from querido.cli._errors import friendly_errors
 from querido.cli._options import conn_opt, dbtype_opt, table_opt
 
-app = typer.Typer(help="Data quality summary for a table.")
+app = typer.Typer(help="Check stored constraints and describe data shape.")
 
 
 @app.callback(invoke_without_command=True)
@@ -64,10 +64,10 @@ def quality(
         help="With --write-metadata: preview metadata changes without writing the YAML.",
     ),
 ) -> None:
-    """Show data quality summary — nulls, uniqueness, issues per column.
+    """Show data shape signals and violations of stored constraints.
 
-    Each column gets a status: ok, warn, or fail based on null rates
-    and uniqueness thresholds.
+    Null rates and uniqueness are descriptive signals. A column fails only
+    when observed data contradicts a stored constraint such as valid_values.
 
     By default, tables over 1M rows are automatically sampled for speed.
     Distinct counts use approximate algorithms on DuckDB and Snowflake.

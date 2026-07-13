@@ -389,17 +389,23 @@ def _is_write_query(run: str) -> bool:
         tokens = shlex.split(run)
     except ValueError:
         return False
-    if len(tokens) < 2 or tokens[0] != "qdo" or tokens[1] != "query":
+    if not tokens or tokens[0] != "qdo":
         return False
 
-    sql_value = _extract_flag_value(tokens[2:], {"--sql", "-s"})
+    from querido._argv import split_format_flag
+
+    tokens, _ = split_format_flag(tokens[1:])
+    if not tokens or tokens[0] != "query":
+        return False
+
+    sql_value = _extract_flag_value(tokens[1:], {"--sql", "-s"})
     if sql_value is not None:
         return _any_statement_is_destructive(sql_value)
 
-    uses_file = _extract_flag_value(tokens[2:], {"--file", "-F"}) is not None
+    uses_file = _extract_flag_value(tokens[1:], {"--file", "-F"}) is not None
     # No --sql and no --file → either stdin or missing. Either way the
     # runner can't see the SQL; assume destructive.
-    return True if uses_file else _read_sql_from_stdin_conservative(tokens[2:])
+    return True if uses_file else _read_sql_from_stdin_conservative(tokens[1:])
 
 
 def _extract_flag_value(tokens: list[str], names: set[str]) -> str | None:

@@ -96,7 +96,7 @@ Useful turns of phrase to notice — they motivate the shape of the product:
 | Per-dataset YAML, signed      | `dataset:` + `owner:` + columns                            | `.qdo/metadata/<conn>/<table>.yaml` with `data_owner`                                    |
 | Column type + description     | `data_type`, custom fields                                 | `type`, `description`, `pii`                                                              |
 | Allowed values                | `invalid: invalid_values: [...]`                           | `valid_values: [...]`                                                                     |
-| Null/missing thresholds       | `missing:` (numeric / percent)                             | hard-coded classifier in `quality` (warn > 20 %, fail > 90 %)                            |
+| Null/missing thresholds       | `missing:` (numeric / percent)                             | descriptive signals only; no stored threshold contract yet                               |
 | Schema enforcement            | `schema: allow_extra_columns / allow_other_column_order`   | `diff` exists; no metadata-driven enforcement                                             |
 | Row-count check               | `row_count:` with thresholds                               | `assert --sql ... --expect 0` (ad-hoc only)                                              |
 | Group-by / reconciliation     | first-class checks                                         | `assert` ad-hoc only                                                                      |

@@ -1,81 +1,153 @@
-"""Helpers for classifying SQL statements for safety guardrails."""
+"""Helpers for enforcing read-only arbitrary SQL execution."""
 
 from __future__ import annotations
 
 import re
 
-_DESTRUCTIVE_FIRST_KEYWORDS = frozenset(
-    {
-        "insert",
-        "update",
-        "delete",
-        "drop",
-        "create",
-        "alter",
-        "truncate",
-        "merge",
-        "replace",
-        "grant",
-        "revoke",
-        # Statements that mutate state outside the connection's read-only
-        # guard: COPY/EXPORT write files even on a read-only DuckDB handle,
-        # ATTACH can open a second writable database, INSTALL/LOAD pull in
-        # extensions, CALL runs procedures, VACUUM rewrites the file.
-        "copy",
-        "export",
-        "attach",
-        "detach",
-        "install",
-        "load",
-        "call",
-        "vacuum",
-    }
-)
-_SQL_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-_SQL_LINE_COMMENT = re.compile(r"--[^\n]*")
+_READ_ONLY_FIRST_KEYWORDS = frozenset({"select", "values", "show", "describe", "desc"})
+_DOLLAR_QUOTE = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$")
 
 
 def any_statement_is_destructive(sql: str) -> bool:
-    """Return True when any statement in *sql* starts with a write keyword.
+    """Return ``True`` unless every statement is recognizably read-only.
 
-    Statements that open with ``with`` are classified by the first top-level
-    keyword *after* the CTE definitions, so ``with x as (select 1) delete
-    from t`` counts as destructive.
+    This is intentionally an allowlist. Database statement vocabularies grow,
+    and operations such as DuckDB ``copy`` or Snowflake ``put`` can mutate
+    external state even when the database connection itself is read-only.
+    Malformed or unterminated SQL also fails closed.
     """
-    stripped = _SQL_BLOCK_COMMENT.sub("", sql)
-    stripped = _SQL_LINE_COMMENT.sub("", stripped)
-    for statement in stripped.split(";"):
-        first = first_word(statement)
-        if not first:
-            continue
-        keyword = first.lower()
-        if keyword == "with":
-            keyword = _first_keyword_after_ctes(statement)
-            if not keyword:
-                # Could not parse the CTE list — fail closed.
-                return True
-        if keyword in _DESTRUCTIVE_FIRST_KEYWORDS:
-            return True
-    return False
+    statements = _split_statements(sql)
+    if statements is None or not statements:
+        return True
+    return any(not _statement_is_read_only(statement) for statement in statements)
+
+
+def require_read_only_sql(sql: str, *, context: str = "SQL") -> None:
+    """Raise when *sql* is not a sequence of recognized read-only statements."""
+    if any_statement_is_destructive(sql):
+        raise ValueError(
+            f"{context} must be read-only. Use qdo query --allow-write for intentional writes."
+        )
 
 
 def first_word(statement: str) -> str:
     """Return the first non-empty token from *statement*, or ``''``."""
-    for word in statement.split():
-        cleaned = word.strip("()[]{},;")
-        if cleaned:
-            return cleaned
-    return ""
+    tokens = _top_level_tokens(statement)
+    return tokens[0] if tokens else ""
+
+
+def _statement_is_read_only(statement: str) -> bool:
+    keyword = first_word(statement).lower()
+    if keyword in _READ_ONLY_FIRST_KEYWORDS:
+        return True
+    if keyword == "with":
+        return _first_keyword_after_ctes(statement) in _READ_ONLY_FIRST_KEYWORDS
+    if keyword == "explain":
+        return _explain_target_is_read_only(statement)
+    return False
+
+
+def _explain_target_is_read_only(statement: str) -> bool:
+    """Classify the statement nested under EXPLAIN, including ANALYZE."""
+    tokens = _top_level_tokens(statement)
+    if not tokens or tokens[0] != "explain":
+        return False
+    i = 1
+    if tokens[i : i + 2] in (["query", "plan"], ["using", "text"]):
+        i += 2
+    if i < len(tokens) and tokens[i] == "analyze":
+        i += 1
+    if i >= len(tokens):
+        return False
+    keyword = tokens[i]
+    if keyword in _READ_ONLY_FIRST_KEYWORDS:
+        return True
+    if keyword == "with":
+        nested = " ".join(tokens[i:])
+        return _first_keyword_after_ctes(nested) in _READ_ONLY_FIRST_KEYWORDS
+    return False
+
+
+def _split_statements(sql: str) -> list[str] | None:
+    """Split SQL on real statement separators while removing real comments.
+
+    Quote/comment markers inside string literals or quoted identifiers remain
+    ordinary text. ``None`` signals an unterminated quote or block comment.
+    """
+    statements: list[str] = []
+    current: list[str] = []
+    i = 0
+    n = len(sql)
+
+    def consume_quoted(quote: str, *, doubled_escape: bool = True) -> bool:
+        nonlocal i
+        current.append(quote)
+        i += 1
+        while i < n:
+            ch = sql[i]
+            current.append(ch)
+            i += 1
+            if ch != quote:
+                continue
+            if doubled_escape and i < n and sql[i] == quote:
+                current.append(sql[i])
+                i += 1
+                continue
+            return True
+        return False
+
+    while i < n:
+        ch = sql[i]
+        nxt = sql[i + 1] if i + 1 < n else ""
+        if ch in ("'", '"', "`"):
+            if not consume_quoted(ch):
+                return None
+            continue
+        if ch == "[":
+            if not consume_quoted("]", doubled_escape=True):
+                return None
+            continue
+        if ch == "$":
+            match = _DOLLAR_QUOTE.match(sql, i)
+            if match:
+                delimiter = match.group(0)
+                end = sql.find(delimiter, match.end())
+                if end < 0:
+                    return None
+                current.append(sql[i : end + len(delimiter)])
+                i = end + len(delimiter)
+                continue
+        if ch == "-" and nxt == "-":
+            i += 2
+            while i < n and sql[i] not in "\r\n":
+                i += 1
+            current.append(" ")
+            continue
+        if ch == "/" and nxt == "*":
+            end = sql.find("*/", i + 2)
+            if end < 0:
+                return None
+            current.append(" ")
+            i = end + 2
+            continue
+        if ch == ";":
+            statement = "".join(current).strip()
+            if statement:
+                statements.append(statement)
+            current.clear()
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+
+    statement = "".join(current).strip()
+    if statement:
+        statements.append(statement)
+    return statements
 
 
 def _top_level_tokens(statement: str) -> list[str]:
-    """Tokenize *statement* at paren depth zero.
-
-    Returns lowercase word tokens plus ``","`` for top-level commas and
-    ``"()"`` for each top-level parenthesized group (contents skipped).
-    Single-quoted strings and double-quoted identifiers never affect the
-    paren depth.
-    """
+    """Return lowercase word tokens and top-level CTE punctuation."""
     tokens: list[str] = []
     word: list[str] = []
     depth = 0
@@ -89,24 +161,22 @@ def _top_level_tokens(statement: str) -> list[str]:
 
     while i < n:
         ch = statement[i]
-        if ch == "'":
-            # Skip a single-quoted string, honoring '' escapes.
+        if ch in ("'", '"', "`"):
+            quote = ch
+            if depth == 0 and quote != "'":
+                word.append(ch)
             i += 1
             while i < n:
-                if statement[i] == "'":
-                    if i + 1 < n and statement[i + 1] == "'":
+                if depth == 0 and quote != "'":
+                    word.append(statement[i])
+                if statement[i] == quote:
+                    if i + 1 < n and statement[i + 1] == quote:
+                        if depth == 0 and quote != "'":
+                            word.append(statement[i + 1])
                         i += 2
                         continue
                     break
                 i += 1
-        elif ch == '"':
-            # A double-quoted identifier is part of the current word.
-            end = statement.find('"', i + 1)
-            if end == -1:
-                end = n
-            if depth == 0:
-                word.extend(statement[i : end + 1])
-            i = end
         elif ch == "(":
             if depth == 0:
                 flush()
@@ -128,11 +198,7 @@ def _top_level_tokens(statement: str) -> list[str]:
 
 
 def _first_keyword_after_ctes(statement: str) -> str:
-    """Return the first top-level keyword after a ``with`` clause's CTEs.
-
-    Returns ``''`` when the CTE list cannot be parsed; callers should treat
-    that as destructive (fail closed).
-    """
+    """Return the first top-level keyword after a ``with`` clause's CTEs."""
     tokens = _top_level_tokens(statement)
     if not tokens or tokens[0] != "with":
         return ""
@@ -142,20 +208,19 @@ def _first_keyword_after_ctes(statement: str) -> str:
     while i < len(tokens):
         if tokens[i] in (",", "()", "as"):
             return ""
-        i += 1  # CTE name
+        i += 1
         if i < len(tokens) and tokens[i] == "()":
-            i += 1  # optional column list
+            i += 1
         if i >= len(tokens) or tokens[i] != "as":
             return ""
         i += 1
-        # Optional [not] materialized hint (DuckDB / Postgres).
         if i < len(tokens) and tokens[i] == "not":
             i += 1
         if i < len(tokens) and tokens[i] == "materialized":
             i += 1
         if i >= len(tokens) or tokens[i] != "()":
             return ""
-        i += 1  # CTE body
+        i += 1
         if i < len(tokens) and tokens[i] == ",":
             i += 1
             continue

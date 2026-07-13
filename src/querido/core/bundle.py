@@ -32,7 +32,7 @@ import zipfile
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, NotRequired, TypedDict, TypeGuard
 
 from querido.core.metadata import _read_yaml, _write_yaml, read_table_doc, write_table_doc
@@ -65,6 +65,8 @@ class Provenance(TypedDict):
 
 
 BUNDLE_FORMAT_VERSION = "1"
+_MAX_ARCHIVE_MEMBERS = 10_000
+_MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
 
 
 def _check_format_version(manifest: dict) -> None:
@@ -223,6 +225,34 @@ def _written_at_of(value: Any, fallback_mtime: float) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _validate_archive(infos: list[zipfile.ZipInfo]) -> None:
+    """Reject archives that can escape or exhaust the extraction directory."""
+    if len(infos) > _MAX_ARCHIVE_MEMBERS:
+        raise ValueError(
+            f"Bundle archive has {len(infos)} members; maximum is {_MAX_ARCHIVE_MEMBERS}."
+        )
+
+    expanded_bytes = 0
+    for info in infos:
+        normalized = info.filename.replace("\\", "/")
+        member = PurePosixPath(normalized)
+        if (
+            not normalized
+            or normalized.startswith("/")
+            or re.match(r"^[A-Za-z]:", normalized)
+            or ".." in member.parts
+        ):
+            raise ValueError(f"Bundle archive contains an unsafe path: {info.filename!r}.")
+
+        file_type = (info.external_attr >> 16) & 0o170000
+        if file_type == 0o120000:
+            raise ValueError(f"Bundle archive contains a symbolic link: {info.filename!r}.")
+
+        expanded_bytes += info.file_size
+        if expanded_bytes > _MAX_ARCHIVE_BYTES:
+            raise ValueError(f"Bundle archive expands beyond the {_MAX_ARCHIVE_BYTES}-byte limit.")
+
+
 @contextmanager
 def _open_bundle(path: str | Path) -> Iterator[Path]:
     """Yield a directory Path whether *path* is a dir or a ``.zip``/``.qdobundle`` zip."""
@@ -237,6 +267,7 @@ def _open_bundle(path: str | Path) -> Iterator[Path]:
     tmp = Path(tempfile.mkdtemp(prefix="qdobundle-read-"))
     try:
         with zipfile.ZipFile(p) as zf:
+            _validate_archive(zf.infolist())
             zf.extractall(tmp)
         # Zip may wrap its contents in a single top-level directory
         entries = [e for e in tmp.iterdir() if not e.name.startswith(".")]

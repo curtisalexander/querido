@@ -996,6 +996,7 @@ def format_quality(
                 "min": col["min"],
                 "max": col["max"],
                 "status": col["status"],
+                "signals": "; ".join(col.get("signals") or []),
                 "issues": "; ".join(col["issues"]),
             }
             for col in columns
@@ -1018,6 +1019,7 @@ def format_quality(
         "Distinct",
         "Unique %",
         "Status",
+        "Signals",
         "Issues",
     ]
     rows = [
@@ -1029,6 +1031,7 @@ def format_quality(
             f"{col['distinct_count']:,}",
             f"{col['uniqueness_pct']}%",
             col["status"],
+            "; ".join(col.get("signals") or []),
             "; ".join(col["issues"]),
         ]
         for col in columns

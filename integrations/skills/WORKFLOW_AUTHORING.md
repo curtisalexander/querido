@@ -6,6 +6,8 @@ compatibility: Requires qdo >= 0.1.0 (includes `qdo workflow run/lint/list/show/
 
 # Authoring qdo workflows
 
+> **Experimental:** workflow schema and behavior may change before qdo 1.0.
+
 A qdo workflow is a **YAML file** that composes `qdo` subcommands into a parameterized, linearly-executed investigation. Workflows are files, not code — only `qdo` invocations, typed inputs, captured step outputs, and simple conditionals are permitted. No shell escape, no embedded Python.
 
 Canonical invocation: **`qdo workflow run <name> [key=value...]`**. Do not expect top-level `qdo <workflow-name>` to work — it does not.

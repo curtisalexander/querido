@@ -106,10 +106,13 @@ class MetadataSidebar(Static):
             status_style = {"ok": "green", "warn": "yellow", "fail": "red"}.get(status, "cyan")
             lines.append(f"quality: [{status_style}]{escape(status)}[/{status_style}]")
             issues = quality.get("issues") or []
+            signals = quality.get("signals") or []
             if issues:
                 lines.extend(f"- {escape(str(issue))}" for issue in issues[:4])
-            else:
-                lines.append("[dim]no active quality flags[/dim]")
+            if signals:
+                lines.extend(f"- [dim]{escape(str(signal))}[/dim]" for signal in signals[:4])
+            if not issues and not signals:
+                lines.append("[dim]no quality signals or violations[/dim]")
 
         self._last_text = "\n".join(lines)
         self.update(self._last_text)

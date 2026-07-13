@@ -129,7 +129,7 @@ def get_lessons(db_path: str, *, report_path: str | None = None) -> list[Lesson]
             number=6,
             title="quality — the loop pays off",
             explanation=(
-                "`quality` checks nulls, uniqueness, and — crucially — any\n"
+                "`quality` describes nulls and uniqueness and — crucially — checks any\n"
                 "  row whose value isn't in the stored `valid_values`.\n"
                 "\n"
                 "  Because we captured the region vocabulary in lesson 5,\n"
@@ -137,8 +137,8 @@ def get_lessons(db_path: str, *, report_path: str | None = None) -> list[Lesson]
             ),
             commands=[f"quality -c {db} -t parks --exact"],
             notice=(
-                "Each column gets a status (ok / warn / fail) and a list\n"
-                "  of issues. Because valid_values are stored for region,\n"
+                "Each column gets descriptive signals plus contract issues.\n"
+                "  Because valid_values are stored for region,\n"
                 "  quality also reports invalid_count — zero bad rows here.\n"
                 "  That's the compounding loop in action.\n"
                 "\n"

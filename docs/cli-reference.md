@@ -41,7 +41,7 @@ qdo is optimized around this path:
 
 `catalog -> context -> metadata -> query/assert -> report/bundle`
 
-Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values`, `dist`, `joins`, and `diff` when that default path leaves a specific gap.
+Use drill-down commands like `inspect`, `preview`, `profile`, `values`, `dist`, `joins`, and `diff` when that default path leaves a specific gap.
 
 ## Commands
 
@@ -55,7 +55,8 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo metadata show -c CONN -t TABLE` | Read stored metadata back into the workflow |
 | `qdo query -c CONN --sql "SQL" [--limit N]` | Execute ad-hoc SQL query |
 | `qdo query -c CONN --from SESSION:STEP` | Reuse SQL from a recorded query step |
-| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
+| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=assertion failure, 2=SQL error) |
+| `qdo quality -c CONN -t TABLE` | Check stored constraints and describe null/cardinality signals |
 | `qdo report table -c CONN -t TABLE -o report.html` | Generate a shareable HTML hand-off report |
 | `qdo bundle export -c CONN -t TABLE -o bundle.zip` | Export portable team knowledge |
 
@@ -72,7 +73,6 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo dist -c CONN -t TABLE -C COLUMN` | Column value distribution / histogram |
 | `qdo values -c CONN -t TABLE -C COL` | Distinct values for a column |
 | `qdo freshness -c CONN -t TABLE [--stale-after DAYS]` | Temporal column detection + recency summary |
-| `qdo quality -c CONN -t TABLE` | Data quality summary (nulls, uniqueness, issues) |
 | `qdo diff -c CONN -t A --target B` | Compare schemas between two tables |
 | `qdo joins -c CONN -t TABLE [--target T]` | Discover join keys between tables |
 | `qdo catalog functions -c CONN` | List SQL functions exposed by the backend (DuckDB/Snowflake) |
@@ -81,7 +81,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 
 | Command | Purpose |
 |---------|---------|
-| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=fail) |
+| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=assertion failure, 2=SQL error) |
 | `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
 | `qdo export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |
@@ -100,6 +100,8 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `quality`, `values
 | `qdo view-def -c CONN --view VIEW` | View SQL definition |
 
 ### Automate And Share
+
+`qdo workflow` is experimental. Its schema and behavior may change before 1.0.
 
 | Command | Purpose |
 |---------|---------|

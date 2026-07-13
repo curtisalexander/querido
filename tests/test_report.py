@@ -32,6 +32,8 @@ def test_report_table_writes_html(sqlite_path: str, tmp_path: Path):
     assert ">quality<" in html
     assert ">related tables<" in html
     assert "Generated with qdo" in html
+    assert "https://" not in html
+    assert "@import" not in html
     # Column details
     assert 'class="mono">id<' in html
     assert 'class="mono">name<' in html

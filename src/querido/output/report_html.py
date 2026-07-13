@@ -6,9 +6,7 @@ aesthetic at ``~/code/cheatsheets`` (Inter + JetBrains Mono). Layout is
 a single-column document — this is a hand-off artifact, not a dense
 reference card.
 
-No CDN fonts: Google Fonts is `@import`-ed via CSS with a local-family
-fallback so the page still reads correctly offline. No JS required.
-Inline SVG is used for null-rate bars.
+No CDN fonts or JavaScript are used. Inline SVG renders null-rate bars.
 """
 
 from __future__ import annotations
@@ -209,10 +207,18 @@ def _section_quality(report: dict) -> str:
     oks = [c for c in cols if c.get("status") == "ok"]
 
     if not fails and not warns:
-        inner = (
-            f'<p class="ok">All {len(oks)} columns passed. No null-rate or '
-            "uniqueness callouts.</p>"
+        inner = f'<p class="ok">All {len(oks)} columns passed declared constraints.</p>'
+        signal_rows = "".join(
+            f'<li><span class="mono colname">{html.escape(str(c.get("name", "")))}</span>'
+            f'<span class="issues">{html.escape(", ".join(c.get("signals") or []))}</span></li>'
+            for c in cols
+            if c.get("signals")
         )
+        if signal_rows:
+            inner += (
+                '<div class="callout warn"><h3>descriptive signals</h3>'
+                f"<ul>{signal_rows}</ul></div>"
+            )
         if quality.get("sampling_note"):
             inner += f'<p class="sampling">{html.escape(quality["sampling_note"])}</p>'
         return _panel("quality", "theme-emerald", inner)
@@ -334,8 +340,6 @@ def _null_bar_cell(null_pct: Any) -> str:
 
 
 _CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {

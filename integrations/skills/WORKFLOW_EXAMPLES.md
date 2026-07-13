@@ -5,6 +5,8 @@ description: Annotated reference workflows bundled with qdo. Load this when you 
 
 # Bundled qdo workflow examples
 
+> **Experimental:** workflow schema and behavior may change before qdo 1.0.
+
 These workflows ship with qdo and are discoverable via `qdo workflow list` / `qdo workflow spec --examples`. They are intentionally small (<50 lines each) and each teaches a distinct pattern. Use them as starting points when authoring your own.
 
 Every workflow carries inline `# why:` comments explaining *why* each step is shaped the way it is — those comments are aimed at you (the agent authoring the next workflow).

@@ -82,19 +82,17 @@ def table_command(
             raise
 
 
-def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> None:
+def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> object | None:
     """Kick off a background cache warm if the cache is empty or stale.
 
     Only warms for named connections (not file paths) to avoid polluting
     the cache with transient databases.  Only caches the table list (not
     columns) to keep the operation fast.
 
-    The warm runs in a daemon thread so it never blocks interpreter exit —
-    we deliberately don't join it. The ``finally: cache.close()`` inside
-    ``_warm`` ensures the SQLite cache DB handle is released; a
-    ``KeyboardInterrupt`` during the warm will surface on the main thread's
-    next operation. If the cache grows persistent state in the future, add
-    an ``atexit`` hook to flush pending writes.
+    The worker owns both its connector and cache handle. Neither object may
+    cross a thread boundary or outlive the context manager that created it.
+    The returned daemon thread is intentionally ignored by production callers;
+    it exists so tests can wait for persistence without timing assumptions.
     """
     import threading
 
@@ -103,13 +101,13 @@ def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> No
     # Local databases (SQLite/DuckDB) are fast enough that caching is
     # unnecessary, and SQLite isn't safe to query from a background thread.
     if not getattr(connector, "supports_concurrent_queries", False):
-        return
+        return None
 
     from querido.config import load_connections
 
     connections = load_connections()
     if connection not in connections:
-        return
+        return None
 
     import logging
 
@@ -118,23 +116,25 @@ def _maybe_warm_cache(connection: str, config: dict, connector: Connector) -> No
     try:
         from querido.cache import MetadataCache
 
-        cache = MetadataCache()
-        if cache.is_fresh(connection):
-            cache.close()
-            return
+        with MetadataCache() as cache:
+            if cache.is_fresh(connection):
+                return None
 
         def _warm() -> None:
             try:
-                cache.sync_tables_only(connection, connector)
+                from querido.connectors.factory import create_connector
+
+                with create_connector(dict(config)) as warm_connector, MetadataCache() as cache:
+                    cache.sync_tables_only(connection, warm_connector)
             except Exception:
                 log.debug("Background cache warm failed", exc_info=True)
-            finally:
-                cache.close()
 
         t = threading.Thread(target=_warm, daemon=True)
         t.start()
+        return t
     except Exception:
         log.debug("Failed to start cache warm", exc_info=True)
+        return None
 
 
 def _maybe_reraise_as_table_not_found(exc: Exception, connector: Connector, table: str) -> None:

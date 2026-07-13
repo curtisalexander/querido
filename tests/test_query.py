@@ -471,6 +471,31 @@ def test_out_of_band_write_statements_are_destructive(sql: str):
     assert any_statement_is_destructive(sql) is True
 
 
+@pytest.mark.parametrize(
+    ("sql", "expected"),
+    [
+        ("select '--'; delete from t", True),
+        ("select '/*'; delete from t; select '*/'", True),
+        ("select ';' as separator; select 2", False),
+        ("select '-- not a comment' as marker", False),
+        ("select '/* not a comment */' as marker", False),
+        ("explain analyze select * from t", False),
+        ("explain analyze delete from t", True),
+        ("put 'file:///tmp/data.csv' @stage", True),
+        ("execute immediate 'select 1'", True),
+        ("pragma journal_mode = wal", True),
+        ("select 'unterminated", True),
+        ("/* unterminated", True),
+        ("", True),
+    ],
+)
+def test_sql_safety_is_quote_aware_and_fails_closed(sql: str, expected: bool) -> None:
+    """Quote-like text must not hide later statements; unknown SQL fails closed."""
+    from querido.core.sql_safety import any_statement_is_destructive
+
+    assert any_statement_is_destructive(sql) is expected
+
+
 def test_run_query_refuses_write_without_allow_write(sqlite_path: str):
     # Failure mode: run_query is an unguarded footgun — it executes
     # destructive SQL even when allow_write=False if a caller bypasses the

@@ -284,6 +284,8 @@ fields before treating statistics as exact.
 
 ## Workflows — author, run, share
 
+**Experimental:** workflow schema and behavior may change before qdo 1.0.
+
 A **workflow** is a YAML file that composes `qdo` commands into a parameterized, repeatable investigation. Use workflows when the same 3+ step pattern repeats against different tables or connections.
 
 ```bash

@@ -46,6 +46,9 @@ def run_assertion(
             f"Invalid operator: {operator!r}. Must be one of: {', '.join(sorted(OPERATORS))}"
         )
 
+    from querido.core.sql_safety import require_read_only_sql
+
+    require_read_only_sql(sql, context="Assertion SQL")
     rows = connector.execute(sql)
     if not rows:
         raise ValueError("Assertion query returned no rows.")

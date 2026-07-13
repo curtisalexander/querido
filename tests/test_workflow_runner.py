@@ -313,6 +313,60 @@ def test_lint_accepts_write_query_with_allow_write() -> None:
     assert "WRITE_WITHOUT_ALLOW" not in codes
 
 
+def test_lint_checks_write_query_with_root_format_flag() -> None:
+    """A root -f flag must not hide a destructive query from lint."""
+    doc = _valid_doc()
+    doc["steps"][0] = {
+        "id": "wipe",
+        "run": "qdo -f json query -c ${conn} --sql 'DELETE FROM users'",
+    }
+    codes = [i.code for i in lint(doc).issues]
+    assert "WRITE_WITHOUT_ALLOW" in codes
+
+
+def test_run_workflow_executes_explicitly_authorized_write(sqlite_path: str) -> None:
+    """allow_write must reach qdo query and permit the intended mutation."""
+    doc = {
+        "name": "authorized-write",
+        "description": "Exercise workflow write authorization.",
+        "version": 1,
+        "steps": [
+            {
+                "id": "wipe",
+                "run": f"qdo -f json query -c {sqlite_path} --sql 'DELETE FROM users'",
+                "allow_write": True,
+            }
+        ],
+    }
+
+    result = run_workflow(doc, {})
+
+    assert result.steps[0].exit_code == 0
+    with sqlite3.connect(sqlite_path) as connection:
+        assert connection.execute("select count(*) from users").fetchone()[0] == 0
+
+
+def test_run_workflow_refuses_unauthorized_write(sqlite_path: str) -> None:
+    """Runtime must still guard callers that execute an unlinted workflow."""
+    doc = {
+        "name": "unauthorized-write",
+        "description": "Exercise workflow write refusal.",
+        "version": 1,
+        "steps": [
+            {
+                "id": "wipe",
+                "run": f"qdo query -c {sqlite_path} --sql 'DELETE FROM users'",
+            }
+        ],
+    }
+
+    with pytest.raises(StepFailed):
+        run_workflow(doc, {})
+
+    with sqlite3.connect(sqlite_path) as connection:
+        assert connection.execute("select count(*) from users").fetchone()[0] == 2
+
+
 # R.16 — write-query lint scopes to --sql statement heads, not the whole line.
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -108,6 +109,45 @@ def test_export_zip(sqlite_path: str, tmp_path: Path, monkeypatch):
 
     report = inspect_bundle(out)
     assert report["metadata_count"] == 1
+
+
+def test_bundle_zip_rejects_parent_path(tmp_path: Path) -> None:
+    """Archive extraction must not write outside its temporary directory."""
+    archive = tmp_path / "unsafe.zip"
+    escaped = tmp_path / "escaped.txt"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("../../escaped.txt", "not allowed")
+
+    with pytest.raises(ValueError):
+        inspect_bundle(archive)
+    assert not escaped.exists()
+
+
+def test_bundle_zip_rejects_excessive_expanded_size(tmp_path: Path, monkeypatch) -> None:
+    """Declared uncompressed sizes must be bounded before extraction."""
+    from querido.core import bundle
+
+    archive = tmp_path / "oversized.zip"
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("manifest.yaml", "format_version: 1\n")
+
+    monkeypatch.setattr(bundle, "_MAX_ARCHIVE_BYTES", 1)
+    with pytest.raises(ValueError):
+        inspect_bundle(archive)
+
+
+def test_bundle_zip_rejects_excessive_member_count(tmp_path: Path, monkeypatch) -> None:
+    """Member counts are bounded independently of expanded byte size."""
+    from querido.core import bundle
+
+    archive = tmp_path / "too-many.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("manifest.yaml", "format_version: 1\n")
+        zf.writestr("metadata/users.yaml", "table: users\n")
+
+    monkeypatch.setattr(bundle, "_MAX_ARCHIVE_MEMBERS", 1)
+    with pytest.raises(ValueError):
+        inspect_bundle(archive)
 
 
 def _setup_named_conn(tmp_path: Path, monkeypatch, name: str, db_path: str) -> None:

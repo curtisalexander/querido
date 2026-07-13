@@ -101,11 +101,17 @@ class SQLiteConnector:
         # _validate_sqlite_table above ensures the name is a safe, unqualified
         # identifier (no dots), so pragma table_info(name) parses correctly.
         rows = self.execute(f"pragma table_info({table})")
+        primary_keys = [row for row in rows if row["pk"]]
+        rowid_alias = (
+            len(primary_keys) == 1 and str(primary_keys[0]["type"]).strip().upper() == "INTEGER"
+        )
+        table_list = self.execute("select wr from pragma_table_list where name = ?", (table,))
+        without_rowid = bool(table_list and table_list[0]["wr"])
         result = [
             {
                 "name": r["name"],
                 "type": r["type"],
-                "nullable": not r["notnull"],
+                "nullable": not (r["notnull"] or (r["pk"] and (rowid_alias or without_rowid))),
                 "default": r["dflt_value"],
                 "primary_key": bool(r["pk"]),
                 "comment": None,
