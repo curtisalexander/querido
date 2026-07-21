@@ -29,14 +29,9 @@ def overview() -> None:
         qdo overview | pbcopy
         qdo -f json overview   # structured command metadata for agents
     """
-    from querido.cli._context import get_output_format
+    from querido.cli._pipeline import emit_json
 
-    fmt = get_output_format()
-
-    if fmt == "json":
-        from querido.output.envelope import emit_envelope
-
-        emit_envelope(command="overview", data=_build_payload())
+    if emit_json("overview", _build_payload()):
         return
 
     docs = Path(__file__).resolve().parents[3] / "docs" / "cli-reference.md"

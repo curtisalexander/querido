@@ -92,7 +92,7 @@ def _get_target(name: str) -> AgentTarget:
 @friendly_errors
 def list_targets() -> None:
     """List installable agent integration targets."""
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.cli._pipeline import emit_json
 
     rows: list[dict[str, object]] = [
         {
@@ -106,8 +106,7 @@ def list_targets() -> None:
         for name, target in sorted(_TARGETS.items())
     ]
 
-    if is_structured_format():
-        emit_envelope(command="agent list", data={"targets": rows})
+    if emit_json("agent list", {"targets": rows}):
         return
 
     from rich.console import Console

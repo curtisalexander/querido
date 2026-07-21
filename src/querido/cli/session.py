@@ -70,8 +70,8 @@ def start(
 @friendly_errors
 def list_cmd() -> None:
     """List session names under ``.qdo/sessions/`` with step counts."""
+    from querido.cli._pipeline import emit_json
     from querido.core.session import iter_steps, list_sessions
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     names = list_sessions()
     rows: list[dict[str, str | int | None]] = []
@@ -81,8 +81,7 @@ def list_cmd() -> None:
         last = steps[-1].get("timestamp", "") if steps else ""
         rows.append({"name": n, "step_count": count, "last_timestamp": last or None})
 
-    if is_structured_format():
-        emit_envelope(command="session list", data={"sessions": rows})
+    if emit_json("session list", {"sessions": rows}):
         return
 
     if not names:
@@ -181,8 +180,8 @@ def show(
     limit: int = typer.Option(0, "--limit", "-n", help="Show only the last N steps (0 = all)."),
 ) -> None:
     """Print a readable summary of the steps in a session."""
+    from querido.cli._pipeline import emit_json
     from querido.core.session import iter_steps, session_dir
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     dir_ = session_dir(name)
     if not dir_.is_dir():
@@ -190,8 +189,7 @@ def show(
 
     steps = list(iter_steps(name))
     if not steps:
-        if is_structured_format():
-            emit_envelope(command="session show", data={"name": name, "steps": []})
+        if emit_json("session show", {"name": name, "steps": []}):
             return
         typer.echo(f"Session {name!r} has no steps yet.")
         return
@@ -199,12 +197,11 @@ def show(
     if limit > 0:
         steps = steps[-limit:]
 
-    if is_structured_format():
-        emit_envelope(
-            command="session show",
-            data={"name": name, "steps": steps},
-            extra_meta={"session": name},
-        )
+    if emit_json(
+        "session show",
+        {"name": name, "steps": steps},
+        extra_meta={"session": name},
+    ):
         return
 
     typer.echo(f"Session: {name}   ({len(steps)} step{'s' if len(steps) != 1 else ''})")
@@ -246,8 +243,9 @@ def replay(
     ),
 ) -> None:
     """Re-execute a prior investigation from the session log."""
+    from querido.cli._pipeline import emit_json
     from querido.core.session import replay_session
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.output.envelope import is_structured_format
 
     structured = is_structured_format()
 
@@ -299,13 +297,12 @@ def replay(
             }
         )
 
-    if structured:
-        emit_envelope(
-            command="session replay",
-            data=data,
-            next_steps=next_steps,
-            extra_meta={"session": result.source_session, "replay_session": result.replay_session},
-        )
+    if emit_json(
+        "session replay",
+        data,
+        next_steps=next_steps,
+        extra_meta={"session": result.source_session, "replay_session": result.replay_session},
+    ):
         return
 
     status = "completed" if failed is None else f"stopped at step {failed.source_index or '?'}"

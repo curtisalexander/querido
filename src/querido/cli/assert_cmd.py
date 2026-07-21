@@ -65,21 +65,16 @@ def assert_cmd(
             )
 
     if not quiet:
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.cli._pipeline import emit
+        from querido.core.next_steps import for_assert
 
-        if is_structured_format():
-            from querido.core.next_steps import for_assert
-
-            emit_envelope(
-                command="assert",
-                data=result,
-                next_steps=for_assert(result, connection=connection),
-                connection=connection,
-            )
-        else:
-            from querido.cli._pipeline import dispatch_output
-
-            dispatch_output("assert_check", result)
+        emit(
+            "assert",
+            result,
+            dispatch_as="assert_check",
+            next_steps=lambda: for_assert(result, connection=connection),
+            connection=connection,
+        )
 
     if not result.get("passed", False):
         raise typer.Exit(code=1)

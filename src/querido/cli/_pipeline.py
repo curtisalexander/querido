@@ -306,6 +306,94 @@ def _lookup_formatter(module_path: str, command_name: str) -> Any:
         ) from None
 
 
+_UNSET: Any = object()
+
+
+def emit_json(
+    command: str,
+    data: Any,
+    *,
+    next_steps: Any = None,
+    connection: str | None = None,
+    table: str | None = None,
+    extra_meta: dict | None = None,
+) -> bool:
+    """Emit the agent JSON envelope for *command*, or do nothing — the one place
+    the json short-circuit lives.
+
+    Returns True (and prints the envelope) when ``--format json`` is active;
+    returns False without printing in every other format. This is the primitive
+    behind :func:`emit`; commands with a custom human-rendering path — ``profile``
+    (which fans out to several renderers) and the multi-action groups — call it
+    directly::
+
+        if emit_json("profile", data, next_steps=..., connection=c, table=t):
+            return
+        # ... custom rich rendering ...
+
+    *next_steps* may be a ready list or a zero-arg callable (only invoked on the
+    json path, so building suggestions costs nothing in other formats).
+    """
+    from querido.output.envelope import emit_envelope, is_structured_format
+
+    if not is_structured_format():
+        return False
+    steps = next_steps() if callable(next_steps) else (next_steps or [])
+    emit_envelope(
+        command=command,
+        data=data,
+        next_steps=steps,
+        connection=connection,
+        table=table,
+        extra_meta=extra_meta,
+    )
+    return True
+
+
+def emit(
+    command: str,
+    /,
+    *dispatch_args: Any,
+    dispatch_as: str | None = None,
+    data: Any = _UNSET,
+    next_steps: Any = None,
+    connection: str | None = None,
+    table: str | None = None,
+    extra_meta: dict | None = None,
+    **dispatch_kwargs: Any,
+) -> bool:
+    """Terminal output for a scan command's result — the single json/else fork.
+
+    Replaces the copy-pasted ``if is_structured_format(): emit_envelope(...);
+    return; dispatch_output(...)`` block that used to live in every command.
+
+    - **json**: emit the agent envelope (via :func:`emit_json`) under *command*
+      (the argv-shaped name, per the R.10 convention). The payload is *data* when
+      given, otherwise the first positional dispatch arg (the common case where
+      the envelope carries exactly what the rich renderer prints).
+    - **anything else**: forward to :func:`dispatch_output` under *dispatch_as*
+      (defaults to *command*). A few commands render under a different registry
+      key than their argv name — e.g. ``view-def`` renders via ``lineage`` — so
+      *dispatch_as* keeps the envelope name and the renderer key independent.
+
+    Returns True when the json envelope was emitted, so callers can early-return
+    and skip human-only trailing output (stderr capture hints, write notes).
+    """
+    payload = dispatch_args[0] if data is _UNSET else data
+    if emit_json(
+        command,
+        payload,
+        next_steps=next_steps,
+        connection=connection,
+        table=table,
+        extra_meta=extra_meta,
+    ):
+        return True
+
+    dispatch_output(dispatch_as or command, *dispatch_args, **dispatch_kwargs)
+    return False
+
+
 def dispatch_output(command_name: str, /, *args: Any, **kwargs: Any) -> None:
     """Three-way output dispatch based on the ``--format`` CLI flag.
 

@@ -67,8 +67,8 @@ def export(
     ),
 ) -> None:
     """Package metadata (and optional column sets) for TABLES into a bundle."""
+    from querido.cli._pipeline import emit_json
     from querido.core.bundle import export_bundle
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     table_list = [t.strip() for t in tables.split(",") if t.strip()]
     if not table_list:
@@ -84,18 +84,17 @@ def export(
         as_zip=as_zip,
     )
 
-    if is_structured_format():
-        emit_envelope(
-            command="bundle export",
-            data={"output": output, "manifest": manifest},
-            next_steps=[
-                {
-                    "cmd": f"qdo bundle inspect {output}",
-                    "why": "Verify the bundle's contents.",
-                }
-            ],
-            connection=connection,
-        )
+    if emit_json(
+        "bundle export",
+        {"output": output, "manifest": manifest},
+        next_steps=[
+            {
+                "cmd": f"qdo bundle inspect {output}",
+                "why": "Verify the bundle's contents.",
+            }
+        ],
+        connection=connection,
+    ):
         return
 
     print(f"Wrote {output}", file=sys.stderr)
@@ -132,8 +131,8 @@ def import_cmd(
     ),
 ) -> None:
     """Import a bundle into --into. Dry-run by default; pass --apply to write."""
+    from querido.cli._pipeline import emit_json
     from querido.core.bundle import import_bundle
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     mapping = _parse_maps(maps or [])
     report = import_bundle(
@@ -144,12 +143,7 @@ def import_cmd(
         apply=apply_flag,
     )
 
-    if is_structured_format():
-        emit_envelope(
-            command="bundle import",
-            data=report,
-            connection=target,
-        )
+    if emit_json("bundle import", report, connection=target):
         return
 
     _print_import_report(report, apply=apply_flag)
@@ -204,13 +198,12 @@ def inspect(
     bundle_path: str = typer.Argument(..., help="Bundle path (directory or .zip)."),
 ) -> None:
     """Summarize a bundle's contents."""
+    from querido.cli._pipeline import emit_json
     from querido.core.bundle import inspect_bundle
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     report = inspect_bundle(bundle_path)
 
-    if is_structured_format():
-        emit_envelope(command="bundle inspect", data=report)
+    if emit_json("bundle inspect", report):
         return
 
     m = report.get("manifest") or {}
@@ -243,13 +236,12 @@ def diff(
     b: str = typer.Argument(..., help="Second bundle (dir or .zip)."),
 ) -> None:
     """Compare two bundles and report differences."""
+    from querido.cli._pipeline import emit_json
     from querido.core.bundle import diff_bundles
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     report = diff_bundles(a, b)
 
-    if is_structured_format():
-        emit_envelope(command="bundle diff", data=report)
+    if emit_json("bundle diff", report):
         return
 
     print(f"A: {a}")

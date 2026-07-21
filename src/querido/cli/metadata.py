@@ -33,9 +33,8 @@ def init(
     Creates .qdo/metadata/<connection>/<table>.yaml with auto-populated
     fields and placeholder human fields ready to fill in.
     """
-    from querido.cli._pipeline import table_command
+    from querido.cli._pipeline import emit_json, table_command
     from querido.core.metadata import init_metadata, metadata_path
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     with (
         table_command(table=table, connection=connection, db_type=db_type) as ctx,
@@ -51,36 +50,35 @@ def init(
 
     path = metadata_path(connection, ctx.table)
 
-    if is_structured_format():
-        from querido.output.envelope import cmd
+    from querido._shell import cmd
 
-        emit_envelope(
-            command="metadata init",
-            data={"path": str(path), "table": ctx.table, "created": True},
-            next_steps=[
-                {
-                    "cmd": cmd(
-                        [
-                            "qdo",
-                            "metadata",
-                            "suggest",
-                            "-c",
-                            connection,
-                            "-t",
-                            ctx.table,
-                            "--apply",
-                        ]
-                    ),
-                    "why": "Auto-fill deterministic fields (valid_values, flags) from scans.",
-                },
-                {
-                    "cmd": cmd(["qdo", "metadata", "edit", "-c", connection, "-t", ctx.table]),
-                    "why": "Fill in descriptions, owner, and notes.",
-                },
-            ],
-            connection=connection,
-            table=ctx.table,
-        )
+    if emit_json(
+        "metadata init",
+        {"path": str(path), "table": ctx.table, "created": True},
+        next_steps=[
+            {
+                "cmd": cmd(
+                    [
+                        "qdo",
+                        "metadata",
+                        "suggest",
+                        "-c",
+                        connection,
+                        "-t",
+                        ctx.table,
+                        "--apply",
+                    ]
+                ),
+                "why": "Auto-fill deterministic fields (valid_values, flags) from scans.",
+            },
+            {
+                "cmd": cmd(["qdo", "metadata", "edit", "-c", connection, "-t", ctx.table]),
+                "why": "Fill in descriptions, owner, and notes.",
+            },
+        ],
+        connection=connection,
+        table=ctx.table,
+    ):
         return
 
     import sys
@@ -96,7 +94,7 @@ def show(
     connection: str = conn_opt,
 ) -> None:
     """Show stored metadata for a table."""
-    from querido.cli._pipeline import dispatch_output
+    from querido.cli._pipeline import emit
     from querido.core.metadata import show_metadata
 
     meta = show_metadata(connection, table)
@@ -105,21 +103,16 @@ def show(
             f"No metadata found for {connection}/{table}. Run 'qdo metadata init' first."
         )
 
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.core.next_steps import for_metadata_show
 
-    if is_structured_format():
-        from querido.core.next_steps import for_metadata_show
-
-        emit_envelope(
-            command="metadata show",
-            data=meta,
-            next_steps=for_metadata_show(meta, connection=connection, table=table),
-            connection=connection,
-            table=table,
-        )
-        return
-
-    dispatch_output("metadata", meta)
+    emit(
+        "metadata show",
+        meta,
+        dispatch_as="metadata",
+        next_steps=lambda: for_metadata_show(meta, connection=connection, table=table),
+        connection=connection,
+        table=table,
+    )
 
 
 @app.command("list")
@@ -143,24 +136,19 @@ def search_cmd(
     limit: int = typer.Option(5, "--limit", min=1, max=20, help="Maximum results to return."),
 ) -> None:
     """Search stored metadata by meaning across table and column descriptions."""
-    from querido.cli._pipeline import dispatch_output
+    from querido.cli._pipeline import emit
     from querido.core.metadata import search_metadata
     from querido.core.next_steps import for_metadata_search
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     result = search_metadata(connection, query, limit=limit)
-    steps = for_metadata_search(result, connection=connection)
 
-    if is_structured_format():
-        emit_envelope(
-            command="metadata search",
-            data=result,
-            next_steps=steps,
-            connection=connection,
-        )
-        return
-
-    dispatch_output("metadata_search", result)
+    emit(
+        "metadata search",
+        result,
+        dispatch_as="metadata_search",
+        next_steps=lambda: for_metadata_search(result, connection=connection),
+        connection=connection,
+    )
 
 
 @app.command()
@@ -203,9 +191,8 @@ def refresh(
     Preserves human-written fields (description, owner, notes) while
     updating auto-populated fields (row counts, types, statistics).
     """
-    from querido.cli._pipeline import table_command
+    from querido.cli._pipeline import emit_json, table_command
     from querido.core.metadata import metadata_path, refresh_metadata
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     with (
         table_command(table=table, connection=connection, db_type=db_type) as ctx,
@@ -220,26 +207,25 @@ def refresh(
 
     path = metadata_path(connection, ctx.table)
 
-    if is_structured_format():
-        from querido.output.envelope import cmd
+    from querido._shell import cmd
 
-        emit_envelope(
-            command="metadata refresh",
-            data={
-                "path": str(path),
-                "table": ctx.table,
-                "row_count": merged.get("row_count"),
-                "column_count": len(merged.get("columns") or []),
-            },
-            next_steps=[
-                {
-                    "cmd": cmd(["qdo", "metadata", "show", "-c", connection, "-t", ctx.table]),
-                    "why": "Inspect the refreshed metadata.",
-                }
-            ],
-            connection=connection,
-            table=ctx.table,
-        )
+    if emit_json(
+        "metadata refresh",
+        {
+            "path": str(path),
+            "table": ctx.table,
+            "row_count": merged.get("row_count"),
+            "column_count": len(merged.get("columns") or []),
+        },
+        next_steps=[
+            {
+                "cmd": cmd(["qdo", "metadata", "show", "-c", connection, "-t", ctx.table]),
+                "why": "Inspect the refreshed metadata.",
+            }
+        ],
+        connection=connection,
+        table=ctx.table,
+    ):
         return
 
     import sys
@@ -265,8 +251,8 @@ def undo(
     ),
 ) -> None:
     """Undo the last qdo-managed metadata write(s) for one table."""
+    from querido.cli._pipeline import emit_json
     from querido.core.metadata import undo_metadata
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     try:
         summary = undo_metadata(
@@ -279,22 +265,21 @@ def undo(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from None
 
-    if is_structured_format():
-        from querido.output.envelope import cmd
+    from querido._shell import cmd
 
-        next_steps = [
-            {
-                "cmd": cmd(["qdo", "metadata", "show", "-c", connection, "-t", table]),
-                "why": "Inspect the restored metadata.",
-            }
-        ]
-        emit_envelope(
-            command="metadata undo",
-            data=summary,
-            next_steps=next_steps,
-            connection=connection,
-            table=table,
-        )
+    next_steps = [
+        {
+            "cmd": cmd(["qdo", "metadata", "show", "-c", connection, "-t", table]),
+            "why": "Inspect the restored metadata.",
+        }
+    ]
+    if emit_json(
+        "metadata undo",
+        summary,
+        next_steps=next_steps,
+        connection=connection,
+        table=table,
+    ):
         return
 
     action = "Would restore" if dry_run else "Restored"
@@ -310,18 +295,17 @@ def score(
     connection: str = conn_opt,
 ) -> None:
     """Per-table metadata completeness ranking (worst first)."""
+    from querido.cli._pipeline import emit_json
     from querido.core.metadata_score import score_connection
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     report = score_connection(connection)
 
-    if is_structured_format():
-        emit_envelope(
-            command="metadata score",
-            data=report,
-            next_steps=_score_next_steps(report, connection),
-            connection=connection,
-        )
+    if emit_json(
+        "metadata score",
+        report,
+        next_steps=lambda: _score_next_steps(report, connection),
+        connection=connection,
+    ):
         return
 
     _print_score_report(report)
@@ -353,14 +337,13 @@ def suggest(
     the additions to ``.qdo/metadata/<connection>/<table>.yaml`` with
     provenance tags identical to ``--write-metadata``.
     """
-    from querido.cli._pipeline import table_command
+    from querido.cli._pipeline import emit_json, table_command
     from querido.core.metadata import init_metadata, metadata_path
     from querido.core.metadata_score import (
         apply_suggestions,
         build_suggestions,
         suggestions_to_dicts,
     )
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         # Ensure a YAML exists so the diff has something to compare against.
@@ -381,14 +364,12 @@ def suggest(
         "applied": applied,
     }
 
-    if is_structured_format():
-        emit_envelope(
-            command="metadata suggest",
-            data=payload,
-            next_steps=[],
-            connection=connection,
-            table=ctx.table,
-        )
+    if emit_json(
+        "metadata suggest",
+        payload,
+        connection=connection,
+        table=ctx.table,
+    ):
         return
 
     _print_suggestions(payload, path=str(path), applied=bool(applied))

@@ -38,7 +38,7 @@ def dist(
 ) -> None:
     """Visualize distribution of a column's values."""
     from querido.cli._options import parse_column_list
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
     from querido.cli._validation import resolve_column
     from querido.connectors.base import validate_column_name
 
@@ -67,18 +67,13 @@ def dist(
                 no_sample=no_sample,
             )
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_dist
 
-        if is_structured_format():
-            from querido.core.next_steps import for_dist
-
-            emit_envelope(
-                command="dist",
-                data=dist_result,
-                next_steps=for_dist(dist_result, connection=connection, table=ctx.table),
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit(
+            "dist",
+            dist_result,
+            next_steps=lambda: for_dist(dist_result, connection=connection, table=ctx.table),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
-
-        dispatch_output("dist", dist_result)

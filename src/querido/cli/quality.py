@@ -74,7 +74,7 @@ def quality(
     Use --no-sample and --exact for precise results on large tables.
     """
     from querido.cli._options import parse_column_list, resolve_write_metadata
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     col_list = parse_column_list(columns)
     if plan and not write_metadata:
@@ -109,25 +109,21 @@ def quality(
                     ctx.connector, connection, ctx.table, result, force=force
                 )
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_quality
 
-        if is_structured_format():
-            from querido.core.next_steps import for_quality
+        envelope_data: dict = dict(result)
+        if metadata_write_summary is not None:
+            envelope_data["metadata_write"] = metadata_write_summary
 
-            envelope_data: dict = dict(result)
-            if metadata_write_summary is not None:
-                envelope_data["metadata_write"] = metadata_write_summary
-
-            emit_envelope(
-                command="quality",
-                data=envelope_data,
-                next_steps=for_quality(result, connection=connection, table=ctx.table),
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit(
+            "quality",
+            result,
+            data=envelope_data,
+            next_steps=lambda: for_quality(result, connection=connection, table=ctx.table),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
-
-        dispatch_output("quality", result)
 
         import sys
 

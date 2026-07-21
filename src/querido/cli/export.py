@@ -108,7 +108,7 @@ def export(
     """
     import sys
 
-    from querido.cli._pipeline import database_command, dispatch_output
+    from querido.cli._pipeline import database_command, emit
 
     if plan and estimate:
         raise typer.BadParameter("Cannot use both --plan and --estimate.")
@@ -143,9 +143,9 @@ def export(
     source_meta = build_source_meta(source, connection=connection)
 
     if plan:
+        from querido._shell import cmd
         from querido.core.export import build_export_query
         from querido.core.plan import build_export_plan
-        from querido.output.envelope import cmd, emit_envelope, is_structured_format
 
         query_sql = build_export_query(
             table=table,
@@ -181,23 +181,20 @@ def export(
         )
 
         steps = [{"cmd": cmd(run_cmd), "why": "Run the planned export for real."}]
-        if is_structured_format():
-            emit_envelope(
-                command="export",
-                data=payload,
-                next_steps=steps,
-                connection=connection,
-                extra_meta=source_meta or None,
-            )
-            return
-
-        dispatch_output("plan", payload)
+        emit(
+            "export",
+            payload,
+            dispatch_as="plan",
+            next_steps=steps,
+            connection=connection,
+            extra_meta=source_meta or None,
+        )
         return
 
     if estimate:
+        from querido._shell import cmd
         from querido.core.estimate import estimate_export
         from querido.core.export import build_export_query
-        from querido.output.envelope import cmd, emit_envelope, is_structured_format
 
         query_sql = build_export_query(
             table=table,
@@ -235,17 +232,14 @@ def export(
         )
 
         steps = [{"cmd": cmd(run_cmd), "why": "Run the estimated export for real."}]
-        if is_structured_format():
-            emit_envelope(
-                command="export",
-                data=payload,
-                next_steps=steps,
-                connection=connection,
-                extra_meta=source_meta or None,
-            )
-            return
-
-        dispatch_output("estimate", payload)
+        emit(
+            "export",
+            payload,
+            dispatch_as="estimate",
+            next_steps=steps,
+            connection=connection,
+            extra_meta=source_meta or None,
+        )
         return
 
     with database_command(connection=connection, db_type=db_type) as ctx:

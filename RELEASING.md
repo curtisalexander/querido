@@ -66,8 +66,8 @@ uv tool uninstall querido
 ```
 
 Also spot-check the extras: `uv tool install 'querido[duckdb]'` and
-`'querido[all]'`. Tick L35 in REVIEW_FINDINGS.md when this passes against
-the live PyPI package.
+`'querido[all]'`. Tick L35 in docs/reviews/REVIEW_FINDINGS.md when this passes
+against the live PyPI package.
 
 Note: a pre-publish variant of this check (installing the locally built
 0.2.0 wheel into a fresh venv in a temp dir) was run 2026-07-06 and passed;

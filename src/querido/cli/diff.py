@@ -39,7 +39,7 @@ def diff(
     Against a prior session snapshot:
         qdo diff -c ./my.db -t users --since migration-audit
     """
-    from querido.cli._pipeline import dispatch_output
+    from querido.cli._pipeline import emit
     from querido.cli._validation import resolve_table
     from querido.config import resolve_connection
     from querido.connectors.base import validate_table_name
@@ -106,24 +106,19 @@ def diff(
             right_cols = conn.get_columns(target_table)
         result = schema_diff(table, left_cols, target_table, right_cols)
 
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.core.next_steps import for_diff
 
-    if is_structured_format():
-        from querido.core.next_steps import for_diff
-
-        emit_envelope(
-            command="diff",
-            data=result,
-            next_steps=for_diff(
-                result,
-                connection=connection,
-                left_table=table,
-                right_table=target_table,
-                target_connection=target_connection,
-            ),
+    if emit(
+        "diff",
+        result,
+        next_steps=lambda: for_diff(
+            result,
             connection=connection,
-            table=table,
-        )
+            left_table=table,
+            right_table=target_table,
+            target_connection=target_connection,
+        ),
+        connection=connection,
+        table=table,
+    ):
         return
-
-    dispatch_output("diff", result)

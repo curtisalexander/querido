@@ -63,25 +63,24 @@ def _emit_sql(
 
     sql = render_template(f"generate/{template_name}", dialect, columns=columns, **render_kwargs)
 
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.cli._pipeline import emit_json
 
-    if is_structured_format():
-        data: dict[str, object] = {
-            "sql": sql,
-            "dialect": dialect,
-            "table": resolved_table,
-            "template": template_name,
-        }
-        if columns is not None:
-            data["columns"] = [{"name": c.get("name"), "type": c.get("type")} for c in columns]
-        if extra_data:
-            data.update(extra_data)
-        emit_envelope(
-            command=f"sql {subcommand}",
-            data=data,
-            connection=connection,
-            table=resolved_table,
-        )
+    data: dict[str, object] = {
+        "sql": sql,
+        "dialect": dialect,
+        "table": resolved_table,
+        "template": template_name,
+    }
+    if columns is not None:
+        data["columns"] = [{"name": c.get("name"), "type": c.get("type")} for c in columns]
+    if extra_data:
+        data.update(extra_data)
+    if emit_json(
+        f"sql {subcommand}",
+        data,
+        connection=connection,
+        table=resolved_table,
+    ):
         return
 
     print(sql)

@@ -42,7 +42,7 @@ def pivot(
     """
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     rows_list, values_list, agg_fn = _parse_agg_spec(group_by, agg)
 
@@ -64,21 +64,16 @@ def pivot(
         maybe_show_sql(result.get("sql", ""))
         set_last_sql(result.get("sql", ""))
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_pivot
 
-        if is_structured_format():
-            from querido.core.next_steps import for_pivot
-
-            emit_envelope(
-                command="pivot",
-                data=result,
-                next_steps=for_pivot(result, connection=connection, table=ctx.table),
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit(
+            "pivot",
+            result,
+            next_steps=lambda: for_pivot(result, connection=connection, table=ctx.table),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
-
-        dispatch_output("pivot", result)
 
 
 def _parse_agg_spec(group_by: str, agg: str) -> tuple[list[str], list[str], str]:

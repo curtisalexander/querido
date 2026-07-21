@@ -258,3 +258,23 @@ def unpack_single_row(row: dict, col_info: list[dict]) -> list[dict]:
             entry["max_length"] = row.get(f"{prefix}max_length")
         stats.append(entry)
     return stats
+
+
+def yaml_escape(value: str) -> str:
+    """Escape a string for safe YAML output.
+
+    A YAML-string primitive used by ``semantic.py`` (and available to any other
+    core module that emits YAML). Lives here rather than in ``output/`` so the
+    core layer never has to import the presentation layer.
+    """
+    if not value:
+        return '""'
+    # Quote strings that contain special YAML characters or look like non-strings
+    yaml_special = ":{}\n[]#&*!|>',\"@`"
+    yaml_keywords = ("true", "false", "null", "yes", "no")
+    needs_quoting = any(c in value for c in yaml_special) or value.lower() in yaml_keywords
+    if needs_quoting:
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        escaped = escaped.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+        return f'"{escaped}"'
+    return value

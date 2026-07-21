@@ -20,7 +20,8 @@ querido/
 │   ├── _config.yml                 # GitHub Pages (Jekyll) config
 │   ├── _layouts/                   # Pages HTML layout(s)
 │   ├── examples/                   # Curated example artifacts (metadata, reports, screenshots)
-│   └── research/                   # Background research notes
+│   ├── research/                   # Background research notes
+│   └── reviews/                    # Point-in-time review artifacts (REVIEW_FINDINGS.md, RELEASE_READINESS_REVIEW.md)
 ├── integrations/
 │   ├── agent-workflow-example.md    # Example agent workflow with metadata
 │   ├── skills/SKILL.md             # Claude Code skill file
@@ -45,6 +46,7 @@ querido/
 │       ├── _argv.py                # Pure -f/--format argv hoist (shared by cli/main.py and the workflow runner)
 │       ├── _click.py               # Single import point for typer's vendored click (typer 0.26+ bundles its own)
 │       ├── _runtime.py             # Root-context lookups (get_output_format) shared by cli/ and output/
+│       ├── _shell.py               # shell_quote_value/cmd — argv-string quoting for `qdo ...` hints (neutral leaf both core/ and output/ import)
 │       ├── cache.py                # Local metadata cache (SQLite-backed; pragma user_version schema check)
 │       ├── config.py               # TOML config loading, connection resolution, column sets
 │       ├── agent_docs/             # Packaged agent integration docs installed by `qdo agent` (created at wheel-build time from integrations/ via force-include; not present in the source tree)
@@ -54,7 +56,7 @@ querido/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── _context.py         # Output format, SQL display, HTML emission
 │       │   ├── _errors.py          # friendly_errors decorator, error classification
-│       │   ├── _pipeline.py        # table_command/database_command context managers, dispatch_output
+│       │   ├── _pipeline.py        # table_command/database_command context managers, emit (json-or-dispatch fork), dispatch_output
 │       │   ├── _progress.py        # Elapsed-time query spinner with cancellation
 │       │   ├── _options.py         # Shared Typer option definitions (--connection, --db-type, etc.)
 │       │   ├── _validation.py      # Table/column existence checks, fuzzy suggestions, destructive SQL guard
@@ -102,7 +104,7 @@ querido/
 │       ├── core/
 │       │   ├── __init__.py         # Package marker
 │       │   ├── _concurrent.py      # Parallel query execution helper (thread pool)
-│       │   ├── _utils.py           # Shared helpers: type detection, classification, sampling
+│       │   ├── _utils.py           # Shared helpers: type detection, classification, sampling, yaml_escape
 │       │   ├── assert_check.py     # Assert condition checking logic
 │       │   ├── bundle.py           # Knowledge bundle export/import/diff logic + schema fingerprint
 │       │   ├── catalog.py          # Full database catalog logic (live, cached, enriched, filtered)
@@ -117,6 +119,7 @@ querido/
 │       │   ├── joins.py            # Join key discovery logic
 │       │   ├── lineage.py          # View definition retrieval logic (used by view-def command)
 │       │   ├── metadata.py         # Enriched metadata (init, show, list, refresh, search, undo)
+│       │   ├── metadata_field.py   # unwrap_field — shared read model for provenance-wrapped field values (core + output)
 │       │   ├── metadata_score.py   # Per-table metadata completeness scoring
 │       │   ├── metadata_write.py   # Provenance-tracking metadata writes + auto-fill rules
 │       │   ├── next_steps.py       # Deterministic next_steps/try_next suggestions
@@ -407,6 +410,13 @@ Output functions: `print_inspect`, `print_preview`, `print_profile`, `print_dist
 
 Progress spinners (Rich `Status`) display on stderr during query execution so they don't interfere with output piping.
 
+**Format dispatch.** Each output module exposes a `REGISTRY` dict keyed by command name (`console.REGISTRY`, `html.REGISTRY`, `formats.REGISTRY`). A scan command produces a plain result (from `core/`) and hands it to `cli/_pipeline.py:emit()`, the single fork every command uses:
+
+- **json** → the agent envelope (`output/envelope.py:emit_envelope`), with deterministic `next_steps` from `core/next_steps.py:for_<cmd>` attached. `next_steps` is passed as a thunk so it's only built on the json path.
+- **anything else** → `dispatch_output()`, which routes `rich`→`console`, `html`→`html`, and the text formats (`markdown`/`csv`/`yaml`)→`formats` via the matching `REGISTRY`.
+
+`emit()` returns `True` when it emitted the json envelope, so a command can early-return and skip human-only trailing output (stderr capture hints, write notes). A few commands render under a different registry key than their argv name (e.g. `view-def` renders via `lineage`); `emit(..., dispatch_as="lineage")` keeps the envelope's `command` and the renderer key independent. Before this consolidation the json branch was hand-copied into every command file; `emit()` is now the one place the fork lives.
+
 ### 8. Sessions
 
 When `QDO_SESSION=<name>` is set in the environment, every `qdo` invocation
@@ -453,7 +463,9 @@ CLI (Typer)
   → load + render SQL template (renderer.py)
   → [maybe_show_sql to stderr if --show-sql]
   → execute query (connector)
-  → format + display results (output/console.py)
+  → emit(cmd, result, ...) (cli/_pipeline.py)
+      → json  → envelope + next_steps (output/envelope.py, core/next_steps.py)
+      → else  → dispatch_output → REGISTRY[cmd] (output/console.py | html.py | formats.py)
 ```
 
 ## Dependencies

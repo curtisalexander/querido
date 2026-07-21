@@ -56,7 +56,7 @@ def values(
     """
     from querido.cli._errors import CodedBadParameter
     from querido.cli._options import parse_column_list, resolve_write_metadata
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     valid_sorts = {"value", "frequency"}
     if sort not in valid_sorts:
@@ -106,25 +106,21 @@ def values(
                     ctx.connector, connection, ctx.table, result, force=force
                 )
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_values
 
-        if is_structured_format():
-            from querido.core.next_steps import for_values
+        envelope_data: dict = dict(result)
+        if metadata_write_summary is not None:
+            envelope_data["metadata_write"] = metadata_write_summary
 
-            envelope_data: dict = dict(result)
-            if metadata_write_summary is not None:
-                envelope_data["metadata_write"] = metadata_write_summary
-
-            emit_envelope(
-                command="values",
-                data=envelope_data,
-                next_steps=for_values(result, connection=connection, table=ctx.table),
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit(
+            "values",
+            result,
+            data=envelope_data,
+            next_steps=lambda: for_values(result, connection=connection, table=ctx.table),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
-
-        dispatch_output("values", result)
 
         if metadata_write_summary is not None:
             import sys

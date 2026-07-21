@@ -31,7 +31,7 @@ def template(
     min/max, sample values) and leaves placeholders for business definitions,
     data owner, and notes.
     """
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         from querido.core.template import (
@@ -65,18 +65,16 @@ def template(
             columns, ctx.table, table_comment, row_count, profile_data, sample_rows
         )
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_template
 
-        if is_structured_format():
-            from querido.core.next_steps import for_template
-
-            emit_envelope(
-                command="template",
-                data=template_result,
-                next_steps=for_template(template_result, connection=connection, table=ctx.table),
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit(
+            "template",
+            template_result,
+            style=style,
+            next_steps=lambda: for_template(
+                template_result, connection=connection, table=ctx.table
+            ),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
-
-        dispatch_output("template", template_result, style=style)

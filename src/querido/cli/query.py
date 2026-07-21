@@ -82,7 +82,7 @@ def query(
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
     from querido.cli._options import build_source_meta, resolve_query_sql
-    from querido.cli._pipeline import database_command, dispatch_output
+    from querido.cli._pipeline import database_command, emit
 
     query_sql, source = resolve_query_sql(
         sql_option=sql,
@@ -102,8 +102,8 @@ def query(
     effective_sql = _apply_limit(query_sql, limit) if limit > 0 and not destructive else query_sql
 
     if plan:
+        from querido._shell import cmd
         from querido.core.plan import build_query_plan
-        from querido.output.envelope import cmd, emit_envelope, is_structured_format
 
         maybe_show_sql(effective_sql)
         set_last_sql(effective_sql)
@@ -132,21 +132,19 @@ def query(
                     "why": "Allow the write explicitly, then rerun the planned query.",
                 }
             )
-        if is_structured_format():
-            emit_envelope(
-                command="query",
-                data=payload,
-                next_steps=steps,
-                connection=connection,
-                extra_meta=source_meta or None,
-            )
-            return
-        dispatch_output("plan", payload)
+        emit(
+            "query",
+            payload,
+            dispatch_as="plan",
+            next_steps=steps,
+            connection=connection,
+            extra_meta=source_meta or None,
+        )
         return
 
     if estimate:
+        from querido._shell import cmd
         from querido.core.estimate import estimate_query
-        from querido.output.envelope import cmd, emit_envelope, is_structured_format
 
         with database_command(connection=connection, db_type=db_type) as ctx:
             maybe_show_sql(effective_sql)
@@ -177,17 +175,14 @@ def query(
                     "why": "Allow the write explicitly before running the estimated query.",
                 },
             )
-        if is_structured_format():
-            emit_envelope(
-                command="query",
-                data=payload,
-                next_steps=steps,
-                connection=connection,
-                extra_meta=source_meta or None,
-            )
-            return
-
-        dispatch_output("estimate", payload)
+        emit(
+            "query",
+            payload,
+            dispatch_as="estimate",
+            next_steps=steps,
+            connection=connection,
+            extra_meta=source_meta or None,
+        )
         return
 
     from querido.cli._validation import require_allow_write
@@ -205,31 +200,24 @@ def query(
 
             result = run_query(ctx.connector, query_sql, limit=limit, allow_write=allow_write)
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_query
 
-        if is_structured_format():
-            from querido.core.next_steps import for_query
-
-            emit_envelope(
-                command="query",
-                data={
-                    "columns": result.get("columns", []),
-                    "row_count": result.get("row_count", 0),
-                    "limited": result.get("limited", False),
-                    "rows": result.get("rows", []),
-                    "sql": query_sql,
-                },
-                next_steps=for_query(result, connection=connection),
-                connection=connection,
-                extra_meta=source_meta or None,
-            )
-            return
-
-        dispatch_output(
+        if emit(
             "query",
             result.get("columns", []),
             result.get("rows", []),
             result.get("row_count", 0),
+            data={
+                "columns": result.get("columns", []),
+                "row_count": result.get("row_count", 0),
+                "limited": result.get("limited", False),
+                "rows": result.get("rows", []),
+                "sql": query_sql,
+            },
+            next_steps=lambda: for_query(result, connection=connection),
+            connection=connection,
+            extra_meta=source_meta or None,
             limited=result.get("limited", False),
             sql=query_sql,
-        )
+        ):
+            return

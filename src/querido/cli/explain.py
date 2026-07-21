@@ -35,7 +35,7 @@ def explain(
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
     from querido.cli._options import resolve_sql
-    from querido.cli._pipeline import database_command, dispatch_output
+    from querido.cli._pipeline import database_command, emit
 
     query_sql = resolve_sql(sql, file, sys.stdin)
 
@@ -48,17 +48,12 @@ def explain(
 
             result = get_explain(ctx.connector, query_sql, analyze=analyze)
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_explain
 
-        if is_structured_format():
-            from querido.core.next_steps import for_explain
-
-            emit_envelope(
-                command="explain",
-                data=result,
-                next_steps=for_explain(result, connection=connection),
-                connection=connection,
-            )
+        if emit(
+            "explain",
+            result,
+            next_steps=lambda: for_explain(result, connection=connection),
+            connection=connection,
+        ):
             return
-
-        dispatch_output("explain", result)

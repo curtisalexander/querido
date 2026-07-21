@@ -60,25 +60,23 @@ def semantic(
 
     ddl_str = build_semantic_view_ddl(ctx.table, columns, table_comment, sample_values_per_col=sv)
 
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.cli._pipeline import emit_json
 
     if output_file:
         from pathlib import Path
 
         Path(output_file).write_text(ddl_str)
 
-        if is_structured_format():
-            emit_envelope(
-                command="snowflake semantic",
-                data={
-                    "path": output_file,
-                    "table": ctx.table,
-                    "column_count": len(columns),
-                },
-                next_steps=[],
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit_json(
+            "snowflake semantic",
+            {
+                "path": output_file,
+                "table": ctx.table,
+                "column_count": len(columns),
+            },
+            connection=connection,
+            table=ctx.table,
+        ):
             return
 
         import sys
@@ -86,26 +84,24 @@ def semantic(
         print(f"Wrote semantic view DDL to {output_file}", file=sys.stderr)
         return
 
-    if is_structured_format():
-        emit_envelope(
-            command="snowflake semantic",
-            data={
-                "ddl": ddl_str,
-                "table": ctx.table,
-                "column_count": len(columns),
-                "sample_values_per_column": sample_values if sample_values > 0 else 0,
+    if emit_json(
+        "snowflake semantic",
+        {
+            "ddl": ddl_str,
+            "table": ctx.table,
+            "column_count": len(columns),
+            "sample_values_per_column": sample_values if sample_values > 0 else 0,
+        },
+        next_steps=[
+            {
+                "cmd": f"qdo snowflake semantic -c {connection} -t {ctx.table} -o {ctx.table}.sql",
+                "why": "Write the DDL to a file, review it, then run it in "
+                "Snowflake to create the semantic view.",
             },
-            next_steps=[
-                {
-                    "cmd": f"qdo snowflake semantic -c {connection} -t {ctx.table} "
-                    f"-o {ctx.table}.sql",
-                    "why": "Write the DDL to a file, review it, then run it in "
-                    "Snowflake to create the semantic view.",
-                },
-            ],
-            connection=connection,
-            table=ctx.table,
-        )
+        ],
+        connection=connection,
+        table=ctx.table,
+    ):
         return
 
     print(ddl_str)
@@ -133,7 +129,7 @@ def lineage(
 ) -> None:
     """Trace upstream/downstream lineage via Snowflake GET_LINEAGE."""
     from querido.cli._errors import CodedBadParameter
-    from querido.cli._pipeline import dispatch_output
+    from querido.cli._pipeline import emit
     from querido.config import resolve_connection
     from querido.connectors.factory import create_connector
 
@@ -174,26 +170,24 @@ def lineage(
         "entries": rows,
     }
 
-    from querido.output.envelope import emit_envelope, is_structured_format
-
-    if is_structured_format():
+    def _lineage_next_steps() -> list[dict]:
         other_direction = "upstream" if direction == "downstream" else "downstream"
-        emit_envelope(
-            command="snowflake lineage",
-            data=result,
-            next_steps=[
-                {
-                    "cmd": f"qdo snowflake lineage -c {connection} --object {object_name} "
-                    f"--direction {other_direction}",
-                    "why": f"Trace the {other_direction} side of lineage for this object.",
-                },
-            ],
-            connection=connection,
-            extra_meta={"object": object_name, "direction": direction, "domain": domain},
-        )
-        return
+        return [
+            {
+                "cmd": f"qdo snowflake lineage -c {connection} --object {object_name} "
+                f"--direction {other_direction}",
+                "why": f"Trace the {other_direction} side of lineage for this object.",
+            },
+        ]
 
-    dispatch_output("snowflake_lineage", result)
+    emit(
+        "snowflake lineage",
+        result,
+        dispatch_as="snowflake_lineage",
+        next_steps=_lineage_next_steps,
+        connection=connection,
+        extra_meta={"object": object_name, "direction": direction, "domain": domain},
+    )
 
 
 def _query_lineage(
