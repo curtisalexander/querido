@@ -19,7 +19,7 @@ def inspect(
     """Show column metadata and row count for a table."""
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         with ctx.spin(f"Inspecting [bold]{ctx.table}[/bold]"):
@@ -31,35 +31,28 @@ def inspect(
             set_last_sql(count_sql)
             result = get_inspect(ctx.connector, ctx.table, verbose=verbose)
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_inspect
 
-        if is_structured_format():
-            from querido.core.next_steps import for_inspect
+        envelope_data = {
+            "table": ctx.table,
+            "row_count": result["row_count"],
+            "columns": result["columns"],
+        }
+        if verbose and result["table_comment"]:
+            envelope_data["table_comment"] = result["table_comment"]
 
-            data = {
-                "table": ctx.table,
-                "row_count": result["row_count"],
-                "columns": result["columns"],
-            }
-            if verbose and result["table_comment"]:
-                data["table_comment"] = result["table_comment"]
-
-            emit_envelope(
-                command="inspect",
-                data=data,
-                next_steps=for_inspect(
-                    result, connection=connection, table=ctx.table, verbose=verbose
-                ),
-                connection=connection,
-                table=ctx.table,
-            )
-            return
-
-        dispatch_output(
+        if emit(
             "inspect",
             ctx.table,
             result["columns"],
             result["row_count"],
+            data=envelope_data,
+            next_steps=lambda: for_inspect(
+                result, connection=connection, table=ctx.table, verbose=verbose
+            ),
+            connection=connection,
+            table=ctx.table,
             verbose=verbose,
             table_comment=result["table_comment"],
-        )
+        ):
+            return

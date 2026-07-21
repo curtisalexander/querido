@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sqlite3
 import sys
 import textwrap
@@ -333,7 +334,9 @@ def test_run_workflow_executes_explicitly_authorized_write(sqlite_path: str) -> 
         "steps": [
             {
                 "id": "wipe",
-                "run": f"qdo -f json query -c {sqlite_path} --sql 'DELETE FROM users'",
+                "run": (
+                    f"qdo -f json query -c {shlex.quote(sqlite_path)} --sql 'DELETE FROM users'"
+                ),
                 "allow_write": True,
             }
         ],
@@ -355,7 +358,7 @@ def test_run_workflow_refuses_unauthorized_write(sqlite_path: str) -> None:
         "steps": [
             {
                 "id": "wipe",
-                "run": f"qdo query -c {sqlite_path} --sql 'DELETE FROM users'",
+                "run": f"qdo query -c {shlex.quote(sqlite_path)} --sql 'DELETE FROM users'",
             }
         ],
     }

@@ -15,7 +15,7 @@ def view_def(
 ) -> None:
     """Show the SQL definition of a view."""
     from querido.cli._context import maybe_show_sql
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     with table_command(table=view, connection=connection, db_type=db_type) as ctx:
         with ctx.spin(f"Retrieving definition for [bold]{ctx.table}[/bold]"):
@@ -28,18 +28,14 @@ def view_def(
 
         maybe_show_sql(result["definition"])
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_view_def
 
-        if is_structured_format():
-            from querido.core.next_steps import for_view_def
-
-            emit_envelope(
-                command="view-def",
-                data=result,
-                next_steps=for_view_def(result, connection=connection, view=ctx.table),
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit(
+            "view-def",
+            result,
+            dispatch_as="lineage",
+            next_steps=lambda: for_view_def(result, connection=connection, view=ctx.table),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
-
-        dispatch_output("lineage", result)

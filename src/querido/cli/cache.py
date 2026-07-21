@@ -68,7 +68,7 @@ def status(
     """Show cache status (age, table count, staleness)."""
     from querido.cache import MetadataCache
     from querido.cli._context import get_output_format
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.cli._pipeline import emit_json
 
     cache = MetadataCache()
     try:
@@ -78,12 +78,7 @@ def status(
 
     fmt = get_output_format()
 
-    if is_structured_format():
-        emit_envelope(
-            command="cache status",
-            data={"entries": entries},
-            connection=connection,
-        )
+    if emit_json("cache status", {"entries": entries}, connection=connection):
         return
 
     if not entries:

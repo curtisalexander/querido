@@ -320,21 +320,6 @@ def format_dist(
 # -- template ------------------------------------------------------------------
 
 
-def yaml_escape(value: str) -> str:
-    """Escape a string for safe YAML output."""
-    if not value:
-        return '""'
-    # Quote strings that contain special YAML characters or look like non-strings
-    yaml_special = ":{}\n[]#&*!|>',\"@`"
-    yaml_keywords = ("true", "false", "null", "yes", "no")
-    needs_quoting = any(c in value for c in yaml_special) or value.lower() in yaml_keywords
-    if needs_quoting:
-        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        escaped = escaped.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-        return f'"{escaped}"'
-    return value
-
-
 def _format_template_yaml(template_result: dict) -> str:
     """Render template metadata as a Cortex Analyst-compatible semantic model YAML."""
     from querido.core.semantic import build_semantic_yaml
@@ -642,7 +627,7 @@ def format_metadata(
     # show_metadata returns raw YAML: descriptions may be unfilled placeholders
     # (`<description>`) or provenance-wrapped dicts. Unwrap to plain text so
     # markdown/csv/html match the Rich and report_html renderers (M11).
-    from querido.core.metadata import _unwrap_field
+    from querido.core.metadata_field import unwrap_field
 
     if fmt == "csv":
         columns = meta.get("columns", [])
@@ -652,7 +637,7 @@ def format_metadata(
             {
                 "name": c.get("name", ""),
                 "type": c.get("type", ""),
-                "description": _unwrap_field(c.get("description")) or "",
+                "description": unwrap_field(c.get("description")) or "",
                 "nullable": c.get("nullable", False),
                 "null_count": c.get("null_count", ""),
                 "distinct_count": c.get("distinct_count", ""),
@@ -663,7 +648,7 @@ def format_metadata(
 
     # markdown
     lines = [f"## {meta.get('table', '')}"]
-    desc = _unwrap_field(meta.get("table_description"))
+    desc = unwrap_field(meta.get("table_description"))
     if desc:
         lines.append(f"\n{desc}")
     lines.append(f"\nRow count: {meta.get('row_count', 0):,}")
@@ -675,7 +660,7 @@ def format_metadata(
             [
                 c.get("name", ""),
                 c.get("type", ""),
-                str(_unwrap_field(c.get("description")) or ""),
+                str(unwrap_field(c.get("description")) or ""),
                 str(c.get("null_count", "")),
                 str(c.get("distinct_count", "")),
             ]

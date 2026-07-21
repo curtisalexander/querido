@@ -126,8 +126,8 @@ def add(
 @friendly_errors
 def list_connections() -> None:
     """List all configured connections."""
+    from querido.cli._pipeline import emit_json
     from querido.config import get_config_dir, load_connections
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     connections = load_connections()
     rows = [
@@ -144,8 +144,7 @@ def list_connections() -> None:
         for conn_name, conn_config in sorted(connections.items())
     ]
 
-    if is_structured_format():
-        emit_envelope(command="config list", data={"connections": rows})
+    if emit_json("config list", {"connections": rows}):
         return
 
     from rich.console import Console

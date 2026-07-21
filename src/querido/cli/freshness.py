@@ -32,7 +32,7 @@ def freshness(
     """Detect likely timestamp/date columns and summarize recency."""
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         resolved_column = None
@@ -56,18 +56,15 @@ def freshness(
         maybe_show_sql(rendered_sql)
         set_last_sql(rendered_sql)
 
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.core.next_steps import for_freshness
 
-    if is_structured_format():
-        from querido.core.next_steps import for_freshness
-
-        emit_envelope(
-            command="freshness",
-            data=result,
-            next_steps=for_freshness(dict(result), connection=connection, table=result["table"]),
-            connection=connection,
-            table=result["table"],
-        )
+    if emit(
+        "freshness",
+        result,
+        next_steps=lambda: for_freshness(
+            dict(result), connection=connection, table=result["table"]
+        ),
+        connection=connection,
+        table=result["table"],
+    ):
         return
-
-    dispatch_output("freshness", result)

@@ -228,7 +228,7 @@ The cluster took four eval runs: baseline-regressed → after `--counts` / `--co
 
 ## Review-findings pass + auto-capture (committed 2026-06-10)
 
-A full code/docs review (multi-agent: core, connectors/SQL security, CLI, workflow engine + agent docs, docs-vs-code) produced [REVIEW_FINDINGS.md](./REVIEW_FINDINGS.md) — 7 high, 19 medium, 35 low items, all committed work. High items block dogfooding; the rest land opportunistically. Tick items off there, not here.
+A full code/docs review (multi-agent: core, connectors/SQL security, CLI, workflow engine + agent docs, docs-vs-code) produced [REVIEW_FINDINGS.md](./docs/reviews/REVIEW_FINDINGS.md) — 7 high, 19 medium, 35 low items, all committed work. High items block dogfooding; the rest land opportunistically. Tick items off there, not here.
 
 **Auto-capture track — shipped 2026-06-10.** Reduced capture friction so the compounding loop fires without a separate deliberate step. The loop's weak link was that `context`/`quality` *compute* durable facts (distinct values, null rates, min/max, freshness) and then threw them away unless the user separately ran `metadata suggest --apply` or `values --write-metadata`. All deterministic and provenance-tracked (`metadata_write.py` rules, `confidence < 1.0`, human fields never overwritten, `metadata undo` covers regret):
 

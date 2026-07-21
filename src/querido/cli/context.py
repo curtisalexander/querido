@@ -84,7 +84,7 @@ def context(
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
     from querido.cli._options import resolve_write_metadata
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     if plan and not write_metadata:
         raise typer.BadParameter("--plan requires --write-metadata.")
@@ -122,27 +122,23 @@ def context(
                     ctx.connector, connection, ctx.table, result, force=force
                 )
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_context
 
-        if is_structured_format():
-            from querido.core.next_steps import for_context
+        envelope_data: dict = dict(result)
+        if metadata_write_summary is not None:
+            envelope_data["metadata_write"] = metadata_write_summary
 
-            envelope_data: dict = dict(result)
-            if metadata_write_summary is not None:
-                envelope_data["metadata_write"] = metadata_write_summary
-
-            emit_envelope(
-                command="context",
-                data=envelope_data,
-                next_steps=for_context(
-                    result, connection=connection, table=result.get("table", "")
-                ),
-                connection=connection,
-                table=result.get("table"),
-            )
+        if emit(
+            "context",
+            result,
+            data=envelope_data,
+            next_steps=lambda: for_context(
+                result, connection=connection, table=result.get("table", "")
+            ),
+            connection=connection,
+            table=result.get("table"),
+        ):
             return
-
-        dispatch_output("context", result)
 
         import sys
 

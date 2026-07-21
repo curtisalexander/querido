@@ -62,25 +62,22 @@ def spec(
 @friendly_errors
 def list_cmd() -> None:
     """List every discoverable workflow (project, user, bundled)."""
-    from querido.cli._context import get_output_format
     from querido.core.workflow.loader import list_available_workflows
 
     entries = list_available_workflows()
-    fmt = get_output_format()
 
-    if fmt == "json":
-        from querido.output.envelope import emit_envelope
+    from querido.cli._pipeline import emit_json
 
-        data = [
-            {
-                "name": e.name,
-                "source": e.source,
-                "path": str(e.path),
-                "description": e.description,
-            }
-            for e in entries
-        ]
-        emit_envelope(command="workflow list", data=data)
+    data = [
+        {
+            "name": e.name,
+            "source": e.source,
+            "path": str(e.path),
+            "description": e.description,
+        }
+        for e in entries
+    ]
+    if emit_json("workflow list", data):
         return
 
     if not entries:
@@ -139,7 +136,6 @@ def lint(
     ``qdo workflow from-session`` when the draft was captured against a
     different target than you're about to run it on.
     """
-    from querido.cli._context import get_output_format
     from querido.core.workflow.lint import lint as run_lint
     from querido.core.workflow.loader import load_workflow_doc, resolve_workflow
 
@@ -164,17 +160,14 @@ def lint(
     doc = load_workflow_doc(entry.path)
     result = run_lint(doc, valid_columns=valid_columns)
 
-    fmt = get_output_format()
-    if fmt == "json":
-        from querido.output.envelope import emit_envelope
+    from querido.cli._pipeline import emit_json
 
-        payload = {
-            "ok": result.ok,
-            "path": str(entry.path),
-            "issues": [i.to_dict() for i in result.issues],
-        }
-        emit_envelope(command="workflow lint", data=payload)
-    else:
+    payload = {
+        "ok": result.ok,
+        "path": str(entry.path),
+        "issues": [i.to_dict() for i in result.issues],
+    }
+    if not emit_json("workflow lint", payload):
         if result.ok:
             typer.echo(f"OK {entry.path}")
         else:
@@ -257,29 +250,27 @@ def run(
                 sys.stderr.write("\n")
         raise WorkflowError(str(exc)) from exc
 
-    fmt = get_output_format()
-    if fmt == "json":
-        from querido.output.envelope import emit_envelope
+    from querido.cli._pipeline import emit_json
 
-        data = {
-            "outputs": result.outputs,
-            "session": result.session,
-            "steps": [
-                {
-                    "id": s.id,
-                    # ``run`` is the fully-interpolated, shell-quoted command
-                    # that actually executed — agents can copy it verbatim to
-                    # reproduce the step outside the workflow (R.17).
-                    "run": s.run,
-                    "skipped": s.skipped,
-                    "exit_code": s.exit_code,
-                    "duration": s.duration,
-                    "capture": s.capture,
-                }
-                for s in result.steps
-            ],
-        }
-        emit_envelope(command="workflow run", data=data, extra_meta={"workflow": entry.name})
+    data = {
+        "outputs": result.outputs,
+        "session": result.session,
+        "steps": [
+            {
+                "id": s.id,
+                # ``run`` is the fully-interpolated, shell-quoted command
+                # that actually executed — agents can copy it verbatim to
+                # reproduce the step outside the workflow (R.17).
+                "run": s.run,
+                "skipped": s.skipped,
+                "exit_code": s.exit_code,
+                "duration": s.duration,
+                "capture": s.capture,
+            }
+            for s in result.steps
+        ],
+    }
+    if emit_json("workflow run", data, extra_meta={"workflow": entry.name}):
         return
 
     if result.outputs:

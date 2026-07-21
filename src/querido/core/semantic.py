@@ -203,8 +203,7 @@ def build_semantic_yaml(
     sample_values_per_col:
         Optional dict mapping column names to lists of sample value strings.
     """
-    from querido.core._utils import classify_column_kind
-    from querido.output.formats import yaml_escape
+    from querido.core._utils import classify_column_kind, yaml_escape
 
     buf = io.StringIO()
     ind = "  "

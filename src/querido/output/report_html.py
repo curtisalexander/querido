@@ -58,11 +58,11 @@ def _section_header(report: dict) -> str:
     dialect = html.escape(str(report.get("dialect", "")))
     row_count = report.get("row_count", 0)
     generated_at = html.escape(str(report.get("generated_at", "")))
-    from querido.core.metadata import _unwrap_field
+    from querido.core.metadata_field import unwrap_field
 
     comment = (
-        _unwrap_field(report.get("table_comment"))
-        or _unwrap_field(report.get("table_description"))
+        unwrap_field(report.get("table_comment"))
+        or unwrap_field(report.get("table_description"))
         or ""
     )
     subtitle = f'<p class="lede">{html.escape(str(comment))}</p>' if comment else ""
@@ -96,13 +96,13 @@ def _section_metadata(report: dict) -> str:
             "descriptions, owners, and valid-value sets.</p>",
         )
 
-    from querido.core.metadata import _unwrap_field
+    from querido.core.metadata_field import unwrap_field
 
     rows: list[str] = []
-    table_desc = _unwrap_field(meta.get("table_description")) or _unwrap_field(
+    table_desc = unwrap_field(meta.get("table_description")) or unwrap_field(
         meta.get("description")
     )
-    owner = _unwrap_field(meta.get("data_owner")) or _unwrap_field(meta.get("owner"))
+    owner = unwrap_field(meta.get("data_owner")) or unwrap_field(meta.get("owner"))
     tags = meta.get("tags") or []
 
     if table_desc:
@@ -120,7 +120,7 @@ def _section_metadata(report: dict) -> str:
     documented = sum(
         1
         for v in col_iter
-        if isinstance(v, dict) and _unwrap_field(v.get("description")) is not None
+        if isinstance(v, dict) and unwrap_field(v.get("description")) is not None
     )
     total = len(report.get("columns", []))
     coverage = f"{documented}/{total} columns documented" if total else "—"
@@ -135,7 +135,7 @@ def _section_metadata(report: dict) -> str:
 
 
 def _section_schema(report: dict) -> str:
-    from querido.core.metadata import _unwrap_field
+    from querido.core.metadata_field import unwrap_field
 
     columns = report.get("columns") or []
     if not columns:
@@ -171,7 +171,7 @@ def _section_schema(report: dict) -> str:
             )
         else:
             sample_cell = ""
-        desc = _unwrap_field(col.get("description")) or _unwrap_field(col.get("comment")) or ""
+        desc = unwrap_field(col.get("description")) or unwrap_field(col.get("comment")) or ""
         desc_row = (
             f'<tr class="desc"><td colspan="5"><span class="desc-label">'
             f"{name}</span>{html.escape(str(desc))}</td></tr>"

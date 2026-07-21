@@ -31,7 +31,7 @@ def joins(
         qdo joins -c ./my.db -t orders                    # check all tables
         qdo joins -c ./my.db -t orders --target customers  # specific target
     """
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         with ctx.spin(f"Discovering joins for [bold]{ctx.table}[/bold]"):
@@ -39,18 +39,13 @@ def joins(
 
             result = discover_joins(ctx.connector, ctx.table, target=target)
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_joins
 
-        if is_structured_format():
-            from querido.core.next_steps import for_joins
-
-            emit_envelope(
-                command="joins",
-                data=result,
-                next_steps=for_joins(result, connection=connection, source_table=ctx.table),
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit(
+            "joins",
+            result,
+            next_steps=lambda: for_joins(result, connection=connection, source_table=ctx.table),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
-
-        dispatch_output("joins", result)

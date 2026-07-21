@@ -203,38 +203,36 @@ def profile(
                     top,
                 )
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.cli._pipeline import emit_json
+        from querido.core.next_steps import for_profile
 
-        if is_structured_format():
-            from querido.core.next_steps import for_profile
-
-            data: dict = {
-                "table": ctx.table,
-                "row_count": result["row_count"],
-                "sampled": result["sampled"],
-                "columns": result["stats"],
-            }
-            if result["sampled"] and result["sample_size"]:
-                data["sample_size"] = result["sample_size"]
-                data["sampling_note"] = (
-                    f"Results based on a sample of {result['sample_size']:,} rows. "
-                    "Use --no-sample for exact results (slower)."
-                )
-            if classification is not None:
-                data["categories"] = classification.get("categories", {})
-                data["column_category"] = classification.get("column_category", {})
-            if freq_data is not None:
-                data["frequencies"] = freq_data
-            if metadata_write_summary is not None:
-                data["metadata_write"] = metadata_write_summary
-
-            emit_envelope(
-                command="profile",
-                data=data,
-                next_steps=for_profile(data, connection=connection, table=ctx.table, top=top),
-                connection=connection,
-                table=ctx.table,
+        data: dict = {
+            "table": ctx.table,
+            "row_count": result["row_count"],
+            "sampled": result["sampled"],
+            "columns": result["stats"],
+        }
+        if result["sampled"] and result["sample_size"]:
+            data["sample_size"] = result["sample_size"]
+            data["sampling_note"] = (
+                f"Results based on a sample of {result['sample_size']:,} rows. "
+                "Use --no-sample for exact results (slower)."
             )
+        if classification is not None:
+            data["categories"] = classification.get("categories", {})
+            data["column_category"] = classification.get("column_category", {})
+        if freq_data is not None:
+            data["frequencies"] = freq_data
+        if metadata_write_summary is not None:
+            data["metadata_write"] = metadata_write_summary
+
+        if emit_json(
+            "profile",
+            data,
+            next_steps=lambda: for_profile(data, connection=connection, table=ctx.table, top=top),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
 
         if classification is not None:

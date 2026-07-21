@@ -21,6 +21,10 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+# ``cmd``/``shell_quote_value`` live in ``querido._shell`` (a neutral leaf both
+# ``core`` and ``output`` can import); re-exported here for existing importers.
+from querido._shell import cmd, shell_quote_value
+
 
 def build_envelope(
     *,
@@ -99,19 +103,10 @@ def is_structured_format() -> bool:
     return get_output_format() == "json"
 
 
-def shell_quote_value(value: str) -> str:
-    """Minimal shell quoting for values interpolated into ``qdo ...`` hints.
-
-    Agents parse these as strings and may re-exec them via shell, so we need
-    quotes around anything containing whitespace or shell-special characters.
-    Identifiers (letters, digits, dot, underscore, dash) are returned as-is.
-    """
-    if value and all(c.isalnum() or c in "._-" for c in value):
-        return value
-    escaped = value.replace("'", "'\\''")
-    return f"'{escaped}'"
-
-
-def cmd(parts: list[str]) -> str:
-    """Join a list of argv parts into a single ``qdo ...`` string with quoting."""
-    return " ".join(shell_quote_value(p) for p in parts)
+__all__ = [
+    "build_envelope",
+    "cmd",
+    "emit_envelope",
+    "is_structured_format",
+    "shell_quote_value",
+]

@@ -49,7 +49,7 @@ def catalog(
     if connection is None:
         raise typer.BadParameter("Missing option '--connection' / '-c'.")
 
-    from querido.cli._pipeline import database_command, dispatch_output
+    from querido.cli._pipeline import database_command, emit
 
     # Try cache first (unless --live)
     result = None
@@ -79,20 +79,15 @@ def catalog(
 
         result = filter_catalog(result, pattern)
 
-    from querido.output.envelope import emit_envelope, is_structured_format
+    from querido.core.next_steps import for_catalog
 
-    if is_structured_format():
-        from querido.core.next_steps import for_catalog
-
-        emit_envelope(
-            command="catalog",
-            data=result,
-            next_steps=for_catalog(result or {}, connection=connection, enriched=enrich),
-            connection=connection,
-        )
+    if emit(
+        "catalog",
+        result,
+        next_steps=lambda: for_catalog(result or {}, connection=connection, enriched=enrich),
+        connection=connection,
+    ):
         return
-
-    dispatch_output("catalog", result)
 
 
 @app.command("functions")
@@ -111,9 +106,8 @@ def catalog_functions(
     """List SQL functions exposed by the current backend."""
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
-    from querido.cli._pipeline import database_command, dispatch_output
+    from querido.cli._pipeline import database_command, emit
     from querido.core.catalog import get_function_catalog
-    from querido.output.envelope import emit_envelope, is_structured_format
 
     with (
         database_command(connection=connection, db_type=db_type) as cmd_ctx,
@@ -126,16 +120,14 @@ def catalog_functions(
         maybe_show_sql(rendered_sql)
         set_last_sql(rendered_sql)
 
-    if is_structured_format():
-        from querido.core.next_steps import for_catalog_functions
+    from querido.core.next_steps import for_catalog_functions
 
-        emit_envelope(
-            command="catalog functions",
-            data=result,
-            next_steps=for_catalog_functions(result, connection=connection, pattern=pattern),
-            connection=connection,
-            extra_meta={"schema": result.get("schema")},
-        )
+    if emit(
+        "catalog functions",
+        result,
+        dispatch_as="catalog_functions",
+        next_steps=lambda: for_catalog_functions(result, connection=connection, pattern=pattern),
+        connection=connection,
+        extra_meta={"schema": result.get("schema")},
+    ):
         return
-
-    dispatch_output("catalog_functions", result)

@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from querido.core.metadata_field import unwrap_field
+
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
 
@@ -242,30 +244,6 @@ _SURFACEABLE_COLUMN_FIELDS = (
 )
 
 
-def _unwrap_field(value: object) -> object | None:
-    """Unwrap a stored metadata value to its plain form for read-back.
-
-    * Provenance-wrapped values (``{value, source, confidence, ...}``) are
-      unwrapped to their ``value``.
-    * Placeholder strings (``<description>``), empty strings, and empty
-      lists return ``None`` so callers can treat them as absent.
-    """
-    if isinstance(value, dict):
-        keys = tuple(value.keys())
-        if "value" in keys and "source" in keys:
-            value = next((v for k, v in value.items() if k == "value"), None)
-    if value is None:
-        return None
-    if isinstance(value, str):
-        stripped = value.strip()
-        if not stripped or stripped.startswith("<"):
-            return None
-        return stripped
-    if isinstance(value, list) and not value:
-        return None
-    return value
-
-
 def load_column_metadata(connection: str, table: str) -> dict[str, dict]:
     """Return stored per-column metadata for *table* as a name → fields map.
 
@@ -293,7 +271,7 @@ def load_column_metadata(connection: str, table: str) -> dict[str, dict]:
         for field in _SURFACEABLE_COLUMN_FIELDS:
             if field not in col:
                 continue
-            unwrapped = _unwrap_field(col.get(field))
+            unwrapped = unwrap_field(col.get(field))
             if unwrapped is None:
                 continue
             entry[field] = unwrapped
@@ -586,7 +564,7 @@ def _build_column_excerpt(
 
 
 def _stringify_search_value(value: object) -> str:
-    unwrapped = _unwrap_field(value)
+    unwrapped = unwrap_field(value)
     if unwrapped is None:
         return ""
     if isinstance(unwrapped, bool):

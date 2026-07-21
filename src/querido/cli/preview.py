@@ -17,7 +17,7 @@ def preview(
     """Show a preview of rows from a table."""
     from querido.cli._context import maybe_show_sql
     from querido.cli._errors import set_last_sql
-    from querido.cli._pipeline import dispatch_output, table_command
+    from querido.cli._pipeline import emit, table_command
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         with ctx.spin(f"Loading preview of [bold]{ctx.table}[/bold]"):
@@ -29,23 +29,23 @@ def preview(
             set_last_sql(sql)
             data = get_preview(ctx.connector, ctx.table, limit=rows)
 
-        from querido.output.envelope import emit_envelope, is_structured_format
+        from querido.core.next_steps import for_preview
 
-        if is_structured_format():
-            from querido.core.next_steps import for_preview
-
-            emit_envelope(
-                command="preview",
-                data={
-                    "table": ctx.table,
-                    "limit": rows,
-                    "row_count": len(data),
-                    "rows": data,
-                },
-                next_steps=for_preview(data, connection=connection, table=ctx.table, limit=rows),
-                connection=connection,
-                table=ctx.table,
-            )
+        if emit(
+            "preview",
+            ctx.table,
+            data,
+            rows,
+            data={
+                "table": ctx.table,
+                "limit": rows,
+                "row_count": len(data),
+                "rows": data,
+            },
+            next_steps=lambda: for_preview(
+                data, connection=connection, table=ctx.table, limit=rows
+            ),
+            connection=connection,
+            table=ctx.table,
+        ):
             return
-
-        dispatch_output("preview", ctx.table, data, rows)
