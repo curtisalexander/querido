@@ -86,7 +86,6 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `values`, `dist`, 
 
 | Command | Purpose |
 |---------|---------|
-| `qdo assert -c CONN --sql "SQL" --expect N` | Assert query result (exit 0=pass, 1=assertion failure, 2=SQL error) |
 | `qdo pivot -c CONN -t TABLE -g COL -a "sum(col)"` | Aggregate with GROUP BY |
 | `qdo explain -c CONN --sql "SQL" [--analyze]` | Show query execution plan |
 | `qdo export -c CONN -t TABLE -o file.csv` | Export to file (csv/tsv/json/jsonl) |
@@ -115,14 +114,14 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `values`, `dist`, 
 | `qdo workflow show NAME` | Print the resolved workflow's YAML source |
 | `qdo workflow run NAME key=value` | Execute a declarative workflow |
 | `qdo workflow lint NAME` | Lint a workflow before running it |
-| `qdo workflow from-session NAME` | Draft a workflow from a recorded session |
+| `qdo workflow from-session SESSION` | Draft a workflow from a recorded session |
 | `qdo session start [NAME] [--yes]` | Create a new session directory and print the `export QDO_SESSION` hint |
 | `qdo session list` | List recorded sessions |
 | `qdo session note "TEXT" [-s SESSION]` | Attach a note to the most recent step in the current session |
 | `qdo session show NAME` | Review recorded steps in a session |
 | `qdo session replay NAME [--into NEW]` | Re-execute successful recorded steps into a replay session |
 | `qdo report session NAME -o report.html` | Generate a shareable HTML session narrative |
-| `qdo bundle export -c CONN -t TABLE -o bundle.zip` | Package metadata (and optional column sets) into a bundle |
+| `qdo bundle export -c CONN -t TABLE -o bundle.zip` | Package metadata (and optional column sets, never sessions or workflows) into a directory or ZIP archive; the `.zip` suffix selects ZIP output |
 | `qdo bundle import BUNDLE --into CONN [--apply]` | Import a bundle (dry-run by default; `--apply` writes) |
 | `qdo bundle inspect BUNDLE` | Summarize a bundle's contents |
 | `qdo bundle diff BUNDLE_A BUNDLE_B` | Compare two bundles and report differences |
@@ -154,8 +153,8 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `values`, `dist`, 
 | `qdo metadata undo -c CONN -t TABLE [--dry-run]` | Restore the last qdo-managed metadata snapshot |
 | `qdo agent list` | List packaged coding-agent integration docs |
 | `qdo agent show skill\|continue` | Print a packaged integration doc without writing files |
-| `qdo agent install skill --path .claude/skills/querido` | Install the qdo skill files where Claude Code discovers them |
-| `qdo agent install continue` | Install Continue.dev rules into `.continue/rules/` |
+| `qdo agent install skill [--path DIR]` | Install the provider-neutral qdo skill bundle; defaults to `skills/querido` |
+| `qdo agent install continue` | Install the optional Continue.dev adapter into `.continue/rules/` |
 | `qdo completion show SHELL` | Generate shell completion scripts |
 | `qdo overview` | Print this CLI reference (the source for `docs/cli-reference.md`) |
 
@@ -198,7 +197,7 @@ Data goes to **stdout**; spinners and status messages go to **stderr**. This mea
 
 ```bash
 qdo preview -c mydb -t users -f csv | head -5
-qdo inspect -c mydb -t users -f json | jq '.columns[].name'
+qdo inspect -c mydb -t users -f json | jq '.data.columns[].name'
 qdo profile -c mydb -t orders -f csv > profile.csv
 ```
 

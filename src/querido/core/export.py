@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import csv
 import io
-import json
-from pathlib import Path
 from typing import TYPE_CHECKING
+
+from querido import _json as json
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
@@ -17,24 +17,22 @@ def export_data(
     *,
     table: str | None = None,
     sql: str | None = None,
-    output_path: str | None = None,
     fmt: str = "csv",
     limit: int | None = None,
     filter_expr: str | None = None,
     columns: list[str] | None = None,
 ) -> dict:
-    """Export data to a file or return content as a string.
+    """Execute and serialize an export.
 
     Provide either *table* or *sql* (not both).
 
     Returns::
 
         {
-            "path": str | None,
             "rows": int,
             "format": str,
             "size_bytes": int,
-            "content": str | None,  # set when output_path is None (clipboard)
+            "content": str,
         }
     """
     query_sql = build_export_query(
@@ -48,19 +46,11 @@ def export_data(
     data = connector.execute(query_sql)
     content = _format_data(data, fmt)
 
-    if output_path:
-        path = Path(output_path)
-        path.write_text(content, encoding="utf-8")
-        size_bytes = path.stat().st_size
-    else:
-        size_bytes = len(content.encode("utf-8"))
-
     return {
-        "path": output_path,
         "rows": len(data),
         "format": fmt,
-        "size_bytes": size_bytes,
-        "content": content if output_path is None else None,
+        "size_bytes": len(content.encode("utf-8")),
+        "content": content,
     }
 
 
@@ -146,37 +136,3 @@ def _to_delimited(data: list[dict], *, delimiter: str) -> str:
     writer.writeheader()
     writer.writerows(data)
     return buf.getvalue()
-
-
-def copy_to_clipboard(content: str) -> None:
-    """Copy *content* to the system clipboard.
-
-    Uses pbcopy (macOS), xclip (Linux), or clip (Windows).
-    Raises RuntimeError if no clipboard tool is available.
-    """
-    import platform
-    import subprocess
-
-    system = platform.system()
-    if system == "Darwin":
-        cmd = ["pbcopy"]
-    elif system == "Linux":
-        cmd = ["xclip", "-selection", "clipboard"]
-    elif system == "Windows":
-        cmd = ["clip"]
-    else:
-        raise RuntimeError(f"Clipboard not supported on {system}")
-
-    try:
-        subprocess.run(
-            cmd,
-            input=content,
-            text=True,
-            check=True,
-            capture_output=True,
-            timeout=5,
-        )
-    except FileNotFoundError:
-        raise RuntimeError(
-            f"Clipboard tool not found: {cmd[0]}. Install it or use --output to write to a file."
-        ) from None

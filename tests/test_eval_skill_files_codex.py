@@ -19,6 +19,13 @@ def _load_module():
     return mod
 
 
+def test_all_models_selects_full_45_run_matrix() -> None:
+    mod = _load_module()
+
+    assert mod._select_models("all") == ["gpt-5.4-mini", "gpt-5.4", "gpt-5.6-sol"]
+    assert len(mod.base.TASKS) * len(mod.ALL_MODELS) == 45
+
+
 def test_parse_codex_json_extracts_qdo_commands() -> None:
     mod = _load_module()
     stream = "\n".join(
@@ -79,14 +86,26 @@ def test_parse_codex_json_flags_usage_error_text() -> None:
     assert "No such option" in errors[0]
 
 
-def test_transport_or_auth_error_detects_network_failure() -> None:
+def test_codex_service_error_detects_network_failure() -> None:
     mod = _load_module()
-    cat = mod._transport_or_auth_error(
+    cat = mod._codex_service_error(
         '{"type":"error","message":"Reconnecting... failed to lookup address information"}',
         "",
         "",
     )
     assert cat == "transport-error"
+
+
+def test_codex_service_error_detects_subscription_usage_limit() -> None:
+    mod = _load_module()
+
+    cat = mod._codex_service_error(
+        '{"type":"error","message":"You have hit your usage limit. Try again at Jul 28th."}',
+        "",
+        "",
+    )
+
+    assert cat == "account-limit"
 
 
 def test_artifact_success_result_passes_metadata_init_timeout(tmp_path: Path) -> None:

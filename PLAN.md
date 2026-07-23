@@ -14,9 +14,11 @@ rejected directions live in [IDEAS.md](./IDEAS.md).
   `quality`, `report`, and `bundle`.
 - **Experimental:** workflows remain available but do not yet have a stable
   schema or recovery contract.
-- **Verification baseline:** the last recorded full local gate and the 45/45
-  agent eval were green. CI is authoritative; do not infer current green
-  status without rerunning checks.
+- **Verification baseline:** the last recorded full local gate was green, and
+  Codex matrix coverage was **45/45 (100%)** across `gpt-5.4-mini`, `gpt-5.4`,
+  and `gpt-5.6-sol` on 2026-07-23 after targeted retries completed five
+  initially unresolved combinations. CI is authoritative; do not infer current
+  green status without rerunning checks.
 
 ## Do next
 
@@ -57,9 +59,10 @@ self-written instruction notes?
 5. Publish methodology and negative results. If prose notes perform as well as
    qdo metadata, treat that as a product gap rather than hiding the result.
 
-The existing `scripts/eval_skill_files_claude.py` provides subprocess,
-multi-model, timeout, and budget plumbing. Extend it only after dogfood confirms
-that this remains the right evidence to collect.
+The existing `scripts/eval_skill_files_claude.py` and
+`scripts/eval_skill_files_codex.py` provide provider-specific subprocess and
+evaluation plumbing over the same task catalog. Extend them only after dogfood
+confirms that this remains the right evidence to collect.
 
 ## After release
 
@@ -78,5 +81,7 @@ promoting any of them.
 - Extend `_READBACK_CASES` in `tests/test_readback_loop.py` when a scan begins
   reading stored metadata.
 - Preserve dialect-specific tests where generated SQL genuinely differs.
-- Re-run the agent eval after changing command surface or installed agent
-  instructions.
+- Re-run either supported agent eval after changing command surface or installed
+  agent instructions; use Claude for the historical multi-model baseline or
+  `eval_skill_files_codex.py --models all` for the strict subscription-backed
+  Codex 45/45 gate.

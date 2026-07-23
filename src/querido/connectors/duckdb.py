@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
 from typing import Self
 
@@ -73,7 +74,15 @@ class DuckDBConnector:
         if result.description is None:
             return []
         try:
-            return result.to_arrow_table().to_pylist()
+            rows = result.to_arrow_table().to_pylist()
+            for row in rows:
+                for key, value in row.items():
+                    if type(value).__name__ == "MonthDayNano":
+                        row[key] = timedelta(
+                            days=value.months * 30 + value.days,
+                            microseconds=value.nanoseconds // 1_000,
+                        )
+            return rows
         except (ImportError, RuntimeError, AttributeError):
             columns = [desc[0] for desc in result.description]
             rows = result.fetchall()

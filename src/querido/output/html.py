@@ -260,6 +260,28 @@ def _build_table(headers: list[str], rows: list[list[Any]]) -> str:
     return "\n".join(parts)
 
 
+def format_cache_status_html(entries: list[dict]) -> str:
+    """Render metadata-cache status as a standalone HTML page."""
+    rows = [
+        [
+            entry.get("connection", ""),
+            entry.get("tables", 0),
+            entry.get("columns", 0),
+            entry.get("age_hours"),
+        ]
+        for entry in entries
+    ]
+    return _html_page(
+        title="Metadata Cache Status",
+        subtitle=f"{len(entries)} cached connection(s)",
+        table_html=(
+            _build_table(["Connection", "Tables", "Columns", "Age (hours)"], rows)
+            if rows
+            else "<p>No cached metadata found.</p>"
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # open_html — write to temp file and open in browser
 # ---------------------------------------------------------------------------
@@ -1204,6 +1226,7 @@ def format_query_html(
 # Registry — maps command names to HTML output functions for dispatch_output()
 # ---------------------------------------------------------------------------
 REGISTRY: dict[str, object] = {
+    "cache_status": format_cache_status_html,
     "inspect": format_inspect_html,
     "preview": format_preview_html,
     "profile": format_profile_html,

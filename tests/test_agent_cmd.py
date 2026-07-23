@@ -48,15 +48,18 @@ def test_agent_install_skill_prints_discovery_note(tmp_path: Path) -> None:
     destination = tmp_path / "skills" / "querido"
     result = runner.invoke(app, ["agent", "install", "skill", "--path", str(destination)])
     assert result.exit_code == 0
-    assert ".claude/skills/querido" in result.output
-    assert "--path" in result.output
+    output = " ".join(result.output.split())
+    assert "your agent's skill directory" in output
+    assert "discovery path" in output
+    assert "Claude" not in output
+    assert "--path" in output
 
 
 def test_agent_install_continue_has_no_discovery_note(tmp_path: Path) -> None:
     destination = tmp_path / ".continue" / "rules"
     result = runner.invoke(app, ["agent", "install", "continue", "--path", str(destination)])
     assert result.exit_code == 0
-    assert ".claude/skills" not in result.output
+    assert "your agent's skill" not in result.output
 
 
 def test_agent_install_continue_writes_rule_file(tmp_path: Path) -> None:

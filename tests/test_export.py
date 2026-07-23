@@ -301,7 +301,7 @@ def test_export_invalid_format_json(sqlite_path: str, tmp_path: Path):
 
 def test_export_clipboard(sqlite_path: str):
     """--clipboard should export TSV and call copy_to_clipboard."""
-    with patch("querido.core.export.copy_to_clipboard") as mock_copy:
+    with patch("querido.cli.export._copy_to_clipboard") as mock_copy:
         result = runner.invoke(
             app,
             ["export", "-c", sqlite_path, "-t", "users", "--clipboard"],
@@ -386,7 +386,7 @@ def test_export_plan_from_session_step_json_includes_provenance(
 
 def test_export_plan_clipboard_does_not_copy(sqlite_path: str):
     """--plan should describe clipboard output without calling the clipboard helper."""
-    with patch("querido.core.export.copy_to_clipboard") as mock_copy:
+    with patch("querido.cli.export._copy_to_clipboard") as mock_copy:
         result = runner.invoke(
             app,
             ["-f", "json", "export", "-c", sqlite_path, "-t", "users", "--clipboard", "--plan"],

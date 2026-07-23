@@ -4,6 +4,39 @@ import os
 import tomllib
 from pathlib import Path
 
+CONFIG_SCHEMA_VERSION = 1
+COLUMN_SETS_SCHEMA_VERSION = 1
+
+
+class UnsupportedSchemaVersionError(ValueError):
+    """A persisted file was written in a format newer than qdo understands."""
+
+
+def _check_schema_version(data: dict, *, path: Path, maximum: int) -> None:
+    raw = data.get("schema_version")
+    if raw is None:
+        return
+    try:
+        found = int(str(raw))
+    except ValueError:
+        raise ValueError(f"{path.name} has an unreadable schema_version: {raw!r}") from None
+    if found > maximum:
+        raise UnsupportedSchemaVersionError(
+            f"{path.name} uses schema_version {found}, but this qdo only understands "
+            f"up to {maximum}. Upgrade qdo to read it."
+        )
+
+
+def _load_toml_root(path: Path, *, maximum_version: int) -> dict:
+    if not path.exists():
+        return {}
+    with path.open("rb") as file:
+        data = tomllib.load(file)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path.name} must contain a TOML mapping.")
+    _check_schema_version(data, path=path, maximum=maximum_version)
+    return data
+
 
 def get_config_dir() -> Path:
     """Return the qdo config directory, respecting QDO_CONFIG env var."""
@@ -22,13 +55,21 @@ def load_connections(config_dir: Path | None = None) -> dict:
         config_dir = get_config_dir()
 
     config_file = config_dir / "connections.toml"
-    if not config_file.exists():
-        return {}
+    data = _load_toml_root(config_file, maximum_version=CONFIG_SCHEMA_VERSION)
+    connections = data.get("connections", {})
+    if not isinstance(connections, dict):
+        raise ValueError("connections.toml field 'connections' must be a mapping.")
+    return connections
 
-    with open(config_file, "rb") as f:
-        data = tomllib.load(f)
 
-    return data.get("connections", {})
+def save_connections(connections: dict, config_dir: Path | None = None) -> None:
+    """Persist connections while preserving compatible top-level fields."""
+    config_dir = config_dir or get_config_dir()
+    path = config_dir / "connections.toml"
+    root = _load_toml_root(path, maximum_version=CONFIG_SCHEMA_VERSION)
+    root["schema_version"] = CONFIG_SCHEMA_VERSION
+    root["connections"] = connections
+    _write_toml_atomic(path, root)
 
 
 def _write_toml_atomic(path: Path, data: dict) -> None:
@@ -69,10 +110,7 @@ def _column_sets_path(config_dir: Path | None = None) -> Path:
 
 def _load_column_sets_raw(config_dir: Path | None = None) -> dict:
     path = _column_sets_path(config_dir)
-    if not path.exists():
-        return {}
-    with open(path, "rb") as f:
-        return tomllib.load(f)
+    return _load_toml_root(path, maximum_version=COLUMN_SETS_SCHEMA_VERSION)
 
 
 def _parse_legacy_key(key: str) -> tuple[str, str, str] | None:
@@ -108,13 +146,21 @@ def _load_column_set_entries(config_dir: Path | None = None) -> list[dict]:
     entries: list[dict] = []
     for raw in data.get("sets", []):
         if not isinstance(raw, dict):
-            continue
+            raise ValueError("column_sets.toml entries under 'sets' must be mappings.")
+        connection = raw.get("connection")
+        table = raw.get("table")
+        set_name = raw.get("set")
+        columns = raw.get("columns")
+        if not all(isinstance(value, str) for value in (connection, table, set_name)):
+            raise ValueError("column_sets.toml connection, table, and set fields must be strings.")
+        if not isinstance(columns, list) or not all(isinstance(col, str) for col in columns):
+            raise ValueError("column_sets.toml columns must be a list of strings.")
         entries.append(
             {
-                "connection": str(raw.get("connection", "")),
-                "table": str(raw.get("table", "")),
-                "set": str(raw.get("set", "")),
-                "columns": list(raw.get("columns", [])),
+                "connection": connection,
+                "table": table,
+                "set": set_name,
+                "columns": list(columns),
             }
         )
     for key, value in data.items():
@@ -123,20 +169,31 @@ def _load_column_set_entries(config_dir: Path | None = None) -> list[dict]:
         parsed = _parse_legacy_key(key)
         if parsed is None:
             continue
+        columns = value.get("columns")
+        if not isinstance(columns, list) or not all(isinstance(col, str) for col in columns):
+            raise ValueError("column_sets.toml columns must be a list of strings.")
         legacy_conn, legacy_table, legacy_set = parsed
         entries.append(
             {
                 "connection": legacy_conn,
                 "table": legacy_table,
                 "set": legacy_set,
-                "columns": list(value.get("columns", [])),
+                "columns": list(columns),
             }
         )
     return entries
 
 
 def _write_column_set_entries(entries: list[dict], config_dir: Path | None = None) -> None:
-    _write_toml_atomic(_column_sets_path(config_dir), {"sets": entries})
+    path = _column_sets_path(config_dir)
+    root = _load_column_sets_raw(config_dir)
+    root.pop("sets", None)
+    for key, value in list(root.items()):
+        if isinstance(value, dict) and "columns" in value and _parse_legacy_key(key):
+            root.pop(key)
+    root["schema_version"] = COLUMN_SETS_SCHEMA_VERSION
+    root["sets"] = entries
+    _write_toml_atomic(path, root)
 
 
 def _entry_matches(entry: dict, connection: str, table: str, set_name: str) -> bool:

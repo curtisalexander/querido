@@ -68,10 +68,9 @@ def get_context(
         table, dialect, connection, row_count, sampled, sample_size,
         table_comment, table_description, columns (list), metadata (dict|None)
 
-    Stored metadata is read best-effort: unreadable YAML, permission errors,
-    or a missing file all degrade silently to ``metadata=None`` / empty
-    per-column overlays rather than failing the command. Agents relying on
-    the metadata merge should tolerate its absence.
+    Missing or malformed metadata degrades to ``metadata=None``. Documents
+    written with a newer schema version fail explicitly so this version never
+    silently misreads future metadata.
     """
     from querido.connectors.base import validate_table_name
     from querido.core._utils import (
@@ -326,24 +325,13 @@ def _extract_top_k_values(raw_top: list) -> list[str]:
 
 def _load_metadata(connection: str, table: str) -> dict | None:
     """Load stored metadata for a table from disk.  Returns None if not found."""
-    try:
-        from querido.core.metadata import get_metadata_dir
+    from querido.core.metadata import show_metadata
 
-        meta_path = get_metadata_dir(connection) / f"{table}.yaml"
-        if not meta_path.exists():
-            return None
-        import yaml
-
-        return yaml.safe_load(meta_path.read_text(encoding="utf-8")) or None
-    except Exception:
-        return None
+    return show_metadata(connection, table)
 
 
 def _load_column_metadata(connection: str, table: str) -> dict[str, dict]:
     """Load the per-column surfaceable metadata map.  Returns ``{}`` if none."""
-    try:
-        from querido.core.metadata import load_column_metadata
+    from querido.core.metadata import load_column_metadata
 
-        return load_column_metadata(connection, table)
-    except Exception:
-        return {}
+    return load_column_metadata(connection, table)

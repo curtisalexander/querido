@@ -356,7 +356,7 @@ def run_workflow(
     bound = bind_inputs(doc, inputs or {})
     context: dict[str, Any] = dict(bound)
 
-    from querido.core.session import qdo_argv
+    from querido._runtime import qdo_argv
 
     env, session_name = _session_env(str(name), output_format)
     qdo = qdo_argv()

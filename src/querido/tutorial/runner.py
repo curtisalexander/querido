@@ -187,8 +187,9 @@ def get_lessons(db_path: str, *, report_path: str | None = None) -> list[Lesson]
             explanation=(
                 "Step 5: hand off. `report table` builds a single-file HTML\n"
                 "  summary you can share with someone who doesn't have qdo.\n"
-                "  `bundle export` packages metadata + workflows for another\n"
-                "  teammate. And the whole loop is agent-ready via the skill\n"
+                "  `bundle export` packages metadata and optional column sets\n"
+                "  as a directory or ZIP archive, never sessions or workflows.\n"
+                "  And the whole loop is agent-ready via the skill\n"
                 "  file shipped in `integrations/skills/SKILL.md`."
             ),
             commands=[f"report table -c {db} -t parks -o {report_out}"],
@@ -221,9 +222,9 @@ def get_lessons(db_path: str, *, report_path: str | None = None) -> list[Lesson]
                 "    qdo workflow list             Pre-built investigation recipes\n"
                 "    qdo bundle export ...         Share metadata with a teammate\n"
                 "\n"
-                "  Skill file for coding agents:\n"
-                "    Claude Code:  integrations/skills/SKILL.md\n"
-                "    Continue.dev: integrations/continue/qdo.md\n"
+                "  Coding-agent integration:\n"
+                "    Provider-neutral skill: integrations/skills/SKILL.md\n"
+                "    Optional adapter:       integrations/continue/qdo.md\n"
                 "\n"
                 "  Happy exploring!"
             ),

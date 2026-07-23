@@ -25,9 +25,10 @@ Usage::
     uv run python scripts/eval_skill_files_claude.py --tasks A1_list_tables,B1_enumerate_enum
     uv run python scripts/eval_skill_files_claude.py --budget 5.00
 
-Local-only by default. Requires Claude Code Max (``claude -p`` uses the
-subscription, not ANTHROPIC_API_KEY). Refuses to run if the API key is set
-so billing can't go silently through.
+Local-only by default. Uses the account authenticated by the Claude CLI and
+refuses to run if ``ANTHROPIC_API_KEY`` is set so API-key billing cannot happen
+silently. Claude CLI subscription and billing behavior can change, so the
+harness always performs its own projected-cost budget check.
 
 CI note: deliberately not wired into GitHub Actions. If you want to
 automate, use ``workflow_dispatch``-only with explicit budget gates.
@@ -1117,13 +1118,18 @@ def _print_task_result(r: dict[str, Any]) -> None:
         print(f"    category: {cat}")
 
 
-def _print_summary(results: list[dict[str, Any]], out_path: Path) -> None:
+def _print_summary(
+    results: list[dict[str, Any]],
+    out_path: Path,
+    *,
+    gates: dict[str, float] | None = None,
+) -> None:
     print("\n=== Summary ===")
     by_model: dict[str, list[dict[str, Any]]] = {}
     for r in results:
         by_model.setdefault(r["model"], []).append(r)
 
-    gates = {"haiku": 0.70, "sonnet": 0.85, "opus": 0.95}
+    gates = gates or {"haiku": 0.70, "sonnet": 0.85, "opus": 0.95}
     for model, rows in by_model.items():
         passed = sum(1 for r in rows if r["status"] == "pass")
         total = len(rows)

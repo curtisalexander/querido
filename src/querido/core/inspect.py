@@ -15,6 +15,7 @@ def get_inspect(connector: Connector, table: str, *, verbose: bool = False) -> d
             "columns": [{"name": ..., "type": ..., "nullable": ..., ...}, ...],
             "row_count": int,
             "table_comment": str | None,
+            "sql": str,
         }
     """
     from querido.sql.renderer import render_template
@@ -32,4 +33,5 @@ def get_inspect(connector: Connector, table: str, *, verbose: bool = False) -> d
         "columns": columns,
         "row_count": row_count,
         "table_comment": table_comment,
+        "sql": count_sql,
     }

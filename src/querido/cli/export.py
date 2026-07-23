@@ -10,6 +10,37 @@ from querido.cli._options import conn_opt, dbtype_opt
 app = typer.Typer(help="Export data to a file (csv, tsv, json, jsonl).")
 
 
+def _copy_to_clipboard(content: str) -> None:
+    """Copy content using the platform clipboard command."""
+    import platform
+    import subprocess
+
+    system = platform.system()
+    if system == "Darwin":
+        command = ["pbcopy"]
+    elif system == "Linux":
+        command = ["xclip", "-selection", "clipboard"]
+    elif system == "Windows":
+        command = ["clip"]
+    else:
+        raise RuntimeError(f"Clipboard not supported on {system}")
+
+    try:
+        subprocess.run(
+            command,
+            input=content,
+            text=True,
+            check=True,
+            capture_output=True,
+            timeout=5,
+        )
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"Clipboard tool not found: {command[0]}. "
+            "Install it or use --output to write to a file."
+        ) from None
+
+
 def _build_run_cmd(
     *,
     connection: str,
@@ -250,7 +281,6 @@ def export(
                 ctx.connector,
                 table=table,
                 sql=sql,
-                output_path=output,
                 fmt=export_format,
                 limit=limit,
                 filter_expr=filter_expr,
@@ -258,14 +288,15 @@ def export(
             )
 
         if clipboard:
-            from querido.core.export import copy_to_clipboard
-
             content = result.get("content", "")
-            copy_to_clipboard(content)
+            _copy_to_clipboard(content)
             ctx.console.print(
                 f"[green]Copied {result.get('rows', 0):,} rows to clipboard (TSV)[/green]",
             )
         elif output:
+            from pathlib import Path
+
+            Path(output).write_bytes(result.get("content", "").encode("utf-8"))
             ctx.console.print(
                 f"[green]Exported {result.get('rows', 0):,} rows to {output}"
                 f" ({result.get('size_bytes', 0):,} bytes)[/green]",

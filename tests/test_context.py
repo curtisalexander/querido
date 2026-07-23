@@ -297,6 +297,21 @@ def test_context_invalid_table_name(sqlite_path: str) -> None:
     assert result.exit_code != 0
 
 
+def test_context_refuses_metadata_from_newer_schema(
+    sqlite_path: str, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    from querido.core.metadata import metadata_path
+
+    path = metadata_path(sqlite_path, "orders")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("schema_version: 99\ntable: orders\ncolumns: []\n")
+
+    result = runner.invoke(app, ["context", "-c", sqlite_path, "-t", "orders"])
+
+    assert result.exit_code != 0
+
+
 # ---------------------------------------------------------------------------
 # core.context unit tests
 # ---------------------------------------------------------------------------

@@ -261,6 +261,13 @@ def test_cli_cache_status_json(cache_sqlite: str, tmp_path: Path, monkeypatch: p
     assert "entries" in payload["data"]
 
 
+def test_cli_cache_status_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("QDO_CONFIG", str(tmp_path))
+    result = runner.invoke(app, ["-f", "yaml", "cache", "status"])
+    assert result.exit_code == 0, result.output
+    assert "entries:" in result.output
+
+
 def test_cli_cache_clear(cache_sqlite: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("QDO_CONFIG", str(tmp_path))
     runner.invoke(app, ["cache", "sync", "-c", cache_sqlite])

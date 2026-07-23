@@ -7,6 +7,8 @@ here at the package root — ``output`` must not depend on ``cli``.
 
 from __future__ import annotations
 
+import sys
+
 
 def _get_root_obj() -> dict:
     """Walk up the Click context chain and return the root context's obj dict."""
@@ -26,3 +28,8 @@ def _get_root_obj() -> dict:
 def get_output_format() -> str:
     """Return the --format value from the root CLI context, defaulting to 'rich'."""
     return _get_root_obj().get("format", "rich")
+
+
+def qdo_argv() -> list[str]:
+    """Return an argv prefix that invokes qdo with this interpreter."""
+    return [sys.executable, "-m", "querido"]

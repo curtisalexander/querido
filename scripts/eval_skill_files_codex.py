@@ -7,7 +7,7 @@ questions, pass/fail rules, and artifact logging aligned across both agents.
 Usage::
 
     uv run python scripts/eval_skill_files_codex.py
-    uv run python scripts/eval_skill_files_codex.py --models gpt-5.4-mini,gpt-5.4
+    uv run python scripts/eval_skill_files_codex.py --models all
     uv run python scripts/eval_skill_files_codex.py --tasks A1_list_tables,D3_table_report
 """
 
@@ -47,7 +47,8 @@ SKILL_FILES = base.SKILL_FILES
 TASK_TIMEOUT_SEC = base.DEFAULT_TASK_TIMEOUT_SEC
 QDO_TIMEOUT_SEC = base.DEFAULT_QDO_TIMEOUT_SEC
 DEFAULT_MODELS = ["gpt-5.4-mini"]
-ALL_MODELS = ["gpt-5.4-mini", "gpt-5.4"]
+ALL_MODELS = ["gpt-5.4-mini", "gpt-5.4", "gpt-5.6-sol"]
+MODEL_GATES = dict.fromkeys(ALL_MODELS, 1.0)
 
 
 def main() -> int:
@@ -68,10 +69,14 @@ def main() -> int:
             base._print_task_result(result)
             results.append(result)
 
-            if result.get("failure_category") in {"auth-error", "transport-error"}:
+            if result.get("failure_category") in {
+                "account-limit",
+                "auth-error",
+                "transport-error",
+            }:
                 print(
                     "\nerror: Codex could not complete the run. "
-                    "Check `codex login` and network access, then retry."
+                    "Check account usage, `codex login`, and network access, then retry."
                 )
                 break
         else:
@@ -83,7 +88,7 @@ def main() -> int:
     out_path = RESULTS_DIR / f"results_codex_{stamp}.json"
     out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
-    base._print_summary(results, out_path)
+    base._print_summary(results, out_path, gates=MODEL_GATES)
     return _exit_code(results)
 
 
@@ -244,7 +249,7 @@ def run_task(
     if final_text:
         (scratch / "final.txt").write_text(final_text, encoding="utf-8")
 
-    failure_category = _transport_or_auth_error(stream_text, proc.stderr, final_text)
+    failure_category = _codex_service_error(stream_text, proc.stderr, final_text)
     if failure_category is not None:
         return {
             "task_id": task.id,
@@ -256,7 +261,11 @@ def run_task(
             "reason": (
                 "codex exec isn't authenticated — run `codex login` first"
                 if failure_category == "auth-error"
-                else "codex exec could not reach the model backend"
+                else (
+                    "Codex account usage limit reached"
+                    if failure_category == "account-limit"
+                    else "codex exec could not reach the model backend"
+                )
             ),
             "path_ok": False,
             "qdo_commands": qdo_commands,
@@ -387,6 +396,10 @@ def _extract_text_fields(obj: Any) -> list[str]:
 
 
 _CODEX_AUTH_RE = re.compile(r"unauthorized|not\s+logged\s+in|run\s+codex\s+login", re.IGNORECASE)
+_CODEX_ACCOUNT_LIMIT_RE = re.compile(
+    r"(?:hit|reached).{0,20}usage limit|purchase more credits|try again at",
+    re.IGNORECASE,
+)
 _CODEX_TRANSPORT_RE = re.compile(
     r"failed to lookup address information|could not reach the model backend|api\.openai\.com|"
     r"stream disconnected|reconnecting",
@@ -394,8 +407,10 @@ _CODEX_TRANSPORT_RE = re.compile(
 )
 
 
-def _transport_or_auth_error(stdout: str, stderr: str, final_text: str) -> str | None:
+def _codex_service_error(stdout: str, stderr: str, final_text: str) -> str | None:
     haystack = "\n".join([stdout or "", stderr or "", final_text or ""])
+    if _CODEX_ACCOUNT_LIMIT_RE.search(haystack):
+        return "account-limit"
     if _CODEX_AUTH_RE.search(haystack):
         return "auth-error"
     if _CODEX_TRANSPORT_RE.search(haystack):

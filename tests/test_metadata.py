@@ -61,6 +61,17 @@ def test_read_table_doc_refuses_newer_schema_version(tmp_path: Path):
         read_table_doc(doc)
 
 
+def test_read_table_doc_ignores_non_mapping_yaml(tmp_path: Path):
+    # Failure mode: syntactically valid YAML with the wrong root shape caused
+    # an AttributeError in every command that reads stored metadata.
+    from querido.core.metadata import read_table_doc
+
+    doc = tmp_path / "orders.yaml"
+    doc.write_text("- not\n- a\n- mapping\n")
+
+    assert read_table_doc(doc) is None
+
+
 def test_metadata_init_force(sqlite_path: str, tmp_path: Path, monkeypatch):
     """Init with --force overwrites existing file."""
     monkeypatch.chdir(tmp_path)

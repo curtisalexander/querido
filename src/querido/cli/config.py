@@ -485,7 +485,7 @@ def column_set_delete(
 
 
 def _write_connections(config_file: Path | str, connections: dict) -> None:
-    """Write connections dict back to TOML format using tomli-w."""
-    from querido.config import _write_toml_atomic
+    """Write connections through the versioned persistence boundary."""
+    from querido.config import save_connections
 
-    _write_toml_atomic(Path(config_file), {"connections": connections})
+    save_connections(connections, Path(config_file).parent)
