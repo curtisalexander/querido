@@ -10,14 +10,8 @@ No daemon, no DB, no server — everything is plain files in the cwd.
 
 from __future__ import annotations
 
-import io
 import json
 import os
-import subprocess
-import sys
-import time
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -28,6 +22,7 @@ if TYPE_CHECKING:
 SESSIONS_ROOT = ".qdo/sessions"
 STEPS_FILE = "steps.jsonl"
 STDOUT_FILE = "stdout"
+SESSION_FORMAT_VERSION = 1
 
 
 # Short, memorable word lists for generated session names. Picked to be
@@ -188,14 +183,33 @@ def iter_steps(name: str, cwd: Path | None = None) -> Iterator[dict]:
     if not path.is_file():
         return
     with path.open(encoding="utf-8") as f:
-        for line in f:
+        for line_number, line in enumerate(f, start=1):
             line = line.strip()
             if not line:
                 continue
             try:
-                yield json.loads(line)
-            except json.JSONDecodeError:
-                continue
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Session {name!r} has invalid JSON on line {line_number}."
+                ) from exc
+            if not isinstance(record, dict):
+                raise ValueError(
+                    f"Session {name!r} line {line_number} must contain a JSON object."
+                )
+            raw_version = record.get("format_version", SESSION_FORMAT_VERSION)
+            try:
+                version = int(str(raw_version))
+            except ValueError:
+                raise ValueError(
+                    f"Session {name!r} line {line_number} has an unreadable format_version."
+                ) from None
+            if version > SESSION_FORMAT_VERSION:
+                raise ValueError(
+                    f"Session {name!r} line {line_number} uses format_version {version}, "
+                    f"but this qdo only understands up to {SESSION_FORMAT_VERSION}."
+                )
+            yield record
 
 
 def read_step_stdout(step: dict, cwd: Path | None = None) -> str:
@@ -325,128 +339,6 @@ def next_step_index(dir_: Path) -> int:
     return count + 1
 
 
-class _Tee(io.TextIOBase):
-    """Write-through text stream that duplicates writes into a buffer."""
-
-    def __init__(self, original: Any, buffer: io.StringIO) -> None:
-        self._original = original
-        self._buffer = buffer
-
-    def write(self, s: str) -> int:
-        self._original.write(s)
-        self._buffer.write(s)
-        return len(s)
-
-    def flush(self) -> None:
-        self._original.flush()
-
-    def writable(self) -> bool:
-        return True
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._original, name)
-
-
-@dataclass
-class SessionRecorder:
-    """Captures stdout and records a step when ``stop()`` is called.
-
-    Designed to be started in the CLI root callback and stopped from a
-    ``ctx.call_on_close`` hook so the step is recorded regardless of how the
-    command exits.
-    """
-
-    name: str
-    argv: list[str]
-    cwd: Path | None = None
-    _buffer: io.StringIO | None = None
-    _original_stdout: Any = None
-    _start_time: float = 0.0
-    _started_at: str = ""
-    _stopped: bool = False
-
-    def start(self) -> None:
-        self._buffer = io.StringIO()
-        self._original_stdout = sys.stdout
-        sys.stdout = _Tee(self._original_stdout, self._buffer)
-        self._start_time = time.monotonic()
-        self._started_at = datetime.now(UTC).isoformat(timespec="seconds")
-
-    def cancel(self) -> None:
-        """Restore stdout without writing a record (used for skipped commands)."""
-        if self._stopped:
-            return
-        self._stopped = True
-        if self._original_stdout is not None:
-            sys.stdout = self._original_stdout
-
-    def stop(self, exit_code: int = 0) -> dict:
-        """Restore stdout and append a step record. Returns the record."""
-        if self._stopped:
-            return {}
-        self._stopped = True
-
-        duration = round(time.monotonic() - self._start_time, 4)
-        if self._original_stdout is not None:
-            sys.stdout = self._original_stdout
-        captured = self._buffer.getvalue() if self._buffer is not None else ""
-
-        dir_ = session_dir(self.name, self.cwd)
-        dir_.mkdir(parents=True, exist_ok=True)
-        index = next_step_index(dir_)
-
-        step_dir = dir_ / f"step_{index}"
-        step_dir.mkdir(parents=True, exist_ok=True)
-        stdout_path = step_dir / STDOUT_FILE
-        stdout_path.write_text(captured, encoding="utf-8")
-
-        record = {
-            "index": index,
-            "timestamp": self._started_at,
-            "cmd": _derive_cmd(self.argv),
-            "args": list(self.argv),
-            "duration": duration,
-            "exit_code": exit_code,
-            "row_count": _extract_row_count(captured),
-            "stdout_path": str(stdout_path.relative_to(dir_.parent.parent)),
-        }
-
-        with (dir_ / STEPS_FILE).open("a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\n")
-
-        return record
-
-
-@dataclass
-class ReplayStepResult:
-    """One replayed step from a recorded session."""
-
-    source_index: int | None
-    cmd: str
-    args: list[str]
-    exit_code: int
-    duration: float
-    stdout: str = ""
-    stderr: str = ""
-
-
-@dataclass
-class ReplayResult:
-    """Summary of replaying a recorded session."""
-
-    source_session: str
-    replay_session: str
-    steps: list[ReplayStepResult]
-
-    @property
-    def step_count(self) -> int:
-        return len(self.steps)
-
-    @property
-    def failed_step(self) -> ReplayStepResult | None:
-        return next((step for step in self.steps if step.exit_code != 0), None)
-
-
 def _derive_cmd(argv: list[str]) -> str:
     """Return the ``qdo <subcommand> [<subsub>]`` portion of *argv* (best effort)."""
     tokens: list[str] = []
@@ -458,107 +350,6 @@ def _derive_cmd(argv: list[str]) -> str:
         if len(tokens) >= 2:
             break
     return " ".join(tokens) if tokens else ""
-
-
-def generate_replay_session_name(source: str) -> str:
-    """Return a deterministic-ish session name for replay output."""
-    return f"replay-{source}-{int(time.time())}"
-
-
-def replay_session(
-    name: str,
-    *,
-    last: int | None = None,
-    into: str | None = None,
-    continue_on_error: bool = False,
-    cwd: Path | None = None,
-    stream_output: bool = False,
-    stderr: Any = None,
-    on_step_start: Any = None,
-) -> ReplayResult:
-    """Re-execute successful recorded steps from *name* in order.
-
-    The replay itself is recorded into *into* (or an auto-generated
-    ``replay-<name>-<ts>`` session) by setting ``QDO_SESSION`` on the child
-    processes. Steps stop on first failure unless ``continue_on_error`` is
-    true.
-    """
-    dir_ = session_dir(name, cwd)
-    if not dir_.is_dir():
-        raise ValueError(f"Session not found: {name}")
-
-    source_steps = [
-        step
-        for step in iter_steps(name, cwd)
-        if step.get("exit_code") == 0 and isinstance(step.get("args"), list) and step.get("args")
-    ]
-    if last is not None and last > 0:
-        source_steps = source_steps[-last:]
-    if not source_steps:
-        raise ValueError(
-            f"Session {name!r} has no successful recorded steps to replay. "
-            "Run 'qdo session show' to inspect."
-        )
-
-    replay_name = into or generate_replay_session_name(name)
-    env = os.environ.copy()
-    env["QDO_SESSION"] = replay_name
-    run_cwd = cwd or Path.cwd()
-    err = stderr if stderr is not None else sys.stderr
-    results: list[ReplayStepResult] = []
-    total = len(source_steps)
-
-    for position, step in enumerate(source_steps, start=1):
-        args = [str(part) for part in step.get("args", []) if isinstance(part, str)]
-        if not args:
-            continue
-        if callable(on_step_start):
-            on_step_start(step, position, total)
-
-        started = time.monotonic()
-        proc = subprocess.run(
-            [*qdo_argv(), *args],
-            cwd=run_cwd,
-            env=env,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
-        )
-        duration = round(time.monotonic() - started, 4)
-
-        if stream_output:
-            if proc.stdout:
-                sys.stdout.write(proc.stdout)
-            if proc.stderr:
-                err.write(proc.stderr)
-
-        result = ReplayStepResult(
-            source_index=step.get("index") if isinstance(step.get("index"), int) else None,
-            cmd=_derive_cmd(args),
-            args=args,
-            exit_code=proc.returncode,
-            duration=duration,
-            stdout=proc.stdout,
-            stderr=proc.stderr,
-        )
-        results.append(result)
-        if proc.returncode != 0 and not continue_on_error:
-            break
-
-    return ReplayResult(source_session=name, replay_session=replay_name, steps=results)
-
-
-def qdo_argv() -> list[str]:
-    """Return the argv prefix that invokes qdo as a subprocess.
-
-    Uses ``sys.executable -m querido`` unconditionally rather than looking up
-    ``qdo`` on PATH.  This guarantees the child runs the same interpreter and
-    module code as the parent and sidesteps Windows launcher / PATHEXT quirks
-    that caused `shutil.which("qdo")` to resolve to an `.exe` whose argument
-    forwarding broke ``session replay`` on Windows CI.
-    """
-    return [sys.executable, "-m", "querido"]
 
 
 def _extract_row_count(stdout: str) -> int | None:

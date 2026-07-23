@@ -1,6 +1,6 @@
 import pytest
 
-from querido.config import load_connections, resolve_connection
+from querido.config import load_connections, resolve_connection, save_connections
 
 
 def test_load_connections_from_toml(tmp_path):
@@ -14,6 +14,28 @@ def test_load_connections_from_toml(tmp_path):
 def test_load_connections_missing_file(tmp_path):
     connections = load_connections(tmp_path)
     assert connections == {}
+
+
+def test_connections_refuse_newer_schema_version(tmp_path):
+    (tmp_path / "connections.toml").write_text(
+        'schema_version = 99\n[connections.mydb]\ntype = "sqlite"\npath = "db.sqlite"\n'
+    )
+
+    with pytest.raises(ValueError, match="schema_version 99"):
+        load_connections(tmp_path)
+
+
+def test_save_connections_preserves_top_level_fields(tmp_path):
+    (tmp_path / "connections.toml").write_text(
+        'note = "keep me"\n[connections.old]\ntype = "sqlite"\npath = "old.db"\n'
+    )
+
+    save_connections({"new": {"type": "sqlite", "path": "new.db"}}, tmp_path)
+
+    content = (tmp_path / "connections.toml").read_text()
+    assert 'note = "keep me"' in content
+    assert "schema_version = 1" in content
+    assert "[connections.new]" in content
 
 
 def test_resolve_connection_as_path(tmp_path):
@@ -174,3 +196,12 @@ def test_column_set_legacy_format_migrated_on_write(tmp_path):
     # The legacy entry survives migration
     assert load_column_set("conn1", "orders", "default", tmp_path) == ["id"]
     assert load_column_set("conn2", "users", "names", tmp_path) == ["name"]
+
+
+def test_column_sets_refuse_newer_schema_version(tmp_path):
+    from querido.config import list_column_sets
+
+    (tmp_path / "column_sets.toml").write_text("schema_version = 99\n")
+
+    with pytest.raises(ValueError, match="schema_version 99"):
+        list_column_sets(config_dir=tmp_path)

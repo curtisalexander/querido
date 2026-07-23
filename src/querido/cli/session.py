@@ -244,7 +244,7 @@ def replay(
 ) -> None:
     """Re-execute a prior investigation from the session log."""
     from querido.cli._pipeline import emit_json
-    from querido.core.session import replay_session
+    from querido.cli._session_runtime import replay_session
     from querido.output.envelope import is_structured_format
 
     structured = is_structured_format()

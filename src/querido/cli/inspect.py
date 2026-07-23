@@ -24,12 +24,10 @@ def inspect(
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
         with ctx.spin(f"Inspecting [bold]{ctx.table}[/bold]"):
             from querido.core.inspect import get_inspect
-            from querido.sql.renderer import render_template
 
-            count_sql = render_template("count", ctx.connector.dialect, table=ctx.table)
-            maybe_show_sql(count_sql)
-            set_last_sql(count_sql)
             result = get_inspect(ctx.connector, ctx.table, verbose=verbose)
+            maybe_show_sql(result["sql"])
+            set_last_sql(result["sql"])
 
         from querido.core.next_steps import for_inspect
 

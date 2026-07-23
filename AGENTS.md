@@ -9,7 +9,7 @@ This file helps people (and coding agents) contributing to qdo get up to speed q
 - **What's been considered and rejected** — [IDEAS.md](./IDEAS.md). Before proposing a new feature, check here — the filter in DIFFERENTIATION.md plus the rejected list catch most drift.
 - **Code layout** — [ARCHITECTURE.md](./ARCHITECTURE.md). Current layers, dependency direction, API boundaries, and primary flows.
 - **End-user surface** — [README.md](./README.md) and [docs/cli-reference.md](./docs/cli-reference.md). Don't duplicate that content here.
-- **Agent integration** — [integrations/skills/SKILL.md](./integrations/skills/SKILL.md) (Claude Code) and [integrations/continue/qdo.md](./integrations/continue/qdo.md) (Continue.dev). If you're using qdo *from* an agent, read SKILL.md; if you're changing the agent-facing envelope, update both.
+- **Agent integration** — [integrations/skills/SKILL.md](./integrations/skills/SKILL.md) is the provider-neutral source of truth; [integrations/continue/qdo.md](./integrations/continue/qdo.md) is an optional provider-specific adapter. If you're using qdo *from* an agent, read SKILL.md; if you're changing the agent-facing envelope, update both.
 
 Current documents describe truth; [`docs/archive/`](./docs/archive/) preserves
 point-in-time plans and reviews. `docs/research/` is uncommitted background,
@@ -110,13 +110,35 @@ differs.
 
 ## Self-hosting evaluations
 
-Three optional eval scripts under `scripts/`. All are opt-in — run them locally after docs or command-surface changes; failures that cluster in a category point at specific docs to tighten.
+Three optional eval scripts live under `scripts/`. All are opt-in — run them
+locally after docs or command-surface changes; failures that cluster in a
+category point at specific docs to tighten. A complete skill-file check may use
+either supported provider:
+
+```bash
+# Subscription-backed Codex CLI: 15 tasks x 3 models, all must pass
+codex login status
+uv run python scripts/eval_skill_files_codex.py --models all
+
+# Claude CLI: 15 tasks across each selected model, with model-specific gates
+uv run python scripts/eval_skill_files_claude.py --models all
+```
 
 - **`eval_skill_files_claude.py`** — feeds SKILL.md + AGENTS.md + WORKFLOW_EXAMPLES.md to `claude -p` and asks it to answer 15 realistic data-exploration tasks across Haiku / Sonnet / Opus. Per-model pass gates (70 / 85 / 95 %). Current baseline: **45/45 (100%)** — zero failures across all three models. Safeguards: per-task timeout (`--task-timeout-sec`), overall wall-clock cap (`--max-wall-clock-minutes`, default 20). Results land in `scripts/eval_results/` (gitignored).
-- **`eval_skill_files_codex.py`** — same task catalog against Codex via `codex exec`, for agent-cross-check.
+- **`eval_skill_files_codex.py`** — runs the same task catalog through
+  non-interactive `codex exec`. It uses the account reported by `codex login
+  status`; a ChatGPT subscription login does not require `OPENAI_API_KEY`. The
+  default quick check is **15/15** on `gpt-5.4-mini`; `--models all` is the full
+  **45/45** gate across `gpt-5.4-mini`, `gpt-5.4`, and `gpt-5.6-sol`. Current
+  verified matrix: **45/45 (100%)** on 2026-07-23. The first full attempt
+  produced 40 passes, one model-path miss, and four account-limit interruptions;
+  targeted reruns passed all five unresolved combinations. Account usage limits
+  still apply.
 - **`eval_workflow_authoring.py`** — feeds `WORKFLOW_AUTHORING.md` + `qdo workflow spec` + bundled examples to `claude -p` and asks for three novel workflows, then lint + runs them. Signals whether the authoring doc is pedagogically complete.
 
-All three refuse to run with `ANTHROPIC_API_KEY` set (they're meant to go through Claude's CLI auth) and enforce a budget guardrail.
+The Claude-backed scripts refuse to run with `ANTHROPIC_API_KEY` set and enforce
+a dollar-budget guardrail. The Codex script uses Codex CLI authentication and
+does not estimate dollar spend; verify `codex login status` before running it.
 
 ## Test data
 

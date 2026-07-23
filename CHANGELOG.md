@@ -16,10 +16,10 @@ is `qdo`.
   `context` / `quality` rich output when derived fields aren't stored yet, and
   opt-in `QDO_AUTO_CAPTURE=1` to auto-persist from `context` / `profile` /
   `values` / `quality`.
-- **On-disk contract versioning** — metadata YAML documents now carry a
-  `schema_version`, the metadata cache stores its schema version in SQLite's
-  `user_version` (mismatches rebuild the cache), and `bundle import` refuses
-  bundles with a newer `format_version` instead of silently misreading them.
+- **On-disk contract versioning** — metadata YAML, connection/column-set TOML,
+  bundle manifests, and session JSONL records now carry format versions and
+  refuse newer incompatible data instead of silently misreading it. The
+  metadata cache keeps its rebuild-on-version-mismatch SQLite `user_version`.
 - **PyPI publishing** — the release workflow publishes to PyPI via trusted
   publishing (OIDC) after the build + wheel smoke test.
 - Archived
@@ -29,6 +29,12 @@ is `qdo`.
 
 ### Changed
 
+- Agent-document verification may use either the budget-guarded Claude harness
+  or the strict 45/45 subscription-backed Codex `codex exec` harness. Current
+  Codex matrix coverage is **45/45 (100%)** across `gpt-5.4-mini`, `gpt-5.4`,
+  and `gpt-5.6-sol`; five combinations unresolved by the first full attempt
+  (four account-limit interruptions and one model-path miss) all passed targeted
+  reruns.
 - CI now tests Python 3.12, 3.13, and 3.14 across all three OSes (previously
   3.13 only).
 - Install docs across README, CLI reference, and SKILL files point at PyPI
@@ -98,8 +104,9 @@ LLMs inside qdo — the agent brings the brain; qdo brings the memory and the ma
 - **`--write-metadata` on `profile`, `values`, and `quality`** — captured
   findings flow back into the next `context` / `quality` run automatically.
 - **Knowledge bundles** — `qdo bundle export/import/inspect/diff` produce
-  portable, connection-agnostic zip archives of metadata + sessions + workflows.
-  Schema-fingerprint checks catch drift on import.
+  portable, connection-agnostic directories or ZIP archives of metadata and
+  optional column sets, never sessions or workflows. A `.zip` output suffix
+  selects ZIP output. Schema-fingerprint checks catch drift on import.
 - **Declarative workflows** — YAML workflow spec + runner + lint (`qdo workflow
   run/list/show/lint/spec/from-session`), with bundled worked examples.
 - **Structured error envelope** — CLI failures under `-f json`
@@ -138,8 +145,8 @@ LLMs inside qdo — the agent brings the brain; qdo brings the memory and the ma
   tasks. Current baseline: **45/45 (100%)** with zero `qdo-bug` failures.
 - **Eval-harness runtime safeguards** — wall-clock cap, per-task and qdo command
   timeouts, per-task progress headers, and line-buffered stdout for long runs.
-- **`integrations/skills/SKILL.md`** (Claude Code),
-  **`integrations/continue/qdo.md`** (Continue.dev),
+- Provider-neutral **`integrations/skills/SKILL.md`**,
+  optional **`integrations/continue/qdo.md`** adapter,
   **`WORKFLOW_AUTHORING.md`**, and **`WORKFLOW_EXAMPLES.md`** — ready-made agent
   context files.
 - **GitHub Pages agent integration pages** generated from the canonical

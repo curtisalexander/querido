@@ -17,9 +17,10 @@ provenance (``meta``) without colliding with command-specific payload keys.
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from typing import Any
+
+from querido import _json as json
 
 # ``cmd``/``shell_quote_value`` live in ``querido._shell`` (a neutral leaf both
 # ``core`` and ``output`` can import); re-exported here for existing importers.

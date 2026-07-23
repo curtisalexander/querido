@@ -65,6 +65,10 @@ def template(
         template_result = assemble_template(
             columns, ctx.table, table_comment, row_count, profile_data, sample_rows
         )
+        if get_output_format() == "yaml":
+            from querido.core.template import build_template_semantic_yaml
+
+            template_result["semantic_yaml"] = build_template_semantic_yaml(template_result)
 
         from querido.core.next_steps import for_template
 

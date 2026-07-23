@@ -8,6 +8,7 @@ they can be shared across teammates or moved between connections.  See
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
 
 import typer
 
@@ -15,6 +16,29 @@ from querido.cli._errors import friendly_errors
 from querido.cli._options import conn_opt
 
 app = typer.Typer(help="Export, import, inspect, or diff knowledge bundles.")
+
+
+@contextmanager
+def _target_connector(target: str):
+    """Yield an optional connector for best-effort import drift checks."""
+    from querido.config import UnsupportedSchemaVersionError, resolve_connection
+    from querido.connectors.base import ConnectorError
+    from querido.connectors.factory import create_connector
+
+    try:
+        config = resolve_connection(target)
+        resource = create_connector(config)
+        connector = resource.__enter__()
+    except UnsupportedSchemaVersionError:
+        raise
+    except (ConnectorError, FileNotFoundError, ImportError, ValueError):
+        yield None
+        return
+
+    try:
+        yield connector
+    finally:
+        resource.__exit__(*sys.exc_info())
 
 
 def _parse_maps(pairs: list[str]) -> dict[str, str]:
@@ -67,22 +91,28 @@ def export(
     ),
 ) -> None:
     """Package metadata (and optional column sets) for TABLES into a bundle."""
-    from querido.cli._pipeline import emit_json
+    from pathlib import Path
+
+    from querido.cli._pipeline import database_command, emit_json
+    from querido.config import list_column_sets
     from querido.core.bundle import export_bundle
 
     table_list = [t.strip() for t in tables.split(",") if t.strip()]
     if not table_list:
         raise typer.BadParameter("--tables must contain at least one name")
 
-    manifest = export_bundle(
-        connection,
-        table_list,
-        output,
-        include_column_sets=include_column_sets,
-        redact=redact,
-        author=author,
-        as_zip=as_zip,
-    )
+    column_sets = list_column_sets(connection=connection) if include_column_sets else []
+    with database_command(connection=connection) as ctx:
+        manifest = export_bundle(
+            connection,
+            ctx.connector,
+            table_list,
+            output,
+            column_sets=column_sets,
+            redact=redact,
+            author=author,
+            as_zip=as_zip or Path(output).suffix.lower() == ".zip",
+        )
 
     if emit_json(
         "bundle export",
@@ -132,16 +162,36 @@ def import_cmd(
 ) -> None:
     """Import a bundle into --into. Dry-run by default; pass --apply to write."""
     from querido.cli._pipeline import emit_json
-    from querido.core.bundle import import_bundle
+    from querido.config import list_column_sets, save_column_set
+    from querido.core.bundle import import_bundle, inspect_bundle
 
     mapping = _parse_maps(maps or [])
-    report = import_bundle(
-        bundle_path,
-        target,
-        maps=mapping,
-        strategy=strategy,
-        apply=apply_flag,
-    )
+    if apply_flag and inspect_bundle(bundle_path)["column_set_count"]:
+        # Validate the destination store before core writes any metadata, so
+        # an unsupported column-set schema cannot leave a partial import.
+        list_column_sets(connection=target)
+    with _target_connector(target) as target_connector:
+        report = import_bundle(
+            bundle_path,
+            target,
+            target_connector,
+            maps=mapping,
+            strategy=strategy,
+            apply=apply_flag,
+        )
+
+    if apply_flag:
+        for column_set in report.get("column_sets") or []:
+            name = column_set.get("name")
+            if not name:
+                continue
+            save_column_set(
+                target,
+                column_set.get("target_table", ""),
+                name,
+                list(column_set.get("columns") or []),
+            )
+            column_set["applied"] = True
 
     if emit_json("bundle import", report, connection=target):
         return

@@ -52,7 +52,7 @@ Use `uvx --from querido qdo --help` for a one-off run. SQLite is the only
 always-available backend; optional integrations are imported only when used.
 
 > **Release status:** `0.2.0` is prepared but not yet published to PyPI. Until
-> the first release is tagged, install from a checkout with `uv tool install .`
+> `0.2.0` is published, install from a checkout with `uv tool install .`
 > or run `uv sync && uv run qdo --help`. See [Releasing](./RELEASING.md).
 
 ## Start with one table
@@ -125,17 +125,20 @@ Coding-agent instructions ship inside the installed package; a repository
 checkout is not required. Install them from the project where the agent works:
 
 ```bash
-# Claude Code's project discovery path
-qdo agent install skill --path .claude/skills/querido
+# Provider-neutral skill bundle; defaults to ./skills/querido
+qdo agent install skill
 
-# Continue.dev's conventional project path
+# Or install directly into your agent's documented skill discovery path
+qdo agent install skill --path <agent-skill-directory>/querido
+
+# Optional provider-specific adapter
 qdo agent install continue
 ```
 
 `qdo agent list` shows every packaged target and `qdo agent show skill` prints
 instructions without writing files. The canonical source files are
-[the agent skill](./integrations/skills/SKILL.md) and
-[the Continue rule](./integrations/continue/qdo.md).
+[the provider-neutral agent skill](./integrations/skills/SKILL.md) and the
+optional [Continue rule](./integrations/continue/qdo.md).
 
 ## Go deeper only when you need to
 
@@ -148,6 +151,7 @@ instructions without writing files. The canonical source files are
 - **Contribute:** [contributor guide](./AGENTS.md)
 - **See current committed work:** [plan](./PLAN.md)
 
-qdo stores sessions as JSONL, metadata as YAML, bundles as zip archives, and
-workflows as YAML. There is no daemon or hosted dependency: the knowledge stays
-portable, diffable, and yours.
+qdo stores sessions as JSONL, metadata as YAML, bundles as directories or ZIP
+archives containing metadata and optional column sets, and workflows as YAML.
+Bundles never contain sessions or workflows. There is no daemon or hosted
+dependency: the knowledge stays portable, diffable, and yours.

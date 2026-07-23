@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 
+from querido import _json as json
 from querido.output import fmt_value
 
 
@@ -32,6 +32,39 @@ def dicts_to_csv(data: list[dict]) -> str:
     writer.writeheader()
     writer.writerows(data)
     return buf.getvalue().rstrip("\n")
+
+
+def format_cache_status(entries: list[dict], fmt: str) -> str:
+    """Render metadata-cache status in non-Rich text formats."""
+    rows = [
+        {
+            "connection": entry.get("connection", ""),
+            "tables": entry.get("tables", 0),
+            "columns": entry.get("columns", 0),
+            "age_hours": entry.get("age_hours"),
+        }
+        for entry in entries
+    ]
+    if fmt == "csv":
+        return dicts_to_csv(rows)
+    if fmt == "markdown":
+        return to_markdown_table(
+            ["Connection", "Tables", "Columns", "Age (hours)"],
+            [
+                [
+                    str(row["connection"]),
+                    str(row["tables"]),
+                    str(row["columns"]),
+                    str(row["age_hours"] if row["age_hours"] is not None else ""),
+                ]
+                for row in rows
+            ],
+        )
+    if fmt == "yaml":
+        import yaml
+
+        return yaml.safe_dump({"entries": rows}, sort_keys=False).rstrip()
+    return json.dumps({"entries": rows}, indent=2, default=str)
 
 
 # -- inspect ------------------------------------------------------------------
@@ -321,24 +354,8 @@ def format_dist(
 
 
 def _format_template_yaml(template_result: dict) -> str:
-    """Render template metadata as a Cortex Analyst-compatible semantic model YAML."""
-    from querido.core.semantic import build_semantic_yaml
-
-    columns = template_result["columns"]
-
-    # Build per-column sample values dict from the comma-separated strings.
-    sample_values_per_col: dict[str, list[str]] = {}
-    for col in columns:
-        sv = col.get("sample_values", "")
-        if sv:
-            sample_values_per_col[col["name"]] = [v.strip() for v in sv.split(",") if v.strip()]
-
-    return build_semantic_yaml(
-        template_result["table"],
-        columns,
-        template_result["table_comment"] or None,
-        sample_values_per_col=sample_values_per_col,
-    )
+    """Return semantic YAML prepared by the core operation."""
+    return str(template_result["semantic_yaml"])
 
 
 def format_template(
@@ -1607,6 +1624,7 @@ def format_classify(
 # Registry — maps command names to text format functions for dispatch_output()
 # ---------------------------------------------------------------------------
 REGISTRY: dict[str, object] = {
+    "cache_status": format_cache_status,
     "inspect": format_inspect,
     "preview": format_preview,
     "profile": format_profile,

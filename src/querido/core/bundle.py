@@ -85,8 +85,24 @@ def _check_format_version(manifest: dict) -> None:
     if found > int(BUNDLE_FORMAT_VERSION):
         raise ValueError(
             f"Bundle format_version {found} is newer than this qdo understands "
-            f"(max {BUNDLE_FORMAT_VERSION}). Upgrade qdo to import this bundle."
+            f"(max {BUNDLE_FORMAT_VERSION}). Upgrade qdo to read this bundle."
         )
+
+
+def _read_manifest(root: Path) -> dict:
+    """Read and validate the manifest shared by every bundle operation."""
+    manifest = _read_yaml(root / "manifest.yaml")
+    if not isinstance(manifest, dict):
+        raise ValueError("Bundle manifest.yaml must contain a mapping.")
+    _check_format_version(manifest)
+    for key in ("tables", "missing_tables", "column_sets"):
+        value = manifest.get(key, [])
+        if not isinstance(value, list):
+            raise ValueError(f"Bundle manifest field {key!r} must be a list.")
+    for key in ("tables", "column_sets"):
+        if not all(isinstance(entry, dict) for entry in manifest.get(key, [])):
+            raise ValueError(f"Bundle manifest entries under {key!r} must be mappings.")
+    return manifest
 
 
 _IMPORTABLE_TABLE_FIELDS = {
@@ -286,32 +302,27 @@ def _open_bundle(path: str | Path) -> Iterator[Path]:
 
 def export_bundle(
     connection: str,
+    connector: Connector,
     tables: list[str],
     output_path: str | Path,
     *,
-    include_column_sets: bool = True,
+    column_sets: list[dict] | None = None,
     redact: bool = False,
     author: str | None = None,
     as_zip: bool = False,
 ) -> dict:
     """Package metadata (and optional column sets) for *tables* into a bundle.
 
+    Connection resolution and connector lifecycle belong to the caller.
     Returns the written manifest as a dict.
     """
     from querido import __version__
-    from querido.config import list_column_sets, resolve_connection
-    from querido.connectors.factory import create_connector
     from querido.core.metadata import show_metadata
     from querido.core.metadata_write import _resolve_author
 
     output_path = Path(output_path)
 
-    # Pull fingerprints from the live DB.
-    config = resolve_connection(connection)
-    fingerprints: dict[str, str | None] = {}
-    with create_connector(config) as conn:
-        for t in tables:
-            fingerprints[t] = _fingerprint_for_table(conn, t)
+    fingerprints = {table: _fingerprint_for_table(connector, table) for table in tables}
 
     staging = Path(tempfile.mkdtemp(prefix="qdobundle-export-"))
     try:
@@ -334,11 +345,11 @@ def export_bundle(
             table_entries.append({"name": t, "schema_fingerprint": fingerprints.get(t)})
 
         column_set_entries: list[dict] = []
-        if include_column_sets:
+        if column_sets:
             cs_dir = staging / "column-sets"
             cs_dir.mkdir()
             table_set = set(tables)
-            for entry in list_column_sets(connection=connection):
+            for entry in column_sets:
                 src_conn = entry.get("connection", "")
                 src_table = entry.get("table", "")
                 set_name = entry.get("set", "")
@@ -409,7 +420,7 @@ def _apply_redact(meta: dict) -> None:
 def inspect_bundle(bundle_path: str | Path) -> dict:
     """Return a summary of a bundle's contents (manifest + counts)."""
     with _open_bundle(bundle_path) as root:
-        manifest = _read_yaml(root / "manifest.yaml") or {}
+        manifest = _read_manifest(root)
         metadata_files = (
             sorted((root / "metadata").glob("*.yaml")) if (root / "metadata").exists() else []
         )
@@ -432,6 +443,8 @@ def diff_bundles(a: str | Path, b: str | Path) -> dict:
     per-table schema_fingerprint differences.
     """
     with _open_bundle(a) as ra, _open_bundle(b) as rb:
+        _read_manifest(ra)
+        _read_manifest(rb)
         a_tables = _bundle_tables(ra)
         b_tables = _bundle_tables(rb)
         only_a = sorted(set(a_tables) - set(b_tables))
@@ -463,7 +476,7 @@ def _bundle_tables(root: Path) -> dict[str, str | None]:
     if not meta_dir.exists():
         return result
     for f in meta_dir.glob("*.yaml"):
-        meta = _read_yaml(f) or {}
+        meta = read_table_doc(f) or {}
         result[f.stem] = meta.get("schema_fingerprint")
     return result
 
@@ -483,6 +496,7 @@ def _bundle_column_set_keys(root: Path) -> set[str]:
 def import_bundle(
     bundle_path: str | Path,
     target_connection: str,
+    target_connector: Connector | None = None,
     *,
     maps: dict[str, str] | None = None,
     strategy: str = "keep-higher-confidence",
@@ -490,46 +504,37 @@ def import_bundle(
 ) -> dict:
     """Import a bundle into *target_connection*.
 
-    Without ``apply``, returns a dry-run report of what would change.  With
-    ``apply=True``, writes merged metadata and column sets and returns the
-    same report with ``applied=True`` entries.
+    Without ``apply``, returns a dry-run report of what would change. With
+    ``apply=True``, writes merged metadata. Column sets are always returned
+    for the caller to persist at the application boundary.
     """
     if strategy not in ("keep-higher-confidence", "theirs", "mine", "ask"):
         raise ValueError(f"Unknown merge strategy: {strategy}")
     maps = dict(maps or {})
 
-    from querido.config import resolve_connection, save_column_set
-    from querido.connectors.factory import create_connector
     from querido.core.metadata import metadata_path, show_metadata
 
     with _open_bundle(bundle_path) as root:
-        manifest = _read_yaml(root / "manifest.yaml") or {}
-        _check_format_version(manifest)
+        manifest = _read_manifest(root)
         bundle_tables = manifest.get("tables") or []
 
         # Compute target fingerprints (best-effort — missing DB just skips check).
         from querido.connectors.base import ConnectorError
 
         target_fps: dict[str, str | None] = {}
-        try:
-            config = resolve_connection(target_connection)
-            with create_connector(config) as conn:
-                existing: set[str] = set()
-                with suppress(ConnectorError):
-                    existing = {str(r.get("name")) for r in conn.get_tables()}
-                for entry in bundle_tables:
-                    src = entry.get("name")
-                    if not src:
-                        continue
-                    tgt = maps.get(src, src)
-                    if tgt in existing:
-                        target_fps[tgt] = _fingerprint_for_table(conn, tgt)
-                    else:
-                        target_fps[tgt] = None
-        except (ConnectorError, FileNotFoundError, ImportError, ValueError):
-            # Drift check is best-effort — missing config, uninstalled driver,
-            # or unreachable DB all fall through and the diff still runs.
-            pass
+        if target_connector is not None:
+            existing: set[str] = set()
+            with suppress(ConnectorError):
+                existing = {str(r.get("name")) for r in target_connector.get_tables()}
+            for entry in bundle_tables:
+                src = entry.get("name")
+                if not src:
+                    continue
+                tgt = maps.get(src, src)
+                if tgt in existing:
+                    target_fps[tgt] = _fingerprint_for_table(target_connector, tgt)
+                else:
+                    target_fps[tgt] = None
 
         table_diffs: list[dict] = []
         for entry in bundle_tables:
@@ -590,15 +595,13 @@ def import_bundle(
                 tgt_table = maps.get(src_table, src_table)
                 set_name = payload.get("set_name", "")
                 columns = list(payload.get("columns") or [])
-                if apply and set_name:
-                    save_column_set(target_connection, tgt_table, set_name, columns)
                 cs_diffs.append(
                     {
                         "source_table": src_table,
                         "target_table": tgt_table,
                         "name": set_name,
                         "columns": columns,
-                        "applied": apply and bool(set_name),
+                        "applied": False,
                     }
                 )
 

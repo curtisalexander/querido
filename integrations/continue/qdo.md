@@ -32,6 +32,9 @@ qdo bundle inspect bundle.zip                                          #    alwa
 
 Treat `catalog -> context -> metadata -> query/assert -> report/bundle` as the default path.
 
+A bundle is a directory or ZIP archive containing metadata and optional column
+sets, never sessions or workflows. A `.zip` output suffix selects ZIP output.
+
 ## Agent rules
 
 - Do not start with `qdo --help` or `qdo overview` for normal exploration tasks.
@@ -99,7 +102,7 @@ qdo context -c <connection> -t <table> --sample-values 10   # more samples
 qdo context -c <connection> -t <table> --no-sample      # exact counts, no sampling
 ```
 
-JSON output shape (trimmed):
+`envelope.data` shape (trimmed):
 
 ```json
 {

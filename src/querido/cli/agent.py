@@ -27,7 +27,7 @@ class AgentTarget:
 
 _TARGETS: dict[str, AgentTarget] = {
     "skill": AgentTarget(
-        description="Claude Code skill files.",
+        description="Provider-neutral coding-agent skill files.",
         default_path=Path("skills/querido"),
         files=(
             AgentFile("skills/SKILL.md", "SKILL.md"),
@@ -190,6 +190,6 @@ def install(
     if target.lower() == "skill":
         console.print(
             f"[dim]Note:[/dim] copy or symlink {destination_dir} into your agent's skill "
-            "directory — e.g. .claude/skills/querido (project) or ~/.claude/skills/querido "
-            "(global) for Claude Code — or re-run with --path pointing there."
+            "directory, or re-run with --path set to the discovery path documented by your "
+            "agent."
         )

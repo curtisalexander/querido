@@ -19,7 +19,8 @@ def test_root_help_preserves_progressive_discovery_contract():
     assert "Experimental declarative workflow runner" in result.output
     assert "requires querido[snowflake]" in result.output
     assert "catalog -c ./data.db" in result.output
-    assert "agent install skill --path .claude/skills/querido" in result.output
+    assert "agent install skill" in result.output
+    assert "provider-neutral coding-agent" in result.output
 
 
 def test_version():

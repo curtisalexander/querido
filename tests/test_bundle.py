@@ -13,12 +13,62 @@ from querido.cli.main import app
 from querido.core.bundle import (
     compute_schema_fingerprint,
     diff_bundles,
-    export_bundle,
-    import_bundle,
     inspect_bundle,
+)
+from querido.core.bundle import (
+    export_bundle as _export_bundle,
+)
+from querido.core.bundle import (
+    import_bundle as _import_bundle,
 )
 
 runner = CliRunner()
+
+
+def export_bundle(
+    connection: str,
+    tables: list[str],
+    output: str | Path,
+    *,
+    include_column_sets: bool = True,
+    **kwargs,
+) -> dict:
+    """Compose the internal bundle operation as the CLI application layer does."""
+    from querido.config import list_column_sets, resolve_connection
+    from querido.connectors.factory import create_connector
+
+    column_sets = list_column_sets(connection=connection) if include_column_sets else []
+    with create_connector(resolve_connection(connection)) as connector:
+        return _export_bundle(
+            connection,
+            connector,
+            tables,
+            output,
+            column_sets=column_sets,
+            **kwargs,
+        )
+
+
+def import_bundle(
+    bundle: str | Path,
+    target: str,
+    *,
+    apply: bool = False,
+    **kwargs,
+) -> dict:
+    """Compose import and persistence as the CLI application layer does."""
+    from querido.config import resolve_connection, save_column_set
+    from querido.connectors.factory import create_connector
+
+    with create_connector(resolve_connection(target)) as connector:
+        report = _import_bundle(bundle, target, connector, apply=apply, **kwargs)
+    if apply:
+        for entry in report["column_sets"]:
+            name = entry.get("name")
+            if name:
+                save_column_set(target, entry["target_table"], name, entry["columns"])
+                entry["applied"] = True
+    return report
 
 
 # -- schema fingerprint ------------------------------------------------------
@@ -263,6 +313,36 @@ def test_import_refuses_newer_format_version(
     other = make_sqlite_db(str(tmp_path / "other.db"))
     with pytest.raises(ValueError, match="format_version 99"):
         import_bundle(out, other, apply=False)
+
+
+@pytest.mark.parametrize("operation", ["inspect", "diff"])
+def test_bundle_readers_refuse_newer_format_version(
+    sqlite_path: str, tmp_path: Path, monkeypatch, operation: str
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_metadata(sqlite_path, "users")
+    out = tmp_path / "future.qdobundle"
+    export_bundle(sqlite_path, ["users"], out, include_column_sets=False)
+
+    manifest_path = out / "manifest.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text())
+    manifest["format_version"] = "99"
+    manifest_path.write_text(yaml.safe_dump(manifest))
+
+    with pytest.raises(ValueError, match="format_version 99"):
+        if operation == "inspect":
+            inspect_bundle(out)
+        else:
+            diff_bundles(out, out)
+
+
+def test_bundle_inspect_rejects_malformed_manifest(tmp_path: Path) -> None:
+    bundle = tmp_path / "malformed.qdobundle"
+    bundle.mkdir()
+    (bundle / "manifest.yaml").write_text("format_version: 1\ntables: not-a-list\n")
+
+    with pytest.raises(ValueError, match="'tables' must be a list"):
+        inspect_bundle(bundle)
 
 
 def test_import_dry_run_does_not_write(
@@ -546,6 +626,31 @@ def test_cli_export_and_inspect(sqlite_path: str, tmp_path: Path, monkeypatch):
     assert "users" in result.output
 
 
+def test_cli_zip_suffix_writes_zip_archive(sqlite_path: str, tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed_metadata(sqlite_path, "users")
+    output = tmp_path / "users.zip"
+
+    result = runner.invoke(
+        app,
+        [
+            "bundle",
+            "export",
+            "-c",
+            sqlite_path,
+            "-t",
+            "users",
+            "-o",
+            str(output),
+            "--no-column-sets",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert output.is_file()
+    assert zipfile.is_zipfile(output)
+
+
 def test_cli_import_dry_run_and_apply(
     sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
 ):
@@ -568,6 +673,50 @@ def test_cli_import_dry_run_and_apply(
     result = runner.invoke(app, ["bundle", "import", out, "--into", other, "--apply"])
     assert result.exit_code == 0, result.output
     assert metadata_path(other, "users").exists()
+
+
+def test_cli_import_refuses_future_connections_schema_before_apply(
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_metadata(sqlite_path, "users", table_description="source-desc")
+    bundle = tmp_path / "src.qdobundle"
+    export_bundle(sqlite_path, ["users"], bundle, include_column_sets=False)
+    target = make_sqlite_db(str(tmp_path / "target.db"))
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "connections.toml").write_text("schema_version = 99\n")
+    monkeypatch.setenv("QDO_CONFIG", str(config_dir))
+
+    result = runner.invoke(app, ["bundle", "import", str(bundle), "--into", target, "--apply"])
+
+    from querido.core.metadata import metadata_path
+
+    assert result.exit_code != 0
+    assert not metadata_path(target, "users").exists()
+
+
+def test_cli_import_validates_column_set_store_before_metadata_apply(
+    sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    config_dir = tmp_path / "config"
+    monkeypatch.setenv("QDO_CONFIG", str(config_dir))
+    _seed_metadata(sqlite_path, "users", table_description="source-desc")
+    from querido.config import save_column_set
+
+    save_column_set(sqlite_path, "users", "names", ["name"])
+    bundle = tmp_path / "src.qdobundle"
+    export_bundle(sqlite_path, ["users"], bundle)
+    (config_dir / "column_sets.toml").write_text("schema_version = 99\n")
+    target = make_sqlite_db(str(tmp_path / "target.db"))
+
+    result = runner.invoke(app, ["bundle", "import", str(bundle), "--into", target, "--apply"])
+
+    from querido.core.metadata import metadata_path
+
+    assert result.exit_code != 0
+    assert not metadata_path(target, "users").exists()
 
 
 def test_cli_bad_map_value(sqlite_path: str, tmp_path: Path, monkeypatch, make_sqlite_db):

@@ -752,7 +752,7 @@ def read_table_doc(path: Path) -> dict | None:
     document is never silently misread.
     """
     doc = _read_yaml(path)
-    if doc is None:
+    if not isinstance(doc, dict):
         return None
     raw = doc.get("schema_version", METADATA_SCHEMA_VERSION)
     try:

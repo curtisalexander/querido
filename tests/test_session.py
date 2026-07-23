@@ -58,6 +58,24 @@ def test_next_step_index_counts_jsonl_lines(tmp_path: Path) -> None:
     assert session.next_step_index(dir_) == 3
 
 
+def test_iter_steps_reports_corrupt_line(tmp_path: Path) -> None:
+    dir_ = session.session_dir("broken", cwd=tmp_path)
+    dir_.mkdir(parents=True)
+    (dir_ / session.STEPS_FILE).write_text('{"index": 1}\nnot-json\n')
+
+    with pytest.raises(ValueError, match="line 2"):
+        list(session.iter_steps("broken", cwd=tmp_path))
+
+
+def test_iter_steps_refuses_newer_format(tmp_path: Path) -> None:
+    dir_ = session.session_dir("future", cwd=tmp_path)
+    dir_.mkdir(parents=True)
+    (dir_ / session.STEPS_FILE).write_text('{"format_version": 99, "index": 1}\n')
+
+    with pytest.raises(ValueError, match="format_version 99"):
+        list(session.iter_steps("future", cwd=tmp_path))
+
+
 def test_extract_row_count_from_envelope() -> None:
     payload = {"command": "preview", "data": [{"x": 1}, {"x": 2}], "meta": {}}
     assert session._extract_row_count(json.dumps(payload)) == 2
@@ -165,6 +183,27 @@ def test_qdo_session_skips_session_subcommand(tmp_path: Path) -> None:
     assert result.exit_code == 0
     # `session list` must not record itself into its own session.
     assert not (tmp_path / ".qdo" / "sessions" / "meta").exists()
+
+
+def test_qdo_session_refuses_to_append_to_future_format(tmp_path: Path) -> None:
+    session_path = tmp_path / ".qdo" / "sessions" / "future"
+    session_path.mkdir(parents=True)
+    steps_file = session_path / "steps.jsonl"
+    original = '{"format_version": 99, "index": 1}\n'
+    steps_file.write_text(original)
+
+    result = _run(["session", "list"], cwd=tmp_path, env={"QDO_SESSION": "future"})
+    assert result.exit_code != 0
+    assert steps_file.read_text() == original
+
+    result = _run(
+        ["cache", "status"],
+        cwd=tmp_path,
+        env={"QDO_SESSION": "future", "QDO_CONFIG": str(tmp_path / "config")},
+    )
+    assert result.exit_code != 0
+    assert steps_file.read_text() == original
+    assert not (session_path / "step_2").exists()
 
 
 def test_qdo_session_records_failures(tmp_path: Path, sqlite_path: str) -> None:

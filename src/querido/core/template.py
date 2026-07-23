@@ -109,6 +109,27 @@ def assemble_template(
     }
 
 
+def build_template_semantic_yaml(template_result: dict) -> str:
+    """Build the semantic-model YAML representation of a template result."""
+    from querido.core.semantic import build_semantic_yaml
+
+    columns = template_result["columns"]
+    sample_values_per_col: dict[str, list[str]] = {}
+    for column in columns:
+        sample_values = column.get("sample_values", "")
+        if sample_values:
+            sample_values_per_col[column["name"]] = [
+                value.strip() for value in sample_values.split(",") if value.strip()
+            ]
+
+    return build_semantic_yaml(
+        template_result["table"],
+        columns,
+        template_result["table_comment"] or None,
+        sample_values_per_col=sample_values_per_col,
+    )
+
+
 def get_template(connector: Connector, table: str, *, sample_values: int = 3) -> dict:
     """Generate a documentation template for *table*.
 

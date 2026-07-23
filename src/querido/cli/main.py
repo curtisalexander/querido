@@ -72,13 +72,13 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
                 "Experimental declarative workflow runner.",
             ),
             ("session", "querido.cli.session", "Manage agent-workflow sessions."),
-            ("template", "querido.cli.template", "Generate documentation templates for tables."),
         ],
     ),
     (
         "Generate",
         [
             ("sql", "querido.cli.sql", "Generate SQL statements for a table."),
+            ("template", "querido.cli.template", "Generate documentation templates for tables."),
             ("view-def", "querido.cli.view_def", "Show SQL definition of a view."),
         ],
     ),
@@ -222,8 +222,8 @@ class LazyGroup(TyperGroup):
                     ("catalog -c ./data.db", "Start directly from a SQLite file."),
                     ("context -c ./data.db -t TABLE", "Understand one table."),
                     (
-                        "agent install skill --path .claude/skills/querido",
-                        "Install Claude Code instructions.",
+                        "agent install skill",
+                        "Install provider-neutral coding-agent instructions.",
                     ),
                     ("tutorial explore", "Walk the full loop with included data."),
                     ("overview", "Print the complete CLI reference."),
@@ -272,27 +272,28 @@ def _maybe_start_session(ctx: typer.Context) -> None:
     ``.qdo/sessions/<name>/``. The finalizer runs during context teardown so
     the step is recorded whether the command succeeds or fails.
     """
-    from querido.core.session import SessionRecorder, active_session_name
+    from querido.cli._session_runtime import SessionRecorder
+    from querido.core.session import active_session_name, iter_steps
 
     name = active_session_name()
     if not name:
         return
 
-    # argv is captured by LazyGroup.resolve_command() into ctx.obj before the
-    # subcommand dispatches. Kick off the recorder here (pre-subcommand) so
-    # stdout capture is active from the start.
     ctx.ensure_object(dict)
+    raw_argv = ctx.obj.get("_raw_argv") or sys.argv[1:]
+    if raw_argv and raw_argv[0] == "session":
+        return
+
+    # Refuse a corrupt or future-format log before executing the command; a
+    # v1 record must never be appended to a session this qdo cannot read.
+    for _ in iter_steps(name):
+        pass
 
     recorder = SessionRecorder(name=name, argv=[])
     recorder.start()
 
     def _finalize() -> None:
         raw_argv = ctx.obj.get("_raw_argv") or sys.argv[1:]
-        # Skip for ``qdo session ...`` meta-commands — recording a
-        # ``session show`` into its own session is confusing.
-        if raw_argv and raw_argv[0] == "session":
-            recorder.cancel()
-            return
         recorder.argv = list(raw_argv)
         exc_info = sys.exc_info()
         exit_code = 0

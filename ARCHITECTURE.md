@@ -33,6 +33,11 @@ own query execution.
 │ connectors/                  │  │ sql/                      │
 │ Backend protocol + adapters │◀─│ renderer + templates      │
 └──────────────────────────────┘  └───────────────────────────┘
+               ▲
+┌──────────────┴───────────────┐
+│ persistence infrastructure  │
+│ config.py · cache.py         │
+└──────────────────────────────┘
 ```
 
 The intended dependency direction is downward:
@@ -42,6 +47,8 @@ The intended dependency direction is downward:
 - `output/` may use small canonical core read models, but must not execute
   queries or make product decisions.
 - `cli/` is the composition boundary and may import every lower layer.
+- `config.py` and `cache.py` own durable application persistence. They may
+  depend on the connector protocol, but never on `cli/`, `core/`, or `output/`.
 - `tui/` is a secondary front end over core/connectors; `tutorial/` drives the
   public CLI learning path.
 
@@ -59,8 +66,8 @@ src/querido/
 ├── tui/          optional Textual interface
 ├── tutorial/     built-in guided datasets and lessons
 ├── agent_docs/   package location populated from integrations/ at build time
-├── config.py     connection and column-set persistence
-└── cache.py      local SQLite metadata cache
+├── config.py     versioned connection and column-set persistence infrastructure
+└── cache.py      versioned local SQLite cache infrastructure
 
 integrations/     canonical agent instructions packaged into the wheel
 docs/
@@ -85,7 +92,8 @@ qdo is **CLI-first**. Compatibility treatment applies to:
 2. JSON envelopes: `{command, data, next_steps, meta}` for scanning commands.
 3. Structured error codes and `try_next` records where documented or covered by
    contract tests.
-4. Versioned metadata and bundle formats; sessions remain plain JSONL.
+4. Versioned metadata, bundle, config, and session-record formats. Sessions
+   remain append-only JSONL rather than requiring a database or service.
 5. `querido.__version__`.
 
 The package includes `py.typed` so internal annotations remain useful to
@@ -113,10 +121,12 @@ query plan, estimate, and execution paths.
 ### Core boundary
 
 Core operations accept connectors and plain typed values, return dict-like
-results, and do not know about Typer, Rich, or process exit. Safety checks are
-defense-in-depth: the CLI validates for good errors, while any core operation
-that interpolates identifiers or executes arbitrary SQL validates again so it
-is safe when called internally.
+results, and do not know about Typer, Rich, process exit, connector factories,
+or named-connection resolution. Core may read domain files and cache snapshots
+through persistence infrastructure, but the CLI owns connector lifecycles and
+configuration writes. Safety checks are defense-in-depth: the CLI validates for
+good errors, while any core operation that interpolates identifiers or executes
+arbitrary SQL validates again so it is safe when called internally.
 
 `core/next_steps/` owns deterministic exploration suggestions. CLI modules may
 supply runtime values such as connection and table names; product policy about

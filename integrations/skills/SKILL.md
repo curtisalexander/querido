@@ -8,7 +8,7 @@ compatibility: Requires qdo CLI (`uv tool install querido` or `pip install queri
 
 qdo is an agent-first data exploration CLI. The product surface looks ordinary (`catalog`, `context`, `profile`, `query`). The asset is the **compounding loop** those commands form: metadata captured by one investigation (`values --write-metadata`, `metadata suggest --apply`) is auto-merged into the next `context` and checked by the next `quality` run. Every call makes the next one sharper. No LLMs inside qdo — you bring the brain; qdo brings the memory and the map.
 
-Self-hosting eval: **45/45 (100%)** across haiku, sonnet, and opus on 15 tasks. Re-run on every SKILL change; regressions are signal.
+This skill is provider-neutral and may be installed in any coding agent that supports project instructions or skill files.
 
 Pass `-f json` on every invocation for machine-readable output — the envelope is `{command, data, next_steps, meta}` with deterministic `next_steps` hints that chain investigations. Canonical placement is right after `qdo` (`qdo -f json <cmd> ...`).
 
@@ -33,7 +33,7 @@ qdo bundle inspect bundle.zip                                         #    alway
 
 Treat `catalog -> context -> metadata -> query/assert -> report/bundle` as the default path.
 
-**Bundle hand-off invariant:** `qdo bundle export` is never the last step. Follow it with `qdo bundle inspect <path>` (or `qdo bundle diff`) so you can *tell the user what the bundle contains* — table count, metadata files, workflow files, schema fingerprint. A bundle the receiver can't describe isn't a hand-off, just a file.
+**Bundle hand-off invariant:** A bundle is a directory or ZIP archive containing metadata and optional column sets, never sessions or workflows; a `.zip` output suffix selects ZIP output. `qdo bundle export` is never the last step. Follow it with `qdo bundle inspect <path>` (or `qdo bundle diff`) so you can *tell the user what the bundle contains* — table count, metadata files, column sets, and schema fingerprint. A bundle the receiver can't describe isn't a hand-off, just a file.
 
 ## Agent rules
 
@@ -112,7 +112,7 @@ qdo context -c <connection> -t <table> --sample-values 10   # more samples
 qdo context -c <connection> -t <table> --no-sample      # exact counts, no sampling
 ```
 
-JSON output shape (trimmed):
+`envelope.data` shape (trimmed):
 
 ```json
 {

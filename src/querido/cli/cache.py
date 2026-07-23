@@ -67,8 +67,7 @@ def status(
 ) -> None:
     """Show cache status (age, table count, staleness)."""
     from querido.cache import MetadataCache
-    from querido.cli._context import get_output_format
-    from querido.cli._pipeline import emit_json
+    from querido.cli._pipeline import emit
 
     cache = MetadataCache()
     try:
@@ -76,58 +75,13 @@ def status(
     finally:
         cache.close()
 
-    fmt = get_output_format()
-
-    if emit_json("cache status", {"entries": entries}, connection=connection):
-        return
-
-    if not entries:
-        from rich.console import Console
-
-        Console(stderr=True).print("[dim]No cached metadata found.[/dim]")
-        return
-
-    if fmt in ("markdown", "csv"):
-        from querido.output.formats import dicts_to_csv, to_markdown_table
-
-        if fmt == "csv":
-            flat = [
-                {
-                    "connection": e["connection"],
-                    "tables": e["tables"],
-                    "columns": e["columns"],
-                    "age_hours": e["age_hours"],
-                }
-                for e in entries
-            ]
-            print(dicts_to_csv(flat))
-        else:
-            headers = ["Connection", "Tables", "Columns", "Age (hours)"]
-            rows = [
-                [e["connection"], str(e["tables"]), str(e["columns"]), str(e["age_hours"])]
-                for e in entries
-            ]
-            print(to_markdown_table(headers, rows))
-    else:
-        from rich.console import Console
-        from rich.table import Table
-
-        console = Console()
-        grid = Table(title="Metadata Cache Status", show_lines=True)
-        grid.add_column("Connection", style="cyan bold")
-        grid.add_column("Tables", justify="right")
-        grid.add_column("Columns", justify="right")
-        grid.add_column("Age (hours)", justify="right", style="yellow")
-
-        for e in entries:
-            age_str = f"{e['age_hours']}" if e["age_hours"] is not None else "?"
-            grid.add_row(
-                e["connection"],
-                str(e["tables"]),
-                str(e["columns"]),
-                age_str,
-            )
-        console.print(grid)
+    emit(
+        "cache status",
+        entries,
+        dispatch_as="cache_status",
+        data={"entries": entries},
+        connection=connection,
+    )
 
 
 @app.command()

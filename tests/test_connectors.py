@@ -1,5 +1,6 @@
 import pytest
 
+from querido import _json
 from querido.connectors.duckdb import DuckDBConnector
 from querido.connectors.factory import create_connector
 from querido.connectors.sqlite import SQLiteConnector
@@ -44,6 +45,13 @@ def test_duckdb_execute(duckdb_path: str):
         assert len(rows) == 2
         assert rows[0]["name"] == "Alice"
         assert rows[1]["age"] == 25
+
+
+def test_duckdb_interval_has_stable_json_with_or_without_pyarrow() -> None:
+    with DuckDBConnector(":memory:") as conn:
+        rows = conn.execute("select interval '2 months 1 day 2 seconds' as elapsed")
+
+    assert _json.loads(_json.dumps(rows)) == [{"elapsed": "61 days, 0:00:02"}]
 
 
 def test_duckdb_get_columns(duckdb_path: str):

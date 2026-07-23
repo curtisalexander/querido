@@ -8,6 +8,33 @@ if TYPE_CHECKING:
     from rich.console import Console
 
 
+def print_cache_status(entries: list[dict], console: Console | None = None) -> None:
+    """Print metadata-cache status as a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+    if not entries:
+        console.print("[dim]No cached metadata found.[/dim]")
+        return
+
+    grid = Table(title="Metadata Cache Status", show_lines=True)
+    grid.add_column("Connection", style="cyan bold")
+    grid.add_column("Tables", justify="right")
+    grid.add_column("Columns", justify="right")
+    grid.add_column("Age (hours)", justify="right", style="yellow")
+    for entry in entries:
+        age = entry.get("age_hours")
+        grid.add_row(
+            str(entry.get("connection", "")),
+            str(entry.get("tables", 0)),
+            str(entry.get("columns", 0)),
+            str(age) if age is not None else "?",
+        )
+    console.print(grid)
+
+
 def print_inspect(
     table_name: str,
     columns: list[dict],
@@ -1547,6 +1574,7 @@ def print_classify(
 
 
 REGISTRY: dict[str, object] = {
+    "cache_status": print_cache_status,
     "inspect": print_inspect,
     "preview": print_preview,
     "profile": print_profile,
