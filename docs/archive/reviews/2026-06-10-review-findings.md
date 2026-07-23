@@ -1,6 +1,11 @@
-# Review findings — tracking doc
+# Archived review findings — 2026-06-10
 
-Full findings from the 2026-06-10 multi-agent review (core, connectors/SQL security, CLI layer, workflow engine + agent docs, docs-vs-code accuracy). Every item gets fixed — tick `[x]` when shipped. High items first, but low items are committed work, not a wishlist.
+> **Historical record.** All code findings shipped. L35 remains as the
+> post-publication clean-room check in [the active plan](../../../PLAN.md).
+> The distribution decisions below were later superseded by the 0.2.0 PyPI
+> release plan.
+
+Full findings from the 2026-06-10 multi-agent review (core, connectors/SQL security, CLI layer, workflow engine + agent docs, docs-vs-code accuracy).
 
 Decisions already made (2026-06-10):
 - **H5 (skill install path):** keep `skills/querido` as the generic default — qdo's skill install is agent-agnostic, not Claude Code-specific. Fix is an output note telling the user to copy/symlink the files into wherever their agent reads skills (e.g. `.claude/skills/` for Claude Code).

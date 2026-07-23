@@ -90,7 +90,8 @@ build-backend = "hatchling.build"
 exclude = [
     "PLAN.md",
     "IDEAS.md",
-    "docs/reviews/",
+    "docs/archive/",
+    "docs/research/",
     "RELEASING.md",
 ]
 

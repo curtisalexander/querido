@@ -6,19 +6,22 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+    from querido.core.query import PreparedQuery
 
 
 def estimate_query(
     connector: Connector,
-    sql: str,
     *,
-    effective_sql: str,
+    prepared: PreparedQuery,
     limit: int,
     allow_write: bool,
-    destructive: bool,
 ) -> dict[str, Any]:
     """Estimate query shape and rough cost without executing the SQL."""
     from querido.core.explain import get_explain
+
+    sql = prepared.original_sql
+    effective_sql = prepared.effective_sql
+    destructive = prepared.destructive
 
     explain_plan = None
     if not destructive:

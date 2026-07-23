@@ -112,8 +112,8 @@ null hypothesis.
    this space treats exploration output as an asset that compounds over time.
    `src/querido/output/envelope.py` defines the agent contract: every scanning
    command returns `{command, data, next_steps, meta}`.
-   `src/querido/core/next_steps.py` (~1300 lines) is the deterministic suggestion
-   graph that keeps agents moving in the right direction.
+   `src/querido/core/next_steps/` is the deterministic suggestion graph that
+   keeps agents moving in the right direction.
 
 2. **Deterministic tools, not LLM-in-the-loop.** `values --write-metadata` writes
    a rule. `quality` checks the rule. The agent brings the brain; qdo brings the
@@ -215,11 +215,11 @@ When evaluating any proposed feature, in order:
 
 ---
 
-## Current state (snapshot, 2026-07-13)
+## Current state (snapshot, 2026-07-23)
 
-- **Tests:** full suite green — `pytest`, `ruff check`, `ruff format`, and
-  `ty check` all pass locally. See [PLAN.md](./PLAN.md#pypi-release-hardening--active-2026-07-13)
-  for the active release gate; CI is the authority for cross-platform status.
+- **Verification:** the last recorded full local gate and 45/45 agent eval were
+  green. CI is authoritative; see [PLAN.md](./PLAN.md) for the active release
+  gate rather than treating a dated snapshot as current evidence.
 - **Shipped phases:** 1–4, 6, 7. Phase 5 dropped by design. R-series complete.
   Sharpening Waves 1–4 complete. Pre-release polish pass (items 0–6) landed
   2026-04-22. Pre-beta audit pass (26 items across 5 tiers) landed 2026-04-23.
@@ -230,13 +230,15 @@ When evaluating any proposed feature, in order:
   gained envelope coverage in the pre-release polish pass. Commands that
   correctly don't emit: `explore` (TUI), `report` (HTML artifact), `tutorial`
   (interactive), `completion` (install artifact).
-- **Active polish pass:** see [PLAN.md](./PLAN.md) → "Pre-beta audit pass — active".
+- **Active work:** dogfood, release verification, and the hallucination
+  benchmark in [PLAN.md](./PLAN.md). Completed phase and audit history is in
+  [`docs/archive/`](./docs/archive/).
 
 ---
 
 ## Where to look when you're lost
 
-- **Product story:** this file + [README.md](./README.md) "Quick Start".
+- **Product story:** this file + [README.md](./README.md) "Start with one table".
 - **How to be helpful as a coding agent:** [AGENTS.md](./AGENTS.md) and
   [integrations/skills/SKILL.md](./integrations/skills/SKILL.md).
 - **What's built, what's next:** [PLAN.md](./PLAN.md).

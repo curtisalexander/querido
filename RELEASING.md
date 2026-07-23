@@ -35,7 +35,8 @@ Do these once, before the first `v0.2.0` tag:
 1. Confirm `main` is green and the version is right:
    - `pyproject.toml` `version` and `src/querido/__init__.py` `__version__`
      match the tag you're about to cut (both are `0.2.0` now).
-   - `CHANGELOG.md` has a dated section for the version (0.2.0 is done).
+   - Move the prepared 0.2.0 changes in `CHANGELOG.md` from `[Unreleased]` to a
+     dated `0.2.0` section.
 2. Tag and push (a **new** tag — `scripts/retag.sh` is only for moving an
    existing release tag to a new commit):
 
@@ -66,8 +67,9 @@ uv tool uninstall querido
 ```
 
 Also spot-check the extras: `uv tool install 'querido[duckdb]'` and
-`'querido[all]'`. Tick L35 in docs/reviews/REVIEW_FINDINGS.md when this passes
-against the live PyPI package.
+`'querido[all]'`. Complete the corresponding release-gate item in
+[PLAN.md](PLAN.md) when this passes against the live PyPI package. The original
+L35 finding is preserved in the [archived review](docs/archive/reviews/2026-06-10-review-findings.md).
 
 Note: a pre-publish variant of this check (installing the locally built
 0.2.0 wheel into a fresh venv in a temp dir) was run 2026-07-06 and passed;
@@ -75,6 +77,5 @@ L35 stays open until it's re-run against PyPI itself.
 
 ## After 0.2.0
 
-Per PLAN.md: dogfood week first, then the MCP thin wrapper
-([docs/research/mcp-wrapper-design.md](docs/research/mcp-wrapper-design.md))
-as the 0.3.0 headline.
+Dogfood first. No 0.3.0 feature is committed; candidates remain in
+[IDEAS.md](IDEAS.md) until use creates concrete pull.

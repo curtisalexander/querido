@@ -31,6 +31,7 @@ def template(
     min/max, sample values) and leaves placeholders for business definitions,
     data owner, and notes.
     """
+    from querido._runtime import get_output_format
     from querido.cli._pipeline import emit, table_command
 
     with table_command(table=table, connection=connection, db_type=db_type) as ctx:
@@ -46,7 +47,7 @@ def template(
                 ctx.connector, ctx.table
             )
 
-        if ctx.console.is_terminal:
+        if get_output_format() == "rich" and ctx.console.is_terminal:
             ctx.console.print(
                 f"  Found [bold]{len(columns)}[/bold] columns, [bold]{row_count:,}[/bold] rows",
                 highlight=False,

@@ -1,490 +1,82 @@
 # Plan
 
-Committed todo list for making querido the agent-first data exploration CLI. Items here are scoped, sequenced, and ready to work on.
-
-> **PLAN.md vs IDEAS.md.** This file is the commitment record — current status, what shipped, and what's actionable next. [IDEAS.md](IDEAS.md) is the speculative archive (competitive analysis, format research, architecture notes, unpromoted features). Ideas promote from IDEAS.md into PLAN.md when we commit to building them; after they ship, the detail in PLAN.md collapses to a summary while the code becomes the authoritative record.
-
----
-
-## Status (as of 2026-07-13)
-
-**Tests:** The full local `pytest`, `ruff check`, `ruff format`, and `ty check`
-gate is green. CI remains the authority for cross-platform status; do not copy
-exact collected-test counts into docs because parameterization and optional
-dependency skips make them drift.
-
-**Polish pass complete.** Phases 1–4 + 6 + 7 are shipped; Phase 5 was dropped by design. R-series (R.1–R.26) all done or intentionally dropped. Sharpening pass (Waves 1–4) done. The Pre-release polish pass (items 0–6) landed 2026-04-22 — see summary under "Phases shipped" below.
-
-**Current eval baseline: 45/45 passing (100%)** across haiku / sonnet / opus on 15 tasks — up from 42/45 after the pre-beta audit pass. Haiku 15/15, sonnet 15/15, opus 15/15. Zero failures across all three models, zero `qdo-bug`. The last +1 came from a `required_any_of` grading-primitive relaxation that accepts any of the legitimate paths SKILL promotes (e.g. B2 "min/max/mean of orders.amount" now grades `qdo query --sql "select min, max, avg..."` as a valid path alongside `qdo profile`).
-
-**Pre-beta audit pass complete (2026-04-23).** A multi-agent audit simulated first-contact across docs, CLI help + error messages, tutorials + SKILL files, and release artifacts; the tiered findings list under "Pre-beta audit pass — active" below is now 26/26 shipped (2 deferred with rationale). Item 7 of the pre-release pass — real dogfood — is still the last remaining pre-release step; the audit was a pre-dogfood sanity sweep, not a replacement.
-
-Positioning and "what sets qdo apart" live in [DIFFERENTIATION.md](./DIFFERENTIATION.md). That's the cold-start doc for humans and agents re-entering the project.
-
----
-
-## PyPI release hardening — active (2026-07-13)
-
-A full repository review found that the compounding metadata loop is worth
-shipping, but the current `0.2.0` candidate has several end-to-end contract
-defects. This track blocks the first PyPI release. It deliberately fixes
-correctness and release credibility before reopening the command-surface
-question.
-
-### Execute now — no product decision required
-
-- [x] **Make arbitrary SQL read-only by construction.** Replace the current
-  comment-stripping denylist with quote-aware, fail-closed statement
-  classification. Apply one shared policy to `query`, `export --sql`,
-  `assert --sql`, `explain --analyze`, and raw SQL filter paths. Only `qdo
-  query --allow-write` may opt into mutation. Regression coverage must include
-  comment tokens inside string literals, multiple statements, CTEs, and
-  DuckDB operations that write outside a read-only database (`copy`,
-  `export`, `attach`, `install`, `load`).
-- [x] **Align workflow write authorization end to end.** A destructive
-  `qdo query` step with `allow_write: true` must receive the query command's
-  `--allow-write` flag at runtime; without the field, lint and runtime must
-  both refuse it. Add an execution test, not only a lint test.
-- [x] **Repair background cache warming.** Do not pass a SQLite cache handle
-  or a soon-to-close connector across thread/lifetime boundaries. Add a test
-  proving a background warm actually persists table entries.
-- [x] **Restore artifact and archive safety.** Remove the Google Fonts network
-  import from single-file reports. Validate bundle member count, paths, and
-  expanded size before extraction.
-- [x] **Correct SQLite primary-key nullability.** Report rowid-alias `INTEGER
-  PRIMARY KEY` columns as non-null while preserving SQLite's unusual nullable
-  semantics for other primary-key declarations.
-- [x] **Refresh release evidence.** Replace drifting exact test-count claims,
-  document assertion exit code 2, and run a clean wheel install smoke test.
-
-### Product decisions — resolved 2026-07-13
-
-- [x] **Define the supported core.** Promote `catalog`, `context`, `metadata`,
-  `query`, `assert`, `quality`, `report`, and `bundle` as the stable public
-  core in CLI help and product docs. Keep specialist commands available as a
-  secondary surface; any later move or removal still requires deprecation.
-- [x] **Make quality contract-driven.** Stored `valid_values` contradictions
-  are failures. Null rates, cardinality, and uniqueness are descriptive
-  signals without a declared expectation; they must not independently produce
-  warning/failure status.
-- [x] **Label workflows experimental.** Keep workflows in the base wheel: they
-  reuse required YAML support, remain lazily imported, and gain nothing from a
-  synthetic extra dependency. Mark the command and authoring docs experimental
-  until dogfood covers writes, replay, and failure recovery.
-
-### Release gate
-
-Do not publish `0.2.0` to PyPI until the execute-now checklist is complete,
-the full CI-equivalent gate passes, and the proposed core has been used on a
-real project for at least one week. The hallucination benchmark remains the
-evidence required before making comparative compounding claims.
-
----
-
-## Hallucination benchmark — the launch claim (planned 2026-07-06)
-
-**Why.** Independent research (2026-07-06) confirmed that hallucinated identifiers are the
-top documented failure mode for agents doing data work, and that *instructions alone do
-not fix it*: in [anthropics/claude-code#53988](https://github.com/anthropics/claude-code/issues/53988)
-("Claude hallucinated identifiers: writes column/field/config names from memory instead
-of reading source files"), explicit CLAUDE.md instructions demonstrably failed where
-tool-enforced verification works. That is qdo's thesis stated by the market — and it
-names qdo's real competitor: not any product, but the null hypothesis of *"the agent
-just writes what it learned into CLAUDE.md for free."* qdo must visibly beat that, and
-today nothing demonstrates it does. This benchmark is that demonstration, and the
-launch blog post / README claim comes straight out of it.
-
-**Claim to substantiate:** an agent using qdo hallucinates fewer identifiers and invalid
-filter values, answers more questions correctly, and gets *better across sessions*
-(compounding), compared to the same agent with a bare database CLI or with self-written
-CLAUDE.md notes.
-
-**Design.**
-
-- **Trap corpus.** A generated database (extend `scripts/init_test_data.py` or a new
-  `scripts/init_bench_data.py`) seeded with realistic traps, each recorded in an answer
-  key: enum columns storing codes (`'P'`, `'S'`, `'D'`, `'X'`) where the natural guess
-  is words (`'pending'`); lookalike columns (`order_date` is the load timestamp,
-  `ordered_at` is the business date); plausible-but-absent columns (`customers.email`
-  doesn't exist — it's `contact_email` on a joined table); a many-to-many join that
-  looks one-to-many; one wide (50+ col) table.
-- **Tasks.** 15–25 natural-language questions with exact, deterministically gradeable
-  answers (a scalar or short list), each phrased so the naive path hits a trap.
-- **Arms.**
-  - **A — bare:** agent + `duckdb`/`sqlite3` CLI, no docs.
-  - **B — notes (the null hypothesis):** agent + bare CLI + a CLAUDE.md written by a
-    prior agent session told to "record what you learned about this database."
-  - **C — qdo cold:** agent + SKILL.md + empty `.qdo/`.
-  - **D — qdo warm:** agent + SKILL.md + metadata populated by a prior
-    `--write-metadata` pass. The compounding claim is D vs C; the null-hypothesis
-    claim is D vs B.
-- **Metrics per task.** (1) hallucinated-identifier incidents — executed SQL references
-  a nonexistent table/column; (2) invalid-literal incidents — a predicate compares an
-  enum column against a value outside its actual domain; (3) final-answer accuracy;
-  (4) tokens in/out; (5) recovery cost — attempts between first wrong identifier and a
-  corrected query.
-- **Grader is deterministic, like the product.** Capture every executed SQL statement
-  (qdo arms: sessions already record this; arms A/B: parse the transcript), then
-  validate identifiers against `information_schema` and literals against actual column
-  domains. No LLM grading for the core metrics.
-- **Harness.** Extend `scripts/eval_skill_files_claude.py` — it already has the
-  `claude -p` invocation, budget caps, and multi-model plumbing. New work: the arms,
-  SQL extraction, and the two validators.
-- **Honesty rules.** Publish the methodology and negative results. If B ≈ D, that's a
-  product gap to fix (the metadata isn't earning its structure), not a result to bury.
-
-**Sequencing.** After the PyPI publish, alongside or right after real dogfood. No new
-product features are prerequisites — only the trap corpus and grader.
-
----
-
-## Pre-beta audit pass — active
-
-A multi-agent audit on 2026-04-23 simulated first-contact with the project across five angles: fresh-user Quick Start walkthrough, public-docs consistency, CLI help + error-message quality, tutorials + agent-integration polish, and release-artifact completeness. Tier ordering is by damage to the first-contact story, not implementation cost.
-
-Convention: each item has what's wrong, where (file:line when known), and a one-line fix sketch. Tick `[x]` when shipped. **Deferred** items stay on the list with a rationale so we don't forget the decision.
-
-### Tier 1 — Bugs in the documented happy path
-
-Users will hit these in the first ten minutes of following the README if we don't fix them.
-
-- [x] **README Quick Start `--from scratch:1` example fails out of the box.** `README.md:144-148` records a rich-format query then replays it — `--from` rejects the step because only structured (`-f json`) steps carry canonical SQL. Fixed by adding `-f json` to the recording step in both `README.md` and `docs/cli-reference.md` (same broken pattern at 179-181), with a one-line lead-in explaining why. Verified end-to-end: recording + replay + export from session step all work.
-- [x] **`metadata suggest --apply` missing-extra hint renders as `uv pip install 'querido' or 'querido'`.** Rich was eating `[duckdb]` / `[snowflake]` as markup tags. Fixed by wrapping the hint / try_next cmd / try_next why strings in `rich.markup.escape` at the display site (`src/querido/cli/_errors.py::_emit_rich_error`). Added regression test `test_emit_rich_error_preserves_bracketed_text_in_hints` so the bug can't return silently.
-- [x] **`qdo metadata list` reports 0% completeness right after `metadata suggest --apply` writes fields.** Verified: two scoring paths disagreed — `metadata list` used a private `_calc_completeness` counting only human fields (descriptions, owner), while `metadata score` used the newer `score_table` rubric crediting valid_values + freshness too. Fixed by converging `list_metadata` on `score_table` and removing the dead helper. Post-`init` now reads 20% (freshness-only); post-`suggest --apply` jumps to 50% as valid_values are credited. Test updated to pin the new behavior and document the regression.
-
-### Tier 2 — Credibility drift
-
-Low-effort trust fixes. Every mismatch between docs costs a reader's confidence.
-
-- [x] **Eval score stale in DIFFERENTIATION.md and SKILL.md.** Updated `DIFFERENTIATION.md:167` and `SKILL.md:11` to "42/45 (93%) on 15 tasks" with the note that the three failures are `model-mistake`, not `qdo-bug`. `DIFFERENTIATION.md:163` updated to 1177 passing tests.
-- [x] **DIFFERENTIATION.md snapshot block stale.** Refreshed the entire "Current state" section: snapshot date → 2026-04-23, tests → 1177, eval → 42/45, and dropped the stale "gaps worth closing: sql, snowflake" line since those now emit envelope (pre-release polish item 5).
-- [x] **`ARCHITECTURE.md:65,106` still lists `search` in `metadata.py` comments.** Resolved as not-a-bug: the `search` reference is to `qdo metadata search` (a real subcommand that still exists), not the cut top-level `qdo search` (removed in 068c09e). Audit agent conflated the two. The actual issue — `metadata search` being undocumented in public docs — is tracked separately as Tier 3 item 1.
-- [x] **`pyproject.toml` missing metadata for a public listing.** Added `authors`, `[project.urls]` (Homepage / Repository / Issues / Changelog / Documentation), 12-item `keywords`, 15-item `classifiers` (Beta dev status, MIT license, Python 3.12/3.13, Typed, etc.), and sharpened the `description` to match DIFFERENTIATION's agent-first framing. `uv sync` still green.
-- [x] **No `CHANGELOG.md`.** Added Keep-a-Changelog-style `CHANGELOG.md` with a curated v0.1.0 entry framing the compounding-loop story, enumerating the major capabilities (context, metadata, bundles, workflows, agent output, sessions, reports, TUI), and listing the polish passes that shaped it. `[Unreleased]` section captures the Tier 1 audit fixes. Added `Changelog` entry to `pyproject.toml` `[project.urls]` pointing at it.
-- [ ] README badges (CI / PyPI / license / Python version) — **deferred**. Revisit if/when the project publishes to PyPI. The decision is to launch without badges rather than add placeholder ones.
-
-### Tier 3 — Surface inconsistencies
-
-Small mismatches where two surfaces disagree with each other.
-
-- [x] **`qdo metadata search` is a real command but undocumented.** Documented in `README.md` (metadata section), `docs/cli-reference.md` (metadata table), `integrations/skills/SKILL.md` (metadata workflow), `AGENTS.md` (agent reads context block), and `integrations/continue/qdo.md` (metadata workflow).
-- [x] **`integrations/continue/qdo.md` drifts from `SKILL.md` on `-f json` promotion.** Aligned continue.md on the canonical `qdo -f json <cmd>` pattern: updated the intro, Default agent workflow (5 examples now use `-f json`), the "JSON output for programmatic use" section, and scrubbed stray `--format json` / `--format jsonl` / `--format csv` placements to the shorter `-f` form.
-- [x] **`--connection` help text inconsistent across commands.** Standardized all 6 outlier metadata subcommands (`show`, `list`, `search`, `score`, `undo`, one more) on `"Named connection or file path."`. Zero remaining `"Named connection."` strings in src/querido/cli/.
-- [x] **`--sample-values` help text drift.** `metadata init` and `metadata refresh` now mirror context's wording: "Number of sample values per non-numeric column (0 to skip). Numeric columns always use min/max instead." Kept `template` / `snowflake` (different default + dialect note) as-is — audit called out metadata specifically.
-- [x] **Sampling / write flags weak on side effects.** `--quick` now spells out what it skips (min/max/mean/stddev + top-frequency queries). `--write-metadata` on `profile` / `values` / `quality` and `--apply` on `metadata suggest` now surface the YAML write path *and* the `confidence: 1.0` preservation rule in a single sentence.
-- [x] **Error "Session step is not structured" is jargon with no `try_next`.** Rewrote all four session-step errors in `src/querido/core/session.py` to tell users what to do (re-record with `-f json`). Updated `_bad_parameter_code` matchers to keep structured codes stable. `SESSION_STEP_UNSTRUCTURED` now gets a dedicated `try_next` branch in `next_steps.py` that suggests the exact re-record command instead of "show the session".
-- [x] **SKILL.md "Gotchas" section mixes agent concerns and operator concerns.** Split into "behavior an agent needs to know" (case, Parquet, Snowflake, pivot SQL, wide-table auto-quick, human-field preservation rule) and "operator gotchas — setup / environment" (metadata location + `QDO_METADATA_DIR`, portability / bundles, `refresh` vs `init`, `QDO_QUICK_THRESHOLD`).
-
-### Tier 4 — Real gaps before beta
-
-Actual product-surface changes. Each warrants a brief think before diving in; consider promoting any of these to its own tracked item if scope grows.
-
-- [x] **No `qdo config remove`.** Added `qdo config remove --name <n>` with a default confirmation prompt (answer `n` to abort, `y` to proceed), a `-y / --yes` bypass for scripts, and a `CONNECTION_NOT_FOUND` structured error when the name is unknown. The `_bad_parameter_code` matcher accepts both "source connection '...' not found" (from `clone`) and "connection '...' not found" (from `remove`) so the envelope code stays stable. Three new tests cover success, abort, and unknown-name paths.
-- [x] **`qdo config add --type duckdb` succeeds silently without the `[duckdb]` extra installed.** Added `_missing_backend_extra()` that probes `duckdb` / `snowflake.connector` via `importlib.util.find_spec` (guarded against `ImportError`/`ValueError` when the parent namespace doesn't exist). `config add` and `config clone` now print a yellow warning after the green success message pointing at the exact `uv pip install 'querido[<extra>]'` command. Test covers the warn path via a monkeypatched probe.
-- [x] **SKILL.md has no dedicated `quality` section.** Added `## quality — detect data issues` between the `context` section and the JSON-output section: syntax, trimmed JSON shape (showing `status` / `issues` / `invalid_count`), and a "when to pick `quality` over `context + values`" decision rubric — plus the `values --write-metadata` → `quality` compounding-loop handoff.
-- [x] **`qdo tutorial explore` still teaches the old single-command tour.** Rewrote the tutorial from 15 command-tour lessons to 10 compounding-loop lessons: `catalog → context → values → metadata capture → quality → dist → query + pivot → report + agent pointer`. `context` appears early (lesson 3) and explicitly replaces separate inspect/preview/profile calls. New lesson 5 runs `metadata init` + `suggest --apply` + `show` so the user sees the YAML that was captured. Lesson 6 runs `quality --exact` — the stored `valid_values` now feeds `invalid_count`, demonstrating the compounding loop firing for real. Lesson 9 is the hand-off (report HTML + pointer to `qdo tutorial agent` + mention of bundles + SKILL files). Tutorial writes metadata into a scratch dir via `QDO_METADATA_DIR` so re-runs don't pollute the user's cwd. Added `test_tutorial_teaches_compounding_loop` that asserts the ordered-keyword sequence. All references to "15 lessons" refreshed to "10 lessons" across README, cli-reference, SKILL, AGENTS, ARCHITECTURE, and the cheatsheet HTML.
-- [x] **`qdo tutorial agent` Lesson 13 names SKILL files vaguely.** Tightened the lesson block so the concrete filenames lead (`integrations/skills/SKILL.md` for Claude Code, `integrations/continue/qdo.md` for Continue.dev), with the context-setting description following.
-- [x] **`docs/examples/` metadata fixture may use outdated field names.** Resolved as not-a-bug: verified the hand-curated `orders.yaml` reads cleanly via `metadata show`, `metadata list`, and `metadata score` against current qdo (100% score, no schema drift). The fixture is intentionally human-authored (richer than the default scaffold) and all field names match the current schema.
-- [x] **`qdo report table` without `-o` silently opens a tempfile.** Both `qdo report table` and `qdo report session` now follow the `Opened ...` line with `Tempfile — pass \`-o <name>.html\` to keep a permanent copy.`
-
-### Tier 5 — Polish
-
-Small nice-to-haves. Can run in parallel with the tiers above.
-
-- [x] **`.github/ISSUE_TEMPLATE/` + `.github/PULL_REQUEST_TEMPLATE.md` missing.** Added `bug_report.md` (structured: what happened / expected / reproduce / environment / structured-error paste), `feature_request.md` (scoped to DIFFERENTIATION.md's "What qdo deliberately isn't" filter so feature requests don't invite the rejected directions), and a PR template with a CI-gate checklist that includes the eval-rerun prompt when SKILL changes.
-- [x] **`qdo --help` tagline is weaker than the README's.** Updated root Typer app `help=` to "Agent-first data exploration CLI — accumulate understanding of your data so every subsequent investigation is sharper than the last." Leads with the differentiator, not just "data exploration CLI".
-- [x] **`--from <session>:<step>` help doesn't explain valid step indices.** Updated both `query.py` and `export.py` `--from` help to "Reuse SQL from a prior session step (`<session>:<step>`, e.g. 'scratch:3' or 'scratch:last'). The source step must have been recorded with -f json." The `-f json` note also prevents the Tier 1 session-replay footgun from recurring.
-- [x] **`AGENTS.md` is ~506 lines and overlaps ARCHITECTURE.md.** Trimmed to 156 lines focused on contributor workflow: where to look first, quick start, 8 critical invariants (pay-for-use, envelope, files-as-primitives, deterministic tools, input validation, connector protocol, SQL templates, CLI-surface preservation), the 7-rule test philosophy, self-hosting evals with current 42/45 baseline, test data, dependency management, release/retag, style. Command-surface enumeration, agent-tool workflow, and tutorial walkthrough removed — those now live in README.md / SKILL.md / ARCHITECTURE.md with explicit pointers.
-- [ ] `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` — **deferred** until there's concrete pull to add them (outside contributor appears, or a wider announcement).
-
-### Progress tracker
-
-- Tier 1: 3 / 3 ✅
-- Tier 2: 5 / 5 ✅ (+1 deferred)
-- Tier 3: 7 / 7 ✅
-- Tier 4: 7 / 7 ✅
-- Tier 5: 4 / 4 ✅ (+1 deferred)
-
-**Total: 26 / 26 shipped, 2 deferred. All tiers complete.** The pre-beta audit pass is done — the remaining pre-release item is item 7 of the earlier polish pass: real dogfood.
-
-### Post-audit eval follow-up (2026-04-23)
-
-Running the self-hosting eval after the audit first surfaced a regression (36/45) that traced to two docs-vs-product gaps the audit had opened but not closed. Four progressively-smaller fixes produced the best score the project has ever posted: **45/45 (100%)**, up +3 from the 42/45 baseline. Haiku 15/15, sonnet 15/15, opus 15/15.
-
-1. **First fix — restore baseline-era behavior.** Two bugs the eval surfaced:
-   - `SKILL.md` promoted a `values --counts` flag that doesn't exist (hallucinated when authoring the new `quality` section). Agents that trusted the docs got a click usage error; recovery burned a retry which the harness counts as a path-error failure. Fixed with accurate `qdo -f json values -c <conn> -t <table> -C <col>` wording plus an explicit "There is no `--counts` flag." **Lesson for future SKILL edits:** verify every flag via `--help` before promoting it — the eval catches this, but cheaper to not need the eval.
-   - `values` / `dist` / `profile` took `--columns` / `-C`, but agents naturally typed `--column` (singular). Added `--column` as a Click alias on all three commands — zero-risk (Click supports multiple option names) and an ergonomic win for any human user too. Regression test in `tests/test_values.py::test_column_singular_alias_accepted`.
-2. **Second fix — close the known bundle-inspect follow-up.** PLAN's "Known non-blocker follow-ups" already noted that Haiku tended to skip `qdo bundle inspect` after `qdo bundle export`; eval showed Sonnet doing it too. Added an explicit *invariant* to SKILL.md's bundle section: `bundle export` is never the last step; always `inspect` before claiming hand-off. That one sentence resolved both D4 failures.
-3. **Third fix — `required_any_of` grading-primitive relaxation.** Opus on B2 (numeric profile) picked `query --sql "select min, max, mean..."` over `qdo profile`. The answer was correct; the eval failed the task purely because the preferred command wasn't used. Renamed `required_commands` → `required_any_of` (and `required_all_commands` → `required_all_of`) to make the any-of semantics explicit, then expanded B1/B2/B4's accepted paths to include `qdo query` as a legitimate alternative. `preferred_commands` still tracks the clean-path signal via `path_ok`, so docs tightening is still possible when a model goes off the promoted path — but the gate no longer fails for an equivalent SQL answer.
-4. **Fourth fix — harness runtime safeguards.** One of the eval runs took ~53 minutes (vs the usual 5–10) because the Anthropic API was backpressuring. No mechanism existed to cap or surface the slowdown. Added:
-   - `--max-wall-clock-minutes` (default 20) — overall budget across the full run; exceeding it writes partial results and exits 2.
-   - `--task-timeout-sec` / `--qdo-timeout-sec` CLI flags — formerly module constants, now overridable for debugging.
-   - `sys.stdout.reconfigure(line_buffering=True)` at startup so a background run writing to a pipe shows mid-run progress (previously only flushed at end, which is why the 53-min run looked silent until completion).
-   - A per-task header prints elapsed minutes + "pair N of M" so the operator sees throughput without tailing raw claude-p streams.
-
-The cluster took four eval runs: baseline-regressed → after `--counts` / `--column` fixes (41/45) → after bundle-inspect invariant (44/45) → after `required_any_of` relaxation (**45/45**).
-
----
-
-## Review-findings pass + auto-capture (committed 2026-06-10)
-
-A full code/docs review (multi-agent: core, connectors/SQL security, CLI, workflow engine + agent docs, docs-vs-code) produced [REVIEW_FINDINGS.md](./docs/reviews/REVIEW_FINDINGS.md) — 7 high, 19 medium, 35 low items, all committed work. High items block dogfooding; the rest land opportunistically. Tick items off there, not here.
-
-**Auto-capture track — shipped 2026-06-10.** Reduced capture friction so the compounding loop fires without a separate deliberate step. The loop's weak link was that `context`/`quality` *compute* durable facts (distinct values, null rates, min/max, freshness) and then threw them away unless the user separately ran `metadata suggest --apply` or `values --write-metadata`. All deterministic and provenance-tracked (`metadata_write.py` rules, `confidence < 1.0`, human fields never overwritten, `metadata undo` covers regret):
-
-1. **`context --write-metadata`** ✅ — the anchor command gained the same flag `profile`/`values`/`quality` have, via `derive_from_context`/`write_from_context` in `metadata_write.py` reusing the existing rule helpers (no new fields/thresholds). Writes `valid_values` (only when the top-K sample provably covers every distinct value — a partial sample is deferred to `values --write-metadata` so the allowed set is never understated), `likely_sparse` (null_pct > 95%), and `temporal`. `_READBACK_CASES` row added proving context is now a self-sufficient writer.
-2. **Capture hint in rich output** ✅ — `context`/`quality` rich output ends with a one-line dim `Capture: qdo <cmd> ... --write-metadata` on stderr, shown only when derived fields aren't already in stored metadata (`maybe_capture_hint`/`_has_uncaptured_updates` in `cli/_pipeline.py`).
-3. **`QDO_AUTO_CAPTURE=1` (opt-in)** ✅ — resolved at one choke point (`resolve_write_metadata` in `cli/_options.py`); when truthy, `context`/`profile`/`values`/`quality` auto-persist. Opt-in so agents and CI never get surprise writes by default. Documented in README beside `QDO_SAMPLE_THRESHOLD` and as a SKILL.md operator gotcha.
-
----
-
-## What's next (new session, cold start)
-
-Read this first if you're picking the project back up after the audit pass. It's the short version of "what just shipped, what to do first, what to defer."
-
-**What just shipped (2026-04-23):**
-- Pre-beta audit pass — 26 items across 5 tiers + 2 deferred by design. Six commits on `main`. See "Pre-beta audit pass — active" above for the per-item narrative.
-- Eval went from 42/45 → 45/45 (100%) via SKILL fixes, a harness `required_any_of` relaxation, and runtime safeguards (wall-clock cap, per-task flags, flushed progress).
-- Tutorials, SKILL.md, AGENTS.md, CHANGELOG, issue/PR templates, pyproject metadata all tightened.
-
-**Immediate next action:** **push the local commits** (they've been committed but not pushed during the audit). `git status` + `git log origin/main..HEAD` to confirm the set.
-
-**Then — real dogfood.** Item 7 from the earlier polish pass is still the only outstanding pre-release step. The audit is a proxy-dogfood, not the real thing. Take qdo to an actual project for a week and record whatever makes you wince. "Picking up after dogfood" (next section) has the three-bucket triage pattern.
-
-**Top candidates for the next feature tranche** (ordered by differentiation payoff, not implementation cost — same as the post-dogfood list but tightened by the audit's findings):
-
-1. **Snowflake `RESULT_SCAN` reuse for chained queries.** Meaningful perf win for the Snowflake-depth differentiator. Still deferred in IDEAS.md; no obstacle but hasn't been sized.
-2. **`qdo diff --since <snapshot>`.** `freshness` already ships; `diff --since` is the promotion that turns "what changed since last time?" into a single-command answer. Probably the highest-ROI feature before an MCP wrapper.
-3. **MCP thin wrapper.** The CLI is MCP-ready (stable flags, structured errors, no TTY-required paths — the audit's help-text + error-message polish reinforces this). A thin MCP server that surfaces the scanning commands and metadata ops would unlock the whole MCP ecosystem without fragmenting the CLI.
-4. **Embedding layer on `qdo metadata search`.** Only if lexical BM25 shows concrete user pain. Not speculative — we ship BM25 today and it's fine for small-to-medium metadata corpora.
-
-**Polish and ergonomics the audit deferred but that are still worth keeping in mind:**
-- README badges (CI / license / Python versions) — deferred until PyPI publish is decided.
-- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` — deferred until there's concrete community pull.
-- "Known non-blocker follow-ups from the eval" (see Pre-release polish pass section below) — three micro-items, each one-sentence-of-SKILL fixable if they come up again.
-
-**Invariants that still govern all of the above:**
-- The 8 critical invariants in [AGENTS.md](./AGENTS.md#critical-invariants) (pay-for-use, envelope, files as primitives, deterministic tools, input validation, connector protocol, SQL templates, preserve CLI surface).
-- The "filter for future changes" at the bottom of [DIFFERENTIATION.md](./DIFFERENTIATION.md#filter-for-future-changes). Apply before sizing any new feature.
-
----
-
-## Picking up after dogfood
-
-When you return from dogfooding, start here. In order:
-
-1. **Triage dogfood findings first.** Anything that made you wince while using qdo on a real project is signal. Drop each finding into one of three buckets and record it:
-   - **Bug** — something obviously wrong. Open an issue or write the fix; high priority.
-   - **Friction** — workflow was technically possible but awkward. Add to this file as a new line in the relevant place (either promote to an active track if it's small, or queue under "Deferred / future phases" with a one-sentence description of the frustration).
-   - **Desire** — "wish qdo could do X." Add to [IDEAS.md](./IDEAS.md) under the appropriate subsection; don't promote until there's a second data point that confirms it matters.
-
-2. **If nothing major surfaced, tighten the known follow-ups below.** The Pre-release polish eval surfaced three small items worth picking up before any new feature work. See "Known non-blocker follow-ups" under the Pre-release polish pass section.
-
-3. **If you want to ship a real next feature, these are the top candidates** (ordered by differentiation payoff, not implementation cost):
-   - **Snowflake `RESULT_SCAN` reuse for chained queries** — meaningful perf win for the Snowflake depth story (one of qdo's ranked differentiators).
-   - **`qdo freshness` + `qdo diff --since <snapshot>`** — "what changed since last time?" is a recurring agent question that qdo is uniquely positioned to answer cheaply (freshness is already shipped; `--since` on diff is the promotion).
-   - **MCP thin wrapper** — unlocks a whole new integration surface without fragmenting the CLI. Keep the CLI MCP-ready meanwhile (stable flags, structured errors, no TTY-required behaviors).
-   - **Embedding layer on `metadata search`** — only if the lexical baseline shows actual user pain. Not speculative.
-
-4. **Re-run the eval** after any SKILL.md change or command-surface change: `unset ANTHROPIC_API_KEY; uv run python scripts/eval_skill_files_claude.py --models all --budget 7 --confirm-spend`. Current baseline is **45/45 (100%)** (haiku/sonnet/opus); any regression is signal. The harness has a 20-minute wall-clock cap; tune with `--max-wall-clock-minutes` if genuinely needed.
-
-5. **Re-read [DIFFERENTIATION.md](./DIFFERENTIATION.md)** before agreeing to anything large. The "filter for future changes" there is the first thing to apply to any proposed feature.
-
----
-
-## Phases shipped
-
-Each phase is now documented by the code itself. These summaries exist for cold-start context; follow the file pointers for specifics.
-
-### Phase 1 — Agent-first foundations (done)
-
-The four pieces that create the "tool gets better the more it's used" compounding loop:
-
-- `next_steps` on every scanning command + `try_next` on structured errors (`src/querido/core/next_steps.py`, exercised by `_ENVELOPE_CASES` in `tests/test_next_steps.py`).
-- Session MVP — `QDO_SESSION=<name>` appends JSONL to `.qdo/sessions/<name>/steps.jsonl` plus per-step stdout files (`src/querido/core/session.py`, `src/querido/cli/session.py`).
-- `--write-metadata` on `profile` / `values` / `quality` with provenance (`src/querido/core/metadata_write.py`). Deterministic auto-fill rules; never overwrites `confidence: 1.0` without `--force`.
-- `qdo metadata score` + `qdo metadata suggest --apply` — measurable target + non-preachy nudge (`src/querido/core/metadata_score.py`).
-
-### Phase 2 — Agent output + first shareable artifact (done)
-
-- `-f agent` output format — TOON for tabular, YAML for nested, via shared `emit_envelope` dispatch. In-tree TOON encoder with vendored conformance fixtures (`src/querido/output/toon.py`, `tests/test_toon.py` — 118 parametrized cases). `QDO_FORMAT=agent` sets the default.
-- `qdo report table` single-file HTML with schema + metadata + quality + joins (`src/querido/core/report.py::build_table_report`, `src/querido/output/report_html.py::render_table_report`, `src/querido/cli/report.py::report_table`). No JS, inline SVG, print-friendly CSS.
-
-### Phase 3 — Team sharing via knowledge bundles (done)
-
-`qdo bundle export` / `import` / `inspect` / `diff` — portable, connection-agnostic archives of metadata + optional sessions + workflows. Schema-fingerprint checks catch drift on import. Merge strategies preserve provenance: auto-fills break ties by confidence + recency; human-authored fields (`confidence: 1.0`) are never auto-overwritten. See `src/querido/core/bundle.py`, `src/querido/cli/bundle.py`.
-
-### Phase 4 — Workflows as extensibility (done)
-
-- Workflow spec (JSON Schema), runner, lint, list, `show`, `spec --examples`, `from-session` — `src/querido/core/workflow/`, `src/querido/cli/workflow.py`.
-- `WORKFLOW_AUTHORING.md` + `SKILL.md` + `AGENTS.md` — the docs an agent loads to author a workflow without repo access.
-- Bundled workflows under `src/querido/core/workflow/examples/` serve as the worked-example corpus.
-- Self-hosting eval (`scripts/eval_workflow_authoring.py`, plus the broader `scripts/eval_skill_files_claude.py` added in Wave 3) — refuses to run with `ANTHROPIC_API_KEY` set; per-model timeouts; budget guardrails.
-
-**Canonical invocation is `qdo workflow run <name>`.** The "CLI sugar shim" idea (Phase 4.4; `qdo <workflow-name>` as a top-level alias) was dropped — one invocation pattern is better than two parallel paths. See [IDEAS.md](IDEAS.md) "subcommand-to-workflow sugar" for the rejected analysis.
-
-### Phase 5 — Subcommand → workflow conversions (dropped by design)
-
-IDEAS.md proposed converting 8–10 subcommands (`template`, `sql scratch`, `pivot`, `joins`, etc.) to bundled workflows behind a sugar shim. Rejected: the "no workflow shim" principle prevails — agents and humans learn one invocation pattern (`qdo workflow run <name>`), and fused-scan primitives that own a perf optimization (`context`, `quality`) shouldn't be workflow-ified. Subcommands stay primitives; workflows stay workflows.
-
-### Phase 6 — Session reports and cleanup (done)
-
-- **6.1** — `qdo report session <name>` renders a session as single-file HTML. One card per step with status pills, alternating theme color, collapsed `<details>` for the full invocation, rendered stdout (JSON pretty-printed). Per-step commentary via `qdo session note <text>`, which rewrites the last record in `steps.jsonl`. Offline-readable invariants encoded as tests (no `<script>`, no `<iframe>`, no external stylesheet, no `<img src="http…">`). See `src/querido/core/report.py::build_session_report`, `src/querido/output/report_html.py::render_session_report`, `tests/test_report_session.py`.
-- **6.2 + 6.3** — `qdo serve` removed (landed via R.13; deprecation step skipped since there were no users). `tests/test_web.py` deleted with it.
-
-### Phase 7 — Human-facing output polish (done)
-
-The agent-first core is in good shape. This track is about making the human experience feel intentional and high-signal too, especially in `qdo explore` and Rich terminal output.
-
-**7.1 — TUI foundation / information hierarchy**
-
-- Shipped: the `explore` sidebar is now a compact selected-column facts panel: type, null rate, distinct count, min/max, sample values, metadata description, allowed values, and quality flags.
-- Shipped: the status bar now carries connection, table, displayed/total rows, filtered state, sampled/exact state, sort state, metadata presence, and focused-column triage context.
-- Shipped: semantic highlighting in the main `DataTable` now makes PKs, sorted columns, null-heavy columns, and null cells visually obvious.
-- Shipped: the main grid, sidebar, and status bar now share the same triage story for the selected column (category + recommended/background emphasis) instead of acting like separate surfaces.
-- Outcome: the structural hierarchy work is complete; any further changes here would be optional aesthetic follow-up, not unfinished scope.
-
-**7.2 — Human-readable scan output**
-
-- Shipped: Rich output for `quality`, `profile`, `catalog`, `inspect`, `preview`, `values`, and `dist` now uses compact headers, summary panels, and clearer section titles.
-- Shipped: `context` now matches the same summary-panel / detail-table standard as the rest of the human-facing scan commands.
-- Outcome: the main presentation gap is closed. Lightweight inline bars / sparklines can stay a future nice-to-have unless a concrete use case appears.
-- Keep the JSON / agent shapes unchanged; this phase is about human presentation, not output-contract churn.
-
-**7.3 — Wide-table and triage UX**
-
-- Shipped: the wide-table profile path now explains quick triage, shows recommendation defaults, and labels the selector so the fast-path/full-path transition is legible.
-- Shipped: the profile modal now explains whether the user is in quick mode or a full profile, and whether full stats are scoped to all columns or a chosen subset.
-- Shipped: the main `explore` grid now orders wide tables recommended-first, pushing sparse/constant columns to the back instead of treating every field as equal-weight.
-- Outcome: the missing workflow problem is solved; further work here would be small ergonomic tuning only.
-
-**7.4 — Visual coherence**
-
-- Shipped: the TUI and Rich terminal output now share more of the same emphasis rules (summary-first framing, status badges, triage language, recommended/background distinctions).
-- Shipped: reproducible `qdo explore` screenshots now live under `docs/examples/screenshots/`, and the README / examples / cheatsheet reference them directly.
-- Shipped: the docs consistency sweep removed stale `serve` / `web` references and brought the public TUI descriptions in line with the current product.
-- Outcome: the obvious cross-surface inconsistencies are gone. A later aesthetic pass is optional, not part of the committed Phase 7 tranche.
-- Preserve the existing CLI / workflow surface; this is a presentation pass, not a redesign of command semantics.
-
----
-
-## Pre-release polish pass — done
-
-Items 0–6 shipped 2026-04-22. The goal was closing the gap between the product and how it's described, not adding features.
-
-- **0. Unblock CI** — PR #59 left CI red on all three OSes. Two root causes: ruff 0.15.5 line-wrap reformatting 10 files, and a Windows-specific `UnicodeEncodeError` where `cp1252` stdout can't encode Rich's bullets. Fixed by running `ruff format` and reconfiguring stdout/stderr to UTF-8 with `errors="replace"` at the CLI entrypoint — benefits any Windows user piping qdo output, not just the eval.
-- **1. Docs accuracy audit** — `ARCHITECTURE.md` file trees refreshed (added `freshness`, `argv_hoist`, `estimate`, `plan`, `sql_safety`, `metadata_score`, `metadata_write`; dropped `search`). `README.md` "Investigate Deeper" restored the 5 missing commands. `docs/cli-reference.md` + `docs/qdo-cheatsheet.html` gained `freshness`. `SKILL.md` harmonized on explicit `-f json` per invocation (env-var `QDO_FORMAT` is a supported shortcut, not the promoted default).
-- **2. "Why qdo" block** — added to top of `README.md` and `SKILL.md`: the compounding-loop pitch, a small ASCII diagram, and the self-hosting eval cited as credibility. See also [DIFFERENTIATION.md](./DIFFERENTIATION.md).
-- **3. Marginal command decisions** — `qdo search` CUT (removed from code and docs); `qdo overview` KEEP (docs generator); `qdo tutorial agent` KEEP (teaches the differentiating metadata workflow). See IDEAS.md "Rejected Or Dropped" for the search rationale.
-- **4. Sampling-flag harmonization** — `--no-sample` and `--sample` help text aligned across `context` / `profile` / `quality`. `--sample-values` stays unique to `context` (only context emits sample values). `-s` is now `--sample` (rows) everywhere — previously ambiguous between `--sample-values` on context and `--sample` on the other two.
-- **5. Envelope on `sql` + `snowflake`** — `sql select/insert/ddl/task/udf/procedure/scratch` now wrap generated SQL in the standard envelope under `-f json` / `-f agent`. `snowflake semantic/lineage` envelope their YAML / object payloads. Rich / csv / markdown still print raw SQL / YAML for piping. Envelope contract tests extended to cover `sql select/insert/ddl/udf/scratch`.
-- **6. Re-run the eval** — **42/45 (93%)** across haiku / sonnet / opus on 15 tasks, up from 39/45 on the first re-run. The bump came from isolating `QDO_METADATA_DIR` into the eval scratch dir (D2 stopped spuriously failing on leftover fixture metadata) and filtering non-qdo tool errors from the qdo-bug category (D4 stopped failing when models ran `unzip` as a sanity check). The three remaining failures (B1 on sonnet, C1 on opus, D4 on haiku) are all `model-mistake` — strict required-command grading against valid alternative paths.
-
-**Item 7 — dogfood — is the only remaining pre-release item.** It's owned by the project maintainer, not the code.
-
-Key commits from this pass (`main`):
-- `f8153b8` — Windows UTF-8 stdout + ARCHITECTURE.md trees
-- `500bd08` — README / cli-reference / cheatsheet missing commands
-- `d6f94e6` — Why qdo block in README and SKILL
-- `505bc97` — SKILL `-f json` harmonization
-- `068c09e` — Cut `qdo search`
-- `88b6ba9`, `abf7dbf` — Sampling flag + `-s` harmonization
-- `e2ce1ed` — Envelope on sql + snowflake
-- `d8e1a2d` — Eval metadata isolation + non-qdo error filter + SKILL values/dist sentence
-
-### Known non-blocker follow-ups from the eval
-
-Surfaced by the final 42/45 run. None are release blockers. Pick up opportunistically, ideally alongside related work.
-
-- **Strengthen `values` vs `dist` guidance further.** The SKILL.md sentence landed in `d8e1a2d` helped haiku pass B1 but didn't shift sonnet off `dist` for an enum-listing task. If the next eval re-run still has sonnet on B1, consider a concrete "for enum-style tasks, `qdo values` is the answer" phrasing — or teach `values` to emit richer count-oriented summaries so the path ambiguity disappears.
-- **`quality` vs `context+values+query` on quality-issue prompts.** Opus regressed from 15/15 to 14/15 by taking a manual answer path (context → values → query) instead of `qdo quality` on C1. This is run-to-run model variance more than a SKILL bug, but if it repeats the fix is either a stronger "for anomaly-oriented review use `quality`" nudge in SKILL, or loosening C1's `required_commands` to accept any of `[quality, context, values]`.
-- **Bundle workflow completeness on haiku.** D4 requires `qdo bundle inspect` as a workflow step after `export`. Haiku skipped it. SKILL could spell out "bundles are meaningful to hand off only after `inspect` confirms the contents" — a one-sentence tweak in the bundles section.
-- **Eval task definitions — alternative-command support.** Currently `required_commands` is a hard list. A `required_any_of` / `required_one_of` primitive would let us accept `values` OR `dist` for B1-style questions without losing the gate. Cheap harness change.
-- **`QDO_SESSION_DIR` env var.** The eval harness currently isolates metadata via `QDO_METADATA_DIR` but can't isolate sessions the same way — the session recorder uses `Path.cwd()`. Adding a parallel env var would close the last remaining cross-run-pollution hole in the eval; also useful for any tool that spawns qdo.
-
----
-
-## Sharpening pass (Waves 1–4) — done
-
-Four waves of audit + sharpening, shipped 2026-04-18 through 2026-04-20.
-
-- **Wave 1** — cold-start + command-surface audit (CS.x + CA.x findings). Established the eval idea.
-- **Wave 2** — docs + code consistency (DC.x + CC.x findings). Landed CC.6 and CC.10; scheduled CC.5 (TypedDicts).
-- **Wave 3** — eval design + build. Shipped `scripts/eval_skill_files_claude.py` (EV.Build) — 11 tasks × 3 models, 39 harness unit tests, billing guardrails.
-- **Wave 4** — first live baseline + scaffolding sharpening. Got to **33/33 perfect**. The tightenings:
-  - `src/querido/cli/argv_hoist.py` + `cli/main.py::run` entrypoint — `-f/--format` now works anywhere in argv; workflow runner shares `split_format_flag`.
-  - SKILL.md: six broken `-f json` examples corrected, flag-placement rule documented, `qdo export --format csv` → `-e csv`, `qdo diff` promoted into the Quick Exploration Workflow.
-  - Eval harness: dropped `--bare` (was suppressing OAuth token → false auth-error); classifier splits click usage errors from real crashes; parser normalizes `cd X && qdo`, `export X=Y && qdo`, `-f json` mid-argv; pre-task runs with `cwd=scratch`.
-  - Scan-result TypedDicts (CC.5): `ProfileResult` / `QualityResult` / `ContextResult` / `ValuesResult` landed; downstream `for_*` / `derive_from_*` / `write_from_*` signatures narrowed accordingly.
-
-Commits from this pass: `2722748` (Wave 4 fixes), `c5ffb3c` (TypedDicts), `079128d` (Phase 6.1).
-
----
-
-## Durable references
-
-Content that outlasts any given phase and should stay findable.
-
-### Where the test rubric lives
-
-**`AGENTS.md` → "Writing tests"** — seven rules: name the failure mode, test behavior not framework, exit code is not an assertion, parametrize over copy-paste, scenario coverage ≠ redundancy, integration for invariants / unit for pure logic, don't string-match error prose. Enforce on every new test.
-
-### Extensible contract tests to build on
-
-Each is a parametrized case list; extending is a one-line addition:
-
-- **`_ENVELOPE_CASES`** in `tests/test_next_steps.py` — asserts every scanning command emits the uniform `{command, data, next_steps, meta}` envelope. Add a new scanning command → wire through `emit_envelope()`, append a row, done.
-- **`_READBACK_CASES`** in `tests/test_readback_loop.py` — asserts every `--connection`-accepting scan surfaces stored metadata on the next call. Template for future metadata-driven invariants.
-- **`tests/test_errors.py` validation contract cases** — central place to extend structured error assertions as more commands gain stable codes. Prefer asserting on `code` / `try_next`, not human-readable prose.
-
-### Don't touch — already good
-
-Files to resist future pressure to shrink:
-
-- **Per-rule scenario tests in `tests/test_next_steps.py`** — three `for_inspect_*` tests each exercise a distinct branch (populated / empty / no-comment); not redundant.
-- **Dialect-specific `sql` tests where outputs diverge** — DDL types (TEXT vs VARCHAR), UDF syntax (Python `create_function` vs SQL `CREATE FUNCTION`). Keep both dialects.
-- **`tests/test_readback_loop.py`** — 7 tests on the R.1 compounding-loop invariant.
-
-### Audit lessons worth keeping
-
-1. **Scenario coverage ≠ redundancy.** The 2026-04-17 cleanup pitched ~145 deletions and delivered ~40. Three tests per lint rule / classifier branch / error path are each doing real work. Parametrize only when assertions are genuinely symmetric.
-2. **Spec-conformance suites are honest.** A file with 118 tests may be one parametrize over 118 fixture entries — appropriate for the shape.
-3. **The real wins weren't deletions.** Shared fixtures (T.1, −7s wall time), envelope contract (3→11 commands), readback contract (extensible) moved the needle more than any individual trim.
-4. **Brittle-prose tests often reflect product gaps.** The right fix was routing common validation failures through the structured envelope for `-f json` / `-f agent`, then rewriting tests around stable codes instead of prose.
-
-### Open items the test cleanup deferred
-
-- Keep rewriting lingering prose-oriented validation tests against structured payloads whenever a command now emits a stable code under `-f json`.
-- Only promote additional validation failures from generic `VALIDATION_ERROR` into named codes when the failure shape is durable, actionable, and likely to matter to agents.
-
----
-
-## Deferred / future phases
-
-Capture but don't start. Each is standalone and non-blocking.
-
-- ~~Publish to PyPI.~~ **Promoted 2026-07-06:** 0.2.0 is prepped (version bump, trusted-publishing job in release.yml, PyPI install docs). The remaining manual steps — one-time pypi.org trusted-publisher + GitHub `pypi` environment setup, tagging v0.2.0, and the L35 clean-room verification — are documented step-by-step in [RELEASING.md](RELEASING.md). Merging to main publishes nothing; only pushing a `v*` tag does.
-- Optional embedding/reranker layer for `qdo metadata search` if the lexical baseline proves insufficient.
-- Progressive disclosure `--level 1..3` on expensive commands.
-- Snowflake `RESULT_SCAN` reuse for chained queries.
-- Pyodide `querido-lite` browser demo (only if concrete adoption pulls for it).
-- ~~Migrate off direct `click` imports to typer 0.26+.~~ **Done 2026-07-06:** all click-shaped imports route through `src/querido/_click.py`, a single shim over typer's vendored `typer._click`; `typer>=0.26` and the standalone `click` dependency is gone. Invariant going forward: never `import click` in src/ — import from `querido._click` so context reads share typer's stack and a vendoring move is a one-line fix.
-- MCP thin wrapper — design drafted 2026-07-06 in [docs/research/mcp-wrapper-design.md](docs/research/mcp-wrapper-design.md) (subprocess-per-call, ~9 curated tools returning the envelope verbatim, `querido[mcp]` extra, `qdo mcp serve`). Proposed as the 0.3.0 headline after the 0.2.0 PyPI debut + dogfood week. Build only after dogfood.
-
----
-
-## Principles that govern all work above
-
-1. **Agent-first.** Every feature is evaluated on "does this make a coding agent's loop tighter, cheaper, or more correct?" If not, defer.
-2. **Deterministic tools, not LLM-in-the-loop suggestions.** Agents bring the brain; querido brings the memory and the map.
-3. **Files, not servers.** Sessions, metadata, bundles, workflows, reports — all plain files. No daemon, no platform.
-4. **Declarative extensibility, not plugins.** Workflows are YAML, not Python. No sandbox, no ABI.
-5. **Compose with the ecosystem.** DuckDB / Snowflake own execution. qsv owns row-oriented CSV wrangling. datasette owns hosted publishing. We own the agent-readable exploration + metadata + workflow loop.
-6. **Don't break existing CLI surface.** Conversions and removals preserve invocation names; deprecation always precedes removal.
-
-## Sequencing invariants
-
-- Phase 1 before 2 / 3 / 4 — sessions + `next_steps` + metadata enable everything downstream.
-- Phase 4.5 (agent-authoring docs) runs in parallel with 4.1–4.3, not after.
-- Phase 5 skipped (see header).
-- Phase 6.1 depends on 4.2 (sessions must exist); 6.2–6.3 independent.
+Current commitments for qdo. This file answers only two questions: **what is
+true now?** and **what should happen next?** Completed execution history lives
+in [the archived plan](./docs/archive/PLAN-2026-07-13.md); uncommitted ideas and
+rejected directions live in [IDEAS.md](./IDEAS.md).
+
+## Status — 2026-07-23
+
+- **Release state:** `0.2.0` is prepared but not published to PyPI. The PyPI
+  JSON endpoint returns 404, and [RELEASING.md](./RELEASING.md) records the
+  one-time trusted-publisher setup as incomplete.
+- **Supported core:** `catalog`, `context`, `metadata`, `query`, `assert`,
+  `quality`, `report`, and `bundle`.
+- **Experimental:** workflows remain available but do not yet have a stable
+  schema or recovery contract.
+- **Verification baseline:** the last recorded full local gate and the 45/45
+  agent eval were green. CI is authoritative; do not infer current green
+  status without rerunning checks.
+
+## Do next
+
+### Release gate — maintainer-owned
+
+- [ ] Use qdo on a real project for at least one week. Record bugs, friction,
+  and desires separately; fix release-blocking correctness issues before
+  adding surface area.
+- [ ] Complete the one-time PyPI trusted-publisher and GitHub environment setup
+  in [RELEASING.md](./RELEASING.md).
+- [ ] Run the full CI-equivalent gate and build/install the wheel in a clean
+  environment.
+- [ ] Tag and publish `0.2.0`, then run the documented clean-room verification
+  against the live PyPI package.
+
+### Evidence for the product claim
+
+- [ ] Build the hallucination benchmark described below. Do not make a
+  comparative “qdo beats notes” claim until the benchmark supports it.
+
+## Hallucination benchmark
+
+**Question:** does a coding agent using warm qdo metadata hallucinate fewer
+identifiers and invalid filter values, answer more questions correctly, and
+recover more cheaply than the same agent using a bare database CLI or
+self-written instruction notes?
+
+### Minimum design
+
+1. Generate a database with deterministic traps: coded enums, lookalike date
+   columns, plausible-but-absent identifiers, misleading join cardinality, and
+   one wide table.
+2. Write 15–25 natural-language tasks with exact answers.
+3. Compare four arms: bare database CLI, prior-session prose notes, qdo cold,
+   and qdo with metadata populated by a prior exploration.
+4. Deterministically grade invalid identifiers, invalid enum literals, final
+   answers, attempts to recovery, and token usage.
+5. Publish methodology and negative results. If prose notes perform as well as
+   qdo metadata, treat that as a product gap rather than hiding the result.
+
+The existing `scripts/eval_skill_files_claude.py` provides subprocess,
+multi-model, timeout, and budget plumbing. Extend it only after dogfood confirms
+that this remains the right evidence to collect.
+
+## After release
+
+No feature is committed beyond the benchmark. Candidates stay in
+[IDEAS.md](./IDEAS.md) until dogfood creates concrete pull. The leading
+questions are schema change over time, Snowflake result reuse, and whether a
+small MCP wrapper is needed for clients without shell access. Apply the filter
+in [DIFFERENTIATION.md](./DIFFERENTIATION.md#filter-for-future-changes) before
+promoting any of them.
+
+## Durable engineering references
+
+- The contributor rules and test rubric are in [AGENTS.md](./AGENTS.md).
+- Extend `_ENVELOPE_CASES` in `tests/test_next_steps.py` for a new scanning
+  command.
+- Extend `_READBACK_CASES` in `tests/test_readback_loop.py` when a scan begins
+  reading stored metadata.
+- Preserve dialect-specific tests where generated SQL genuinely differs.
+- Re-run the agent eval after changing command surface or installed agent
+  instructions.

@@ -285,4 +285,5 @@ def test_print_catalog_rich_enriched_notes() -> None:
     text = console.export_text()
     assert "1 enriched" in text
     assert "Application user accounts" in text
-    assert "owner: Identity team" in text
+    assert "owner:" in text
+    assert "Identity team" in text

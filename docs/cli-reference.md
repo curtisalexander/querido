@@ -9,14 +9,19 @@ title: CLI Reference
 
 ## Installation
 
-Available on [PyPI](https://pypi.org/project/querido/) — the package is `querido`; the command it installs is `qdo`. Requires Python >= 3.12.
+The package is `querido`; the command it installs is `qdo`. Requires Python
+3.12 or newer. Version 0.2.0 is prepared but not yet published to PyPI; until
+then, use the source-checkout command below.
 
 ```bash
 # core (SQLite)
-uv tool install querido
+uv tool install .
 
-# optional backends — swap the extras: [duckdb], [snowflake], [tui], [all]
-uv tool install 'querido[duckdb]'
+# after the PyPI release
+uv tool install querido                  # SQLite
+uv tool install 'querido[duckdb]'        # DuckDB + Parquet
+uv tool install 'querido[snowflake]'     # Snowflake
+uv tool install 'querido[tui]'           # interactive TUI
 ```
 
 See the [README install section](https://github.com/curtisalexander/querido#install) for `uvx` one-off runs, pip, and installing from source.
@@ -149,7 +154,7 @@ Use drill-down commands like `inspect`, `preview`, `profile`, `values`, `dist`, 
 | `qdo metadata undo -c CONN -t TABLE [--dry-run]` | Restore the last qdo-managed metadata snapshot |
 | `qdo agent list` | List packaged coding-agent integration docs |
 | `qdo agent show skill\|continue` | Print a packaged integration doc without writing files |
-| `qdo agent install skill` | Install the qdo skill files into `skills/querido/` (copy into your agent's skill dir) |
+| `qdo agent install skill --path .claude/skills/querido` | Install the qdo skill files where Claude Code discovers them |
 | `qdo agent install continue` | Install Continue.dev rules into `.continue/rules/` |
 | `qdo completion show SHELL` | Generate shell completion scripts |
 | `qdo overview` | Print this CLI reference (the source for `docs/cli-reference.md`) |

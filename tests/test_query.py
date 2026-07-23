@@ -121,6 +121,19 @@ def test_query_limit_zero_no_limit(sqlite_path: str):
     assert "Bob" in result.output
 
 
+def test_prepare_query_is_shared_query_policy() -> None:
+    """Planning and execution must classify and limit SQL through one policy."""
+    from querido.core.query import prepare_query
+
+    read = prepare_query("select * from users;", limit=5)
+    assert read.effective_sql == "select * from (select * from users) as _q limit 5"
+    assert read.destructive is False
+
+    write = prepare_query("delete from users", limit=5)
+    assert write.effective_sql == "delete from users"
+    assert write.destructive is True
+
+
 def test_query_empty_result(sqlite_path: str):
     result = runner.invoke(
         app,

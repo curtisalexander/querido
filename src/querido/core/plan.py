@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from querido.core.query import PreparedQuery
 
 
 def build_query_plan(
     *,
-    sql: str,
-    effective_sql: str,
+    prepared: PreparedQuery,
     allow_write: bool,
     limit: int,
-    destructive: bool,
 ) -> dict[str, Any]:
     """Build a plan payload for ``qdo query --plan``."""
+    sql = prepared.original_sql
+    effective_sql = prepared.effective_sql
+    destructive = prepared.destructive
     executable = not destructive or allow_write
     summary = "Would execute read-only query."
     if destructive and not allow_write:

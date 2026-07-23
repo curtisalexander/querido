@@ -94,7 +94,11 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
     (
         "Snowflake",
         [
-            ("snowflake", "querido.cli.snowflake", "Snowflake-specific commands."),
+            (
+                "snowflake",
+                "querido.cli.snowflake",
+                "Snowflake-specific commands (requires querido[snowflake]).",
+            ),
         ],
     ),
     (
@@ -103,14 +107,18 @@ _COMMAND_CATEGORIES: list[tuple[str, list[tuple[str, str, str]]]] = [
             (
                 "explore",
                 "querido.cli.explore",
-                "Interactive TUI with selected-column context and wide-table triage.",
+                "Interactive TUI (requires querido[tui]).",
             ),
         ],
     ),
     (
         "Learn",
         [
-            ("tutorial", "querido.cli.tutorial", "Interactive tutorial with National Parks data."),
+            (
+                "tutorial",
+                "querido.cli.tutorial",
+                "Guided National Parks tutorial (requires querido[duckdb]).",
+            ),
         ],
     ),
     (
@@ -206,19 +214,19 @@ class LazyGroup(TyperGroup):
                 with formatter.section(f"{category} Commands"):
                     formatter.write_dl(rows)
 
-        # Quick start hint after all command categories
+        # Entry routes after the complete command map.
         formatter.write("\n")
-        with formatter.section("Quick start"):
+        with formatter.section("First steps"):
             formatter.write_dl(
                 [
-                    ("catalog -c my.db", "Discover tables to investigate."),
-                    ("context -c my.db -t users", "Understand one table in depth."),
-                    ("metadata init -c my.db -t users", "Capture what you've learned."),
-                    ("query -c my.db --sql 'select ...'", "Answer a concrete question."),
-                    ("assert -c my.db --sql 'select ...' --expect 0", "Verify an invariant."),
-                    ("quality -c my.db -t users", "Check stored expectations."),
-                    ("report table -c my.db -t users", "Hand off a shareable report."),
-                    ("bundle export -c my.db -t users -o users.zip", "Share durable knowledge."),
+                    ("catalog -c ./data.db", "Start directly from a SQLite file."),
+                    ("context -c ./data.db -t TABLE", "Understand one table."),
+                    (
+                        "agent install skill --path .claude/skills/querido",
+                        "Install Claude Code instructions.",
+                    ),
+                    ("tutorial explore", "Walk the full loop with included data."),
+                    ("overview", "Print the complete CLI reference."),
                 ]
             )
 

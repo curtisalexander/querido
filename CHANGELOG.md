@@ -6,10 +6,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.2.0] — 2026-07-06
-
-First PyPI release. Install with `uv tool install querido` or `pip install
-querido` — the package is `querido`, the command is `qdo`.
+The changes below are the prepared 0.2.0 release candidate. When published,
+0.2.0 will be the first PyPI release; the package is `querido` and the command
+is `qdo`.
 
 ### Added
 
@@ -23,7 +22,8 @@ querido` — the package is `querido`, the command is `qdo`.
   bundles with a newer `format_version` instead of silently misreading them.
 - **PyPI publishing** — the release workflow publishes to PyPI via trusted
   publishing (OIDC) after the build + wheel smoke test.
-- Release-readiness review document (`RELEASE_READINESS_REVIEW.md`) capturing
+- Archived
+  [release-readiness review](docs/archive/reviews/2026-04-25-release-readiness.md) capturing
   the beta blockers (since resolved), verification evidence, and clean-room
   install checklist.
 
@@ -39,12 +39,14 @@ querido` — the package is `querido`, the command is `qdo`.
   and the root-context format lookup to `querido._runtime`, so `core/` and
   `output/` no longer import from `cli/`.
 - The sdist no longer ships internal process docs (PLAN, IDEAS,
-  REVIEW_FINDINGS, RELEASE_READINESS_REVIEW).
+  archived planning and review documents).
 
 ### Fixed
 
 The 2026-06-10 multi-agent review pass (7 high / 19 medium / 35 low findings,
-tracked in `REVIEW_FINDINGS.md`) landed in full. Highlights:
+tracked in the
+[archived review](docs/archive/reviews/2026-06-10-review-findings.md)) landed in
+full. Highlights:
 
 - DuckDB mixed-case table names resolve correctly across all catalog lookups.
 - The `--allow-write` guard can no longer be bypassed with CTE-prefixed writes
@@ -204,6 +206,5 @@ LLMs inside qdo — the agent brings the brain; qdo brings the memory and the ma
   release artifacts. All 26 items shipped; 2 deferred by design. Eval recovered
   from 42/45 to **45/45 (100%)**.
 
-[Unreleased]: https://github.com/curtisalexander/querido/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/curtisalexander/querido/compare/v0.1.0...v0.2.0
+[Unreleased]: https://github.com/curtisalexander/querido/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/curtisalexander/querido/releases/tag/v0.1.0

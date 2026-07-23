@@ -5,11 +5,15 @@ This file helps people (and coding agents) contributing to qdo get up to speed q
 ## Where to look first
 
 - **Product story** — [DIFFERENTIATION.md](./DIFFERENTIATION.md) (5 min). Read this **before touching code**. It's the orientation doc on what qdo is for, what it deliberately isn't, and the invariants that keep it that way. Prevents whole classes of well-intentioned-but-off-target changes.
-- **What's built, what's next** — [PLAN.md](./PLAN.md) is the committed todo list. Pick up any unchecked item; don't invent new ones without a matching entry.
+- **What's next** — [PLAN.md](./PLAN.md) is the current commitment list. Work from its **Do next** section; unchecked items in archived plans or research notes are not commitments.
 - **What's been considered and rejected** — [IDEAS.md](./IDEAS.md). Before proposing a new feature, check here — the filter in DIFFERENTIATION.md plus the rejected list catch most drift.
-- **Code layout** — [ARCHITECTURE.md](./ARCHITECTURE.md). File-tree listing + key design principles; kept in sync with the code.
+- **Code layout** — [ARCHITECTURE.md](./ARCHITECTURE.md). Current layers, dependency direction, API boundaries, and primary flows.
 - **End-user surface** — [README.md](./README.md) and [docs/cli-reference.md](./docs/cli-reference.md). Don't duplicate that content here.
 - **Agent integration** — [integrations/skills/SKILL.md](./integrations/skills/SKILL.md) (Claude Code) and [integrations/continue/qdo.md](./integrations/continue/qdo.md) (Continue.dev). If you're using qdo *from* an agent, read SKILL.md; if you're changing the agent-facing envelope, update both.
+
+Current documents describe truth; [`docs/archive/`](./docs/archive/) preserves
+point-in-time plans and reviews. `docs/research/` is uncommitted background,
+not an implementation queue.
 
 ## Quick start
 
@@ -70,9 +74,9 @@ Sessions write JSONL. Metadata writes YAML. Bundles are zips. Workflows are YAML
 
 The agent brings the brain; qdo brings the memory and the map. `next_steps`, metadata writes, quality checks, and auto-fills are all rule-based. No LLM calls inside qdo itself, no "clever" inference that adds randomness.
 
-### 5. Input validation at the boundary
+### 5. Input validation at SQL-construction boundaries
 
-Table and column names are validated at the CLI boundary via `validate_table_name()` / `validate_column_name()` in `connectors/base.py`. They're interpolated into SQL templates (Jinja2) and sampling subqueries (f-strings), so they must be safe identifiers. Always validate before passing into a template.
+Table and column names are validated via `validate_table_name()` / `validate_column_name()` in `connectors/base.py`. The CLI validates for useful user errors, and core operations validate again before interpolation so internal calls are safe too. Always validate before passing an identifier into a template or sampling subquery.
 
 ### 6. Connector protocol
 
@@ -98,7 +102,11 @@ Every test is a lifelong maintenance obligation. A tight, fast suite beats a big
 6. **Integration beats unit for helpers used in one place.** One round-trip test through a CLI command beats an isolated unit test of a helper called only from that command. Reserve unit tests for pure logic.
 7. **Don't string-match error prose.** Wording drifts; brittle substring matches churn on every refactor and silently pass when error handling degrades. Assert on error codes, exit statuses, or structured `try_next` / envelope fields — not human-readable messages.
 
-PLAN.md has a "Durable references" section with extensible contract tests (`_ENVELOPE_CASES`, `_READBACK_CASES`) and a "Don't touch — already good" list; check both before pruning.
+Extensible contract matrices live in `_ENVELOPE_CASES` in
+`tests/test_next_steps.py` and `_READBACK_CASES` in
+`tests/test_readback_loop.py`. Extend them when adding a scan or metadata
+readback path. Preserve dialect-specific tests where generated SQL genuinely
+differs.
 
 ## Self-hosting evaluations
 

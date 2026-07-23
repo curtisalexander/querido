@@ -95,24 +95,20 @@ def query(
 
     source_meta = build_source_meta(source, connection=connection)
 
-    from querido.core.query import _apply_limit
-    from querido.core.sql_safety import any_statement_is_destructive
+    from querido.core.query import prepare_query
 
-    destructive = any_statement_is_destructive(query_sql)
-    effective_sql = _apply_limit(query_sql, limit) if limit > 0 and not destructive else query_sql
+    prepared = prepare_query(query_sql, limit=limit)
 
     if plan:
         from querido._shell import cmd
         from querido.core.plan import build_query_plan
 
-        maybe_show_sql(effective_sql)
-        set_last_sql(effective_sql)
+        maybe_show_sql(prepared.effective_sql)
+        set_last_sql(prepared.effective_sql)
         payload = build_query_plan(
-            sql=query_sql,
-            effective_sql=effective_sql,
+            prepared=prepared,
             allow_write=allow_write,
             limit=limit,
-            destructive=destructive,
         )
         run_cmd = _build_run_cmd(
             connection=connection,
@@ -147,15 +143,13 @@ def query(
         from querido.core.estimate import estimate_query
 
         with database_command(connection=connection, db_type=db_type) as ctx:
-            maybe_show_sql(effective_sql)
-            set_last_sql(effective_sql)
+            maybe_show_sql(prepared.effective_sql)
+            set_last_sql(prepared.effective_sql)
             payload = estimate_query(
                 ctx.connector,
-                query_sql,
-                effective_sql=effective_sql,
+                prepared=prepared,
                 limit=limit,
                 allow_write=allow_write,
-                destructive=destructive,
             )
 
         run_cmd = _build_run_cmd(
@@ -167,7 +161,7 @@ def query(
         )
 
         steps = [{"cmd": cmd(run_cmd), "why": "Run the estimated query for real."}]
-        if destructive and not allow_write:
+        if prepared.destructive and not allow_write:
             steps.insert(
                 0,
                 {

@@ -6,8 +6,20 @@ from querido.cli.main import app
 runner = CliRunner()
 
 
-# test_help dropped (2026-04-17): asserted that --help renders and "qdo"
-# appears in the output — pure Typer-framework behavior, not our code.
+def test_root_help_preserves_progressive_discovery_contract():
+    """Root help must promote the core before optional and experimental surfaces."""
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert result.output.index("Start Here Commands") < result.output.index(
+        "Investigate Deeper Commands"
+    )
+    for command in ("catalog", "context", "metadata", "query"):
+        assert command in result.output
+    assert "Experimental declarative workflow runner" in result.output
+    assert "requires querido[snowflake]" in result.output
+    assert "catalog -c ./data.db" in result.output
+    assert "agent install skill --path .claude/skills/querido" in result.output
 
 
 def test_version():

@@ -2,10 +2,33 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from querido.connectors.base import Connector
+
+
+@dataclass(frozen=True)
+class PreparedQuery:
+    """SQL facts shared by query planning, estimation, and execution."""
+
+    original_sql: str
+    effective_sql: str
+    destructive: bool
+
+
+def prepare_query(sql: str, *, limit: int = 1000) -> PreparedQuery:
+    """Classify *sql* and apply the read-only row limit used at execution."""
+    from querido.core.sql_safety import any_statement_is_destructive
+
+    destructive = any_statement_is_destructive(sql)
+    effective_sql = _apply_limit(sql, limit) if limit > 0 and not destructive else sql
+    return PreparedQuery(
+        original_sql=sql,
+        effective_sql=effective_sql,
+        destructive=destructive,
+    )
 
 
 def run_query(
@@ -31,23 +54,21 @@ def run_query(
     safety net.  Set *limit* to 0 to disable the limit.
     """
     from querido.connectors.arrow_util import arrow_to_dicts, execute_arrow_or_dicts
-    from querido.core.sql_safety import any_statement_is_destructive
 
-    is_write = any_statement_is_destructive(sql)
-    if is_write and not allow_write:
+    prepared = prepare_query(sql, limit=limit)
+    if prepared.destructive and not allow_write:
         raise ValueError(
             "Write queries require allow_write=True; this query is read-only by default."
         )
-    effective_sql = _apply_limit(sql, limit) if limit > 0 and not is_write else sql
-    data, is_arrow = execute_arrow_or_dicts(connector, effective_sql)
+    data, is_arrow = execute_arrow_or_dicts(connector, prepared.effective_sql)
     rows = arrow_to_dicts(data, is_arrow)
-    if is_write and allow_write:
+    if prepared.destructive and allow_write:
         _commit_if_possible(connector)
 
     columns = list(rows[0].keys()) if rows else []
 
     return {
-        "sql": effective_sql,
+        "sql": prepared.effective_sql,
         "columns": columns,
         "rows": rows,
         "row_count": len(rows),

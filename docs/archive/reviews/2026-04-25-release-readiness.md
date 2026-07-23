@@ -2,7 +2,7 @@
 
 Date: 2026-04-25
 
-> **Resolved 2026-07-06.** The blockers below are closed: the v0.1.0 GitHub
+> **Archived. Resolved 2026-07-06.** The blockers below are closed: the v0.1.0 GitHub
 > Release was published 2026-04-28 with wheel + sdist attached, and
 > `.github/workflows/release.yml` now runs an install-from-wheel smoke test on
 > every tag. The remaining follow-up (clean-room install verification against
