@@ -181,9 +181,11 @@ qdo also rejects, by design:
 
 These are the guardrails that keep qdo from drifting into something above.
 
-1. **Pay for what you use.** Only `typer`, stdlib, and `TYPE_CHECKING` imports at
-   module top. Rich, Jinja2, duckdb, snowflake-connector, pyarrow, textual all
-   import lazily inside functions. Enforce on every PR.
+1. **Pay for what you use.** Optional dependencies are not imported during core
+   CLI startup. Optional-only packages such as `querido.tui` may import their
+   own dependencies at module level because the package itself is reached
+   lazily; elsewhere, heavy imports belong inside the function that uses them.
+   Enforce on every PR.
 
 2. **Envelope contract.** Every scanning command emits
    `{command, data, next_steps, meta}` via `output/envelope.py::emit_envelope`.

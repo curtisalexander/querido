@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -18,7 +16,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Build index.md from README
         run: |
@@ -34,7 +34,34 @@ jobs:
             echo '- [Cheatsheet](qdo-cheatsheet.html) — visual quick-reference card'
             echo '- [GitHub Repository](https://github.com/curtisalexander/querido)'
             echo ''
-            cat README.md
+            python - <<'PY'
+          from pathlib import Path
+
+          text = Path("README.md").read_text()
+          replacements = {
+              "./LICENSE": "https://github.com/curtisalexander/querido/blob/main/LICENSE",
+              "./DIFFERENTIATION.md": "https://github.com/curtisalexander/querido/blob/main/DIFFERENTIATION.md",
+              "./RELEASING.md": "https://github.com/curtisalexander/querido/blob/main/RELEASING.md",
+              "./docs/cli-reference.md": "./cli-reference.html",
+              "./docs/examples/README.md": "https://github.com/curtisalexander/querido/tree/main/docs/examples",
+              "./integrations/skills/SKILL.md": "./agent-claude.html",
+              "./integrations/continue/qdo.md": "./agent-continue.html",
+              "./integrations/skills/WORKFLOW_AUTHORING.md": "./workflow-authoring.html",
+              "./ARCHITECTURE.md": "https://github.com/curtisalexander/querido/blob/main/ARCHITECTURE.md",
+              "./AGENTS.md": "https://github.com/curtisalexander/querido/blob/main/AGENTS.md",
+              "./PLAN.md": "https://github.com/curtisalexander/querido/blob/main/PLAN.md",
+          }
+          for source, target in replacements.items():
+              text = text.replace(source, target)
+          remaining = [
+              link
+              for link in __import__("re").findall(r"\]\((\./[^)]+)\)", text)
+              if not link.split("#", 1)[0].endswith(".html")
+          ]
+          if remaining:
+              raise SystemExit(f"unmapped README links for Pages: {remaining}")
+          print(text, end="")
+          PY
           } > docs/index.md
 
       - name: Build agent integration docs
@@ -103,24 +130,27 @@ jobs:
           } > docs/workflow-examples.md
 
       - name: Setup Pages
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
 
       - name: Build with Jekyll
-        uses: actions/jekyll-build-pages@v1
+        uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1
         with:
           source: ./docs
           destination: ./_site
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

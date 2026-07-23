@@ -20,8 +20,9 @@ is `qdo`.
   bundle manifests, and session JSONL records now carry format versions and
   refuse newer incompatible data instead of silently misreading it. The
   metadata cache keeps its rebuild-on-version-mismatch SQLite `user_version`.
-- **PyPI publishing** — the release workflow publishes to PyPI via trusted
-  publishing (OIDC) after the build + wheel smoke test.
+- **PyPI publishing** — the release workflow can publish via trusted publishing
+  (OIDC) after artifact validation and smoke tests, but only when the
+  `PUBLISH_PYPI` repository variable explicitly enables it.
 - Archived
   [release-readiness review](docs/archive/reviews/2026-04-25-release-readiness.md) capturing
   the beta blockers (since resolved), verification evidence, and clean-room
@@ -37,8 +38,18 @@ is `qdo`.
   reruns.
 - CI now tests Python 3.12, 3.13, and 3.14 across all three OSes (previously
   3.13 only).
+- Release builds now reject tag/package/runtime version mismatches and tags
+  outside `main`, validate artifact metadata, and smoke-test both the wheel and
+  sdist before publishing.
+- GitHub Actions are pinned to immutable commit SHAs and tracked by Dependabot.
+- The retag helper now refuses active or already-published releases, validates
+  the target commit before deleting anything, and fails closed on GitHub API
+  errors.
 - Install docs across README, CLI reference, and SKILL files point at PyPI
   instead of GitHub Release wheel URLs (wheels are still attached to releases).
+- The Pages home page rewrites repository-relative README links to valid Pages
+  or GitHub destinations, and the cheatsheet uses the current install and
+  connection commands.
 - `qdo overview` output is byte-identical to `docs/cli-reference.md` (no
   extra trailing newline).
 - Internal layering: the `-f/--format` argv hoist moved to `querido._argv`

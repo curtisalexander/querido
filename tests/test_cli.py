@@ -1,3 +1,7 @@
+import subprocess
+import sys
+import textwrap
+
 from typer.testing import CliRunner
 
 from querido import __version__
@@ -21,6 +25,40 @@ def test_root_help_preserves_progressive_discovery_contract():
     assert "catalog -c ./data.db" in result.output
     assert "agent install skill" in result.output
     assert "provider-neutral coding-agent" in result.output
+
+
+def test_root_help_does_not_import_optional_dependencies():
+    """Core CLI startup must work without importing any opt-in dependency."""
+    script = textwrap.dedent(
+        """
+        import builtins
+        import sys
+
+        real_import = builtins.__import__
+        blocked = {"duckdb", "snowflake", "pyarrow", "textual"}
+
+        def guarded_import(name, *args, **kwargs):
+            if name.split(".", 1)[0] in blocked:
+                raise AssertionError(f"optional dependency imported during startup: {name}")
+            return real_import(name, *args, **kwargs)
+
+        builtins.__import__ = guarded_import
+
+        from querido.cli.main import run
+
+        sys.argv = ["qdo", "--help"]
+        run()
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Start Here Commands" in result.stdout
 
 
 def test_version():

@@ -27,8 +27,9 @@ rejected directions live in [IDEAS.md](./IDEAS.md).
 - [ ] Use qdo on a real project for at least one week. Record bugs, friction,
   and desires separately; fix release-blocking correctness issues before
   adding surface area.
-- [ ] Complete the one-time PyPI trusted-publisher and GitHub environment setup
-  in [RELEASING.md](./RELEASING.md).
+- [ ] When ready to publish, complete the PyPI trusted-publisher and GitHub
+  environment setup, then explicitly enable `PUBLISH_PYPI`, as documented in
+  [RELEASING.md](./RELEASING.md).
 - [ ] Run the full CI-equivalent gate and build/install the wheel in a clean
   environment.
 - [ ] Tag and publish `0.2.0`, then run the documented clean-room verification

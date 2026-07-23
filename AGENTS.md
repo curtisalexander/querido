@@ -48,7 +48,11 @@ uv pip install 'querido[snowflake]'  # + Snowflake
 uv pip install 'querido[tui]'        # + textual for qdo explore
 ```
 
-**All heavy imports must happen inside functions, not at module level.** Only `typer`, stdlib, and `TYPE_CHECKING`-only imports are allowed at the top of a module. This keeps `qdo --help` fast regardless of what's installed.
+Optional dependency packages must not be imported during core CLI startup.
+Imports may live at module level inside an optional-only package such as
+`querido.tui`, provided that package is itself reached lazily. Everywhere else,
+heavy imports belong inside the function that uses them. This keeps `qdo
+--help` fast regardless of which extras are installed.
 
 ```python
 # CORRECT — imported only when this command runs
@@ -60,7 +64,11 @@ def my_command():
 from rich.table import Table
 ```
 
-Enforce on every PR. `config add`/`clone` also probe backend importability at config-write time and warn with the exact `uv pip install 'querido[<extra>]'` command — match that pattern if you add a new backend.
+Enforce on every PR. `tests/test_cli.py` blocks optional imports during a fresh
+`qdo --help` subprocess. `config add`/`clone` also probe backend importability
+at config-write time and warn with the exact
+`uv pip install 'querido[<extra>]'` command — match that pattern if you add a
+new backend.
 
 ### 2. Envelope contract
 
@@ -175,6 +183,8 @@ uv run python scripts/check_deps.py --audit      # include uv audit for known CV
 ```
 
 Deletes the remote tag + GitHub release, then recreates the tag at the target commit and pushes. Always commit + push the release content first, then retag. When the user says "retag", run this script — don't use raw `git tag` commands.
+The script refuses to move versions already published to PyPI; release a new
+patch version instead.
 
 ## Style
 

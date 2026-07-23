@@ -275,7 +275,7 @@
     </div>
     <div class="header-right">
       Supports <strong>SQLite</strong>, <strong>DuckDB</strong>, <strong>Snowflake</strong>, <strong>Parquet</strong><br>
-      <span class="prefix-badge">uv tool install &mdash; wheel from GitHub Releases</span>
+      <span class="prefix-badge">uv tool install querido</span>
     </div>
   </div>
 
@@ -288,12 +288,12 @@
         <div class="step">
           <div class="step-num">1</div>
           <h3>Install</h3>
-          <p><span class="cmd">uv tool install 'querido @ &lt;GitHub Releases wheel URL&gt;'</span></p>
+          <p><span class="cmd">uv tool install querido</span></p>
         </div>
         <div class="step">
           <div class="step-num">2</div>
           <h3>Add Connection</h3>
-          <p><span class="cmd">qdo config add mydb</span></p>
+          <p><span class="cmd">qdo config add --name mydb --type duckdb --path ./data.duckdb</span></p>
         </div>
         <div class="step">
           <div class="step-num">3</div>
